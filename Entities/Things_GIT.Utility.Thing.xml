@@ -326,6 +326,11 @@
                              name="entityType"
                              ordinal="4"></FieldDefinition>
                             <FieldDefinition
+                             baseType="BOOLEAN"
+                             description=""
+                             name="includeDependents"
+                             ordinal="5"></FieldDefinition>
+                            <FieldDefinition
                              baseType="STRING"
                              description=""
                              name="project"
@@ -746,25 +751,34 @@
                                         		tableName: "Configuration" /* STRING */
                                         	});
                                         	Things[RepoName].RestartThing();
-                                            //only after the Thing was created we add the credentials to the user's GitCredentials store
-                                            setCredentials(User,Password,CommitEmail,CommitUser,RepoName);
+                                        	//only after the Thing was created we add the credentials to the user's GitCredentials store
+                                        	setCredentials(User, Password, CommitEmail, CommitUser, RepoName);
                                         }
                                         
                                         function setCredentials(GitCommitterUser, GitCommitterPassword, GitCommitterEmail, GitCommitterFullName, GitThing) {
                                         	var str_CurrentUser = Resources["CurrentSessionInfo"].GetCurrentUser();
                                         	if (Users[str_CurrentUser] && Users[str_CurrentUser].GitCredentials !== undefined) {
                                         		//deletes any existing Git Credential entry for this repository if it already exists
-                                                //the key reason to do this is because the authentication system assumes there's only one credential / user / repository
-                                                Users[str_CurrentUser].GitCredentials.Delete({GitThing: GitThing});
-                                                // GitBackup.GitCredentials.DataShape entry object
+                                        		//the key reason to do this is because the authentication system assumes there's only one credential / user / repository
+                                        		//we're cloning the infotable because deleting directly from the infotable won't trigger the persistence process in the database - therefore reverting to its original state after system restart.
+                                        		// result: INFOTABLE
+                                        		let iftbl_Credentials = Resources["InfoTableFunctions"].Clone({
+                                        			t1: Users[str_CurrentUser].GitCredentials /* INFOTABLE */
+                                        		});
+                                        		iftbl_Credentials.Delete({
+                                        			GitThing: GitThing
+                                        		});
+                                        		// GitBackup.GitCredentials.DataShape entry object
                                         		let credential = {
                                         			GitCommitterUser: GitCommitterUser, // STRING
-                                        			GitCommitterPassword:  encryptPropertyValue(GitCommitterPassword), // PASSWORD
+                                        			GitCommitterPassword: encryptPropertyValue(GitCommitterPassword), // PASSWORD
                                         			GitCommitterEmail: GitCommitterEmail, // STRING
                                         			GitCommitterFullName: GitCommitterFullName, // STRING
                                         			GitThing: GitThing // THINGNAME
                                         		};
-                                        		Users[str_CurrentUser].GitCredentials.AddRow(credential);
+                                                iftbl_Credentials.AddRow(credential);
+                                                //as written above, this needed to trigger the infotable persistence in the database
+                                        		Users[str_CurrentUser].GitCredentials=iftbl_Credentials;
                                         	}
                                         }
                                         ]]>
@@ -1169,29 +1183,55 @@
                                         	throw "Can not retrieve the entities that are part of the Project. The project name was not specified or it's empty";
                                         if (!Projects[project])
                                         	throw "Can not retrieve the entities that are part of the Project. Project " + project + " is not found";
+                                        if (includeDependents == undefined)
+                                        	includeDependents = false;
+                                        
+                                        //getting the list of all projects, including dependent if needed
+                                        let projects = DataShapes["EntityList"].CreateValues();
+                                        
+                                        if (includeDependents) {
+                                        	let dependentProjects = Projects[project].GetAllDependentProjectNames();
+                                        	dependentProjects.rows.toArray().forEach(
+                                        		row => {
+                                        			projects.AddRow({
+                                        				name: row.item
+                                        			});
+                                        		}
+                                        	);
+                                        } else projects.AddRow({
+                                        	name: project
+                                        });
+                                        
+                                        let result = DataShapes["SpotlightSearch"].CreateValues();
+                                        projects.rows.toArray().forEach(
+                                        	row => {
+                                        		var params = {
+                                        			maxItems: 30000 /* NUMBER */ ,
+                                        			searchExpression: undefined /* STRING */ ,
+                                        			types: undefined /* JSON */ ,
+                                        			withPermissions: undefined /* BOOLEAN */ ,
+                                        			endDate: undefined /* DATETIME */ ,
+                                        			aspects: undefined /* JSON */ ,
+                                        			excludedAspects: undefined /* JSON */ ,
+                                        			tags: tags /* TAGS */ ,
+                                        			thingTemplates: undefined /* JSON */ ,
+                                        			searchDescriptions: undefined /* BOOLEAN */ ,
+                                        			thingShapes: undefined /* JSON */ ,
+                                        			sortBy: "lastModifiedDate" /* STRING */ ,
+                                        			isAscending: false /* BOOLEAN */ ,
+                                        			projectName: row.name /* PROJECTNAME */ ,
+                                        			maxSearchItems: undefined /* NUMBER */ ,
+                                        			startDate: undefined /* DATETIME */
+                                        		};
+                                        		// result: INFOTABLE
+                                        		result = Resources["InfoTableFunctions"].Union({
+                                        			t1: result /* INFOTABLE */ ,
+                                        			t2: Resources["SearchFunctions"].SpotlightSearch(params) /* INFOTABLE */
+                                        		});
+                                        	}
+                                        );
                                         
                                         
-                                        var params = {
-                                        	maxItems: 10000 /* NUMBER */,
-                                        	searchExpression: undefined /* STRING */,
-                                        	types: undefined /* JSON */,
-                                        	withPermissions: undefined /* BOOLEAN */,
-                                        	endDate: undefined /* DATETIME */,
-                                        	aspects: undefined /* JSON */,
-                                        	excludedAspects: undefined /* JSON */,
-                                        	tags: tags /* TAGS */,
-                                        	thingTemplates: undefined /* JSON */,
-                                        	searchDescriptions: undefined /* BOOLEAN */,
-                                        	thingShapes: undefined /* JSON */,
-                                        	sortBy: "lastModifiedDate" /* STRING */,
-                                        	isAscending: false /* BOOLEAN */,
-                                        	projectName: project /* PROJECTNAME */,
-                                        	maxSearchItems: undefined /* NUMBER */,
-                                        	startDate: undefined /* DATETIME */
-                                        };
-                                        
-                                        // result: INFOTABLE dataShape: SpotlightSearch
-                                        var result = Resources["SearchFunctions"].SpotlightSearch(params);
                                         
                                         
                                         
@@ -1202,7 +1242,7 @@
                                         			"filters": {
                                         				"type": "LIKE",
                                         				"fieldName": "name",
-                                        				"value": "*"+entityName+"*"
+                                        				"value": "*" + entityName + "*"
                                         			}
                                         		}
                                         	});
@@ -1214,7 +1254,7 @@
                                         			"filters": {
                                         				"type": "LIKE",
                                         				"fieldName": "type",
-                                        				"value": "*"+entityType+"*"
+                                        				"value": "*" + entityType + "*"
                                         			}
                                         		}
                                         	});
@@ -1647,17 +1687,26 @@
                                         	var str_CurrentUser = Resources["CurrentSessionInfo"].GetCurrentUser();
                                         	if (Users[str_CurrentUser] && Users[str_CurrentUser].GitCredentials !== undefined) {
                                         		//deletes any existing Git Credential entry for this repository if it already exists
-                                                //the key reason to do this is because the authentication system assumes there's only one credential / user / repository
-                                                Users[str_CurrentUser].GitCredentials.Delete({GitThing: GitThing});
-                                                // GitBackup.GitCredentials.DataShape entry object
+                                        		//the key reason to do this is because the authentication system assumes there's only one credential / user / repository
+                                        		//we're cloning the infotable because deleting directly from the infotable won't trigger the persistence process in the database - therefore reverting to its original state after system restart.
+                                        		// result: INFOTABLE
+                                        		let iftbl_Credentials = Resources["InfoTableFunctions"].Clone({
+                                        			t1: Users[str_CurrentUser].GitCredentials /* INFOTABLE */
+                                        		});
+                                        		iftbl_Credentials.Delete({
+                                        			GitThing: GitThing
+                                        		});
+                                        		// GitBackup.GitCredentials.DataShape entry object
                                         		let credential = {
                                         			GitCommitterUser: GitCommitterUser, // STRING
-                                        			GitCommitterPassword:  encryptPropertyValue(GitCommitterPassword), // PASSWORD
+                                        			GitCommitterPassword: encryptPropertyValue(GitCommitterPassword), // PASSWORD
                                         			GitCommitterEmail: GitCommitterEmail, // STRING
                                         			GitCommitterFullName: GitCommitterFullName, // STRING
                                         			GitThing: GitThing // THINGNAME
                                         		};
-                                        		Users[str_CurrentUser].GitCredentials.AddRow(credential);
+                                                iftbl_Credentials.AddRow(credential);
+                                                //as written above, this needed to trigger the infotable persistence in the database
+                                        		Users[str_CurrentUser].GitCredentials=iftbl_Credentials;
                                         	}
                                         }
                                         ]]>

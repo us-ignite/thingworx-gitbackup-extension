@@ -1,11 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Entities
- build="b103"
- majorVersion="8"
- minorVersion="5"
- modelPersistenceProviderPackage="PostgresPersistenceProviderPackage"
- revision="5"
- schemaVersion="1054"
+ majorVersion="9"
+ minorVersion="3"
  universal="password">
     <ThingShapes>
         <ThingShape
@@ -15,7 +11,6 @@
          description="This Utility shape is used to add useful javascript functionality to the GitBackup Things, which are built in Java."
          documentationContent=""
          homeMashup=""
-         lastModifiedDate="2020-09-17T03:34:46.255-07:00"
          name="Git.Utility.ThingShape"
          projectName="GitBackup"
          tags="">
@@ -302,6 +297,7 @@
                  name="ExportLocalizationToken">
                     <ConfigurationTables>
                         <ConfigurationTable
+                         dataShapeName=""
                          description=""
                          isMultiRow="false"
                          name="Script"
@@ -459,6 +455,7 @@
                  name="ExportProjectData">
                     <ConfigurationTables>
                         <ConfigurationTable
+                         dataShapeName=""
                          description=""
                          isMultiRow="false"
                          name="Script"
@@ -627,6 +624,7 @@
                  name="ExportProjectEntities">
                     <ConfigurationTables>
                         <ConfigurationTable
+                         dataShapeName=""
                          description=""
                          isMultiRow="false"
                          name="Script"
@@ -708,6 +706,7 @@
                                     			case "Thing":
                                     			case "ThingTemplate":
                                     			case "ThingShape":
+                                                case "ThingGroup":
                                     			case "DataShape":
                                     			case "ModelTag":
                                     			case "Network":
@@ -731,6 +730,7 @@
                                     			case "Blog":
                                     			case "Wiki":
                                     			case "UserGroup":
+                                                case "Group":
                                     			case "User":
                                     			case "Organization":
                                     			case "ApplicationKey":
@@ -776,6 +776,7 @@
                  name="ExportProjectExtensions">
                     <ConfigurationTables>
                         <ConfigurationTable
+                         dataShapeName=""
                          description=""
                          isMultiRow="false"
                          name="Script"
@@ -812,6 +813,7 @@
                  name="GetConfiguration">
                     <ConfigurationTables>
                         <ConfigurationTable
+                         dataShapeName=""
                          description=""
                          isMultiRow="false"
                          name="Script"
@@ -861,6 +863,7 @@
                  name="GetFilteredDirectoryListing">
                     <ConfigurationTables>
                         <ConfigurationTable
+                         dataShapeName=""
                          description="Script"
                          isMultiRow="false"
                          name="Script"
@@ -906,6 +909,7 @@
                  name="GetLocalBranches">
                     <ConfigurationTables>
                         <ConfigurationTable
+                         dataShapeName=""
                          description=""
                          isMultiRow="false"
                          name="Script"
@@ -946,6 +950,7 @@
                  name="QueryDiffFileList">
                     <ConfigurationTables>
                         <ConfigurationTable
+                         dataShapeName=""
                          description=""
                          isMultiRow="false"
                          name="Script"
@@ -999,6 +1004,7 @@
                  name="QueryStatus">
                     <ConfigurationTables>
                         <ConfigurationTable
+                         dataShapeName=""
                          description="Script"
                          isMultiRow="false"
                          name="Script"
@@ -1042,6 +1048,7 @@
                  name="RemoveConfigurationTableDefinitions">
                     <ConfigurationTables>
                         <ConfigurationTable
+                         dataShapeName=""
                          description="Script"
                          isMultiRow="false"
                          name="Script"
@@ -1150,6 +1157,7 @@
                  name="RemoveLastModifiedDate">
                     <ConfigurationTables>
                         <ConfigurationTable
+                         dataShapeName=""
                          description="Script"
                          isMultiRow="false"
                          name="Script"
@@ -1259,6 +1267,7 @@
                  name="RemoveMashupPreviewTag">
                     <ConfigurationTables>
                         <ConfigurationTable
+                         dataShapeName=""
                          description="Script"
                          isMultiRow="false"
                          name="Script"
@@ -1367,6 +1376,7 @@
                  name="RemoveModelPersistenceProviderPackage">
                     <ConfigurationTables>
                         <ConfigurationTable
+                         dataShapeName=""
                          description="Script"
                          isMultiRow="false"
                          name="Script"
