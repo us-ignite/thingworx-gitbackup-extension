@@ -7,7 +7,7 @@
         <Mashup
          aspect.isEditableExtensionObject="true"
          aspect.isExtension="true"
-         aspect.isResponsive="true"
+         aspect.isFlex="false"
          aspect.mashupType="mashup"
          columns="0.0"
          description="Allows you to pick the Entities you want to export"
@@ -629,6 +629,38 @@
                 "TargetArea" : "Data",
                 "TargetId" : "GetProjectEntities1",
                 "TargetSection" : "Things_GIT.Utility.Thing"
+              }, {
+                "Id" : "8a612619-6675-4b47-ac6d-64169310a9da",
+                "PropertyMaps" : [ {
+                  "SourceProperty" : "ExportDependents",
+                  "SourcePropertyBaseType" : "BOOLEAN",
+                  "SourcePropertyType" : "property",
+                  "TargetProperty" : "includeDependents",
+                  "TargetPropertyBaseType" : "BOOLEAN",
+                  "TargetPropertyType" : "Parameter"
+                } ],
+                "SourceArea" : "Mashup",
+                "SourceId" : "mashup-root",
+                "SourceSection" : "",
+                "TargetArea" : "Data",
+                "TargetId" : "GetProjectEntities",
+                "TargetSection" : "Things_GIT.Utility.Thing"
+              }, {
+                "Id" : "839193b1-35e7-46c5-8864-1d53a71c52c7",
+                "PropertyMaps" : [ {
+                  "SourceProperty" : "ExportDependents",
+                  "SourcePropertyBaseType" : "BOOLEAN",
+                  "SourcePropertyType" : "property",
+                  "TargetProperty" : "includeDependents",
+                  "TargetPropertyBaseType" : "BOOLEAN",
+                  "TargetPropertyType" : "Parameter"
+                } ],
+                "SourceArea" : "Mashup",
+                "SourceId" : "mashup-root",
+                "SourceSection" : "",
+                "TargetArea" : "Data",
+                "TargetId" : "GetProjectEntities1",
+                "TargetSection" : "Things_GIT.Utility.Thing"
               } ],
               "DesignTimePermissions" : {
                 "Create" : [ ],
@@ -752,6 +784,7 @@
                   "Columns" : 0,
                   "ConfigureGadgetButton" : "SimpleGear",
                   "ConfigureGadgetButtonStyle" : "DefaultConfigureGadgetButtonStyle",
+                  "DisableLegacyCustomClassStyles" : false,
                   "DisplayName" : "Mashup",
                   "EnableParameterEditing" : false,
                   "ExportDependents" : false,
@@ -760,6 +793,7 @@
                   "IgnoreWarningsInViewMashup" : false,
                   "IsPrintLayout" : false,
                   "Left" : 0,
+                  "LegacyFocus" : true,
                   "Margin" : "5",
                   "MashupToEditGadget" : "DefaultMashupToEditGadget",
                   "MinHeight" : 0,
@@ -824,6 +858,7 @@
                   "Properties" : {
                     "Area" : "UI",
                     "Columns" : 3,
+                    "DisableLegacyCustomClassStyles" : false,
                     "DisplayName" : "layout-2",
                     "Footer" : false,
                     "FooterHeight" : 0,
@@ -875,6 +910,7 @@
                       "Area" : "UI",
                       "BGImageRepeat" : "no-repeat",
                       "BGImageSize" : "auto",
+                      "DisableLegacyCustomClassStyles" : false,
                       "DisplayName" : "Column 1",
                       "ExpandCollapseTabLocation" : "outside",
                       "Expanded" : true,
@@ -905,6 +941,7 @@
                       "Properties" : {
                         "Area" : "UI",
                         "Columns" : 0,
+                        "DisableLegacyCustomClassStyles" : false,
                         "DisplayName" : "layout-11",
                         "Footer" : false,
                         "FooterHeight" : 0,
@@ -956,6 +993,7 @@
                           "Area" : "UI",
                           "BGImageRepeat" : "no-repeat",
                           "BGImageSize" : "auto",
+                          "DisableLegacyCustomClassStyles" : false,
                           "DisplayName" : "Header",
                           "ExpandCollapseTabLocation" : "outside",
                           "Expanded" : true,
@@ -986,6 +1024,7 @@
                           "Properties" : {
                             "Area" : "UI",
                             "ContainerClass" : "",
+                            "DisableLegacyCustomClassStyles" : false,
                             "DisplayName" : "panel-14",
                             "Height" : 200,
                             "HideScrollbars" : false,
@@ -1023,6 +1062,7 @@
                               "Alignment" : "left",
                               "AllowEllipsis" : false,
                               "Area" : "UI",
+                              "DisableLegacyCustomClassStyles" : false,
                               "DisplayName" : "label-15",
                               "Height" : 22,
                               "Id" : "label-15",
@@ -1049,6 +1089,7 @@
                               "Alignment" : "left",
                               "AllowEllipsis" : false,
                               "Area" : "UI",
+                              "DisableLegacyCustomClassStyles" : false,
                               "DisplayName" : "lb_ProjectName",
                               "Height" : 22,
                               "Id" : "label-16",
@@ -1076,6 +1117,7 @@
                               "CursorPosition" : 0,
                               "CustomClass" : "has-text textbox-shadow",
                               "DefaultTextboxFocusStyle" : "DefaultFocusStyle",
+                              "DisableLegacyCustomClassStyles" : false,
                               "DisplayName" : "tb_SearchEntity",
                               "Height" : 23,
                               "Id" : "textbox-17",
@@ -1133,6 +1175,7 @@
                               "ContextId" : "",
                               "CustomClass" : "btn-icon-only white-btn",
                               "DefaultConfirmationButton" : "button1",
+                              "DisableLegacyCustomClassStyles" : false,
                               "Disabled" : false,
                               "DisabledStyle" : "DefaultButtonDisabledStyle",
                               "DisplayName" : "btn_Reset",
@@ -1213,6 +1256,7 @@
                               "ConfirmationTitle" : "Confirm Action",
                               "ContextId" : "",
                               "DefaultConfirmationButton" : "button1",
+                              "DisableLegacyCustomClassStyles" : false,
                               "Disabled" : false,
                               "DisabledStyle" : "DefaultButtonDisabledStyle",
                               "DisplayName" : "btn_SelectAll",
@@ -1254,6 +1298,7 @@
                               "ConfirmationTitle" : "Confirm Action",
                               "ContextId" : "",
                               "DefaultConfirmationButton" : "button1",
+                              "DisableLegacyCustomClassStyles" : false,
                               "Disabled" : false,
                               "DisabledStyle" : "DefaultButtonDisabledStyle",
                               "DisplayName" : "btn_SelectNone",
@@ -1286,6 +1331,7 @@
                           }, {
                             "Properties" : {
                               "Area" : "UI",
+                              "DisableLegacyCustomClassStyles" : false,
                               "DisplayName" : "tagpicker-29",
                               "Height" : 18,
                               "Id" : "tagpicker-29",
@@ -1313,6 +1359,7 @@
                           "Area" : "UI",
                           "BGImageRepeat" : "no-repeat",
                           "BGImageSize" : "auto",
+                          "DisableLegacyCustomClassStyles" : false,
                           "DisplayName" : "Row 1",
                           "ExpandCollapseTabLocation" : "outside",
                           "Expanded" : true,
@@ -1651,6 +1698,7 @@
                               "target" : "GetProjectEntities"
                             },
                             "DefaultSelectedRows" : "",
+                            "DisableLegacyCustomClassStyles" : false,
                             "DisableLegacyValidation" : false,
                             "DisplayName" : "grid_Main",
                             "DisplayOnlyMode" : false,
@@ -1714,6 +1762,7 @@
                       "Area" : "UI",
                       "BGImageRepeat" : "no-repeat",
                       "BGImageSize" : "auto",
+                      "DisableLegacyCustomClassStyles" : false,
                       "DisplayName" : "Column",
                       "ExpandCollapseTabLocation" : "outside",
                       "Expanded" : true,
@@ -1744,6 +1793,7 @@
                       "Properties" : {
                         "Area" : "UI",
                         "ContainerClass" : "",
+                        "DisableLegacyCustomClassStyles" : false,
                         "DisplayName" : "panel-7",
                         "Height" : 200,
                         "HideScrollbars" : false,
@@ -1789,6 +1839,7 @@
                           "ContextId" : "",
                           "CustomClass" : "btn_blue",
                           "DefaultConfirmationButton" : "button1",
+                          "DisableLegacyCustomClassStyles" : false,
                           "Disabled" : false,
                           "DisabledStyle" : "DefaultButtonDisabledStyle",
                           "DisplayName" : "btn_Add",
@@ -1831,6 +1882,7 @@
                           "ContextId" : "",
                           "CustomClass" : "btn_blue",
                           "DefaultConfirmationButton" : "button1",
+                          "DisableLegacyCustomClassStyles" : false,
                           "Disabled" : false,
                           "DisabledStyle" : "DefaultButtonDisabledStyle",
                           "DisplayName" : "btn_Remove",
@@ -1863,6 +1915,7 @@
                       }, {
                         "Properties" : {
                           "Area" : "UI",
+                          "DisableLegacyCustomClassStyles" : false,
                           "DisplayName" : "divider-27",
                           "Height" : 5,
                           "Id" : "divider-27",
@@ -1893,6 +1946,7 @@
                           "ContextId" : "",
                           "CustomClass" : "btn_blue",
                           "DefaultConfirmationButton" : "button1",
+                          "DisableLegacyCustomClassStyles" : false,
                           "Disabled" : false,
                           "DisabledStyle" : "DefaultButtonDisabledStyle",
                           "DisplayName" : "btn_Export",
@@ -1930,6 +1984,7 @@
                       "Area" : "UI",
                       "BGImageRepeat" : "no-repeat",
                       "BGImageSize" : "auto",
+                      "DisableLegacyCustomClassStyles" : false,
                       "DisplayName" : "Column 2",
                       "ExpandCollapseTabLocation" : "outside",
                       "Expanded" : true,
@@ -2032,6 +2087,7 @@
                           } ]
                         },
                         "CurrentScrollTop" : 0,
+                        "DisableLegacyCustomClassStyles" : false,
                         "DisableLegacyValidation" : false,
                         "DisplayName" : "dhxgrid-10",
                         "EnableFontSizeOverride" : false,
