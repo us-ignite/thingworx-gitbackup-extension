@@ -336,7 +336,6 @@
                              name="project"
                              ordinal="2"></FieldDefinition>
                             <FieldDefinition
-                             aspect.defaultValue=""
                              aspect.tagType="ModelTags"
                              baseType="TAGS"
                              description=""
@@ -815,15 +814,23 @@
                                         var str_RepositoryName = Things[RepoName].GetConfiguration().FileRepository;
                                         var str_RepositoryPathName = Things[RepoName].GetConfiguration().FileRepoPath;
                                         
-                                        var params = {
+                                        //required because the DeleteThing did not close the repository, hence stopping folder deletion, resulting in errors
+                                        //the jgit library sometimes does not unlocks all of its files even after closure, so there might be errors when deleting the repository
+                                        try {
+                                        	Things[RepoName].DeleteLocalRepoContent();
+                                        } catch (err) {
+                                        	logger.error("Deleting Git Repository folder content failed when deleting Thing " + me.name + ". Make sure to use another folder when creating a new GitBackup Thing and restart the platform to be able to delete this folder");
+                                        }
+                                        Resources["EntityServices"].DeleteThing({
                                         	name: RepoName /* THINGNAME */
-                                        };
-                                        
-                                        // no return
-                                        Resources["EntityServices"].DeleteThing(params);
-                                        Things[str_RepositoryName].DeleteFolder({
-                                        	path: str_RepositoryPathName /* STRING */
                                         });
+                                        try {
+                                        	Things[str_RepositoryName].DeleteFolder({
+                                        		path: str_RepositoryPathName /* STRING */
+                                        	});
+                                        } catch (err) {
+                                        	logger.error("Deleting Git Repository folder failed when deleting Thing " + me.name + ". Make sure to use another folder when creating a new GitBackup Thing and restart the platform to be able to delete this folder");
+                                        }
                                         
                                         
                                         var str_CurrentUser = Resources["CurrentSessionInfo"].GetCurrentUser();

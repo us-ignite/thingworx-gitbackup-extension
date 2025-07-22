@@ -3,12 +3,11 @@
     <ExtensionPackages>
         <ExtensionPackage
          dependsOn=""
-         description="This extension provides various GIT capabilities that allow storing ThingWorx applications in a third party Git server. This version is designed ONLY for ThingWorx versions &gt;= 9.0"
+         description="This extension provides various GIT capabilities that allow storing ThingWorx applications in a third party Git server. This version is designed ONLY for ThingWorx versions &gt;= 9.3"
          haCompatible="true"
-         migratorClass="gb.TestMigrator"
-         minimumThingWorxVersion="9.0.0"
+         minimumThingWorxVersion="9.3.0"
          name="GitBackupExtension"
-         packageVersion="5.0.0"
+         packageVersion="5.1.0"
          vendor="Open Source / Vladimir Rosu">
             <JarResources>
                 <FileResource
@@ -26,10 +25,6 @@
                 <FileResource
                  description=""
                  file="JavaEWAH-1.2.3.jar"
-                 type="JAR"></FileResource>
-                <FileResource
-                 description=""
-                 file="org.eclipse.jgit-6.5.0.202303070854-r.jar"
                  type="JAR"></FileResource>
             </JarResources>
         </ExtensionPackage>
