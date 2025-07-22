@@ -5,18 +5,31 @@ import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.net.Proxy.Type;
 import java.net.ProxySelector;
 import java.net.SocketAddress;
 import java.net.URI;
+import java.nio.file.FileStore;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Properties;
 
 import org.eclipse.jgit.api.CreateBranchCommand.SetupUpstreamMode;
+import org.eclipse.jgit.api.GarbageCollectCommand;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.ListBranchCommand.ListMode;
 import org.eclipse.jgit.api.PullResult;
@@ -25,28 +38,38 @@ import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.RefNotFoundException;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffFormatter;
-
+import org.eclipse.jgit.internal.storage.file.WindowCache;
+import org.eclipse.jgit.lib.BatchingProgressMonitor;
+import org.eclipse.jgit.lib.EmptyProgressMonitor;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectReader;
+import org.eclipse.jgit.lib.ProgressMonitor;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.lib.RepositoryCache;
 import org.eclipse.jgit.lib.StoredConfig;
+import org.eclipse.jgit.lib.TextProgressMonitor;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevTree;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
+import org.eclipse.jgit.storage.file.WindowCacheConfig;
 import org.eclipse.jgit.transport.CredentialsProvider;
 import org.eclipse.jgit.transport.PushResult;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import org.eclipse.jgit.treewalk.AbstractTreeIterator;
 import org.eclipse.jgit.treewalk.CanonicalTreeParser;
 import org.eclipse.jgit.treewalk.EmptyTreeIterator;
-
 import org.eclipse.jgit.treewalk.filter.PathFilter;
-
+import org.eclipse.jgit.internal.storage.file.FileRepository;
+import org.eclipse.jgit.internal.storage.file.GC;
+import org.eclipse.jgit.util.FS;
+import org.eclipse.jgit.util.FS.FileStoreAttributes;
+import org.eclipse.jgit.util.FS_POSIX;
 import org.eclipse.jgit.util.io.DisabledOutputStream;
 import org.joda.time.DateTime;
 import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.thingworx.data.util.InfoTableInstanceFactory;
 import com.thingworx.entities.utils.EntityUtilities;
@@ -61,14 +84,11 @@ import com.thingworx.metadata.annotations.ThingworxServiceDefinition;
 import com.thingworx.metadata.annotations.ThingworxServiceParameter;
 import com.thingworx.metadata.annotations.ThingworxServiceResult;
 import com.thingworx.relationships.RelationshipTypes.ThingworxRelationshipTypes;
-import com.thingworx.resources.Resource;
 import com.thingworx.resources.entities.EntityServices;
-import com.thingworx.security.context.SecurityContext;
 import com.thingworx.security.users.User;
 import com.thingworx.system.ContextType;
 import com.thingworx.things.Thing;
 import com.thingworx.things.repository.FileRepositoryThing;
-
 import com.thingworx.types.InfoTable;
 import com.thingworx.types.collections.ValueCollection;
 import com.thingworx.types.primitives.BooleanPrimitive;
@@ -77,6 +97,11 @@ import com.thingworx.types.primitives.InfoTablePrimitive;
 import com.thingworx.types.primitives.PasswordPrimitive;
 import com.thingworx.types.primitives.StringPrimitive;
 import com.thingworx.webservices.context.ThreadLocalContext;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.LoggerContext;
+import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
+import ch.qos.logback.core.ConsoleAppender;
 
 @ThingworxBaseTemplateDefinition(name = "GenericThing")
 
@@ -114,6 +139,12 @@ public class GitBackupTemplate extends Thing {
 	/**
 	 * 
 	 */
+	// set background file system resolution to false and enable debugging
+	static {
+		FileStoreAttributes.setBackground(false);
+
+	}
+
 	private static final long serialVersionUID = -6500080561143490845L;
 
 	// Complete git path will be calculated by concatenating the SCR absolute
@@ -121,6 +152,7 @@ public class GitBackupTemplate extends Thing {
 	private String str_GitRepoURL, str_FileRepository, str_FileRepoPath, str_CurrentBranchOrCommit, str_ProxyURL;
 	private Integer int_ProxyPort;
 	private boolean bool_isDetachedHead = false, bool_UseProxy;
+	private Git gitObject;
 
 	private static Logger _logger = LogUtilities.getInstance().getApplicationLogger(GitBackupTemplate.class);
 
@@ -129,12 +161,40 @@ public class GitBackupTemplate extends Thing {
 
 	@Override
 	protected void stopThing(ContextType ctx) throws Exception {
-		if (!str_GitRepoURL.equals(Const.str_GitRepoURLDefaultValue)) {
-			Git Mygit = GetRepository();
-			Mygit.getRepository().close();
-			Mygit.close();
-		}
+
 		super.stopThing(null);
+	}
+
+	@Override
+	public void dispose() throws Exception {
+		_logger.warn("Thing entered dispose phase");
+		if (!str_GitRepoURL.equals(Const.str_GitRepoURLDefaultValue)) {
+			Thread.sleep(50);
+			FileRepositoryThing srcRepo = (FileRepositoryThing) EntityUtilities.findEntity(str_FileRepository,
+					ThingworxRelationshipTypes.Thing);
+			Git myGitObject = getGitObject("dispose");
+			Thread.sleep(50);
+			Repository myGitRepository = myGitObject.getRepository();
+			myGitRepository.close();
+			myGitRepository.close();
+			myGitRepository.close();
+			myGitRepository.close();
+			myGitRepository.close();
+			Thread.sleep(50);
+			myGitObject.close();
+			Thread.sleep(50);
+			_logger.warn("Disposing GitBackup Thing " + getName() + "; RepositoryCache contains: "
+					+ RepositoryCache.getRegisteredKeys().size());
+			RepositoryCache.clear();
+			// System.gc();
+			Thread.sleep(200);
+			gitObject = null;
+			String str_FolderPath = srcRepo.getRootPath();
+			str_FolderPath += str_FileRepoPath;
+			// delete(new File(str_FolderPath), "dispose");
+			deleteGitFolder(new File(str_FolderPath), "dispose");
+		}
+		super.dispose();
 	}
 
 	@Override
@@ -149,9 +209,6 @@ public class GitBackupTemplate extends Thing {
 		this.bool_UseProxy = ((boolean) getConfigurationSetting(Const.str_ConfTableName, Const.str_UseProxy));
 		this.str_ProxyURL = ((String) getConfigurationSetting(Const.str_ConfTableName, Const.str_ProxyURL));
 		this.int_ProxyPort = ((Integer) getConfigurationSetting(Const.str_ConfTableName, Const.str_ProxyPort));
-
-		super.initializeThing(null);
-
 		ProxySelector.setDefault(new ProxySelector() {
 			@Override
 			public List<Proxy> select(URI uri) {
@@ -169,23 +226,37 @@ public class GitBackupTemplate extends Thing {
 				}
 			}
 		});
+		WindowCacheConfig wconfig = new WindowCacheConfig();
+		wconfig.setPackedGitMMAP(false);
+		wconfig.install();
+		_logger.warn("1. GitBackup Thing: " + this.getName() + " initialize phase 1.1. PackedGitMMAP set false");
 		// prevents creation of disk folder with default values from configuration table
 		// at the first initialization
 		if (!str_GitRepoURL.equals(Const.str_GitRepoURLDefaultValue)) {
-			Git Mygit = GetRepository();
+			_logger.warn("1. GitBackup Thing: " + this.getName()
+					+ " initialize phase 1.2. GitRepoDefault contains real repository URL.");
+			Git Mygit = getGitObject("initializeThing");
 			String str_Branch = Mygit.getRepository().getFullBranch();
-			Mygit.close();
-			Mygit.getRepository().close();
 			bool_isDetachedHead = (str_Branch.indexOf("refs/heads") != -1 || str_Branch != null) ? false : true;
-			str_CurrentBranchOrCommit = (str_Branch != null) ? Mygit.getRepository().getBranch() : Const.str_InitialBranch;//to fix
-		}
-		if (!this.implementsShape(Const.str_UtilityThingShapeName)) {
-			EntityServices es = new EntityServices();
-			es.AddShapeToThing(this.getName(), Const.str_UtilityThingShapeName);
+			str_CurrentBranchOrCommit = (str_Branch != null) ? Mygit.getRepository().getBranch()
+					: Const.str_InitialBranch;
 		}
 
+		if (!this.implementsShape(Const.str_UtilityThingShapeName)) {
+			EntityServices es = new EntityServices();
+			_logger.warn("1. GitBackup Thing: " + this.getName()
+					+ " initialize phase 1.3. GIT Repo does not contain the Utility Thing Shape. Starting adding it.");
+			es.AddShapeToThing(this.getName(), Const.str_UtilityThingShapeName);
+		}
+		// will display the right library version in case we use directly the source
+		// code
+		String str_JGIT_version = org.eclipse.jgit.lib.Repository.class.getPackage().getImplementationVersion();
+		str_JGIT_version = str_JGIT_version == null ? "6.10.1.202505221210-r; custom source code" : str_JGIT_version;
+		_logger.warn("1. GitBackup Thing: " + this.getName() + " final initialize phase ended. Jgit library version: "
+				+ str_JGIT_version);
+		super.initializeThing(null);
 	}
-	
+
 	@ThingworxServiceDefinition(name = "Push", description = "This will execute a push of all the files for the specific project. You might need to edit the global gitignore file to include file types you might want in the commit, like log files. This is usually stored in Windows in the the [user]/Documents/gitignore_global.txt ", category = "", isAllowOverride = false, aspects = {
 			"isAsync:false" })
 	@ThingworxServiceResult(name = "Result", description = "", baseType = "STRING", aspects = {})
@@ -197,66 +268,62 @@ public class GitBackupTemplate extends Thing {
 		try {
 			// 1. Retrieve the GitRepository as a Git object that is needed for the next
 			// operations
+			Thread.sleep(1000);
 			long startTimePush = System.nanoTime();
-			Git myGitFolder = GetRepository();
+			Git myGitObject = getGitObject("Push");
 			long endTimeOpenRepository = System.nanoTime();
-			double durationTimeOpenRepository = (double)(endTimeOpenRepository-startTimePush) / (double)1000000000;
-			// 2. Detect if the current ThingWorx user activated the UseGitCommitUserValues
-			// checkbox. In this case use for commit the User-level Committer Name and Email
-			// instead the global Thing-level ones
+			BigDecimal durationTimeOpenRepository = new BigDecimal(
+					(double) (endTimeOpenRepository - startTimePush) / (double) 1000000)
+					.setScale(3, RoundingMode.HALF_DOWN);
 			User us_currentUser = UserUtilities.findUser(UserUtilities.getCurrentUser());
-			ValueCollection vc_RepoCredentials = getGitRepoRemoteCredential(us_currentUser); 
-			String str_User = ((StringPrimitive) vc_RepoCredentials.getPrimitive(Const.str_GitCommitterUser)).getValue();
-			String str_Password =  ((PasswordPrimitive) vc_RepoCredentials.getPrimitive(Const.str_GitCommitterPassword)).getValue();
-			String str_CommitterName =  ((StringPrimitive) vc_RepoCredentials.getPrimitive(Const.str_GitCommitterName)).getValue();
-			String str_CommitterEmail =  ((StringPrimitive) vc_RepoCredentials.getPrimitive(Const.str_GitCommitterEmail)).getValue();
-//			boolean isUserExtensionsUsed = ((BooleanPrimitive) (us_currentUser)
-//					.getPropertyValue("UseGitCommitUserValues")).getValue();
-
+			ValueCollection vc_RepoCredentials = getGitRepoRemoteCredential(us_currentUser);
+			String str_User = ((StringPrimitive) vc_RepoCredentials.getPrimitive(Const.str_GitCommitterUser))
+					.getValue();
+			String str_Password = ((PasswordPrimitive) vc_RepoCredentials.getPrimitive(Const.str_GitCommitterPassword))
+					.getValue();
+			String str_CommitterName = ((StringPrimitive) vc_RepoCredentials.getPrimitive(Const.str_GitCommitterName))
+					.getValue();
+			String str_CommitterEmail = ((StringPrimitive) vc_RepoCredentials.getPrimitive(Const.str_GitCommitterEmail))
+					.getValue();
 			// 2. Create the commit
 			// 2.1. We add all the modified files to the commit
-			myGitFolder.add().addFilepattern(".").call();
+			myGitObject.add().addFilepattern(".").call();
 			long endTimeAddFiles = System.nanoTime();
-			double durationTimeAddFiles = (double)(endTimeAddFiles -endTimeOpenRepository) / (double)1000000000;
-			myGitFolder.add().addFilepattern(".").setUpdate(true).call();
+			BigDecimal durationTimeAddFiles = new BigDecimal(
+					(double) (endTimeAddFiles - endTimeOpenRepository) / (double) 1000000)
+					.setScale(3, RoundingMode.HALF_DOWN);
+			myGitObject.add().addFilepattern(".").setUpdate(true).call();
 			long endTimeAddAllFilesWithSetUpdate = System.nanoTime();
-			double durationTimeAddAllFilesWithSetUpdate = (double)(endTimeAddAllFilesWithSetUpdate -endTimeAddFiles) / (double)1000000000;
+			BigDecimal durationTimeAddAllFilesWithSetUpdate = new BigDecimal(
+					(double) (endTimeAddAllFilesWithSetUpdate - endTimeAddFiles) / (double) 1000000)
+					.setScale(3, RoundingMode.HALF_DOWN);
 			// 2.2 We submit the commit to the repository
-			myGitFolder.commit().setAll(true).setMessage(Message).setCommitter(str_CommitterName, str_CommitterEmail).call();
+			myGitObject.commit().setAll(true).setMessage(Message).setCommitter(str_CommitterName, str_CommitterEmail)
+					.call();
 			long endTimeCommitToLocalRepository = System.nanoTime();
-			double durationTimeCommitToLocalRepository = (double)(endTimeCommitToLocalRepository -endTimeAddAllFilesWithSetUpdate) / (double)1000000000;
+			BigDecimal durationTimeCommitToLocalRepository = new BigDecimal(
+					(double) (endTimeCommitToLocalRepository - endTimeAddAllFilesWithSetUpdate) / (double) 1000000)
+					.setScale(3, RoundingMode.HALF_DOWN);
 			// 3. We will push the commit to the remote repository
 			// 3.1. Create the credentials that are needed to authenticate to the online Git
 			// repository provider
 			CredentialsProvider credentialsProvider = new UsernamePasswordCredentialsProvider(str_User, str_Password);
 			// 3.2. Push the changes to the online Git repository
-			Iterable<PushResult> prList = myGitFolder.push().setRemote("origin")
+			Iterable<PushResult> prList = myGitObject.push().setRemote("origin")
 					.setCredentialsProvider(credentialsProvider).call();
 			long endTimePushFinish = System.nanoTime();
-			double durationTimePushFinish = (double)(endTimePushFinish -endTimeCommitToLocalRepository) / (double)1000000000;
-			// 4. Various close operations to make sure there is no file lock left active on
-			// disk. Needs improvement.
-			myGitFolder.getRepository().close();
-			long endTimeCloseGit = System.nanoTime();
-			double durationTimeCloseGitRepository = (double)(endTimeCloseGit -endTimePushFinish) / (double)1000000000;
-			myGitFolder.close();
-			long endTimeCloseRepository = System.nanoTime();
-			double durationTimeCloseGit = (double)(endTimeCloseRepository -endTimeCloseGit) / (double)1000000000;
-			 
-			_logger.trace("Exiting Service: Push");
+			BigDecimal durationTimePushFinish = new BigDecimal(
+					(double) (endTimePushFinish - endTimeCommitToLocalRepository) / (double) 1000000)
+					.setScale(3, RoundingMode.HALF_DOWN);
 			String str_LogResult = "";
 			for (PushResult pr : prList) {
 				str_LogResult += pr.getRemoteUpdates().toString();
 			}
-			str_LogResult += 
-			" Debug Timings: #1.OpenGit: "+durationTimeOpenRepository+
-			"#2.AddFiles: "+durationTimeAddFiles+
-			"#3.AddAllDeletedFiles: "+durationTimeAddAllFilesWithSetUpdate+
-			"#4.CommitToLocalRepository: "+durationTimeCommitToLocalRepository+
-			"#5.Push: "+durationTimePushFinish+
-			"#6.CloseRepository: "+durationTimeCloseGitRepository+
-			"#7.CloseGit: "+durationTimeCloseGit
-			;
+			str_LogResult += " Debug Timings (ms): #1.OpenGit: " + durationTimeOpenRepository + "#2.AddFiles: "
+					+ durationTimeAddFiles + "#3.AddAllDeletedFiles: " + durationTimeAddAllFilesWithSetUpdate
+					+ "#4.CommitToLocalRepository: " + durationTimeCommitToLocalRepository + "#5.Push: "
+					+ durationTimePushFinish;
+			Thread.sleep(2000);
 			LogOperationResult(str_LogResult, str_CurrentMethodName);
 			return str_LogResult;
 		} catch (Exception e) {
@@ -273,30 +340,27 @@ public class GitBackupTemplate extends Thing {
 			"isAsync:false" })
 	@ThingworxServiceResult(name = "Result", description = "", baseType = "STRING", aspects = {})
 	public String Pull(
-			@ThingworxServiceParameter(name = "Force", description = "Forces a hard reset instead of a normal pull", baseType = "BOOLEAN") Boolean Force)
-			throws IOException, GitAPIException {
-		_logger.trace("Entering Service: Pull");
+			@ThingworxServiceParameter(name = "Force", description = "Forces a hard reset instead of a normal pull", baseType = "BOOLEAN") Boolean Force) {
 		String str_CurrentMethodName = "Pull";
 		try {
-
-			Git myGitFolder = GetRepository();
+			_logger.warn("Starting Pull for GitBackup Thing: " + this.getName());
+			Thread.sleep(500);
+			Git myGitFolder = getGitObject("Pull");
 			User us_currentUser = UserUtilities.findUser(UserUtilities.getCurrentUser());
-			ValueCollection vc_RepoCredentials = getGitRepoRemoteCredential(us_currentUser); 
-			String str_User = ((StringPrimitive) vc_RepoCredentials.getPrimitive(Const.str_GitCommitterUser)).getValue();
-			String str_Password =  ((PasswordPrimitive) vc_RepoCredentials.getPrimitive(Const.str_GitCommitterPassword)).getValue();
-			
+			ValueCollection vc_RepoCredentials = getGitRepoRemoteCredential(us_currentUser);
+			String str_User = ((StringPrimitive) vc_RepoCredentials.getPrimitive(Const.str_GitCommitterUser))
+					.getValue();
+			String str_Password = ((PasswordPrimitive) vc_RepoCredentials.getPrimitive(Const.str_GitCommitterPassword))
+					.getValue();
 			CredentialsProvider credentialsProvider = new UsernamePasswordCredentialsProvider(str_User, str_Password);
 			if (Force != null && Force == true) {
 				myGitFolder.reset().setMode(ResetType.HARD).call();
 			}
 			PullResult pr = myGitFolder.pull().setCredentialsProvider(credentialsProvider).call();
-			//trying to force closing open file handles
-			myGitFolder.getRepository().close();
-			myGitFolder.close();
-
-			_logger.trace("Exiting Service: Pull");
 			String str_LogResult = (pr.isSuccessful() == true ? "Successful. " : "Unsuccessful.") + pr.toString();
+			Thread.sleep(2000);
 			LogOperationResult(str_LogResult, str_CurrentMethodName);
+			_logger.warn("Finished Pull for GitBackup Thing: " + this.getName());
 			return str_LogResult;
 		} catch (Exception e)
 
@@ -307,8 +371,9 @@ public class GitBackupTemplate extends Thing {
 			try {
 				LogOperationResult(errors.toString(), str_CurrentMethodName);
 			} catch (Exception e1) {
-				// TODO Auto-generated catch block
-				e1.printStackTrace();
+				StringWriter errors2 = new StringWriter();
+				e1.printStackTrace(new PrintWriter(errors));
+				_logger.error(errors2.toString());
 			}
 			return "Pull Error: " + errors.toString();
 
@@ -316,21 +381,30 @@ public class GitBackupTemplate extends Thing {
 
 	}
 
-	@ThingworxServiceDefinition(name = "DeleteLocalRepoContent", description = "Deletes all files from the local repo path including the git configuration files. This operation is needed in case the git operations throw up strange errors.", category = "", isAllowOverride = false, aspects = {
+	@ThingworxServiceDefinition(name = "DeleteLocalRepoContent", description = "Deletes all files from the local repo path including the git configuration files. This operation is needed in case the git operations throw up strange errors. Reinitializes the Git object entirely.", category = "", isAllowOverride = false, aspects = {
 			"isAsync:false" })
 	@ThingworxServiceResult(name = "Result", description = "", baseType = "NOTHING", aspects = {})
-	public void DeleteLocalRepoContent() throws IllegalStateException, GitAPIException, IOException {
-		_logger.trace("Entering Service: ResetLocalRepo");
+	public void DeleteLocalRepoContent()
+			throws IllegalStateException, GitAPIException, IOException, InterruptedException, Throwable {
+		_logger.warn("DeleteLocalRepoContent:1 for entity: " + this.getName());
+		Thread.sleep(5);
 		FileRepositoryThing srcRepo = (FileRepositoryThing) EntityUtilities.findEntity(str_FileRepository,
 				ThingworxRelationshipTypes.Thing);
-		Git myGitFolder = GetRepository();
-		myGitFolder.getRepository().close();
-		myGitFolder.close();
-		String str_FolderPath = srcRepo.getRootPath();
-		str_FolderPath += str_FileRepoPath;
-		deleteDirectory(new File(str_FolderPath));
-
-		_logger.trace("Exiting Service: ResetLocalRepo");
+		try {
+			String str_FolderPath = srcRepo.getRootPath();
+			closeGit();
+			_logger.warn("DeleteLocalRepoContent:2, starting to delete files. All files should not be locked;");
+			str_FolderPath += str_FileRepoPath;
+			// deleteDirectory(new File(str_FolderPath), "DeleteLocalRepoContent");
+			deleteGitFolder(new File(str_FolderPath), "DeleteLocalRepoContent");
+			Thread.sleep(5);
+		} catch (Exception ex) {
+			StringWriter errors = new StringWriter();
+			ex.printStackTrace(new PrintWriter(errors));
+			_logger.error("Error encountered in DeleteLocalRepoContent for entity: " + this.getName()
+					+ "; Error Message: " + errors.toString());
+		}
+		_logger.warn("DeleteLocalRepoContent:3 for entity: " + this.getName());
 	}
 
 	@ThingworxServiceDefinition(name = "Checkout", description = "", category = "", isAllowOverride = false, aspects = {
@@ -342,7 +416,7 @@ public class GitBackupTemplate extends Thing {
 			throws Throwable, GitAPIException {
 		_logger.trace("Entering Service: Checkout");
 		String str_CurrentMethodName = "Checkout";
-		Git myGitFolder = GetRepository();
+		Git myGitFolder = getGitObject("Checkout");
 		Ref ref;
 		try {
 			ref = myGitFolder.checkout().setName(BranchNameOrCommit).call();
@@ -353,9 +427,8 @@ public class GitBackupTemplate extends Thing {
 			ref = myGitFolder.checkout().setCreateBranch(true).setName(BranchNameOrCommit)
 					.setUpstreamMode(SetupUpstreamMode.TRACK).setStartPoint("origin/" + BranchNameOrCommit).call();
 		}
-		myGitFolder.getRepository().close();
-		myGitFolder.close();
-		bool_isDetachedHead = GetRepository().getRepository().getFullBranch().indexOf("refs/heads") != -1 ? false
+		bool_isDetachedHead = getGitObject("Checkout").getRepository().getFullBranch().indexOf("refs/heads") != -1
+				? false
 				: true;
 		str_CurrentBranchOrCommit = BranchNameOrCommit;
 		String str_LogResult = (ref != null) ? ref.toString() : "No message.";
@@ -367,50 +440,66 @@ public class GitBackupTemplate extends Thing {
 			"isAsync:false" })
 	@ThingworxServiceResult(name = "Result", description = "", baseType = "INFOTABLE", aspects = {
 			"isEntityDataShape:true", "dataShape:Git.CurrentBranchStatus.DataShape" })
-	public InfoTable GetCurrentBranch() throws Exception {
-		_logger.trace("Entering Service: GetCurrentBranch");
-		InfoTable iftbl_CurrentBranchStatus = InfoTableInstanceFactory
-				.createInfoTableFromDataShape("Git.CurrentBranchStatus.DataShape");
-		ValueCollection vc = new ValueCollection();
+	public InfoTable GetCurrentBranch() {
+		try {
+			_logger.trace("Entering Service: GetCurrentBranch");
+			InfoTable iftbl_CurrentBranchStatus = InfoTableInstanceFactory
+					.createInfoTableFromDataShape("Git.CurrentBranchStatus.DataShape");
+			ValueCollection vc = new ValueCollection();
 
-		vc.put("BranchName", new StringPrimitive(str_CurrentBranchOrCommit));
-		vc.put("DetachedHEAD", new BooleanPrimitive(bool_isDetachedHead));
-		iftbl_CurrentBranchStatus.addRow(vc);
-		_logger.trace("Exiting Service: GetCurrentBranch");
-		return iftbl_CurrentBranchStatus;
+			vc.put("BranchName", new StringPrimitive(str_CurrentBranchOrCommit));
+			vc.put("DetachedHEAD", new BooleanPrimitive(bool_isDetachedHead));
+			iftbl_CurrentBranchStatus.addRow(vc);
+			_logger.trace("Exiting Service: GetCurrentBranch");
+			return iftbl_CurrentBranchStatus;
+		} catch (Exception ex) {
+			StringWriter errors = new StringWriter();
+			ex.printStackTrace(new PrintWriter(errors));
+			_logger.error(errors.toString());
+			return new InfoTable();
+		}
 	}
 
 	@ThingworxServiceDefinition(name = "GetBranchList", description = "", category = "", isAllowOverride = false, aspects = {
 			"isAsync:false" })
 	@ThingworxServiceResult(name = "Result", description = "", baseType = "INFOTABLE", aspects = {
 			"isEntityDataShape:true", "dataShape:Git.BranchList.DataShape" })
-	public InfoTable GetBranchList() throws Exception {
+	public InfoTable GetBranchList() {
 		_logger.trace("Entering Service: GetBranchList");
-		InfoTable iftbl_BranchList = InfoTableInstanceFactory.createInfoTableFromDataShape("Git.BranchList.DataShape");
-		Git myGit = GetRepository();
-		List<Ref> branches = myGit.branchList().setListMode(ListMode.ALL).call();
-		for (Iterator<Ref> iterator = branches.iterator(); iterator.hasNext();) {
-			Ref ref = (Ref) iterator.next();
-			ValueCollection vc = new ValueCollection();
 
-			String str_LongBranchName = ref.getName();
-			String str_ShortBranchName, str_BranchType;
-			str_ShortBranchName = (str_LongBranchName != "HEAD")
-					? str_LongBranchName.replace("refs/heads/", "").replace("refs/remotes/origin/", "")
-					: "HEAD";
-			str_BranchType = (str_LongBranchName != "HEAD")
-					? (str_LongBranchName.indexOf("refs/heads/") >= 0 ? "LOCAL" : "REMOTE")
-					: "HEAD";
-			vc.put("BranchName", new StringPrimitive(str_LongBranchName));
-			vc.put("ShortBranchName", new StringPrimitive(str_ShortBranchName));
-			vc.put("BranchType", new StringPrimitive(str_BranchType));
-			iftbl_BranchList.addRow(vc);
+		try {
+			InfoTable iftbl_BranchList = InfoTableInstanceFactory
+					.createInfoTableFromDataShape("Git.BranchList.DataShape");
+			Git myGit = getGitObject("GetBranchList");
+			List<Ref> branches = myGit.branchList().setListMode(ListMode.ALL).call();
+			for (Iterator<Ref> iterator = branches.iterator(); iterator.hasNext();) {
+				Ref ref = (Ref) iterator.next();
+				ValueCollection vc = new ValueCollection();
+
+				String str_LongBranchName = ref.getName();
+				String str_ShortBranchName, str_BranchType;
+				str_ShortBranchName = (str_LongBranchName != "HEAD")
+						? str_LongBranchName.replace("refs/heads/", "").replace("refs/remotes/origin/", "")
+						: "HEAD";
+				str_BranchType = (str_LongBranchName != "HEAD")
+						? (str_LongBranchName.indexOf("refs/heads/") >= 0 ? "LOCAL" : "REMOTE")
+						: "HEAD";
+				vc.put("BranchName", new StringPrimitive(str_LongBranchName));
+				vc.put("ShortBranchName", new StringPrimitive(str_ShortBranchName));
+				vc.put("BranchType", new StringPrimitive(str_BranchType));
+				iftbl_BranchList.addRow(vc);
+			}
+			_logger.trace("Exiting Service: GetBranchList");
+			return iftbl_BranchList;
+
+		} catch (Exception ex) {
+			StringWriter errors = new StringWriter();
+			ex.printStackTrace(new PrintWriter(errors));
+			_logger.error(errors.toString());
+			_logger.trace("Exiting Service: GetBranchList");
+			return new InfoTable();
 		}
-		myGit.getRepository().close();
-		myGit.close();
 
-		_logger.trace("Exiting Service: GetBranchList");
-		return iftbl_BranchList;
 	}
 
 	@ThingworxServiceDefinition(name = "DeleteLocalBranch", description = "This method deletes a local branch. Used in the case a remote branch was deleted/pruned and you want to remove your local copy.", category = "", isAllowOverride = false, aspects = {
@@ -422,12 +511,10 @@ public class GitBackupTemplate extends Thing {
 		_logger.trace("Entering Service: DeleteLocalBranch");
 		String str_CurrentMethodName = "DeleteLocalBranch";
 		try {
-			Git myGitFolder = GetRepository();
+			Git myGitFolder = getGitObject("DeleteLocalBranch");
 
 			List<String> lstr = myGitFolder.branchDelete().setForce(true).setBranchNames("refs/heads/" + BranchName)
 					.call();
-			myGitFolder.getRepository().close();
-			myGitFolder.close();
 			String str_LogResult = "";
 			if (lstr.size() == 0) {
 				str_LogResult += " Branch " + BranchName + " was ignored or invalid.";
@@ -456,33 +543,36 @@ public class GitBackupTemplate extends Thing {
 			"isAsync:false" })
 	@ThingworxServiceResult(name = "Result", description = "", baseType = "INFOTABLE", aspects = {
 			"isEntityDataShape:true", "dataShape:Git.CommitList.DataShape" })
-	public InfoTable GetCommitList() throws Exception {
+	public InfoTable GetCommitList() {
 		_logger.trace("Entering Service: GetCommitList");
-		Git myGitFolder = GetRepository();
-		InfoTable iftbl_CommitList = InfoTableInstanceFactory
-				.createInfoTableFromDataShape(Const.str_CommitListDataShapeName);
-		// Git myGit = GetRepository();
-		ObjectId obj = myGitFolder.getRepository().resolve("refs/heads/" + str_CurrentBranchOrCommit);
-		if (obj == null)
-			obj = myGitFolder.getRepository().resolve("refs/heads/"
-					+ ((String) getConfigurationSetting(Const.str_ConfTableName, Const.str_InitialBranch)));
-		if (obj != null) {
-			Iterable<RevCommit> commits = myGitFolder.log().add(obj).call();
-			for (Iterator<RevCommit> iterator = commits.iterator(); iterator.hasNext();) {
-				RevCommit commit = (RevCommit) iterator.next();
-				ValueCollection vc = new ValueCollection();
-				vc.put("CommitTime", new DatetimePrimitive(new DateTime(((long) commit.getCommitTime() * 1000))));
-				vc.put("CommitName", new StringPrimitive(commit.getShortMessage()));
-				vc.put("CommitID", new StringPrimitive(commit.getId().name()));
-
-				iftbl_CommitList.addRow(vc);
+		try {
+			Git myGitFolder = getGitObject("GetCommitList");
+			InfoTable iftbl_CommitList = InfoTableInstanceFactory
+					.createInfoTableFromDataShape(Const.str_CommitListDataShapeName);
+			// Git myGit = GetRepository();
+			ObjectId obj = myGitFolder.getRepository().resolve("refs/heads/" + str_CurrentBranchOrCommit);
+			if (obj == null)
+				obj = myGitFolder.getRepository().resolve("refs/heads/"
+						+ ((String) getConfigurationSetting(Const.str_ConfTableName, Const.str_InitialBranch)));
+			if (obj != null) {
+				Iterable<RevCommit> commits = myGitFolder.log().add(obj).call();
+				for (Iterator<RevCommit> iterator = commits.iterator(); iterator.hasNext();) {
+					RevCommit commit = (RevCommit) iterator.next();
+					ValueCollection vc = new ValueCollection();
+					vc.put("CommitTime", new DatetimePrimitive(new DateTime(((long) commit.getCommitTime() * 1000))));
+					vc.put("CommitName", new StringPrimitive(commit.getShortMessage()));
+					vc.put("CommitID", new StringPrimitive(commit.getId().name()));
+					iftbl_CommitList.addRow(vc);
+				}
 			}
+			_logger.trace("Exiting Service: GetCommitList");
+			return iftbl_CommitList;
+		} catch (Exception ex) {
+			StringWriter errors = new StringWriter();
+			ex.printStackTrace(new PrintWriter(errors));
+			_logger.error(errors.toString());
+			return new InfoTable();
 		}
-		myGitFolder.getRepository().close();
-		myGitFolder.close();
-
-		_logger.trace("Exiting Service: GetCommitList");
-		return iftbl_CommitList;
 	}
 
 	@ThingworxServiceDefinition(name = "Status", description = "", category = "", isAllowOverride = false, aspects = {
@@ -492,11 +582,8 @@ public class GitBackupTemplate extends Thing {
 	public InfoTable Status() throws Exception {
 		_logger.trace("Entering Service: Status");
 		InfoTable iftbl_Status = InfoTableInstanceFactory.createInfoTableFromDataShape("Git.Status.DataShape");
-
-		Git myGitFolder = GetRepository();
-
-		org.eclipse.jgit.api.Status status = myGitFolder.status().call();
-
+		Git myGitObject = getGitObject("Status");
+		org.eclipse.jgit.api.Status status = myGitObject.status().call();
 		for (String stat : status.getModified()) {
 			ValueCollection vc = new ValueCollection();
 			vc.put("File", new StringPrimitive(stat));
@@ -552,9 +639,6 @@ public class GitBackupTemplate extends Thing {
 			vc.put("Status", new StringPrimitive("UntrackedFolder"));
 			iftbl_Status.addRow(vc);
 		}
-
-		myGitFolder.getRepository().close();
-		myGitFolder.close();
 		_logger.trace("Exiting Service: Status");
 		return iftbl_Status;
 	}
@@ -567,11 +651,9 @@ public class GitBackupTemplate extends Thing {
 			throws Exception, GitAPIException {
 		_logger.trace("Entering Service: GetDiffPerFile");
 		if (File != null) {
-			Git myGitFolder = GetRepository();
+			Git myGitObject = getGitObject("GetDiffPerFile");
 			ByteArrayOutputStream dif = new ByteArrayOutputStream();
-			myGitFolder.diff().setPathFilter(PathFilter.create(File)).setOutputStream(dif).call();
-			myGitFolder.getRepository().close();
-			myGitFolder.close();
+			myGitObject.diff().setPathFilter(PathFilter.create(File)).setOutputStream(dif).call();
 			_logger.trace("Exiting Service: GetDiffPerFile");
 			return dif.toString("UTF-8");
 		} else
@@ -589,29 +671,25 @@ public class GitBackupTemplate extends Thing {
 		if (File != null) {
 			try {
 				String str_ToCommitID = "";
-				Git myGit = GetRepository();
-				Repository repo = GetRepository().getRepository();
+				Git myGitObject = getGitObject("GetDiffPerFileBetweenCommits");
+				Repository repo = myGitObject.getRepository();
 				ObjectId commit = repo.resolve(str_FromCommitID);
 				RevWalk walk = new RevWalk(repo);
 				RevCommit toCommit = walk.parseCommit(commit);
-
 				if (toCommit.getParentCount() > 0) {
 					str_ToCommitID = toCommit.getParent(0).getName();
 				}
 				AbstractTreeIterator newTreeParser = prepareTreeParser(repo, str_FromCommitID);
-
 				ByteArrayOutputStream dif = new ByteArrayOutputStream();
 				if (toCommit.getParentCount() == 0) {
-					myGit.diff().setNewTree(newTreeParser).setOldTree(new EmptyTreeIterator())
+					myGitObject.diff().setNewTree(newTreeParser).setOldTree(new EmptyTreeIterator())
 							.setPathFilter(PathFilter.create(File)).setOutputStream(dif).call();
 				} else {
 					AbstractTreeIterator oldTreeParser = prepareTreeParser(repo, str_ToCommitID);
-					myGit.diff().setNewTree(newTreeParser).setOldTree(oldTreeParser)
+					myGitObject.diff().setNewTree(newTreeParser).setOldTree(oldTreeParser)
 							.setPathFilter(PathFilter.create(File)).setOutputStream(dif).call();
 				}
 				walk.close();
-				myGit.getRepository().close();
-				myGit.close();
 				_logger.trace("Exiting Service: GetDiffPerFileBetweenCommits");
 				String str_DiffResult = dif.toString("UTF-8");
 				// anything larger than the configured max diff size will not be sent to the
@@ -642,9 +720,9 @@ public class GitBackupTemplate extends Thing {
 		try {
 			if (CommitID != null) {
 
-				Repository repo = GetRepository().getRepository();
-				ObjectId commit = repo.resolve(CommitID);
-				try (RevWalk walk = new RevWalk(repo)) {
+				Repository myGitRepository = getGitObject("GetCommitInfo").getRepository();
+				ObjectId commit = myGitRepository.resolve(CommitID);
+				try (RevWalk walk = new RevWalk(myGitRepository)) {
 					RevCommit commitAgain = walk.parseCommit(commit);
 					ValueCollection vc = new ValueCollection();
 					vc.put("CommitID", new StringPrimitive(commitAgain.getId().name()));
@@ -657,16 +735,8 @@ public class GitBackupTemplate extends Thing {
 					vc.put("CommitDescription", new StringPrimitive(commitAgain.getFullMessage()));
 					InfoTable iftbl_CommitChangedFiles = InfoTableInstanceFactory
 							.createInfoTableFromDataShape(Const.str_CommitChangedFiles);
-					// TreeWalk treeWalk = new TreeWalk(repo);
-					// treeWalk.setRecursive(true);
-					// treeWalk.addTree(commitAgain.getTree());
-					// for (RevCommit parent:commitAgain.getParents())
-					// {
-					// RevCommit rcom = walk.parseCommit(parent.getId());
-					// treeWalk.addTree(rcom.getTree());
-					// }
 					DiffFormatter diffFormatter = new DiffFormatter(DisabledOutputStream.INSTANCE);
-					diffFormatter.setRepository(repo);
+					diffFormatter.setRepository(myGitRepository);
 					List<DiffEntry> entries;
 					if (commitAgain.getParentCount() != 0)
 						entries = diffFormatter.scan(commitAgain.getParent(0), commitAgain.getTree());
@@ -707,8 +777,6 @@ public class GitBackupTemplate extends Thing {
 					vc.put("ChangedFiles", new InfoTablePrimitive(iftbl_CommitChangedFiles));
 					iftbl_Status.addRow(vc);
 					walk.dispose();
-					repo.close();
-
 					_logger.trace("Exiting Service: GetCommitInfo");
 
 				}
@@ -754,72 +822,163 @@ public class GitBackupTemplate extends Thing {
 		return ThreadLocalContext.getSecurityContext().getName();
 	}
 
-	private boolean deleteDirectory(File path) {
+	private void closeGit() throws InterruptedException, NoSuchMethodException, SecurityException,
+			IllegalAccessException, IllegalArgumentException, InvocationTargetException, IOException, GitAPIException {
+		Git gitObjectToClose = getGitObject("closeGit");
+		FileRepository gitRepository = (FileRepository) gitObjectToClose.getRepository();
+		Thread.sleep(200);
+		_logger.warn("Method DeleteLocalRepoContent, performing 1st myGitRepository.close()");
+		gitRepository.close();
+		Thread.sleep(200);
+		// _logger.warn("Method DeleteLocalRepoContent, performing 2nd
+		// myGitRepository.close()");
+//		myGitRepository.close();
+//		_logger.warn("Method DeleteLocalRepoContent, performing 3rd myGitRepository.close()");
+//		myGitRepository.close();
+//		Thread.sleep(200);
+		RepositoryCache.clear();
+		_logger.warn("Method DeleteLocalRepoContent, performing myGitObject.close()");
+		gitObjectToClose.close();
+		WindowCacheConfig wconfig = new WindowCacheConfig();
+		wconfig.setPackedGitMMAP(false);
+		WindowCache.reconfigure(wconfig);
+		gitObject = null;
+	}
+
+	private void getFilesToDelete(File path, String str_Source, ArrayList<File> lst_FilesToDelete,
+			ArrayList<File> lst_FoldersToDelete) {
+		// _logger.warn("Starting to remove files from directory "+path.toString());
 		if (path.exists()) {
 			File[] files = path.listFiles();
 			for (int i = 0; i < files.length; i++) {
 				if (files[i].isDirectory()) {
-					deleteDirectory(files[i]);
+					lst_FoldersToDelete.add(files[i]);
+					getFilesToDelete(files[i], str_Source, lst_FilesToDelete, lst_FoldersToDelete);
 				} else {
-					files[i].delete();
+					lst_FilesToDelete.add(files[i]);
+					
 				}
 			}
 		}
-		return (path.delete());
+
 	}
 
-	private Git openOrCreate(File gitDirectory) throws IOException, GitAPIException {
-		Git git;
+	private void deleteGitFolder(File path, String str_Source) throws InterruptedException {
+		ArrayList<File> lst_FilesToDelete = new ArrayList<File>();
+		ArrayList<File> lst_FoldersToDelete = new ArrayList<File>();
+		getFilesToDelete(path, str_Source, lst_FilesToDelete, lst_FoldersToDelete);
+		_logger.warn("Folders to delete size: " + lst_FoldersToDelete.size());
+		_logger.warn("Files to delete size: " + lst_FilesToDelete.size());
+		ArrayList<File> lst_DeletedFiles = new ArrayList<File>();
+		ArrayList<File> lst_DeletedFolders = new ArrayList<File>();
+		for (File file : lst_FilesToDelete) {
+			Thread.sleep(1);
+			try {
+				Files.delete(file.toPath());
+				lst_DeletedFiles.add(file);
+			} catch (IOException ex) {
+				StringWriter errors = new StringWriter();
+				ex.printStackTrace(new PrintWriter(errors));
+				_logger.error("Source method: " + str_Source + "; Error removing file " + file.getAbsolutePath()
+						+ "; Error: " + ex.toString() + "; Attempting to remove read-only flag.");
+				try {
+					file.setWritable(true);
+					Files.delete(file.toPath());
+					lst_DeletedFiles.add(file);
+					_logger.warn("Source method: " + str_Source
+							+ "; File deleted successfully after read-only was removed " + file.getAbsolutePath());
+				} catch (IOException ex2) {
+					StringWriter errors2 = new StringWriter();
+					ex.printStackTrace(new PrintWriter(errors2));
+					_logger.error("Source method: " + str_Source + "; Error removing read-only flag for file "
+							+ file.getAbsolutePath() + "; Error: " + ex.toString());
+				}
+			}
+		}
+		lst_FilesToDelete.removeAll(lst_DeletedFiles);
+		_logger.warn("Files to delete size after removal (should be zero): " + lst_FilesToDelete.size());
+		lst_FoldersToDelete.sort((f1, f2) -> Integer.compare(f2.toPath().getNameCount(), f1.toPath().getNameCount()));
+		for (File file : lst_FoldersToDelete) {
+			try {
+				Files.delete(file.toPath());
+				lst_DeletedFolders.add(file);
+			} catch (IOException ex) {
+				StringWriter errors = new StringWriter();
+				ex.printStackTrace(new PrintWriter(errors));
+				_logger.error("Source method: " + str_Source + "; Error removing folder " + file.getAbsolutePath()
+						+ "; Error: " + ex.toString());
+			}
+		}
+		//Removes the final subfolder from the ThingWorx File Repository
+		path.delete();
+
+	}
+
+	private Git openOrCreate(File gitDirectory) throws IOException, GitAPIException, InterruptedException {
+		Git myGitObject;
 		FileRepositoryBuilder repositoryBuilder = new FileRepositoryBuilder();
 		repositoryBuilder.addCeilingDirectory(gitDirectory);
 		repositoryBuilder.findGitDir(gitDirectory);
 		if (repositoryBuilder.getGitDir() == null) {
-			git = Git.init().setDirectory(gitDirectory).setInitialBranch(str_CurrentBranchOrCommit).call();
+			myGitObject = Git.init().setDirectory(gitDirectory).setInitialBranch(str_CurrentBranchOrCommit).call();
+			// Wait 2 seconds in case any antivirus locks the git repository files
+			Thread.sleep(2000);
 
 		} else {
-			git = new Git(repositoryBuilder.build());
+			myGitObject = new Git(repositoryBuilder.build());
 		}
-		return git;
+		return myGitObject;
 	}
 
-	private Git GetRepository() throws IOException, GitAPIException {
-		FileRepositoryThing srcRepo = (FileRepositoryThing) EntityUtilities.findEntity(str_FileRepository,
-				ThingworxRelationshipTypes.Thing);
-		String str_FolderPath = srcRepo.getRootPath();
-		str_FolderPath += str_FileRepoPath;
-		Git myGitFolder = openOrCreate(new File(str_FolderPath));
-		StoredConfig config = myGitFolder.getRepository().getConfig();
-		config.setString("remote", "origin", "url", str_GitRepoURL);
-		config.setString("remote", "origin", "fetch", "+refs/heads/*:refs/remotes/origin/*");
-		config.setString("remote", "origin", "prune", "true");
-		config.setString("core", null, "autocrlf", "input");
-		config.save();
-		return myGitFolder;
+	private Git getGitObject(String str_CallerMethod)
+			throws IOException, GitAPIException, InterruptedException, NoSuchMethodException, SecurityException,
+			IllegalAccessException, IllegalArgumentException, InvocationTargetException {
+		// modified so that it will store the Git repository object (from JGIT) in an
+		// internal private field, not requiring reopen each time.
+		_logger.warn("Retrieving GitBackup Thing : " + this.getName() + "; Object is: " + (gitObject != null)
+				+ "; Method: " + str_CallerMethod);
+		if (gitObject == null) {
+			FileRepositoryThing srcRepo = (FileRepositoryThing) EntityUtilities.findEntity(str_FileRepository,
+					ThingworxRelationshipTypes.Thing);
+			String str_FolderPath = srcRepo.getRootPath();
+			str_FolderPath += str_FileRepoPath;
+			Git myGitObject = openOrCreate(new File(str_FolderPath));
+			StoredConfig config = myGitObject.getRepository().getConfig();
+			config.setString("remote", "origin", "url", str_GitRepoURL);
+			config.setString("remote", "origin", "fetch", "+refs/heads/*:refs/remotes/origin/*");
+			config.setString("remote", "origin", "prune", "true");
+			config.setString("core", null, "autocrlf", "input");
+			// prevents Bitmap creation during GarbageCollection
+			config.setBoolean("repack", null, "writeBitmaps", false);
+			config.save();
+			_logger.warn("GitBackup Thing: " + this.getName()
+					+ " Git object found null, initialized. Git object created and stored internally for future use. "
+					+ "; Method: " + str_CallerMethod);
+			gitObject = myGitObject;
+		}
+		return gitObject;
 	}
 
 	private static AbstractTreeIterator prepareTreeParser(Repository repository, String objectId) throws IOException {
 		try (RevWalk walk = new RevWalk(repository)) {
 			RevCommit commit = walk.parseCommit(ObjectId.fromString(objectId));
 			RevTree tree = walk.parseTree(commit.getTree().getId());
-
 			CanonicalTreeParser treeParser = new CanonicalTreeParser();
 			try (ObjectReader reader = repository.newObjectReader()) {
 				treeParser.reset(reader, tree.getId());
 			}
-
 			walk.dispose();
-
 			return treeParser;
 		}
 	}
-	
-	private ValueCollection getGitRepoRemoteCredential(User us_currentUser) throws Exception
-	{
-		InfoTable iftbl_CredentialStore = ((InfoTablePrimitive) (us_currentUser).getPropertyValue(Const.str_GitCredentials)).getValue();
+
+	private ValueCollection getGitRepoRemoteCredential(User us_currentUser) throws Exception {
+		InfoTable iftbl_CredentialStore = ((InfoTablePrimitive) (us_currentUser)
+				.getPropertyValue(Const.str_GitCredentials)).getValue();
 		ValueCollection vc = new ValueCollection();
 		vc.put("GitThing", new StringPrimitive(this.getName()));
 		return iftbl_CredentialStore.find(vc);
-		
+
 	}
 
 }

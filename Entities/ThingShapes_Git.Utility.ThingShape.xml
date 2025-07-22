@@ -708,7 +708,7 @@
                                     			case "ThingShape":
                                                 case "ThingGroup":
                                     			case "DataShape":
-                                    			case "ModelTag":
+                                    			case "ModelTagVocabulary":
                                     			case "Network":
                                     			case "IndustrialConnection":
                                     			case "IntegrationConnector":
@@ -747,6 +747,8 @@
                                     					str_EntityType = "MediaEntitie";
                                     				if (str_EntityType == "UserGroup")
                                     					str_EntityType = "Group";
+                                                    if (str_EntityType == "ModelTagVocabulary" || str_EntityType == "ModelTag")
+                                    					str_EntityType = "ModelTag";
                                     				str_EntityType += "s";
                                     				Things[iftbl_Config.FileRepository].MoveFile({
                                     					targetPath: iftbl_Config.FileRepoPath + "/" + ProjectName + "/" + str_EntityType + "/" + str_EntityName + ".xml" /* STRING */ ,
