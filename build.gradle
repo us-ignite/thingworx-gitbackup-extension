@@ -1,0 +1,147 @@
+plugins {
+    id 'java'
+    id 'eclipse'
+}
+
+defaultTasks 'clean', 'packageExtension'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+}
+
+ext {
+    extensionJar = 'gitbackupextension.jar'
+    sdkZip = file('twx-lib/MED-61098-CD-096_9-6-0_ThingWorx-Extension-SDK-9-6-0.zip')
+    sdkExtractDir = file("${buildDir}/sdk")
+    entitiesDir = file('Entities')
+    configDir = file('configfiles')
+    thirdPartyDir = file('3rdPartyExtensions')
+    zipDir = file("${buildDir}/distributions")
+    packageName = 'GitBackupExtension'
+    packageVersion = '5.1.0'
+    packageVendor = 'Open Source / Vladimir Rosu'
+}
+
+repositories {
+    mavenCentral()
+}
+
+task unpackSdk(type: Copy) {
+    from zipTree(sdkZip)
+    into sdkExtractDir
+    exclude '**/thingworx-javadocs*'
+    exclude 'Common/'
+}
+
+compileJava.dependsOn unpackSdk
+
+sourceSets {
+    main {
+        java {
+            srcDir 'src'
+        }
+    }
+}
+
+configurations {
+    packageDependencies
+    implementation.extendsFrom packageDependencies
+}
+
+dependencies {
+    // ThingWorx SDK (extracted from zip)
+    implementation fileTree(dir: sdkExtractDir, include: '*.jar')
+
+    // Runtime dependencies (packaged with the extension)
+    packageDependencies 'org.eclipse.jgit:org.eclipse.jgit:7.6.0.202603022253-r'
+    packageDependencies 'com.jcraft:jsch:0.1.55'
+    packageDependencies 'org.bouncycastle:bcpg-jdk18on:1.72'
+    packageDependencies 'com.googlecode.javaewah:JavaEWAH:1.2.3'
+    packageDependencies 'commons-io:commons-io:2.18.0'
+    packageDependencies 'org.apache.commons:commons-lang3:3.14.0'
+
+    // Compile-only: already available in ThingWorx platform
+    implementation 'commons-codec:commons-codec:1.22.0'
+
+    // Test dependencies (not packaged since not in packageDependencies)
+    implementation 'org.junit.jupiter:junit-jupiter:5.8.2'
+    implementation 'org.junit.platform:junit-platform-launcher:1.8.2'
+    implementation 'org.testcontainers:testcontainers:2.0.5'
+}
+
+jar {
+    archiveFileName = extensionJar
+    manifest {
+        attributes 'Built-By': packageVendor,
+                   'Build-Date': new Date().format('yyyy-MM-dd HH:mm:ss')
+        attributes 'Package-Title': packageName,
+                   'Package-Version': packageVersion,
+                   'Package-Vendor': packageVendor
+    }
+}
+
+test {
+    useJUnitPlatform()
+    testClassesDirs = sourceSets.main.output.classesDirs
+    classpath = sourceSets.main.runtimeClasspath
+    include '**/gb/tests/**'
+    exclude '**/gb/tests/ThingWorxIntegrationTest*'
+    testLogging {
+        events 'passed', 'skipped', 'failed'
+    }
+}
+
+task integrationTest(type: Test) {
+    useJUnitPlatform()
+    testClassesDirs = sourceSets.main.output.classesDirs
+    classpath = sourceSets.main.runtimeClasspath
+    include '**/gb/tests/ThingWorxIntegrationTest*'
+    testLogging {
+        events 'passed', 'skipped', 'failed'
+    }
+}
+
+task prepPackage(dependsOn: jar) {
+    def zipStage = file("${buildDir}/zip")
+    doFirst { delete zipStage }
+    doLast {
+        copy {
+            from "${buildDir}/libs/${extensionJar}"
+            into "${zipStage}/lib/common"
+        }
+        copy {
+            from configurations.packageDependencies
+            into "${zipStage}/lib/common"
+        }
+        copy {
+            from configDir
+            into zipStage
+        }
+        copy {
+            from entitiesDir.parent
+            include "${entitiesDir.name}/**/*.xml"
+            into zipStage
+        }
+    }
+}
+
+task packageExtension(type: Zip, dependsOn: prepPackage) {
+    archiveFileName = "${packageName}.zip"
+    destinationDirectory = zipDir
+    from file("${buildDir}/zip")
+}
+
+task packagePack(type: Zip, dependsOn: packageExtension) {
+    archiveFileName = "${packageName}Pack.zip"
+    destinationDirectory = zipDir
+    from zipDir, { include "${packageName}.zip" }
+    from thirdPartyDir
+    doLast {
+        delete file("${zipDir}/${packageName}.zip")
+    }
+}
+
+build {
+    dependsOn packagePack
+}

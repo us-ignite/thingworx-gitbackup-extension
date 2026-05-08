@@ -31,7 +31,7 @@
     </ExtensionPackages>
     <ThingPackages>
         <ThingPackage
-         className="gb.GitBackupTemplate"
+         className="gb.extension.GitBackupTemplate"
          description=""
          name="GitExtensionPackage"></ThingPackage>
     </ThingPackages>
@@ -249,7 +249,7 @@
         <Resource
          aspect.isCreatable="false"
          aspect.isEditableExtensionObject="false"
-         className="gb.GitBackupValidation"
+         className="gb.extension.GitBackupValidation"
          description=""
          name="GitBackupValidation"></Resource>
     </Resources>
