@@ -1,4 +1,4 @@
-package gb;
+package gb.extension;
 
 import org.slf4j.Logger;
 
