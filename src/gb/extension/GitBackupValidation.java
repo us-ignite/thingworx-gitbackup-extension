@@ -1,4 +1,4 @@
-package gb;
+package gb.extension;
 
 import com.thingworx.entities.utils.EntityUtilities;
 import com.thingworx.logging.LogUtilities;

@@ -1,4 +1,4 @@
-package gb;
+package gb.extension;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
