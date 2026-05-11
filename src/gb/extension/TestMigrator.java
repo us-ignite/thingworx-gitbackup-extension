@@ -1,7 +1,7 @@
 /**
  * 
  */
-package gb;
+package gb.extension;
 
 import com.thingworx.contentmanagement.ImportedEntityCollection;
 import com.thingworx.migration.ExtensionMigratorBase;
