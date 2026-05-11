@@ -6,7 +6,6 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.net.InetSocketAddress;
@@ -15,21 +14,14 @@ import java.net.Proxy.Type;
 import java.net.ProxySelector;
 import java.net.SocketAddress;
 import java.net.URI;
-import java.nio.file.FileStore;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Properties;
-
 import org.eclipse.jgit.api.CreateBranchCommand.SetupUpstreamMode;
-import org.eclipse.jgit.api.GarbageCollectCommand;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.ListBranchCommand.ListMode;
 import org.eclipse.jgit.api.PullResult;
@@ -39,16 +31,14 @@ import org.eclipse.jgit.api.errors.RefNotFoundException;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffFormatter;
 import org.eclipse.jgit.internal.storage.file.WindowCache;
-import org.eclipse.jgit.lib.BatchingProgressMonitor;
-import org.eclipse.jgit.lib.EmptyProgressMonitor;
+import org.eclipse.jgit.lib.GpgSigner;
 import org.eclipse.jgit.lib.ObjectId;
+import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.ObjectReader;
-import org.eclipse.jgit.lib.ProgressMonitor;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.RepositoryCache;
 import org.eclipse.jgit.lib.StoredConfig;
-import org.eclipse.jgit.lib.TextProgressMonitor;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevTree;
 import org.eclipse.jgit.revwalk.RevWalk;
@@ -62,15 +52,10 @@ import org.eclipse.jgit.treewalk.CanonicalTreeParser;
 import org.eclipse.jgit.treewalk.EmptyTreeIterator;
 import org.eclipse.jgit.treewalk.filter.PathFilter;
 import org.eclipse.jgit.internal.storage.file.FileRepository;
-import org.eclipse.jgit.internal.storage.file.GC;
-import org.eclipse.jgit.util.FS;
 import org.eclipse.jgit.util.FS.FileStoreAttributes;
-import org.eclipse.jgit.util.FS_POSIX;
 import org.eclipse.jgit.util.io.DisabledOutputStream;
 import org.joda.time.DateTime;
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.thingworx.data.util.InfoTableInstanceFactory;
 import com.thingworx.entities.utils.EntityUtilities;
 import com.thingworx.entities.utils.UserUtilities;
@@ -97,11 +82,6 @@ import com.thingworx.types.primitives.InfoTablePrimitive;
 import com.thingworx.types.primitives.PasswordPrimitive;
 import com.thingworx.types.primitives.StringPrimitive;
 import com.thingworx.webservices.context.ThreadLocalContext;
-
-import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.LoggerContext;
-import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
-import ch.qos.logback.core.ConsoleAppender;
 
 @ThingworxBaseTemplateDefinition(name = "GenericThing")
 
@@ -277,6 +257,9 @@ public class GitBackupTemplate extends Thing {
 					.setScale(3, RoundingMode.HALF_DOWN);
 			User us_currentUser = UserUtilities.findUser(UserUtilities.getCurrentUser());
 			ValueCollection vc_RepoCredentials = getGitRepoRemoteCredential(us_currentUser);
+			if (vc_RepoCredentials.getPrimitive(Const.str_GitCommitterUser) == null) {
+				return "Push Error: Missing Git credentials for this thing. Please configure credentials in the extension settings.";
+			}
 			String str_User = ((StringPrimitive) vc_RepoCredentials.getPrimitive(Const.str_GitCommitterUser))
 					.getValue();
 			String str_Password = ((PasswordPrimitive) vc_RepoCredentials.getPrimitive(Const.str_GitCommitterPassword))
@@ -298,8 +281,48 @@ public class GitBackupTemplate extends Thing {
 					(double) (endTimeAddAllFilesWithSetUpdate - endTimeAddFiles) / (double) 1000000)
 					.setScale(3, RoundingMode.HALF_DOWN);
 			// 2.2 We submit the commit to the repository
-			myGitObject.commit().setAll(true).setMessage(Message).setCommitter(str_CommitterName, str_CommitterEmail)
-					.call();
+			var commitCmd = myGitObject.commit().setAll(true).setMessage(Message)
+					.setCommitter(str_CommitterName, str_CommitterEmail);
+
+			// Check if GPG signing is configured for this repo (stored in separate GpgKeys property)
+			String str_GpgPrivateKey = null;
+			String str_GpgPassphrase = null;
+			boolean bool_SignCommits = false;
+			try {
+				InfoTable iftbl_GpgKeys = ((InfoTablePrimitive) us_currentUser
+						.getPropertyValue(Const.str_GpgKeys)).getValue();
+				if (iftbl_GpgKeys != null) {
+					ValueCollection vc_GpgFilter = new ValueCollection();
+					vc_GpgFilter.put("GitThing", new StringPrimitive(this.getName()));
+					ValueCollection vc_GpgKey = iftbl_GpgKeys.find(vc_GpgFilter);
+					if (vc_GpgKey != null && vc_GpgKey.getPrimitive(Const.str_SignCommits) != null) {
+						str_GpgPrivateKey = ((PasswordPrimitive) vc_GpgKey
+								.getPrimitive(Const.str_GpgPrivateKey)).getValue();
+						str_GpgPassphrase = ((PasswordPrimitive) vc_GpgKey
+								.getPrimitive(Const.str_GpgKeyPassphrase)).getValue();
+						bool_SignCommits = ((BooleanPrimitive) vc_GpgKey
+								.getPrimitive(Const.str_SignCommits)).getValue();
+					}
+				}
+			} catch (Exception e) {
+				_logger.warn("No GpgKeys UserExtension property found; skipping GPG signing.");
+			}
+
+			PastedKeyGpgSigner gpgSigner = null;
+			if (bool_SignCommits && str_GpgPrivateKey != null && !str_GpgPrivateKey.isEmpty()) {
+				gpgSigner = new PastedKeyGpgSigner(str_GpgPrivateKey, str_GpgPassphrase);
+				GpgSigner.setDefault(gpgSigner);
+				commitCmd.setSign(true).setSigningKey(null);
+				commitCmd.setCredentialsProvider(
+						new UsernamePasswordCredentialsProvider(null, str_GpgPassphrase));
+			}
+
+			commitCmd.call();
+
+			if (gpgSigner != null) {
+				gpgSigner.clearSensitiveData();
+			}
+
 			long endTimeCommitToLocalRepository = System.nanoTime();
 			BigDecimal durationTimeCommitToLocalRepository = new BigDecimal(
 					(double) (endTimeCommitToLocalRepository - endTimeAddAllFilesWithSetUpdate) / (double) 1000000)
@@ -336,6 +359,84 @@ public class GitBackupTemplate extends Thing {
 
 	}
 
+	@ThingworxServiceDefinition(name = "VerifyGpgKey", description = "Verifies a pasted PGP private key can be loaded and used for signing. Returns the key fingerprint on success.", category = "", isAllowOverride = false, aspects = {
+			"isAsync:false" })
+	@ThingworxServiceResult(name = "Result", description = "", baseType = "INFOTABLE", aspects = {
+			"isEntityDataShape:true", "dataShape:GitBackup.GpgKey.DataShape" })
+	public InfoTable VerifyGpgKey(
+			@ThingworxServiceParameter(name = "GpgPrivateKey", description = "ASCII-armored PGP private key", baseType = "STRING") String GpgPrivateKey,
+			@ThingworxServiceParameter(name = "GpgKeyPassphrase", description = "Passphrase for the PGP private key", baseType = "PASSWORD") String GpgKeyPassphrase)
+			throws Exception {
+		String str_CurrentMethodName = "VerifyGpgKey";
+		InfoTable iftbl_Result = InfoTableInstanceFactory
+				.createInfoTableFromDataShape(Const.str_GpgKeyDataShapeName);
+		try {
+			// if no key was passed, try to read from stored GpgKeys property
+			String resolvedKey = GpgPrivateKey;
+			String resolvedPassphrase = GpgKeyPassphrase;
+			if (GpgPrivateKey == null || GpgPrivateKey.trim().isEmpty()) {
+				try {
+					User us_currentUser = UserUtilities.findUser(UserUtilities.getCurrentUser());
+					InfoTable iftbl_GpgKeys = ((InfoTablePrimitive) us_currentUser
+							.getPropertyValue(Const.str_GpgKeys)).getValue();
+					if (iftbl_GpgKeys != null) {
+						ValueCollection vc_GpgFilter = new ValueCollection();
+						vc_GpgFilter.put("GitThing", new StringPrimitive(this.getName()));
+						ValueCollection vc_GpgKey = iftbl_GpgKeys.find(vc_GpgFilter);
+						if (vc_GpgKey != null && vc_GpgKey.getPrimitive(Const.str_SignCommits) != null) {
+							resolvedKey = ((PasswordPrimitive) vc_GpgKey
+									.getPrimitive(Const.str_GpgPrivateKey)).getValue();
+							resolvedPassphrase = ((PasswordPrimitive) vc_GpgKey
+									.getPrimitive(Const.str_GpgKeyPassphrase)).getValue();
+						}
+					}
+				} catch (Exception e) {
+					_logger.warn("No stored GpgKeys found; proceeding with provided key if any.");
+				}
+			}
+			// auto-detect base64-encoded keys for REST API calls where multi-line JSON escaping may cause issues
+			String decodedKey = resolvedKey;
+			if (resolvedKey != null && !resolvedKey.startsWith("-----")) {
+				try {
+					byte[] decoded = Base64.getDecoder().decode(resolvedKey);
+					decodedKey = new String(decoded, StandardCharsets.UTF_8);
+				} catch (IllegalArgumentException e) {
+					// not valid base64, use as-is
+				}
+			}
+			PastedKeyGpgSigner signer = new PastedKeyGpgSigner(decodedKey, resolvedPassphrase);
+			PersonIdent committer = new PersonIdent("temp", "temp@temp.com");
+			boolean canLocate = signer.canLocateSigningKey(null, committer, null);
+			String fingerprint = signer.getFingerprint();
+
+			ValueCollection vc = new ValueCollection();
+			vc.put("GitThing", new StringPrimitive(this.getName()));
+			vc.put("SignCommits", new BooleanPrimitive(canLocate));
+			vc.put("GpgKeyFingerprint",
+					new StringPrimitive(fingerprint != null ? fingerprint : "Unable to derive fingerprint"));
+			iftbl_Result.addRow(vc);
+
+			signer.clearSensitiveData();
+
+			String str_LogResult = "GPG Key verification "
+					+ (canLocate ? "succeeded" : "failed") + ". Fingerprint: "
+					+ (fingerprint != null ? fingerprint : "N/A");
+			LogOperationResult(str_LogResult, str_CurrentMethodName);
+		} catch (Exception e) {
+			StringWriter errors = new StringWriter();
+			e.printStackTrace(new PrintWriter(errors));
+			_logger.error(errors.toString());
+			LogOperationResult(errors.toString(), str_CurrentMethodName);
+			ValueCollection vc = new ValueCollection();
+			vc.put("GitThing", new StringPrimitive(this.getName()));
+			vc.put("SignCommits", new BooleanPrimitive(false));
+			vc.put("GpgKeyFingerprint",
+					new StringPrimitive("Verification error: " + e.getMessage()));
+			iftbl_Result.addRow(vc);
+		}
+		return iftbl_Result;
+	}
+
 	@ThingworxServiceDefinition(name = "Pull", description = "Pulls the last commit to the File Repository path", category = "", isAllowOverride = false, aspects = {
 			"isAsync:false" })
 	@ThingworxServiceResult(name = "Result", description = "", baseType = "STRING", aspects = {})
@@ -348,6 +449,9 @@ public class GitBackupTemplate extends Thing {
 			Git myGitFolder = getGitObject("Pull");
 			User us_currentUser = UserUtilities.findUser(UserUtilities.getCurrentUser());
 			ValueCollection vc_RepoCredentials = getGitRepoRemoteCredential(us_currentUser);
+			if (vc_RepoCredentials.getPrimitive(Const.str_GitCommitterUser) == null) {
+				return "Pull Error: Missing Git credentials for this thing. Please configure credentials in the extension settings.";
+			}
 			String str_User = ((StringPrimitive) vc_RepoCredentials.getPrimitive(Const.str_GitCommitterUser))
 					.getValue();
 			String str_Password = ((PasswordPrimitive) vc_RepoCredentials.getPrimitive(Const.str_GitCommitterPassword))
@@ -973,11 +1077,18 @@ public class GitBackupTemplate extends Thing {
 	}
 
 	private ValueCollection getGitRepoRemoteCredential(User us_currentUser) throws Exception {
-		InfoTable iftbl_CredentialStore = ((InfoTablePrimitive) (us_currentUser)
-				.getPropertyValue(Const.str_GitCredentials)).getValue();
+		var propValue = us_currentUser.getPropertyValue(Const.str_GitCredentials);
+		if (propValue == null) {
+			return new ValueCollection();
+		}
+		InfoTable iftbl_CredentialStore = ((InfoTablePrimitive) propValue).getValue();
+		if (iftbl_CredentialStore == null) {
+			return new ValueCollection();
+		}
 		ValueCollection vc = new ValueCollection();
 		vc.put("GitThing", new StringPrimitive(this.getName()));
-		return iftbl_CredentialStore.find(vc);
+		ValueCollection result = iftbl_CredentialStore.find(vc);
+		return result != null ? result : new ValueCollection();
 
 	}
 

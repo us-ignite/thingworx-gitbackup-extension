@@ -34,4 +34,12 @@ public final class Const {
 	public final static String str_GitCommitterName = "GitCommitterFullName";
 	public final static String str_GitCommitterEmail = "GitCommitterEmail";
 	public final static String str_GitCredentials = "GitCredentials";
+
+	// GPG Key related constants
+	public final static String str_GpgKeys = "GpgKeys";
+	public final static String str_GpgPrivateKey = "GpgPrivateKey";
+	public final static String str_GpgKeyPassphrase = "GpgKeyPassphrase";
+	public final static String str_SignCommits = "SignCommits";
+	public final static String str_GpgKeyFingerprint = "GpgKeyFingerprint";
+	public final static String str_GpgKeyDataShapeName = "GitBackup.GpgKey.DataShape";
 }
