@@ -3,8 +3,8 @@
 build/
 
 # Eclipse
-.classpath
 .project
+.classpath
 .settings/
 bin/
 
@@ -20,3 +20,7 @@ Thumbs.db
 
 # JDK (local, not part of build)
 graalvm-jdk-21*
+
+# Integration test credentials
+.env
+twx-lib/*
