@@ -15,12 +15,17 @@
     <property name="build.dir"      value="${basedir}/bin" /> 
     <property name="config.dir"     value="${basedir}/configfiles" /> 
     <property name="ui.dir"         value="${basedir}/${ui}" /> 
-    <property name="lib.dir"        value="${basedir}/${lib}" /> 
+    <property name="lib.dir"        value="${basedir}/${lib}" />
+    <property name="test.lib.dir"   value="${lib.dir}/test" />
+    <property name="test.src.dir"   value="${src.dir}/tests" />
+    <property name="test.build.dir" value="${build.dir}/tests" />
+    <property name="test.reports.dir" value="${basedir}/build/reports/tests" /> 
     <property name="zip.dir"        value="${basedir}/build/distributions" /> 
     <property name="entity.dir"     value="${basedir}/Entities" /> 
     <property name="localization.dir"  value="${basedir}/${localization}" /> 
  
-    <property file="extension.properties" /> 
+    <property file="extension.properties" />
+    <property file="test.properties" /> 
  
     <!-- ExtensionPackage directory structure props --> 
     <property name="package.lib.basedir" value="${lib}" /> 
@@ -36,11 +41,19 @@
     </tstamp> 
  
     <!-- define the classpath so it picks up the ThingWorx SDK jar relative to this basedir --> 
-    <path id="jar.classpath"> 
-        <pathelement location="${build.dir}" /> 
-        <fileset dir="${basedir}/twx-lib" includes="*.jar" /> 
-        <fileset dir="${lib.dir}" includes="*.jar" erroronmissingdir="false" /> 
-    </path> 
+    <path id="jar.classpath">
+        <pathelement location="${build.dir}" />
+        <fileset dir="${basedir}/twx-lib" includes="*.jar" />
+        <fileset dir="${lib.dir}" includes="*.jar" erroronmissingdir="false" />
+    </path>
+
+    <path id="test.classpath">
+        <pathelement location="${build.dir}" />
+        <pathelement location="${test.build.dir}" />
+        <fileset dir="${basedir}/twx-lib" includes="*.jar" />
+        <fileset dir="${lib.dir}" includes="*.jar" erroronmissingdir="false" />
+        <fileset dir="${test.lib.dir}" includes="*.jar" erroronmissingdir="false" />
+    </path>
  
     <target name="clean"> 
         <delete dir="${build.dir}" /> 
@@ -62,13 +75,23 @@
  
     </target> 
  
-    <target name="build-source" depends="init"> 
-        <echo message="${ant.project.name}: ${ant.file}" /> 
-        <javac debug="true" debuglevel="${debuglevel}" destdir="${build.dir}" source="${source}" target="${target}" includeantruntime="false"> 
-            <src path="${src.dir}" /> 
-            <classpath refid="jar.classpath" /> 
-        </javac> 
-    </target> 
+    <target name="build-source" depends="init">
+        <echo message="${ant.project.name}: ${ant.file}" />
+        <javac debug="true" debuglevel="${debuglevel}" destdir="${build.dir}" source="${source}" target="${target}" includeantruntime="false">
+            <src path="${src.dir}" />
+            <exclude name="tests/**" />
+            <classpath refid="jar.classpath" />
+        </javac>
+    </target>
+
+    <target name="build-source-force" depends="init">
+        <echo message="${ant.project.name}: ${ant.file} (ignoring missing SDK classes)" />
+        <javac debug="true" debuglevel="${debuglevel}" destdir="${build.dir}" source="${source}" target="${target}" includeantruntime="false" failonerror="false">
+            <src path="${src.dir}" />
+            <exclude name="tests/**" />
+            <classpath refid="jar.classpath" />
+        </javac>
+    </target>
  
     <target name="check-bin" depends="build-source"> 
         <fileset dir="${build.dir}" id="binfileset" /> 
@@ -93,11 +116,13 @@
                 </section> 
             </manifest> 
  
-            <fileset dir="${build.dir}" /> 
+            <fileset dir="${build.dir}">
+                <exclude name="tests/**" />
+            </fileset>
         </jar> 
     </target> 
- 
-    <target name="package-extension" depends="increment-patch-version"> 
+    
+    <target name="package-extension" depends="build-jars">
         <zip destfile="${zip.dir}/${zip.file.name}"> 
             <mappedresources> 
                 <fileset dir="${build.dir}" includes="${extension.jar}" /> 
@@ -110,22 +135,54 @@
             <zipfileset dir="${basedir}" includes="${localization}/**/*.json" /> 
             <zipfileset dir="${basedir}" includes="${ui}/**/*.*" /> 
         	 <!-- the commons-codec is required by the jgit source code; not included because it's already available in ThingWorx --> 
-            <zipfileset dir="${lib.dir}" includes="**/*.jar" prefix="${package.common.lib.dir}/" excludes="**/gitextension.jar **/commons-codec*.*" /> 
+            <zipfileset dir="${lib.dir}" includes="**/*.jar" prefix="${package.common.lib.dir}/" excludes="**/gitextension.jar **/commons-codec*.* **/test/**" /> 
  
         </zip> 
     	
         <zip destfile="${zip.dir}/GitBackupExtensionPack.zip">
         	 <zipfileset dir="${zip.dir}" includes="*.*" />
         	 <zipfileset dir="${basedir}/3rdPartyExtensions/" includes="*.*"  />
-        </zip>
-        <delete file="${zip.dir}/${zip.file.name}" /> 
+        </zip> 
     </target> 
  
-    <target name="build" depends="package-extension"> 
-        <echo message="Building ${ant.project.name} extension package..."/> 
-    </target> 
+    <target name="test-compile" depends="init">
+        <mkdir dir="${test.build.dir}" />
+        <javac debug="true" debuglevel="${debuglevel}" destdir="${test.build.dir}" source="${source}" target="${target}" includeantruntime="false">
+            <src path="${test.src.dir}" />
+            <classpath refid="test.classpath" />
+        </javac>
+    </target>
+
+    <target name="run-tests" depends="package-extension, test-compile">
+        <delete dir="${test.reports.dir}" />
+        <mkdir dir="${test.reports.dir}" />
+        <junitlauncher>
+            <classpath refid="test.classpath" />
+            <testclasses outputdir="${test.reports.dir}">
+                <fileset dir="${test.build.dir}" />
+                <listener type="legacy-brief" sendSysOut="true" sendSysErr="true" />
+                <listener type="legacy-xml" sendSysOut="true" sendSysErr="true" />
+                <fork>
+                    <sysproperty key="api.version" value="${api.version}" />
+                </fork>
+            </testclasses>
+        </junitlauncher>
+    </target>
+
+    <target name="test" depends="run-tests">
+        <echo message="Tests completed. Reports: ${test.reports.dir}" />
+    </target>
+
+    <target name="clean-tests">
+        <delete dir="${test.build.dir}" />
+        <delete dir="${test.reports.dir}" />
+    </target>
+
+    <target name="build" depends="package-extension">
+        <echo message="Building ${ant.project.name} extension package..."/>
+    </target>
 	
-	<target name="increment-patch-version" depends="build-jars">
+<target name="increment-patch-version" depends="build-jars">
 			<script language="javascript">
 				<![CDATA[
 					load("nashorn:mozilla_compat.js");
@@ -161,7 +218,7 @@
 					//echo = project.createTask("echo");
 					//      echo.setMessage(metadata);
 					//     echo.perform();
-					]]>
+				]]>
 			</script>
 		</target>
 	

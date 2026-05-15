@@ -1,0 +1,5 @@
+twx-lib/thingworx-*
+MED-61098-CD-096_9-6-0_ThingWorx-Extension-SDK-9-6-0.zip
+bin
+build
+*.env
