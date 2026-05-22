@@ -170,17 +170,17 @@
                              description="prefix used for exporting Localization Tokens"
                              name="LocalizationTokensPrefix"
                              ordinal="13"></FieldDefinition>
-                            <FieldDefinition
-                             baseType="STRING"
-                             description=""
-                             name="Password"
-                             ordinal="6"></FieldDefinition>
-                            <FieldDefinition
-                             aspect.defaultValue="3281"
-                             baseType="INTEGER"
-                             description=""
-                             name="ProxyPort"
-                             ordinal="11"></FieldDefinition>
+                              <FieldDefinition
+                               baseType="STRING"
+                               description=""
+                               name="Password"
+                               ordinal="6"></FieldDefinition>
+                             <FieldDefinition
+                              aspect.defaultValue="3281"
+                              baseType="INTEGER"
+                              description=""
+                              name="ProxyPort"
+                              ordinal="11"></FieldDefinition>
                             <FieldDefinition
                              aspect.defaultValue="none"
                              baseType="STRING"
@@ -490,7 +490,7 @@
                              name="GpgPrivateKey"
                              ordinal="2"></FieldDefinition>
                             <FieldDefinition
-                             baseType="PASSWORD"
+                             baseType="STRING"
                              description="Passphrase for the PGP private key"
                              name="GpgKeyPassphrase"
                              ordinal="3"></FieldDefinition>
@@ -620,16 +620,16 @@
                              description=""
                              name="LocalizationTokensPrefix"
                              ordinal="11"></FieldDefinition>
+                             <FieldDefinition
+                              baseType="STRING"
+                              description=""
+                              name="Password"
+                              ordinal="6"></FieldDefinition>
                             <FieldDefinition
-                             baseType="STRING"
-                             description=""
-                             name="Password"
-                             ordinal="6"></FieldDefinition>
-                            <FieldDefinition
-                             baseType="INTEGER"
-                             description=""
-                             name="ProxyPort"
-                             ordinal="10"></FieldDefinition>
+                              baseType="INTEGER"
+                              description=""
+                              name="ProxyPort"
+                              ordinal="10"></FieldDefinition>
                             <FieldDefinition
                              baseType="STRING"
                              description=""
@@ -672,6 +672,48 @@
                              description=""
                              name="GitThingName"
                              ordinal="1"></FieldDefinition>
+                        </ParameterDefinitions>
+                    </ServiceDefinition>
+                    <ServiceDefinition
+                     aspect.isAsync="false"
+                     category=""
+                     description="Stores or updates Git credentials for a GitBackup thing in the current user's GitCredentials property."
+                     isAllowOverride="false"
+                     isLocalOnly="false"
+                     isOpen="false"
+                     isPrivate="false"
+                     name="SetGitCredentials">
+                        <ResultType
+                         baseType="NOTHING"
+                         description=""
+                         name="result"
+                         ordinal="0"></ResultType>
+                        <ParameterDefinitions>
+                            <FieldDefinition
+                             baseType="STRING"
+                             description=""
+                             name="GitCommitterUser"
+                             ordinal="1"></FieldDefinition>
+                             <FieldDefinition
+                              baseType="STRING"
+                              description=""
+                              name="GitCommitterPassword"
+                              ordinal="2"></FieldDefinition>
+                            <FieldDefinition
+                             baseType="STRING"
+                             description=""
+                             name="GitCommitterEmail"
+                             ordinal="3"></FieldDefinition>
+                            <FieldDefinition
+                             baseType="STRING"
+                             description=""
+                             name="GitCommitterFullName"
+                             ordinal="4"></FieldDefinition>
+                            <FieldDefinition
+                             baseType="THINGNAME"
+                             description=""
+                             name="GitThing"
+                             ordinal="5"></FieldDefinition>
                         </ParameterDefinitions>
                     </ServiceDefinition>
                 </ServiceDefinitions>
@@ -847,35 +889,14 @@
                                         		tableName: "Configuration" /* STRING */
                                         	});
                                         	Things[RepoName].RestartThing();
-                                        	//only after the Thing was created we add the credentials to the user's GitCredentials store
-                                        	setCredentials(User, Password, CommitEmail, CommitUser, RepoName);
-                                        }
-                                        
-                                        function setCredentials(GitCommitterUser, GitCommitterPassword, GitCommitterEmail, GitCommitterFullName, GitThing) {
-                                        	var str_CurrentUser = Resources["CurrentSessionInfo"].GetCurrentUser();
-                                        	if (Users[str_CurrentUser] && Users[str_CurrentUser].GitCredentials !== undefined) {
-                                        		//deletes any existing Git Credential entry for this repository if it already exists
-                                        		//the key reason to do this is because the authentication system assumes there's only one credential / user / repository
-                                        		//we're cloning the infotable because deleting directly from the infotable won't trigger the persistence process in the database - therefore reverting to its original state after system restart.
-                                        		// result: INFOTABLE
-                                        		let iftbl_Credentials = Resources["InfoTableFunctions"].Clone({
-                                        			t1: Users[str_CurrentUser].GitCredentials /* INFOTABLE */
-                                        		});
-                                        		iftbl_Credentials.Delete({
-                                        			GitThing: GitThing
-                                        		});
-                                        		// GitBackup.GitCredentials.DataShape entry object
-                                        		let credential = {
-                                        			GitCommitterUser: GitCommitterUser, // STRING
-                                        			GitCommitterPassword: encryptPropertyValue(GitCommitterPassword), // PASSWORD
-                                        			GitCommitterEmail: GitCommitterEmail, // STRING
-                                        			GitCommitterFullName: GitCommitterFullName, // STRING
-                                        			GitThing: GitThing // THINGNAME
-                                        		};
-                                                iftbl_Credentials.AddRow(credential);
-                                                //as written above, this needed to trigger the infotable persistence in the database
-                                        		Users[str_CurrentUser].GitCredentials=iftbl_Credentials;
-                                        	}
+                                         	//only after the Thing was created we add the credentials to the user's GitCredentials store
+                                         	Things["GIT.Utility.Thing"].SetGitCredentials({
+                                         		GitCommitterUser: User,
+                                         		GitCommitterPassword: Password,
+                                         		GitCommitterEmail: CommitEmail,
+                                         		GitCommitterFullName: CommitUser,
+                                         		GitThing: RepoName
+                                         	});
                                         }
                                         ]]>
                                         </code>
@@ -1783,36 +1804,15 @@
                                         	Things[RepoName].SaveConfigurationTables();
                                         	//restart to reinitialize the proxy
                                         	Things[RepoName].RestartThing();
-                                            setCredentials(User,Password,CommitEmail,CommitUser,RepoName);
-                                        	logger.warn("Git Thing configuration was updated successfully.");
-                                        } else logger.error("Could not update GitThing. Either RepoName or GitRepoURL did not contain data.");
-                                        
-                                        function setCredentials(GitCommitterUser, GitCommitterPassword, GitCommitterEmail, GitCommitterFullName, GitThing) {
-                                        	var str_CurrentUser = Resources["CurrentSessionInfo"].GetCurrentUser();
-                                        	if (Users[str_CurrentUser] && Users[str_CurrentUser].GitCredentials !== undefined) {
-                                        		//deletes any existing Git Credential entry for this repository if it already exists
-                                        		//the key reason to do this is because the authentication system assumes there's only one credential / user / repository
-                                        		//we're cloning the infotable because deleting directly from the infotable won't trigger the persistence process in the database - therefore reverting to its original state after system restart.
-                                        		// result: INFOTABLE
-                                        		let iftbl_Credentials = Resources["InfoTableFunctions"].Clone({
-                                        			t1: Users[str_CurrentUser].GitCredentials /* INFOTABLE */
-                                        		});
-                                        		iftbl_Credentials.Delete({
-                                        			GitThing: GitThing
-                                        		});
-                                        		// GitBackup.GitCredentials.DataShape entry object
-                                        		let credential = {
-                                        			GitCommitterUser: GitCommitterUser, // STRING
-                                        			GitCommitterPassword: encryptPropertyValue(GitCommitterPassword), // PASSWORD
-                                        			GitCommitterEmail: GitCommitterEmail, // STRING
-                                        			GitCommitterFullName: GitCommitterFullName, // STRING
-                                        			GitThing: GitThing // THINGNAME
-                                        		};
-                                                iftbl_Credentials.AddRow(credential);
-                                                //as written above, this needed to trigger the infotable persistence in the database
-                                        		Users[str_CurrentUser].GitCredentials=iftbl_Credentials;
-                                        	}
-                                        }
+                                             Things["GIT.Utility.Thing"].SetGitCredentials({
+                                             	GitCommitterUser: User,
+                                             	GitCommitterPassword: Password,
+                                             	GitCommitterEmail: CommitEmail,
+                                             	GitCommitterFullName: CommitUser,
+                                             	GitThing: RepoName
+                                             });
+                                          	logger.warn("Git Thing configuration was updated successfully.");
+                                         } else logger.error("Could not update GitThing. Either RepoName or GitRepoURL did not contain data.");
                                         ]]>
                                         </code>
                                     </Row>
@@ -1924,16 +1924,26 @@
                                         var str_CurrentUser = Resources["CurrentSessionInfo"].GetCurrentUser();
                                         if (str_CurrentUser !== undefined && Users[str_CurrentUser]["GpgKeys"] === undefined) {
                                             ThingShapes["UserExtensions"].AddPropertyDefinition({
-                                                defaultValue: undefined,
-                                                description: "User-specific GPG signing keys store.",
-                                                readOnly: false,
-                                                type: "INFOTABLE",
-                                                persistent: true,
-                                                name: "GpgKeys",
-                                                dataShape: "GitBackup.GpgKey.DataShape"
+                                                defaultValue: undefined /* STRING */,
+                                                remoteBindingAspects: undefined /* JSON */,
+                                                description: "User-specific GPG signing keys store." /* STRING */,
+                                                readOnly: false /* BOOLEAN */,
+                                                type: "INFOTABLE" /* BASETYPENAME */,
+                                                remote: false /* BOOLEAN */,
+                                                remotePropertyName: undefined /* STRING */,
+                                                timeout: undefined /* INTEGER */,
+                                                pushType: undefined /* STRING */,
+                                                dataChangeThreshold: undefined /* NUMBER */,
+                                                logged: false /* BOOLEAN */,
+                                                name: "GpgKeys" /* STRING */,
+                                                pushThreshold: undefined /* NUMBER */,
+                                                dataChangeType: undefined /* STRING */,
+                                                category: undefined /* STRING */,
+                                                persistent: true /* BOOLEAN */,
+                                                dataShape: "GitBackup.GpgKey.DataShape" /* DATASHAPENAME */
                                             });
                                             Resources["EntityServices"].RestartDependenciesForThingShape({
-                                                name: "UserExtensions"
+                                                name: "UserExtensions" /* THINGSHAPENAME */
                                             });
                                         }
                                         ]]>
@@ -2067,6 +2077,61 @@
                                             });
                                             iftbl_GpgKeys.Delete({ GitThing: GitThing });
                                             Users[str_CurrentUser].GpgKeys = iftbl_GpgKeys;
+                                        }
+                                        ]]>
+                                        </code>
+                                    </Row>
+                                </Rows>
+                            </ConfigurationTable>
+                        </ConfigurationTables>
+                    </ServiceImplementation>
+                    <ServiceImplementation
+                     description=""
+                     handlerName="Script"
+                     name="SetGitCredentials">
+                        <ConfigurationTables>
+                            <ConfigurationTable
+                             dataShapeName=""
+                             description=""
+                             isMultiRow="false"
+                             name="Script"
+                             ordinal="0">
+                                <DataShape>
+                                    <FieldDefinitions>
+                                        <FieldDefinition
+                                         baseType="STRING"
+                                         description="code"
+                                         name="code"
+                                         ordinal="0"></FieldDefinition>
+                                    </FieldDefinitions>
+                                </DataShape>
+                                <Rows>
+                                    <Row>
+                                        <code>
+                                        <![CDATA[
+                                        var str_CurrentUser = Resources["CurrentSessionInfo"].GetCurrentUser();
+                                        if (Users[str_CurrentUser]) {
+                                        	if (Users[str_CurrentUser].GitCredentials === undefined) {
+                                        		Users[str_CurrentUser].GitCredentials = Resources["InfoTableFunctions"].CreateInfoTableFromDataShape({
+                                        			infoTableName: "InfoTable",
+                                        			dataShapeName: "GitBackup.GitCredentials.DataShape"
+                                        		});
+                                        	}
+                                        	var iftbl_Credentials = Resources["InfoTableFunctions"].Clone({
+                                        		t1: Users[str_CurrentUser].GitCredentials
+                                        	});
+                                        	iftbl_Credentials.Delete({
+                                        		GitThing: GitThing
+                                        	});
+                                        	var credential = {
+                                        		GitCommitterUser: GitCommitterUser,
+                                         		GitCommitterPassword: encryptPropertyValue(GitCommitterPassword),
+                                        		GitCommitterEmail: GitCommitterEmail,
+                                        		GitCommitterFullName: GitCommitterFullName,
+                                        		GitThing: GitThing
+                                        	};
+                                        	iftbl_Credentials.AddRow(credential);
+                                        	Users[str_CurrentUser].GitCredentials = iftbl_Credentials;
                                         }
                                         ]]>
                                         </code>

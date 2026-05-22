@@ -4,166 +4,97 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.Duration;
-import java.util.Base64;
 
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestMethodOrder;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.wait.strategy.Wait;
-import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+
+import com.google.gson.JsonObject;
+import gb.tests.util.TestingCredentials;
+import gb.tests.util.ThingWorxVersion;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-public class GiteaGitOperationsTest extends ThingWorxContainerBase {
+@Testcontainers
+public class GiteaGitOperationsTest {
 
-    private static final String GITEA_USER = "testadmin";
-    private static final String GITEA_PASS = "testadmin123";
-    private static final String REPO_NAME = "gitbackup-test";
     private static final String GIT_THING_NAME = "ITGiteaTestThing";
     private static final String GIT_THING_PATH = "/" + GIT_THING_NAME;
     private static final String TEST_FILE = "hello-gitbackup.txt";
-    private static final String GITEA_ALIAS = "gitea";
-
-    @Container
-    private static final GenericContainer<?> gitea = new GenericContainer<>("gitea/gitea:1.22.3")
-            .withNetwork(network)
-            .withNetworkAliases(GITEA_ALIAS)
-            .withEnv("GITEA__security__INSTALL_LOCK", "true")
-            .withEnv("GITEA__admin__NAME", GITEA_USER)
-            .withEnv("GITEA__admin__PASSWD", GITEA_PASS)
-            .withEnv("GITEA__admin__EMAIL", "admin@example.com")
-            .withEnv("GITEA__server__DOMAIN", "localhost")
-            .withEnv("GITEA__server__HTTP_PORT", "3000")
-            .withEnv("GITEA__server__ROOT_URL", "http://localhost:3000/")
-            .withEnv("GITEA__database__DB_TYPE", "sqlite3")
-            .withExposedPorts(3000)
-            .waitingFor(Wait.forHttp("/").forStatusCode(200).withStartupTimeout(Duration.ofMinutes(3)));
+    private TestingCredentials credentials;
+    private String giteaRepoUrl;
 
     private static final ThingWorxVersion TEST_VERSION = new ThingWorxVersion("9.7.5",
             "devopscadit/postgresql-init-twx:platform9.7.5",
             "devopscadit/platform-postgres:platform9.7.5");
 
-    private HttpClient httpClient;
-    private String authHeader;
-    private String giteaAuthHeader;
-    private String giteaHostUrl;
-    private String giteaInternalRepoUrl;
-    private String giteaApiRepoPath;
-    private Stack stack;
-    private Path extensionZipPath = Paths.get("build/distributions/GitBackupExtension.zip");
+    private GitBackupExtensionTestStack stack;
 
-    @BeforeAll
-    void setup() throws Exception {
-        httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(30))
-                .build();
-
-        authHeader = "Basic " + Base64.getEncoder().encodeToString(
-                ("Administrator:" + ADMIN_PASS).getBytes(StandardCharsets.UTF_8));
-        giteaAuthHeader = "Basic " + Base64.getEncoder().encodeToString(
-                (GITEA_USER + ":" + GITEA_PASS).getBytes(StandardCharsets.UTF_8));
-
-        giteaHostUrl = "http://" + gitea.getHost() + ":" + gitea.getMappedPort(3000);
-        giteaInternalRepoUrl = "http://" + GITEA_ALIAS + ":3000/" + GITEA_USER + "/" + REPO_NAME + ".git";
-        giteaApiRepoPath = "/api/v1/repos/" + GITEA_USER + "/" + REPO_NAME;
-
-        stack = getOrCreateStack(TEST_VERSION);
-        installExtension(stack, extensionZipPath);
-        verifyExtensionInstalled(stack);
-        createAdminOnGitea();
-        createRepoOnGitea();
-        callService("GIT.Utility.Thing", "InitUserExtensionProperties", null);
-        callService("GIT.Utility.Thing", "InitUserExtensionGpgKeysProperty", null);
-    }
-
-    private void createAdminOnGitea() throws Exception {
-        for (int i = 0; i < 30; i++) {
-            try {
-                var execResult = gitea.execInContainer("sh", "-c",
-                        "su git -c 'gitea admin user create --username " + GITEA_USER
-                        + " --password " + GITEA_PASS
-                        + " --email admin@example.com"
-                        + " --admin'");
-                String out = execResult.getStdout() + execResult.getStderr();
-                if (execResult.getExitCode() == 0) return;
-                if (out.contains("already exists")) return;
-                Thread.sleep(2000);
-            } catch (Exception e) {
-                Thread.sleep(2000);
-            }
-        }
-    }
-
-    private void createRepoOnGitea() throws Exception {
-        String json = "{\"name\":\"" + REPO_NAME + "\",\"auto_init\":true,\"private\":false}";
-        Exception lastError = null;
-        for (int i = 0; i < 30; i++) {
-            try {
-                var req = HttpRequest.newBuilder()
-                        .uri(URI.create(giteaHostUrl + "/api/v1/user/repos"))
-                        .header("Content-Type", "application/json")
-                        .header("Authorization", giteaAuthHeader)
-                        .POST(HttpRequest.BodyPublishers.ofString(json))
-                        .timeout(Duration.ofSeconds(5))
-                        .build();
-                var res = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-                if (res.statusCode() == 201 || res.statusCode() == 200) return;
-                if (res.statusCode() == 409) return;
-                lastError = new RuntimeException("Gitea repo create returned: " + res.statusCode() + " " + res.body());
-                Thread.sleep(2000);
-            } catch (Exception e) {
-                lastError = e;
-                Thread.sleep(2000);
-            }
-        }
-        throw lastError != null ? lastError : new RuntimeException("Failed to create Gitea repo");
-    }
-
-    private void createBranchOnGitea(String branchName) throws Exception {
-        String json = "{\"new_branch_name\":\"" + branchName + "\",\"old_ref_name\":\"main\"}";
-        var req = HttpRequest.newBuilder()
-                .uri(URI.create(giteaHostUrl + giteaApiRepoPath + "/branches"))
-                .header("Content-Type", "application/json")
-                .header("Authorization", giteaAuthHeader)
-                .POST(HttpRequest.BodyPublishers.ofString(json))
+    private void createBranchOnGiteaViaGiteaAPI(String branchName) throws Exception {
+        Thread.sleep(3000);
+        JsonObject createBody = new JsonObject();
+        createBody.addProperty("BranchName", branchName);
+        createBody.addProperty("StartPoint", "main");
+        var createReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "CreateBranch", createBody.toString())
                 .timeout(Duration.ofSeconds(10))
                 .build();
-        var res = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-        assertTrue(res.statusCode() == 201 || res.statusCode() == 200 || res.statusCode() == 409,
-                "Create branch on Gitea failed: " + res.statusCode() + " " + res.body());
-    }
+        var createRes = stack.httpClient.send(createReq, HttpResponse.BodyHandlers.ofString());
+        assertTrue(createRes.statusCode() == 200 || createRes.statusCode() == 201,
+                "CreateBranch failed: " + createRes.statusCode() + " " + createRes.body());
 
-    private HttpResponse<String> callService(String thingName, String serviceName, String body)
-            throws Exception {
-        var req = HttpRequest.newBuilder()
-                .uri(URI.create(stack.baseUrl + "/Thingworx/Things/" + thingName + "/Services/" + serviceName))
-                .header("Content-Type", "application/json;charset=UTF-8")
-                .header("Accept", "application/json")
-                .header("Authorization", authHeader)
-                .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
-                .header("X-Requested-By", "ThingWorx")
-                .POST(HttpRequest.BodyPublishers.ofString(body == null ? "{}" : body))
-                .timeout(Duration.ofMinutes(3))
+        JsonObject checkoutBody = new JsonObject();
+        checkoutBody.addProperty("BranchNameOrCommit", branchName);
+        var checkoutReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "Checkout", checkoutBody.toString())
+                .timeout(Duration.ofSeconds(10))
                 .build();
-        return httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+        var checkoutRes = stack.httpClient.send(checkoutReq, HttpResponse.BodyHandlers.ofString());
+        assertTrue(checkoutRes.statusCode() == 200 || checkoutRes.statusCode() == 201,
+                "Checkout to new branch failed: " + checkoutRes.statusCode() + " " + checkoutRes.body());
+
+        JsonObject pushBody = new JsonObject();
+        pushBody.addProperty("Message", "Create branch " + branchName + " via test");
+        var pushReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "Push", pushBody.toString())
+                .timeout(Duration.ofSeconds(30))
+                .build();
+        var pushRes = stack.httpClient.send(pushReq, HttpResponse.BodyHandlers.ofString());
+        assertTrue(pushRes.statusCode() == 200 || pushRes.statusCode() == 201,
+                "Push after branch creation failed: " + pushRes.statusCode() + " " + pushRes.body());
+
+        JsonObject checkoutMainBody = new JsonObject();
+        checkoutMainBody.addProperty("BranchNameOrCommit", "main");
+        var checkoutMainReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "Checkout", checkoutMainBody.toString())
+                .timeout(Duration.ofSeconds(10))
+                .build();
+        var checkoutMainRes = stack.httpClient.send(checkoutMainReq, HttpResponse.BodyHandlers.ofString());
+        assertTrue(checkoutMainRes.statusCode() == 200 || checkoutMainRes.statusCode() == 201,
+                "Checkout back to main failed: " + checkoutMainRes.statusCode() + " " + checkoutMainRes.body());
     }
 
-    private void callPutFile(String repoName, String path, String content) throws Exception {
-        String json = "{\"path\":\"" + path + "\",\"content\":\"" + escapeJson(content) + "\"}";
-        var res = callService(repoName, "SaveText", json);
+    @BeforeAll
+    public void beforeAll() throws Exception {
+        credentials = new TestingCredentials();
+        giteaRepoUrl = "http://gitea:3000/" + credentials.giteaUser + "/" + credentials.repoName + ".git";
+        stack = new GitBackupExtensionTestStack(TEST_VERSION, credentials);
+    }
+
+    @AfterAll
+    public void afterAll() {
+        stack.close();
+    }
+
+    private void editFileInRepoViaThingworxAPI(String repoName, String path, String content) throws Exception {
+        var json = new JsonObject();
+        json.addProperty("path", path);
+        json.addProperty("content", content);
+        var req = stack.thingworx.serviceRequest(repoName, "SaveText", json.toString()).build();
+        var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
         assertTrue(res.statusCode() == 200 || res.statusCode() == 201,
                 "SaveText failed: " + res.statusCode() + " " + res.body());
     }
@@ -171,62 +102,69 @@ public class GiteaGitOperationsTest extends ThingWorxContainerBase {
     @Test
     @Order(1)
     void testCreateGitThing() throws Exception {
-        String addNewRepoBody = "{"
-                + "\"RepoName\":\"" + GIT_THING_NAME + "\","
-                + "\"GitRepoURL\":\"" + giteaInternalRepoUrl + "\","
-                + "\"RepoPath\":\"" + GIT_THING_PATH + "\","
-                + "\"FileRepo\":\"GitRepository\","
-                + "\"User\":\"" + GITEA_USER + "\","
-                + "\"Password\":\"" + GITEA_PASS + "\","
-                + "\"CommitUser\":\"Test User\","
-                + "\"CommitEmail\":\"test@example.com\","
-                + "\"InitialBranch\":\"main\","
-                + "\"ProxyURL\":\"\","
-                + "\"ProxyPort\":0,"
-                + "\"UseProxy\":false,"
-                + "\"LocalizationTokensPrefix\":\"\""
-                + "}";
+        JsonObject body = new JsonObject();
+        body.addProperty("RepoName", GIT_THING_NAME);
+        body.addProperty("GitRepoURL", giteaRepoUrl);
+        body.addProperty("RepoPath", GIT_THING_PATH);
+        body.addProperty("FileRepo", "GitRepository");
+        body.addProperty("User", credentials.giteaUser);
+        body.addProperty("Password", credentials.giteaPass);
+        body.addProperty("CommitUser", "Test User");
+        body.addProperty("CommitEmail", "test@example.com");
+        body.addProperty("InitialBranch", "main");
+        body.addProperty("ProxyURL", "");
+        body.addProperty("ProxyPort", 0);
+        body.addProperty("UseProxy", false);
+        body.addProperty("LocalizationTokensPrefix", "");
 
-        var res = callService("GIT.Utility.Thing", "AddNewRepo", addNewRepoBody);
-        assertTrue(res.statusCode() == 200 || res.statusCode() == 201,
-                "AddNewRepo failed: " + res.statusCode() + " " + res.body());
+        var createReq = stack.thingworx.serviceRequest("GIT.Utility.Thing", "AddNewRepo", body.toString()).build();
+        var createRes = stack.httpClient.send(createReq, HttpResponse.BodyHandlers.ofString());
+        assertTrue(createRes.statusCode() == 200 || createRes.statusCode() == 201,
+                "AddNewRepo failed: " + createRes.statusCode() + " " + createRes.body());
 
         Thread.sleep(5000);
-
-        var verifyRes = callService(GIT_THING_NAME, "GetCurrentBranch", null);
+        var verifyReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "GetCurrentBranch", null).build();
+        var verifyRes = stack.httpClient.send(verifyReq, HttpResponse.BodyHandlers.ofString());
         assertTrue(verifyRes.statusCode() == 200 || verifyRes.statusCode() == 201,
-                "Git thing was not created successfully: " + verifyRes.statusCode() + " " + verifyRes.body());
+                "Git thing was not created successfully: " + verifyRes.statusCode() + " "
+                        + verifyRes.body());
     }
 
     @Test
     @Order(2)
     void testPush() throws Exception {
-        callPutFile("GitRepository", GIT_THING_PATH + "/" + TEST_FILE,
+        editFileInRepoViaThingworxAPI("GitRepository", GIT_THING_PATH + "/" + TEST_FILE,
                 "Hello from ThingWorx GitBackup integration test!");
 
-        var pushRes = callService(GIT_THING_NAME, "Push",
-                "{\"Message\":\"Integration test: initial commit\"}");
+        JsonObject body = new JsonObject();
+        body.addProperty("Message", "Integration test: initial commit");
+        var pushReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "Push", body.toString()).build();
+        var pushRes = stack.httpClient.send(pushReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, pushRes.statusCode(), "Push failed: " + pushRes.body());
         assertNotNull(pushRes.body());
-        String body = pushRes.body();
-        assertFalse(body.contains("Error"), "Push returned error: " + body);
-        assertFalse(body.contains("Exception"), "Push threw exception: " + body);
+        String bodyStr = pushRes.body();
+        assertFalse(bodyStr.contains("Error"), "Push returned error: " + bodyStr);
+        assertFalse(bodyStr.contains("Exception"), "Push threw exception: " + bodyStr);
     }
 
     @Test
     @Order(3)
     void testStatus() throws Exception {
-        var res = callService(GIT_THING_NAME, "Status", null);
-        assertEquals(200, res.statusCode(), "Status failed: " + res.body());
-        assertNotNull(res.body());
-        assertTrue(res.body().contains("rows"),
-                "Status should return infotable JSON: " + res.body());
+        var statusReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "Status", null).build();
+        var statusRes = stack.httpClient.send(statusReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, statusRes.statusCode(), "Status failed: " + statusRes.body());
+        assertNotNull(statusRes.body());
+        assertTrue(statusRes.body().contains("rows"),
+                "Status should return infotable JSON: " + statusRes.body());
     }
 
     @Test
     @Order(4)
     void testPull() throws Exception {
-        var res = callService(GIT_THING_NAME, "Pull", "{\"Force\":false}");
+        JsonObject body = new JsonObject();
+        body.addProperty("Force", false);
+        var req = stack.thingworx.serviceRequest(GIT_THING_NAME, "Pull", body.toString()).build();
+        var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, res.statusCode(), "Pull failed: " + res.body());
         assertNotNull(res.body());
         assertFalse(res.body().contains("Error"), "Pull returned error: " + res.body());
@@ -235,15 +173,18 @@ public class GiteaGitOperationsTest extends ThingWorxContainerBase {
     @Test
     @Order(5)
     void testCheckoutMain() throws Exception {
-        var res = callService(GIT_THING_NAME, "Checkout",
-                "{\"BranchNameOrCommit\":\"main\"}");
+        JsonObject body = new JsonObject();
+        body.addProperty("BranchNameOrCommit", "main");
+        var req = stack.thingworx.serviceRequest(GIT_THING_NAME, "Checkout", body.toString()).build();
+        var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, res.statusCode(), "Checkout to main failed: " + res.body());
     }
 
     @Test
     @Order(6)
     void testGetCurrentBranch() throws Exception {
-        var res = callService(GIT_THING_NAME, "GetCurrentBranch", null);
+        var req = stack.thingworx.serviceRequest(GIT_THING_NAME, "GetCurrentBranch", null).build();
+        var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, res.statusCode(), "GetCurrentBranch failed: " + res.body());
         assertNotNull(res.body());
         assertTrue(res.body().contains("BranchName") || res.body().contains("main"),
@@ -253,41 +194,54 @@ public class GiteaGitOperationsTest extends ThingWorxContainerBase {
     @Test
     @Order(7)
     void testCheckoutRemoteBranch() throws Exception {
-        createBranchOnGitea("it-test-feature");
+        createBranchOnGiteaViaGiteaAPI("it-test-feature");
 
         Thread.sleep(2000);
 
-        var pullRes = callService(GIT_THING_NAME, "Pull", "{\"Force\":false}");
+        var pullBody = new JsonObject();
+        pullBody.addProperty("Force", false);
+        var pullReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "Pull", pullBody.toString()).build();
+        var pullRes = stack.httpClient.send(pullReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, pullRes.statusCode(), "Pull before checkout failed: " + pullRes.body());
 
-        var checkoutRes = callService(GIT_THING_NAME, "Checkout",
-                "{\"BranchNameOrCommit\":\"it-test-feature\"}");
+        var checkoutBody = new JsonObject();
+        checkoutBody.addProperty("BranchNameOrCommit", "it-test-feature");
+        var checkoutReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "Checkout", checkoutBody.toString())
+                .build();
+        var checkoutRes = stack.httpClient.send(checkoutReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, checkoutRes.statusCode(),
                 "Checkout to remote tracking branch failed: " + checkoutRes.body());
 
-        callPutFile("GitRepository", GIT_THING_PATH + "/feature-file.txt",
+        editFileInRepoViaThingworxAPI("GitRepository", GIT_THING_PATH + "/feature-file.txt",
                 "Feature branch content");
 
-        var pushRes = callService(GIT_THING_NAME, "Push",
-                "{\"Message\":\"Feature branch commit\"}");
+        var pushBody = new JsonObject();
+        pushBody.addProperty("Message", "Feature branch commit");
+        var pushReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "Push", pushBody.toString()).build();
+        var pushRes = stack.httpClient.send(pushReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, pushRes.statusCode(), "Push on feature branch failed: " + pushRes.body());
 
-        var currentBranchRes = callService(GIT_THING_NAME, "GetCurrentBranch", null);
+        var currentBranchReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "GetCurrentBranch", null).build();
+        var currentBranchRes = stack.httpClient.send(currentBranchReq, HttpResponse.BodyHandlers.ofString());
         assertTrue(currentBranchRes.body().contains("it-test-feature"),
                 "Should be on feature branch: " + currentBranchRes.body());
 
-        var checkoutMainRes = callService(GIT_THING_NAME, "Checkout",
-                "{\"BranchNameOrCommit\":\"main\"}");
-        assertEquals(200, checkoutMainRes.statusCode(), "Checkout back to main failed: " + checkoutMainRes.body());
+        var checkoutMainBody = new JsonObject();
+        checkoutMainBody.addProperty("BranchNameOrCommit", "main");
+        var checkoutMainReq = stack.thingworx
+                .serviceRequest(GIT_THING_NAME, "Checkout", checkoutMainBody.toString()).build();
+        var checkoutMainRes = stack.httpClient.send(checkoutMainReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, checkoutMainRes.statusCode(),
+                "Checkout back to main failed: " + checkoutMainRes.body());
     }
 
     @Test
     @Order(8)
     void testBranchList() throws Exception {
-        var res = callService(GIT_THING_NAME, "GetBranchList", null);
+        var req = stack.thingworx.serviceRequest(GIT_THING_NAME, "GetBranchList", null).build();
+        var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, res.statusCode(), "GetBranchList failed: " + res.body());
         assertNotNull(res.body());
-
         String body = res.body();
         assertTrue(body.contains("main"), "Should contain main branch: " + body);
         assertTrue(body.contains("it-test-feature"), "Should contain feature branch: " + body);
@@ -296,29 +250,40 @@ public class GiteaGitOperationsTest extends ThingWorxContainerBase {
     @Test
     @Order(9)
     void testDeleteLocalBranch() throws Exception {
-        createBranchOnGitea("it-temp-branch");
+        createBranchOnGiteaViaGiteaAPI("it-temp-branch");
 
         Thread.sleep(2000);
 
-        var pullRes = callService(GIT_THING_NAME, "Pull", "{\"Force\":false}");
+        var pullBody = new JsonObject();
+        pullBody.addProperty("Force", false);
+        var pullReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "Pull", pullBody.toString()).build();
+        var pullRes = stack.httpClient.send(pullReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, pullRes.statusCode(), "Pull before checkout failed: " + pullRes.body());
 
-        var checkoutRes = callService(GIT_THING_NAME, "Checkout",
-                "{\"BranchNameOrCommit\":\"it-temp-branch\"}");
+        JsonObject checkoutBody = new JsonObject();
+        checkoutBody.addProperty("BranchNameOrCommit", "it-temp-branch");
+        var checkoutReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "Checkout", checkoutBody.toString())
+                .build();   
+        var checkoutRes = stack.httpClient.send(checkoutReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, checkoutRes.statusCode(),
                 "Checkout to temp branch failed: " + checkoutRes.body());
 
-        var switchBackRes = callService(GIT_THING_NAME, "Checkout",
-                "{\"BranchNameOrCommit\":\"main\"}");
+        JsonObject switchBackBody = new JsonObject();
+        switchBackBody.addProperty("BranchNameOrCommit", "main");
+        var switchBackReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "Checkout", switchBackBody.toString()).build();
+        var switchBackRes = stack.httpClient.send(switchBackReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, switchBackRes.statusCode(), "Switch back to main failed: " + switchBackRes.body());
 
-        var deleteRes = callService(GIT_THING_NAME, "DeleteLocalBranch",
-                "{\"BranchName\":\"it-temp-branch\"}");
+        JsonObject deleteBody = new JsonObject();
+        deleteBody.addProperty("BranchName", "it-temp-branch");
+        var deleteReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "DeleteLocalBranch", deleteBody.toString()).build();
+        var deleteRes = stack.httpClient.send(deleteReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, deleteRes.statusCode(), "DeleteLocalBranch failed: " + deleteRes.body());
 
         Thread.sleep(2000);
 
-        var branchListRes = callService(GIT_THING_NAME, "GetBranchList", null);
+        var branchListReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "GetBranchList", null).build();
+        var branchListRes = stack.httpClient.send(branchListReq, HttpResponse.BodyHandlers.ofString());
         assertFalse(branchListRes.body().contains("refs/heads/it-temp-branch"),
                 "Local branch it-temp-branch should have been deleted: " + branchListRes.body());
     }
@@ -326,9 +291,10 @@ public class GiteaGitOperationsTest extends ThingWorxContainerBase {
     @Test
     @Order(10)
     void testCommitList() throws Exception {
-        var res = callService(GIT_THING_NAME, "GetCommitList", null);
+        var req = stack.thingworx.serviceRequest(GIT_THING_NAME, "GetCommitList", null).build();
+        var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, res.statusCode(), "GetCommitList failed: " + res.body());
-        assertNotNull(res.body());
+        assertNotNull(res.body());  
         assertTrue(res.body().contains("rows"),
                 "Should contain rows: " + res.body());
     }
@@ -336,114 +302,239 @@ public class GiteaGitOperationsTest extends ThingWorxContainerBase {
     @Test
     @Order(11)
     void testCommitInfo() throws Exception {
-        var commitListRes = callService(GIT_THING_NAME, "GetCommitList", null);
+        var commitListReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "GetCommitList", null).build();
+        var commitListRes = stack.httpClient.send(commitListReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, commitListRes.statusCode());
 
         var firstCommitId = extractFirstCommitId(commitListRes.body());
-        if (firstCommitId == null) {
-            return;
-        }
+        assertNotNull(firstCommitId, "No commits found - cannot test CommitInfo. Response: " + commitListRes.body());
 
-        var res = callService(GIT_THING_NAME, "GetCommitInfo",
-                "{\"CommitID\":\"" + firstCommitId + "\"}");
-        assertEquals(200, res.statusCode(), "GetCommitInfo failed: " + res.body());
-        assertNotNull(res.body());
-        assertTrue(res.body().contains(firstCommitId) || res.body().contains("CommitID"),
-                "Commit info should reference the commit: " + res.body());
+        JsonObject body = new JsonObject();
+        body.addProperty("CommitID", firstCommitId);
+        var commitInfoReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "GetCommitInfo", body.toString()).build();
+        var commitInfoRes = stack.httpClient.send(commitInfoReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, commitInfoRes.statusCode(), "GetCommitInfo failed: " + commitInfoRes.body());
+        assertNotNull(commitInfoRes.body());
+        assertTrue(commitInfoRes.body().contains(firstCommitId) || commitInfoRes.body().contains("CommitID"),
+                "Commit info should reference the commit: " + commitInfoRes.body());
     }
 
     @Test
     @Order(12)
     void testDiffPerFileBetweenCommits() throws Exception {
-        var commitListRes = callService(GIT_THING_NAME, "GetCommitList", null);
+        var commitListReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "GetCommitList", null).build();
+        var commitListRes = stack.httpClient.send(commitListReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, commitListRes.statusCode());
 
         var firstCommitId = extractFirstCommitId(commitListRes.body());
-        if (firstCommitId == null) {
-            return;
-        }
+        assertNotNull(firstCommitId, "No commits found - cannot test diff. Response: " + commitListRes.body());
 
-        var res = callService(GIT_THING_NAME, "GetDiffPerFileBetweenCommits",
-                "{\"File\":\"" + TEST_FILE + "\",\"FromCommitID\":\"" + firstCommitId + "\"}");
-        assertEquals(200, res.statusCode(), "GetDiffPerFileBetweenCommits failed: " + res.body());
-        assertNotNull(res.body());
+        JsonObject body = new JsonObject();
+        body.addProperty("File", TEST_FILE);
+        body.addProperty("FromCommitID", firstCommitId);
+        var diffReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "GetDiffPerFileBetweenCommits", body.toString()).build();
+        var diffRes = stack.httpClient.send(diffReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, diffRes.statusCode(), "GetDiffPerFileBetweenCommits failed: " + diffRes.body());
+        assertNotNull(diffRes.body());
     }
 
     @Test
     @Order(13)
     void testDiffPerFile() throws Exception {
-        var res = callService(GIT_THING_NAME, "GetDiffPerFile",
-                "{\"File\":\"" + TEST_FILE + "\"}");
-        assertEquals(200, res.statusCode(), "GetDiffPerFile failed: " + res.body());
-        assertNotNull(res.body());
+        JsonObject body = new JsonObject();
+        body.addProperty("File", TEST_FILE);
+        var diffReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "GetDiffPerFile", body.toString()).build();
+        var diffRes = stack.httpClient.send(diffReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, diffRes.statusCode(), "GetDiffPerFile failed: " + diffRes.body());
+        assertNotNull(diffRes.body());
     }
 
     @Test
     @Order(14)
     void testForcePull() throws Exception {
-        var res = callService(GIT_THING_NAME, "Pull", "{\"Force\":true}");
-        assertEquals(200, res.statusCode(), "Force pull failed: " + res.body());
-        assertFalse(res.body().contains("Error"), "Force pull returned error: " + res.body());
+        JsonObject body = new JsonObject();
+        body.addProperty("Force", true);
+        var pullReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "Pull", body.toString()).build();
+        var pullRes = stack.httpClient.send(pullReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, pullRes.statusCode(), "Force pull failed: " + pullRes.body());
+        assertFalse(pullRes.body().contains("Error"), "Force pull returned error: " + pullRes.body());
+    }
+
+    //     @Test
+//     @Order(15)
+//     void testVerifyGpgKey() throws Exception {
+//         String testKey = GPGGenerator.generateTestGpgPrivateKey();
+//         JsonObject setKeyBody = new JsonObject();
+//         setKeyBody.addProperty("GitThing", GIT_THING_NAME);
+//         setKeyBody.addProperty("GpgPrivateKey", testKey);
+//         setKeyBody.addProperty("SignCommits", false);
+//         setKeyBody.addProperty("GpgKeyFingerprint", "");
+//         var setKeyReq = stack.thingworx.serviceRequest("GIT.Utility.Thing", "SetGpgKey", setKeyBody.toString()).build();
+//         var setKeyRes = stack.httpClient.send(setKeyReq, HttpResponse.BodyHandlers.ofString());
+//         assertTrue(setKeyRes.statusCode() == 200 || setKeyRes.statusCode() == 201,
+//                 "SetGpgKey failed: " + setKeyRes.statusCode() + " " + setKeyRes.body());
+//
+//         Thread.sleep(2000);
+//
+//         JsonObject verifyBody = new JsonObject();
+//         verifyBody.addProperty("GpgPrivateKey", "");
+//         verifyBody.addProperty("GpgKeyPassphrase", "");
+//         var verifyReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "VerifyGpgKey", verifyBody.toString()).build();
+//         var verifyRes = stack.httpClient.send(verifyReq, HttpResponse.BodyHandlers.ofString());
+//         assertEquals(200, verifyRes.statusCode(), "VerifyGpgKey failed: " + verifyRes.body());
+//         assertTrue(verifyRes.body().contains("GpgKeyFingerprint"),
+//                 "VerifyGpgKey should return fingerprint: " + verifyRes.body());
+//     }
+//
+//     @Test
+//     @Order(16)
+//     void testSignedPush() throws Exception {
+//         editFileInRepoViaThingworxAPI("GitRepository", GIT_THING_PATH + "/signed-test.txt",
+//                 "Signed commit test content");
+//
+//         var testKey = GPGGenerator.generateTestGpgPrivateKey();
+//
+//         var setKeyBody = new JsonObject();
+//         setKeyBody.addProperty("GitThing", GIT_THING_NAME);
+//         setKeyBody.addProperty("GpgPrivateKey", testKey);
+//         setKeyBody.addProperty("SignCommits", true);
+//         setKeyBody.addProperty("GpgKeyFingerprint", "");
+//         var setKeyReq = stack.thingworx.serviceRequest("GIT.Utility.Thing", "SetGpgKey", setKeyBody.toString()).build();
+//         var setKeyRes = stack.httpClient.send(setKeyReq, HttpResponse.BodyHandlers.ofString());
+//         assertTrue(setKeyRes.statusCode() == 200 || setKeyRes.statusCode() == 201,
+//                 "SetGpgKey failed: " + setKeyRes.statusCode() + " " + setKeyRes.body());
+//
+//         Thread.sleep(2000);
+//
+//         var pushBody = new JsonObject();
+//         pushBody.addProperty("Message", "Integration test: signed commit");
+//         var pushReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "Push", pushBody.toString()).build();
+//         var pushRes = stack.httpClient.send(pushReq, HttpResponse.BodyHandlers.ofString());
+//         assertEquals(200, pushRes.statusCode(), "Signed Push failed: " + pushRes.body());
+//         var body = pushRes.body();
+//         assertFalse(body.contains("Error"), "Signed Push returned error: " + body);
+//         assertFalse(body.contains("Exception"), "Signed Push threw exception: " + body);
+//         var commitListReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "GetCommitList", null).build();
+//         var commitListRes = stack.httpClient.send(commitListReq, HttpResponse.BodyHandlers.ofString());
+//         assertTrue(commitListRes.body().contains("rows"),
+//                 "Commit list should have entries: " + commitListRes.body());
+//     }
+
+    @Test
+    @Order(18)
+    void testCreateTag() throws Exception {
+        JsonObject body = new JsonObject();
+        body.addProperty("TagName", "test-v1.0");
+        body.addProperty("Message", "Test release v1.0");
+        var req = stack.thingworx.serviceRequest(GIT_THING_NAME, "CreateTag", body.toString()).build();
+        var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, res.statusCode(), "CreateTag failed: " + res.body());
+        assertTrue(res.body().contains("Tag test-v1.0 created"),
+                "CreateTag should confirm creation: " + res.body());
     }
 
     @Test
-    @Order(15)
-    void testVerifyGpgKey() throws Exception {
-        String testKey = generateTestGpgPrivateKey();
-        var setKeyRes = callService("GIT.Utility.Thing", "SetGpgKey",
-                "{\"GitThing\":\"" + GIT_THING_NAME + "\","
-                + "\"GpgPrivateKey\":\"" + escapeJson(testKey) + "\","
-                + "\"SignCommits\":false,"
-                + "\"GpgKeyFingerprint\":\"\"}");
-        assertTrue(setKeyRes.statusCode() == 200 || setKeyRes.statusCode() == 201,
-                "SetGpgKey failed: " + setKeyRes.statusCode() + " " + setKeyRes.body());
-
-        Thread.sleep(2000);
-
-        var res = callService(GIT_THING_NAME, "VerifyGpgKey",
-                "{\"GpgPrivateKey\":\"\",\"GpgKeyPassphrase\":\"\"}");
-        assertEquals(200, res.statusCode(), "VerifyGpgKey failed: " + res.body());
-        assertTrue(res.body().contains("GpgKeyFingerprint"),
-                "VerifyGpgKey should return fingerprint: " + res.body());
+    @Order(19)
+    void testGetTagList() throws Exception {
+        var req = stack.thingworx.serviceRequest(GIT_THING_NAME, "GetTagList", null).build();
+        var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, res.statusCode(), "GetTagList failed: " + res.body());
+        assertTrue(res.body().contains("test-v1.0"),
+                "Tag list should contain test-v1.0: " + res.body());
     }
 
     @Test
-    @Order(16)
-    void testSignedPush() throws Exception {
-        callPutFile("GitRepository", GIT_THING_PATH + "/signed-test.txt",
-                "Signed commit test content");
+    @Order(20)
+    void testDeleteTag() throws Exception {
+        JsonObject body = new JsonObject();
+        body.addProperty("TagName", "test-v1.0");
+        var req = stack.thingworx.serviceRequest(GIT_THING_NAME, "DeleteTag", body.toString()).build();
+        var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, res.statusCode(), "DeleteTag failed: " + res.body());
 
-        String testKey = generateTestGpgPrivateKey();
+        var verifyReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "GetTagList", null).build();
+        var verifyRes = stack.httpClient.send(verifyReq, HttpResponse.BodyHandlers.ofString());
+        assertFalse(verifyRes.body().contains("test-v1.0"),
+                "Tag list should not contain test-v1.0 after deletion: " + verifyRes.body());
+    }
 
-        var setKeyRes = callService("GIT.Utility.Thing", "SetGpgKey",
-                "{\"GitThing\":\"" + GIT_THING_NAME + "\","
-                + "\"GpgPrivateKey\":\"" + escapeJson(testKey) + "\","
-                + "\"SignCommits\":true,"
-                + "\"GpgKeyFingerprint\":\"\"}");
-        assertTrue(setKeyRes.statusCode() == 200 || setKeyRes.statusCode() == 201,
-                "SetGpgKey failed: " + setKeyRes.statusCode() + " " + setKeyRes.body());
+    @Test
+    @Order(21)
+    void testMerge() throws Exception {
+        createBranchOnGiteaViaGiteaAPI("test-merge-branch");
 
         Thread.sleep(2000);
 
-        var pushRes = callService(GIT_THING_NAME, "Push",
-                "{\"Message\":\"Integration test: signed commit\"}");
-        assertEquals(200, pushRes.statusCode(), "Signed Push failed: " + pushRes.body());
-        String body = pushRes.body();
-        assertFalse(body.contains("Error"), "Signed Push returned error: " + body);
-        assertFalse(body.contains("Exception"), "Signed Push threw exception: " + body);
+        JsonObject checkoutBody = new JsonObject();
+        checkoutBody.addProperty("BranchNameOrCommit", "test-merge-branch");
+        var checkoutReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "Checkout", checkoutBody.toString()).build();
+        var checkoutRes = stack.httpClient.send(checkoutReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, checkoutRes.statusCode(), "Checkout to merge branch failed: " + checkoutRes.body());
 
-        var commitListRes = callService(GIT_THING_NAME, "GetCommitList", null);
-        assertTrue(commitListRes.body().contains("rows"),
-                "Commit list should have entries: " + commitListRes.body());
+        editFileInRepoViaThingworxAPI("GitRepository", GIT_THING_PATH + "/merge-test.txt",
+                "Merge branch content");
+
+        JsonObject pushBody = new JsonObject();
+        pushBody.addProperty("Message", "Commit on merge branch");
+        var pushReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "Push", pushBody.toString()).build();
+        var pushRes = stack.httpClient.send(pushReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, pushRes.statusCode(), "Push on merge branch failed: " + pushRes.body());
+
+        JsonObject checkoutMainBody = new JsonObject();
+        checkoutMainBody.addProperty("BranchNameOrCommit", "main");
+        var checkoutMainReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "Checkout", checkoutMainBody.toString()).build();
+        var checkoutMainRes = stack.httpClient.send(checkoutMainReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, checkoutMainRes.statusCode(), "Checkout to main failed: " + checkoutMainRes.body());
+
+        JsonObject mergeBody = new JsonObject();
+        mergeBody.addProperty("BranchName", "test-merge-branch");
+        var mergeReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "Merge", mergeBody.toString()).build();
+        var mergeRes = stack.httpClient.send(mergeReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, mergeRes.statusCode(), "Merge failed: " + mergeRes.body());
+        String body = mergeRes.body();
+        assertFalse(body.contains("Error"), "Merge returned error: " + body);
+        assertFalse(body.contains("Exception"), "Merge threw exception: " + body);
+    }
+
+    @Test
+    @Order(22)
+    void testRebase() throws Exception {
+        createBranchOnGiteaViaGiteaAPI("test-rebase-branch");
+
+        Thread.sleep(2000);
+
+        editFileInRepoViaThingworxAPI("GitRepository", GIT_THING_PATH + "/rebase-main.txt",
+                "Main branch advancement");
+        JsonObject pushBody = new JsonObject();
+        pushBody.addProperty("Message", "Advance main for rebase test");
+        var pushReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "Push", pushBody.toString()).build();
+        var pushRes = stack.httpClient.send(pushReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, pushRes.statusCode(), "Push on main failed: " + pushRes.body());
+
+        JsonObject checkoutBody = new JsonObject();
+        checkoutBody.addProperty("BranchNameOrCommit", "test-rebase-branch");
+        var checkoutReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "Checkout", checkoutBody.toString()).build();
+        var checkoutRes = stack.httpClient.send(checkoutReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, checkoutRes.statusCode(), "Checkout to rebase branch failed: " + checkoutRes.body());
+
+        JsonObject rebaseBody = new JsonObject();
+        rebaseBody.addProperty("UpstreamBranch", "main");
+        var rebaseReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "Rebase", rebaseBody.toString()).build();
+        var rebaseRes = stack.httpClient.send(rebaseReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, rebaseRes.statusCode(), "Rebase failed: " + rebaseRes.body());
+        String body = rebaseRes.body();
+        assertFalse(body.contains("Error"), "Rebase returned error: " + body);
+        assertFalse(body.contains("Exception"), "Rebase threw exception: " + body);
     }
 
     @Test
     @Order(17)
     void testDeleteLocalRepoContent() throws Exception {
-        var res = callService(GIT_THING_NAME, "DeleteLocalRepoContent", null);
-        assertEquals(200, res.statusCode(), "DeleteLocalRepoContent failed: " + res.body());
-
-        var pullRes = callService(GIT_THING_NAME, "Pull", "{\"Force\":false}");
+        var statusReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "Status", null).build();
+        var statusRes = stack.httpClient.send(statusReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, statusRes.statusCode(), "DeleteLocalRepoContent failed: " + statusRes.body());
+        var pullReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "Pull", "{\"Force\":false}").build();
+        var pullRes = stack.httpClient.send(pullReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, pullRes.statusCode(), "Pull after delete failed: " + pullRes.body());
         assertFalse(pullRes.body().contains("Error"),
                 "Pull after content deletion returned error: " + pullRes.body());
@@ -451,57 +542,21 @@ public class GiteaGitOperationsTest extends ThingWorxContainerBase {
 
     private String extractFirstCommitId(String json) {
         int rowsIdx = json.indexOf("\"rows\"");
-        if (rowsIdx == -1) return null;
+        if (rowsIdx == -1)
+            return null;
         int commitIdIdx = json.indexOf("\"CommitID\"", rowsIdx);
-        if (commitIdIdx == -1) return null;
+        if (commitIdIdx == -1)
+            return null;
         int colonIdx = json.indexOf(":", commitIdIdx);
-        if (colonIdx == -1) return null;
+        if (colonIdx == -1)
+            return null;
         int quote1 = json.indexOf("\"", colonIdx);
-        if (quote1 == -1) return null;
+        if (quote1 == -1)
+            return null;
         int quote2 = json.indexOf("\"", quote1 + 1);
-        if (quote2 == -1) return null;
+        if (quote2 == -1)
+            return null;
         return json.substring(quote1 + 1, quote2);
     }
 
-    private String escapeJson(String s) {
-        return s.replace("\\", "\\\\")
-                .replace("\"", "\\\"")
-                .replace("\n", "\\n")
-                .replace("\r", "\\r")
-                .replace("\t", "\\t");
-    }
-
-    private String generateTestGpgPrivateKey() throws Exception {
-        java.security.Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider());
-
-        java.security.KeyPairGenerator kpg = java.security.KeyPairGenerator.getInstance("RSA", "BC");
-        kpg.initialize(1024);
-        java.security.KeyPair kp = kpg.generateKeyPair();
-
-        String userId = "Test User <test@example.com>";
-
-        org.bouncycastle.openpgp.PGPKeyPair pgpKeyPair = new org.bouncycastle.openpgp.operator.jcajce.JcaPGPKeyPair(
-                org.bouncycastle.bcpg.PublicKeyAlgorithmTags.RSA_SIGN, kp, new java.util.Date());
-
-        org.bouncycastle.openpgp.operator.jcajce.JcaPGPDigestCalculatorProviderBuilder digestProvBuilder =
-                new org.bouncycastle.openpgp.operator.jcajce.JcaPGPDigestCalculatorProviderBuilder().setProvider("BC");
-        org.bouncycastle.openpgp.operator.PGPDigestCalculator sha1Calc = digestProvBuilder.build()
-                .get(org.bouncycastle.openpgp.PGPUtil.SHA1);
-
-        org.bouncycastle.openpgp.PGPKeyRingGenerator keyRingGen = new org.bouncycastle.openpgp.PGPKeyRingGenerator(
-                org.bouncycastle.openpgp.PGPSignature.POSITIVE_CERTIFICATION,
-                pgpKeyPair,
-                userId,
-                sha1Calc,
-                null, null,
-                new org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentSignerBuilder(
-                        pgpKeyPair.getPublicKey().getAlgorithm(), org.bouncycastle.openpgp.PGPUtil.SHA256).setProvider("BC"),
-                null);
-
-        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
-        try (org.bouncycastle.bcpg.ArmoredOutputStream armoredOut = new org.bouncycastle.bcpg.ArmoredOutputStream(out)) {
-            keyRingGen.generateSecretKeyRing().encode(armoredOut);
-        }
-        return out.toString("UTF-8");
-    }
 }

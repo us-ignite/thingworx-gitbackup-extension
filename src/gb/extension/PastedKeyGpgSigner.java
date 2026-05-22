@@ -26,13 +26,14 @@ import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentSignerBuilder;
 import org.bouncycastle.openpgp.operator.jcajce.JcePBESecretKeyDecryptorBuilder;
 import org.bouncycastle.util.encoders.Hex;
 import org.eclipse.jgit.api.errors.CanceledException;
-import org.eclipse.jgit.lib.CommitBuilder;
-import org.eclipse.jgit.lib.GpgSigner;
+import org.eclipse.jgit.lib.GpgConfig;
 import org.eclipse.jgit.lib.GpgSignature;
 import org.eclipse.jgit.lib.PersonIdent;
+import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.lib.Signer;
 import org.eclipse.jgit.transport.CredentialsProvider;
 
-public class PastedKeyGpgSigner extends GpgSigner {
+public class PastedKeyGpgSigner implements Signer {
 
     private final byte[] privateKeyData;
     private final char[] passphrase;
@@ -48,8 +49,9 @@ public class PastedKeyGpgSigner extends GpgSigner {
     }
 
     @Override
-    public void sign(CommitBuilder commit, String signingKey, PersonIdent committer,
-                     CredentialsProvider credentialsProvider) throws CanceledException {
+    public GpgSignature sign(Repository repository, GpgConfig config, byte[] data,
+                             PersonIdent committer, String signingKey,
+                             CredentialsProvider credentialsProvider) throws CanceledException {
         try {
             if (Security.getProvider("BC") == null) {
                 Security.addProvider(new BouncyCastleProvider());
@@ -78,10 +80,7 @@ public class PastedKeyGpgSigner extends GpgSigner {
             subGen.addSignerUserID(false, userId);
             sigGen.setHashedSubpackets(subGen.generate());
 
-            commit.setGpgSignature(null);
-            byte[] payload = commit.build();
-
-            sigGen.update(payload);
+            sigGen.update(data);
             PGPSignature signature = sigGen.generate();
 
             ByteArrayOutputStream sigOut = new ByteArrayOutputStream();
@@ -90,7 +89,7 @@ public class PastedKeyGpgSigner extends GpgSigner {
             }
 
             byte[] signatureBytes = sigOut.toByteArray();
-            commit.setGpgSignature(new GpgSignature(signatureBytes));
+            return new GpgSignature(signatureBytes);
 
         } catch (PGPException | IOException e) {
             throw new RuntimeException("Failed to sign commit with pasted GPG key", e);
@@ -98,7 +97,8 @@ public class PastedKeyGpgSigner extends GpgSigner {
     }
 
     @Override
-    public boolean canLocateSigningKey(String signingKey, PersonIdent committer,
+    public boolean canLocateSigningKey(Repository repository, GpgConfig config,
+                                       PersonIdent committer, String signingKey,
                                        CredentialsProvider credentialsProvider) throws CanceledException {
         try {
             if (Security.getProvider("BC") == null) {

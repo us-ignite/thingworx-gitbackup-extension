@@ -175,6 +175,33 @@
                 <ServiceDefinition
                  aspect.isAsync="false"
                  category=""
+                 description="Creates a new local branch from an optional start point (commit, branch, or tag) without switching to it."
+                 isAllowOverride="false"
+                 isLocalOnly="false"
+                 isOpen="false"
+                 isPrivate="false"
+                 name="CreateBranch">
+                    <ResultType
+                     baseType="STRING"
+                     description=""
+                     name="result"
+                     ordinal="0"></ResultType>
+                    <ParameterDefinitions>
+                        <FieldDefinition
+                         baseType="STRING"
+                         description="Name of the new branch"
+                         name="BranchName"
+                         ordinal="1"></FieldDefinition>
+                        <FieldDefinition
+                         baseType="STRING"
+                         description="Optional: commit hash, branch name, or tag to branch from (defaults to HEAD)"
+                         name="StartPoint"
+                         ordinal="2"></FieldDefinition>
+                    </ParameterDefinitions>
+                </ServiceDefinition>
+                <ServiceDefinition
+                 aspect.isAsync="false"
+                 category=""
                  description=""
                  isAllowOverride="false"
                  isLocalOnly="false"
@@ -946,6 +973,7 @@
                         </ConfigurationTable>
                     </ConfigurationTables>
                 </ServiceImplementation>
+
                 <ServiceImplementation
                  description=""
                  handlerName="Script"

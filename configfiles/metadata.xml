@@ -28,7 +28,7 @@
                  type="JAR"></FileResource>
                 <FileResource
                  description=""
-                 file="org.eclipse.jgit-6.10.0.202406032230-r.jar"
+                 file="org.eclipse.jgit-7.6.0.202603022253-r.jar"
                  type="JAR"></FileResource>
             </JarResources>
         </ExtensionPackage>

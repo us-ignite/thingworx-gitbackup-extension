@@ -232,6 +232,22 @@
                              ordinal="1"></FieldDefinition>
                         </ParameterDefinitions>
                     </ServiceDefinition>
+                    <ServiceDefinition
+                     aspect.isAsync="false"
+                     category=""
+                     description="Returns whether the extension is fully installed and functional"
+                     isAllowOverride="false"
+                     isLocalOnly="false"
+                     isOpen="false"
+                     isPrivate="false"
+                     name="IsExtensionInstalled">
+                        <ResultType
+                         baseType="BOOLEAN"
+                         description=""
+                         name="result"
+                         ordinal="0"></ResultType>
+                        <ParameterDefinitions></ParameterDefinitions>
+                    </ServiceDefinition>
                 </ServiceDefinitions>
                 <EventDefinitions></EventDefinitions>
                 <ServiceMappings></ServiceMappings>
@@ -380,16 +396,11 @@
                                         let test1 = new Object();
                                         let test1InputParams = new Object();
                                         //fill in the GitHub test Repo URL, must be in the form of: https://github.com/user/repoName.git
-                                        test1InputParams.GITTestRepoURL = "UPDATE";
-                                        //fill in the GitHub user (not email address or full name), it should be string you see on top when you click your user's icon on upper right side of the page
-                                        test1InputParams.GitUser = "UPDATE";
-                                        //fill in with a Personal Token you generate (a fine-grained token, ideally for this test repo) from Settings / Developer Settings / Personal Access Tokens
-                                        test1InputParams.GitPassword = "UPDATE";
-                                        //Fill in your Git Committer name (eg: John James)that is going to be used for new commits; 
-                                        test1InputParams.GitCommitterName = "UPDATE";
-                                        //Fill in your Git Committer email; you must use the GitHub email suggested in Settings / Emails / Keep my email private (if it's enabled). Otherwise GitHub will reject the commit when Pushing.
-                                        //it should be in the form of GitUser@users.noreply.github.com
-                                        test1InputParams.GitComitterEmail = "UPDATEm";
+                                        test1InputParams.GITTestRepoURL = "http://gitea:3000/giteauser/gitbackup-test-repo.git";
+                                        test1InputParams.GitUser = "giteauser";
+                                        test1InputParams.GitPassword = "giteapass123";
+                                        test1InputParams.GitCommitterName = "Test User";
+                                        test1InputParams.GitComitterEmail = "test@example.com";
                                         //this must be one of the branches that ALREADY EXIST on the remote side - be warned that older repositories don't use "main", and instead have something like "master" as main branch
                                         test1InputParams.GitMainBranch = "main";
                                         test1InputParams.GitThingName = "AT" + shortDate;
@@ -409,7 +420,7 @@
                                         test2InputParams.GitThingName = test1InputParams.GitThingName;
                                         test2InputParams.GitPassword = test1InputParams.GitPassword;
                                         //fill in with the GitHub API address used to retrieve the remote commits; it should be in the form of https://api.github.com/repos/GitUser/RepoName/commits
-                                        test2InputParams.GITTestRepoURLCommits = "UPDATE";
+                                        test2InputParams.GITTestRepoURLCommits = "http://giteauser:giteapass123@gitea:3000/api/v1/repos/giteauser/gitbackup-test-repo/commits";
                                         
                                         let test2ExpectedOutput = new Object();
                                         
@@ -836,7 +847,7 @@
                                         //Input data is defined in the CreateTestData Service
                                         try{
                                             //source of truth is the remote commit count
-                                            let int_CommitSize = CalculateCommitCount(InputParams.GitPassword, InputParams.GITTestRepoURLCommits);
+                                            let int_CommitSize = CalculateCommitCount(InputParams.GITTestRepoURLCommits);
                                             Things[InputParams.GitThingName].Pull();
                                         	pause(3000);
                                             testResult = Things[InputParams.GitThingName].GetCommitList().getRowCount()==int_CommitSize ? true: false; 
@@ -897,25 +908,23 @@
                                         result = PreviousTestResults; 
                                         logger.warn("---Ended test --- " + TestName) ; 
                                         
-                                        function CalculateCommitCount(GitPassword,GITTestRepoURLCommits) {
-                                        	let responseJSON = Resources["ContentLoaderFunctions"].LoadJSON({
-                                        		headers: {
-                                        			"Authorization": "Bearer " + GitPassword,
-                                        			"Content-Type": "application/json"
-                                        		} /* JSON */ ,
-                                        		ignoreSSLErrors: true /* BOOLEAN */ ,
-                                        		url: GITTestRepoURLCommits /* STRING */
-                                        	});
+                                        function CalculateCommitCount(GITTestRepoURLCommits) {
+                                        let responseJSON = Resources["ContentLoaderFunctions"].LoadJSON({
+                                            headers: {
+                                                "Content-Type": "application/json"
+                                            } /* JSON */ ,
+                                            ignoreSSLErrors: true /* BOOLEAN */ ,
+                                            url: GITTestRepoURLCommits /* STRING */
+                                        });
                                             let responseHeaders = responseJSON.responseHeaders;
                                         	let last;
                                         	if (responseHeaders.Link) {
                                         		last = responseHeaders.Link;
                                         		let lastCommitPageURL = last.split(",")[1].split(";")[0].replace("<", "").replace(">", "").trim();
-                                        		let lastPageCommitCount =  Resources["ContentLoaderFunctions"].LoadJSON({
-                                        			headers: {
-                                        				"Authorization": "Bearer " + GitPassword,
-                                        				"Content-Type": "application/json"
-                                        			} /* JSON */ ,
+                                		let lastPageCommitCount =  Resources["ContentLoaderFunctions"].LoadJSON({
+                                			headers: {
+                                				"Content-Type": "application/json"
+                                			} /* JSON */ ,
                                         			ignoreSSLErrors: true /* BOOLEAN */ ,
                                         			url: lastCommitPageURL /* STRING */
                                         		}).array.length;	
@@ -1181,6 +1190,38 @@
                                         pause(50);
                                         me.DeleteTestData({InputParams:testData});
                                         result = prevTestResult;
+                                        ]]>
+                                        </code>
+                                    </Row>
+                                </Rows>
+                            </ConfigurationTable>
+                        </ConfigurationTables>
+                    </ServiceImplementation>
+                    <ServiceImplementation
+                     description=""
+                     handlerName="Script"
+                     name="IsExtensionInstalled">
+                        <ConfigurationTables>
+                            <ConfigurationTable
+                             dataShapeName=""
+                             description=""
+                             isMultiRow="false"
+                             name="Script"
+                             ordinal="0">
+                                <DataShape>
+                                    <FieldDefinitions>
+                                        <FieldDefinition
+                                         baseType="STRING"
+                                         description="code"
+                                         name="code"
+                                         ordinal="0"></FieldDefinition>
+                                    </FieldDefinitions>
+                                </DataShape>
+                                <Rows>
+                                    <Row>
+                                        <code>
+                                        <![CDATA[
+                                        result = true;
                                         ]]>
                                         </code>
                                     </Row>
