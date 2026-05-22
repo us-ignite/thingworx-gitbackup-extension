@@ -6,8 +6,8 @@ plugins {
 defaultTasks 'clean', 'packageExtension'
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_11
-    targetCompatibility = JavaVersion.VERSION_11
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
 }
 
 ext {
@@ -36,11 +36,23 @@ task unpackSdk(type: Copy) {
 
 compileJava.dependsOn unpackSdk
 
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += ['-Xlint:deprecation']
+}
+
 sourceSets {
     main {
         java {
             srcDir 'src'
+            exclude 'gb/tests/**'
         }
+    }
+    test {
+        java {
+            srcDir 'src'
+        }
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += sourceSets.main.output
     }
 }
 
@@ -54,26 +66,32 @@ dependencies {
     implementation fileTree(dir: sdkExtractDir, include: '*.jar')
 
     // Runtime dependencies (packaged with the extension)
-    packageDependencies('org.eclipse.jgit:org.eclipse.jgit:6.10.0.202406032230-r') {
+    packageDependencies('org.eclipse.jgit:org.eclipse.jgit:7.6.0.202603022253-r') {
         exclude group: 'commons-codec'
         exclude group: 'org.slf4j'
     }
     packageDependencies 'com.jcraft:jsch:0.1.55'
     packageDependencies('org.bouncycastle:bcpg-jdk18on:1.72') {
         exclude group: 'org.slf4j'
+        exclude group: 'org.bouncycastle', module: 'bcprov-jdk18on'
     }
     packageDependencies 'com.googlecode.javaewah:JavaEWAH:1.2.3'
-    packageDependencies 'commons-io:commons-io:2.18.0'
-    packageDependencies 'org.apache.commons:commons-lang3:3.14.0'
 
     // Compile-only: already available in ThingWorx platform
     implementation 'commons-codec:commons-codec:1.22.0'
+    implementation 'commons-io:commons-io:2.18.0'
+    implementation 'org.apache.commons:commons-lang3:3.14.0'
+    implementation('org.bouncycastle:bcprov-jdk18on:1.72') {
+        exclude group: 'org.slf4j'
+    }
 
     // Test dependencies (not packaged since not in packageDependencies)
     implementation 'org.junit.jupiter:junit-jupiter:5.8.2'
     implementation 'org.junit.platform:junit-platform-launcher:1.8.2'
     implementation 'org.testcontainers:testcontainers:2.0.5'
     implementation 'org.testcontainers:testcontainers-junit-jupiter:2.0.5'
+    implementation 'com.google.code.gson:gson:2.10.1'
+    implementation 'org.json:json:20231013'
 }
 
 jar {
@@ -87,18 +105,12 @@ jar {
     }
 }
 
-tasks.withType(Test).configureEach {
+test {
+    dependsOn 'packageExtension', 'fetchJdk21'
     useJUnitPlatform()
-    testClassesDirs = sourceSets.main.output.classesDirs
-    classpath = sourceSets.main.runtimeClasspath
     testLogging {
         events 'passed', 'skipped', 'failed'
     }
-}
-
-test {
-    dependsOn 'packageExtension'
-    include '**/gb/tests/**'
 }
 
 task prepPackage(dependsOn: jar) {
@@ -141,7 +153,35 @@ task packagePack(type: Zip, dependsOn: packageExtension) {
     }
 }
 
+task fetchJdk21 {
+    description = 'Download and cache Corretto JDK 21 in build/jdk21-cache'
+    group = 'development'
+    outputs.dir file("${buildDir}/jdk21-cache")
+    doLast {
+        def cacheDir = file("${buildDir}/jdk21-cache")
+        def javaBin = file("${cacheDir}/bin/java")
+        if (javaBin.exists()) {
+            logger.lifecycle("JDK 21 already cached at ${cacheDir}")
+            return
+        }
+        def url = 'https://corretto.aws/downloads/latest/amazon-corretto-21-x64-linux-jdk.tar.gz'
+        def tar = file("${cacheDir}/corretto21.tar.gz")
+        cacheDir.mkdirs()
+        logger.lifecycle("Downloading Corretto 21 JDK...")
+        exec {
+            commandLine 'curl', '-sL', '-o', tar, url
+        }
+        logger.lifecycle("Extracting Corretto 21 JDK...")
+        exec {
+            commandLine 'tar', 'xzf', tar, '-C', cacheDir, '--strip-components=1'
+        }
+        tar.delete()
+        logger.lifecycle("Corretto 21 JDK cached at ${cacheDir}")
+    }
+}
+
 task composeUp(type: Exec) {
+    dependsOn fetchJdk21
     workingDir = projectDir
     commandLine 'docker', 'compose', 'up', '-d'
     description = 'Start the development stack (PostgreSQL, ThingWorx, Gitea)'
@@ -170,7 +210,7 @@ task composeLogs(type: Exec) {
 }
 
 task devSetup {
-    dependsOn packageExtension
+    dependsOn packageExtension, fetchJdk21
     description = 'Build extension, start dev stack, install extension on ThingWorx, and create Gitea test repo'
     group = 'development'
     doLast {

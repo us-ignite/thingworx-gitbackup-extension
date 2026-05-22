@@ -24,22 +24,26 @@ import java.util.List;
 import org.eclipse.jgit.api.CreateBranchCommand.SetupUpstreamMode;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.ListBranchCommand.ListMode;
+import org.eclipse.jgit.api.MergeResult;
 import org.eclipse.jgit.api.PullResult;
+import org.eclipse.jgit.api.RebaseResult;
 import org.eclipse.jgit.api.ResetCommand.ResetType;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.RefNotFoundException;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffFormatter;
-import org.eclipse.jgit.internal.storage.file.WindowCache;
-import org.eclipse.jgit.lib.GpgSigner;
+import org.eclipse.jgit.lib.GpgConfig;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.PersonIdent;
+import org.eclipse.jgit.lib.Signers;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.RepositoryCache;
 import org.eclipse.jgit.lib.StoredConfig;
 import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.revwalk.RevObject;
+import org.eclipse.jgit.revwalk.RevTag;
 import org.eclipse.jgit.revwalk.RevTree;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
@@ -311,7 +315,7 @@ public class GitBackupTemplate extends Thing {
 			PastedKeyGpgSigner gpgSigner = null;
 			if (bool_SignCommits && str_GpgPrivateKey != null && !str_GpgPrivateKey.isEmpty()) {
 				gpgSigner = new PastedKeyGpgSigner(str_GpgPrivateKey, str_GpgPassphrase);
-				GpgSigner.setDefault(gpgSigner);
+				Signers.set(GpgConfig.GpgFormat.OPENPGP, gpgSigner);
 				commitCmd.setSign(true).setSigningKey(null);
 				commitCmd.setCredentialsProvider(
 						new UsernamePasswordCredentialsProvider(null, str_GpgPassphrase));
@@ -406,7 +410,7 @@ public class GitBackupTemplate extends Thing {
 			}
 			PastedKeyGpgSigner signer = new PastedKeyGpgSigner(decodedKey, resolvedPassphrase);
 			PersonIdent committer = new PersonIdent("temp", "temp@temp.com");
-			boolean canLocate = signer.canLocateSigningKey(null, committer, null);
+			boolean canLocate = signer.canLocateSigningKey(null, null, committer, null, null);
 			String fingerprint = signer.getFingerprint();
 
 			ValueCollection vc = new ValueCollection();
@@ -460,7 +464,7 @@ public class GitBackupTemplate extends Thing {
 			if (Force != null && Force == true) {
 				myGitFolder.reset().setMode(ResetType.HARD).call();
 			}
-			PullResult pr = myGitFolder.pull().setCredentialsProvider(credentialsProvider).call();
+			PullResult pr = myGitFolder.pull().setRemote("origin").setCredentialsProvider(credentialsProvider).call();
 			String str_LogResult = (pr.isSuccessful() == true ? "Successful. " : "Unsuccessful.") + pr.toString();
 			Thread.sleep(2000);
 			LogOperationResult(str_LogResult, str_CurrentMethodName);
@@ -509,6 +513,24 @@ public class GitBackupTemplate extends Thing {
 					+ "; Error Message: " + errors.toString());
 		}
 		_logger.warn("DeleteLocalRepoContent:3 for entity: " + this.getName());
+	}
+
+	@ThingworxServiceDefinition(name = "CreateBranch", description = "Creates a new local branch from an optional start point (commit, branch, or tag) without switching to it.", category = "", isAllowOverride = false, aspects = {
+			"isAsync:false" })
+	@ThingworxServiceResult(name = "Result", description = "", baseType = "STRING", aspects = {})
+	public String CreateBranch(
+			@ThingworxServiceParameter(name = "BranchName", description = "Name of the new branch", baseType = "STRING") String BranchName,
+			@ThingworxServiceParameter(name = "StartPoint", description = "Optional: commit hash, branch name, or tag to branch from (defaults to HEAD)", baseType = "STRING") String StartPoint)
+			throws Throwable, GitAPIException {
+		_logger.trace("Entering Service: CreateBranch");
+		String str_CurrentMethodName = "CreateBranch";
+		Git myGitFolder = getGitObject("CreateBranch");
+		String str_StartPoint = (StartPoint != null && !StartPoint.isEmpty()) ? StartPoint : "HEAD";
+		Ref branchRef = myGitFolder.branchCreate().setName(BranchName).setStartPoint(str_StartPoint).call();
+		String str_LogResult = "Branch " + BranchName + " created from " + str_StartPoint + ": " + branchRef.toString();
+		LogOperationResult(str_LogResult, str_CurrentMethodName);
+		_logger.trace("Exiting Service: CreateBranch");
+		return branchRef.toString();
 	}
 
 	@ThingworxServiceDefinition(name = "Checkout", description = "", category = "", isAllowOverride = false, aspects = {
@@ -945,7 +967,7 @@ public class GitBackupTemplate extends Thing {
 		gitObjectToClose.close();
 		WindowCacheConfig wconfig = new WindowCacheConfig();
 		wconfig.setPackedGitMMAP(false);
-		WindowCache.reconfigure(wconfig);
+		wconfig.install();
 		gitObject = null;
 	}
 
@@ -1073,6 +1095,187 @@ public class GitBackupTemplate extends Thing {
 			}
 			walk.dispose();
 			return treeParser;
+		}
+	}
+
+	@ThingworxServiceDefinition(name = "Merge", description = "Merges the specified branch into the current branch.", category = "", isAllowOverride = false, aspects = {
+			"isAsync:false" })
+	@ThingworxServiceResult(name = "Result", description = "", baseType = "STRING", aspects = {})
+	public String Merge(
+			@ThingworxServiceParameter(name = "BranchName", description = "The branch to merge from", baseType = "STRING") String BranchName)
+			throws Exception, GitAPIException {
+		String str_CurrentMethodName = "Merge";
+		try {
+			Git myGitFolder = getGitObject("Merge");
+			ObjectId mergeBase = myGitFolder.getRepository().resolve(BranchName);
+			if (mergeBase == null) {
+				return "Merge Error: Branch '" + BranchName + "' not found.";
+			}
+			MergeResult result = myGitFolder.merge().include(mergeBase).call();
+			String str_LogResult = result.getMergeStatus().toString() + ": " + result.toString();
+			LogOperationResult(str_LogResult, str_CurrentMethodName);
+			return str_LogResult;
+		} catch (Exception e) {
+			StringWriter errors = new StringWriter();
+			e.printStackTrace(new PrintWriter(errors));
+			_logger.error(errors.toString());
+			try {
+				LogOperationResult(errors.toString(), str_CurrentMethodName);
+			} catch (Exception e1) {
+				_logger.error(e1.toString());
+			}
+			return "Merge Error: " + errors.toString();
+		}
+	}
+
+	@ThingworxServiceDefinition(name = "Rebase", description = "Rebases the current branch onto the specified upstream branch.", category = "", isAllowOverride = false, aspects = {
+			"isAsync:false" })
+	@ThingworxServiceResult(name = "Result", description = "", baseType = "STRING", aspects = {})
+	public String Rebase(
+			@ThingworxServiceParameter(name = "UpstreamBranch", description = "The branch or commit to rebase onto", baseType = "STRING") String UpstreamBranch)
+			throws Exception, GitAPIException {
+		String str_CurrentMethodName = "Rebase";
+		try {
+			Git myGitFolder = getGitObject("Rebase");
+			ObjectId upstream = myGitFolder.getRepository().resolve(UpstreamBranch);
+			if (upstream == null) {
+				return "Rebase Error: Upstream '" + UpstreamBranch + "' not found.";
+			}
+			RebaseResult result = myGitFolder.rebase().setUpstream(upstream).call();
+			String str_LogResult = result.getStatus().toString() + ": " + result.toString();
+			LogOperationResult(str_LogResult, str_CurrentMethodName);
+			return str_LogResult;
+		} catch (Exception e) {
+			StringWriter errors = new StringWriter();
+			e.printStackTrace(new PrintWriter(errors));
+			_logger.error(errors.toString());
+			try {
+				LogOperationResult(errors.toString(), str_CurrentMethodName);
+			} catch (Exception e1) {
+				_logger.error(e1.toString());
+			}
+			return "Rebase Error: " + errors.toString();
+		}
+	}
+
+	@ThingworxServiceDefinition(name = "CreateTag", description = "Creates a lightweight or annotated tag on the specified commit (defaults to HEAD).", category = "", isAllowOverride = false, aspects = {
+			"isAsync:false" })
+	@ThingworxServiceResult(name = "Result", description = "", baseType = "STRING", aspects = {})
+	public String CreateTag(
+			@ThingworxServiceParameter(name = "TagName", description = "Name of the tag to create", baseType = "STRING") String TagName,
+			@ThingworxServiceParameter(name = "Message", description = "Optional tag message (creates annotated tag)", baseType = "STRING") String Message,
+			@ThingworxServiceParameter(name = "CommitID", description = "Optional commit to tag (defaults to HEAD)", baseType = "STRING") String CommitID)
+			throws Exception, GitAPIException {
+		String str_CurrentMethodName = "CreateTag";
+		if (TagName == null || TagName.isEmpty()) {
+			LogOperationResult("CreateTag skipped: no tag name provided.", str_CurrentMethodName);
+			return "CreateTag skipped: no tag name provided.";
+		}
+		try {
+			Git myGitFolder = getGitObject("CreateTag");
+			Repository repo = myGitFolder.getRepository();
+			ObjectId commitId;
+			if (CommitID != null && !CommitID.isEmpty()) {
+				commitId = repo.resolve(CommitID);
+				if (commitId == null) {
+					return "CreateTag Error: Commit '" + CommitID + "' not found.";
+				}
+			} else {
+				commitId = repo.resolve("HEAD");
+			}
+			RevCommit revCommit;
+			try (RevWalk walk = new RevWalk(repo)) {
+				revCommit = walk.parseCommit(commitId);
+				walk.dispose();
+			}
+			Ref tagRef;
+			if (Message != null && !Message.isEmpty()) {
+				tagRef = myGitFolder.tag().setName(TagName).setMessage(Message).setObjectId(revCommit).call();
+			} else {
+				tagRef = myGitFolder.tag().setName(TagName).setObjectId(revCommit).call();
+			}
+			String str_LogResult = "Tag " + TagName + " created at " + tagRef.getObjectId().name();
+			LogOperationResult(str_LogResult, str_CurrentMethodName);
+			return str_LogResult;
+		} catch (Exception e) {
+			StringWriter errors = new StringWriter();
+			e.printStackTrace(new PrintWriter(errors));
+			_logger.error(errors.toString());
+			try {
+				LogOperationResult(errors.toString(), str_CurrentMethodName);
+			} catch (Exception e1) {
+				_logger.error(e1.toString());
+			}
+			return "CreateTag Error: " + errors.toString();
+		}
+	}
+
+	@ThingworxServiceDefinition(name = "GetTagList", description = "Returns all tags in the repository.", category = "", isAllowOverride = false, aspects = {
+			"isAsync:false" })
+	@ThingworxServiceResult(name = "Result", description = "", baseType = "INFOTABLE", aspects = {
+			"isEntityDataShape:true", "dataShape:Git.TagList.DataShape" })
+	public InfoTable GetTagList() {
+		_logger.trace("Entering Service: GetTagList");
+		try {
+			Git myGitFolder = getGitObject("GetTagList");
+			Repository repo = myGitFolder.getRepository();
+			InfoTable iftbl_TagList = InfoTableInstanceFactory
+					.createInfoTableFromDataShape("Git.TagList.DataShape");
+			List<Ref> tags = myGitFolder.tagList().call();
+			for (Ref tagRef : tags) {
+				ValueCollection vc = new ValueCollection();
+				String tagName = tagRef.getName().replace("refs/tags/", "");
+				vc.put("TagName", new StringPrimitive(tagName));
+				ObjectId commitId = tagRef.getPeeledObjectId();
+				if (commitId == null) {
+					commitId = tagRef.getObjectId();
+				}
+				vc.put("CommitID", new StringPrimitive(commitId != null ? commitId.name() : ""));
+				String message = "";
+				if (tagRef.getPeeledObjectId() != null) {
+					try (RevWalk walk = new RevWalk(repo)) {
+						RevObject obj = walk.parseAny(tagRef.getObjectId());
+						if (obj instanceof RevTag) {
+							message = ((RevTag) obj).getShortMessage();
+						}
+						walk.dispose();
+					}
+				}
+				vc.put("Message", new StringPrimitive(message));
+				vc.put("Date", new DatetimePrimitive(new DateTime(0)));
+				iftbl_TagList.addRow(vc);
+			}
+			_logger.trace("Exiting Service: GetTagList");
+			return iftbl_TagList;
+		} catch (Exception ex) {
+			StringWriter errors = new StringWriter();
+			ex.printStackTrace(new PrintWriter(errors));
+			_logger.error(errors.toString());
+			return new InfoTable();
+		}
+	}
+
+	@ThingworxServiceDefinition(name = "DeleteTag", description = "Deletes a tag from the repository.", category = "", isAllowOverride = false, aspects = {
+			"isAsync:false" })
+	@ThingworxServiceResult(name = "Result", description = "", baseType = "NOTHING", aspects = {})
+	public void DeleteTag(
+			@ThingworxServiceParameter(name = "TagName", description = "Name of the tag to delete", baseType = "STRING") String TagName)
+			throws Exception, GitAPIException {
+		String str_CurrentMethodName = "DeleteTag";
+		try {
+			Git myGitFolder = getGitObject("DeleteTag");
+			myGitFolder.tagDelete().setTags("refs/tags/" + TagName).call();
+			String str_LogResult = "Tag " + TagName + " deleted.";
+			LogOperationResult(str_LogResult, str_CurrentMethodName);
+		} catch (Exception e) {
+			StringWriter errors = new StringWriter();
+			e.printStackTrace(new PrintWriter(errors));
+			_logger.error(errors.toString());
+			try {
+				LogOperationResult(errors.toString(), str_CurrentMethodName);
+			} catch (Exception e1) {
+				_logger.error(e1.toString());
+			}
 		}
 	}
 

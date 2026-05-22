@@ -44,6 +44,9 @@ services:
     container_name: twx-platform
     ports:
       - "8080:8080"
+    entrypoint: ["sh", "-c", "rm -rf /opt/jdk && ln -sf /mnt/jdk21 /opt/jdk && exec /docker-entrypoint.sh run"]
+    volumes:
+      - ./build/jdk21-cache:/mnt/jdk21:ro
     environment:
       DATABASE_HOST: postgres
       DATABASE_PORT: "5432"
@@ -53,7 +56,7 @@ services:
       THINGWORX_INITIAL_ADMIN_PASSWORD: TwxAdm1nP@ssw0rd!
       THINGWORX_INITIAL_METRICS_USER_PASSWORD: MetricsP@ssw0rd!
       ENABLE_CONSOLE_OUTPUT: "true"
-      CATALINA_OPTS: -Xms1g -Xmx2g
+      CATALINA_OPTS: -Xms1g -Xmx2g --add-opens=java.base/java.net=ALL-UNNAMED
       THINGWORX_PLATFORM_SCRIPTTIMEOUT: "30"
       TOMCAT_KEEPALIVETIMEOUT: "20000"
       TOMCAT_CONNECTIONTIMEOUT: "20000"
