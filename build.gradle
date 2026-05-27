@@ -19,7 +19,7 @@ ext {
     thirdPartyDir = file('3rdPartyExtensions')
     zipDir = file("${buildDir}/distributions")
     packageName = 'GitBackupExtension'
-    packageVersion = '5.1.0'
+    packageVersion = '5.2.2'
     packageVendor = 'Open Source / Vladimir Rosu'
 }
 
@@ -415,6 +415,51 @@ task devSetup {
         logger.lifecycle("")
         logger.lifecycle("Gitea internal URL for Git thing config: http://gitea:3000/testadmin/gitbackup-test.git")
         logger.lifecycle("Gitea external URL for cloning:          http://localhost:3000/testadmin/gitbackup-test.git")
+    }
+}
+
+task bumpVersion {
+    description = 'Bump extension version in build.gradle and configfiles/metadata.xml, then tag. Usage: -PnewVersion=X.Y.Z'
+    group = 'publishing'
+    doLast {
+        if (!project.hasProperty('newVersion')) {
+            throw new GradleException("Usage: gradle bumpVersion -PnewVersion=X.Y.Z")
+        }
+        def ver = project.property('newVersion')
+        if (!(ver ==~ /\d+\.\d+\.\d+/)) {
+            throw new GradleException("Version must be in X.Y.Z format, got: $ver")
+        }
+
+        // 1. Update build.gradle
+        def buildFile = file('build.gradle')
+        def buildText = buildFile.text
+        buildText = buildText.replaceFirst(
+            /packageVersion = '\d+\.\d+\.\d+'/,
+            "packageVersion = '$ver'")
+        buildFile.text = buildText
+        logger.lifecycle("Updated build.gradle packageVersion to $ver")
+
+        // 2. Update configfiles/metadata.xml
+        def metadataFile = file('configfiles/metadata.xml')
+        def metadataText = metadataFile.text
+        metadataText = metadataText.replaceFirst(
+            /packageVersion="\d+\.\d+\.\d+"/,
+            "packageVersion=\"$ver\"")
+        metadataFile.text = metadataText
+        logger.lifecycle("Updated configfiles/metadata.xml packageVersion to $ver")
+
+        // 3. Git commit and tag
+        exec {
+            commandLine 'git', 'add', 'build.gradle', 'configfiles/metadata.xml'
+        }
+        exec {
+            commandLine 'git', 'commit', '-m', "Bump version to $ver"
+        }
+        exec {
+            commandLine 'git', 'tag', "v$ver"
+        }
+
+        logger.lifecycle("Version bumped to $ver, committed, and tagged as v$ver")
     }
 }
 
