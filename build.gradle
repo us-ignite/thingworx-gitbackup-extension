@@ -19,7 +19,7 @@ ext {
     thirdPartyDir = file('3rdPartyExtensions')
     zipDir = file("${buildDir}/distributions")
     packageName = 'GitBackupExtension'
-    packageVersion = '5.2.2'
+    packageVersion = '5.2.3'
     packageVendor = 'Open Source / Vladimir Rosu'
 }
 
@@ -419,47 +419,54 @@ task devSetup {
 }
 
 task bumpVersion {
-    description = 'Bump extension version in build.gradle and configfiles/metadata.xml, then tag. Usage: -PnewVersion=X.Y.Z'
+    description = 'Bump semver: -Pbump=major|minor|patch  or  -PnewVersion=X.Y.Z'
     group = 'publishing'
     doLast {
-        if (!project.hasProperty('newVersion')) {
-            throw new GradleException("Usage: gradle bumpVersion -PnewVersion=X.Y.Z")
-        }
-        def ver = project.property('newVersion')
-        if (!(ver ==~ /\d+\.\d+\.\d+/)) {
-            throw new GradleException("Version must be in X.Y.Z format, got: $ver")
-        }
-
-        // 1. Update build.gradle
+        // Parse current version from build.gradle
         def buildFile = file('build.gradle')
         def buildText = buildFile.text
-        buildText = buildText.replaceFirst(
+        def curr = (buildText =~ /packageVersion = '(\d+)\.(\d+)\.(\d+)'/)
+        if (!curr.find()) throw new GradleException('Could not find current version in build.gradle')
+        def major = curr[0][1].toInteger()
+        def minor = curr[0][2].toInteger()
+        def patch = curr[0][3].toInteger()
+
+        // Determine new version
+        String ver
+        if (project.hasProperty('newVersion')) {
+            ver = project.property('newVersion')
+            if (!(ver ==~ /\d+\.\d+\.\d+/)) throw new GradleException("Version must be X.Y.Z, got: $ver")
+        } else if (project.hasProperty('bump')) {
+            def part = project.property('bump')
+            switch (part) {
+                case 'major': ver = "${major + 1}.0.0"; break
+                case 'minor': ver = "${major}.${minor + 1}.0"; break
+                case 'patch': ver = "${major}.${minor}.${patch + 1}"; break
+                default: throw new GradleException("bump must be major|minor|patch, got: $part")
+            }
+        } else {
+            throw new GradleException("Usage: -Pbump=major|minor|patch  or  -PnewVersion=X.Y.Z")
+        }
+
+        logger.lifecycle("Bumping version ${major}.${minor}.${patch} -> $ver")
+
+        // Write build.gradle
+        buildFile.text = buildText.replaceFirst(
             /packageVersion = '\d+\.\d+\.\d+'/,
             "packageVersion = '$ver'")
-        buildFile.text = buildText
-        logger.lifecycle("Updated build.gradle packageVersion to $ver")
 
-        // 2. Update configfiles/metadata.xml
+        // Write metadata.xml
         def metadataFile = file('configfiles/metadata.xml')
-        def metadataText = metadataFile.text
-        metadataText = metadataText.replaceFirst(
+        metadataFile.text = metadataFile.text.replaceFirst(
             /packageVersion="\d+\.\d+\.\d+"/,
             "packageVersion=\"$ver\"")
-        metadataFile.text = metadataText
-        logger.lifecycle("Updated configfiles/metadata.xml packageVersion to $ver")
 
-        // 3. Git commit and tag
-        exec {
-            commandLine 'git', 'add', 'build.gradle', 'configfiles/metadata.xml'
-        }
-        exec {
-            commandLine 'git', 'commit', '-m', "Bump version to $ver"
-        }
-        exec {
-            commandLine 'git', 'tag', "v$ver"
-        }
+        // Commit and tag
+        exec { commandLine 'git', 'add', 'build.gradle', 'configfiles/metadata.xml' }
+        exec { commandLine 'git', 'commit', '-m', "Bump version to $ver" }
+        exec { commandLine 'git', 'tag', "v$ver" }
 
-        logger.lifecycle("Version bumped to $ver, committed, and tagged as v$ver")
+        logger.lifecycle("Committed and tagged v$ver")
     }
 }
 
