@@ -1,0 +1,18 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "lsp": {
+    "xml": {
+      "command": [
+        "java",
+        "-jar",
+        "build/lemminx/org.eclipse.lemminx-uber.jar"
+      ],
+      "extensions": [
+        ".xml",
+        ".xsd",
+        ".xslt",
+        ".dtd"
+      ]
+    }
+  }
+}

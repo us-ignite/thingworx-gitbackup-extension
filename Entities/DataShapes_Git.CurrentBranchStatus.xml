@@ -14,8 +14,8 @@
          aspect.isEditableExtensionObject="true"
          homeMashup=""
          lastModifiedDate="2017-12-27T17:07:13.278+02:00"
-         name="Git.CurrentBranchStatus.DataShape"
-         projectName=""
+         name="Git.CurrentBranchStatus"
+         projectName="GitBackup"
          tags="">
             <avatar></avatar>
             <DesignTimePermissions>

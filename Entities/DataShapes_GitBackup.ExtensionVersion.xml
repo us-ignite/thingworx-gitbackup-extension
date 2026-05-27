@@ -1,20 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Entities
- build="b103"
+ build="b441"
  majorVersion="8"
- minorVersion="5"
+ minorVersion="3"
  modelPersistenceProviderPackage="PostgresPersistenceProviderPackage"
- revision="5"
- schemaVersion="1054"
- universal="password">
+ revision="1"
+ schemaVersion="1030"
+ universal="">
     <DataShapes>
         <DataShape
          baseDataShape=""
          description=""
          documentationContent=""
          homeMashup=""
-         lastModifiedDate="2020-09-09T04:12:26.850-07:00"
-         name="GitBackup.Log.DataShape"
+         lastModifiedDate="2018-07-25T20:41:20.716+03:00"
+         name="GitBackup.ExtensionVersion"
          projectName="GitBackup"
          tags="">
             <avatar></avatar>
@@ -29,44 +29,25 @@
             <VisibilityPermissions>
                 <Visibility></Visibility>
             </VisibilityPermissions>
-            <ConfigurationTableDefinitions></ConfigurationTableDefinitions>
             <ConfigurationTables></ConfigurationTables>
             <FieldDefinitions>
                 <FieldDefinition
                  aspect.isPrimaryKey="false"
                  baseType="STRING"
                  description=""
-                 name="Content"
-                 ordinal="5"></FieldDefinition>
-                <FieldDefinition
-                 aspect.isPrimaryKey="true"
-                 baseType="GUID"
-                 description=""
-                 name="ID"
+                 name="ExtensionName"
                  ordinal="1"></FieldDefinition>
                 <FieldDefinition
                  aspect.isPrimaryKey="false"
                  baseType="STRING"
                  description=""
-                 name="ServiceName"
-                 ordinal="4"></FieldDefinition>
-                <FieldDefinition
-                 aspect.isPrimaryKey="false"
-                 baseType="STRING"
-                 description=""
-                 name="Source"
-                 ordinal="6"></FieldDefinition>
-                <FieldDefinition
-                 aspect.isPrimaryKey="false"
-                 baseType="DATETIME"
-                 description=""
-                 name="timestamp"
+                 name="ExtensionVersion"
                  ordinal="2"></FieldDefinition>
                 <FieldDefinition
                  aspect.isPrimaryKey="false"
-                 baseType="STRING"
+                 baseType="BOOLEAN"
                  description=""
-                 name="User"
+                 name="IsInstalled"
                  ordinal="3"></FieldDefinition>
             </FieldDefinitions>
         </DataShape>

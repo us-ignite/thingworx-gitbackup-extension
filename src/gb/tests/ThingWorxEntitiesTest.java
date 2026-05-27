@@ -1,8 +1,5 @@
 package gb.tests;
 
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -58,7 +55,6 @@ public class ThingWorxEntitiesTest {
 
     @ParameterizedTest(name = "entitiesTestsForVersion [{0}]")
     @MethodSource("thingworxVersions")
-    @Order(1)
     void entitiesTestsForVersion(ThingWorxVersion version) throws Exception {
 
         var stack = new GitBackupExtensionTestStack(version, credentials);
