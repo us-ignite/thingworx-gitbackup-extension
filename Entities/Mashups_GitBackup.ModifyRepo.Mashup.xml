@@ -44,7 +44,7 @@
                  name="ThingName"
                  ordinal="0"></FieldDefinition>
                 <FieldDefinition
-                 aspect.dataShape="QueryRepository.DataShape"
+                 aspect.dataShape="GitBackup.QueryRepository"
                  aspect.ordinal="1"
                  baseType="INFOTABLE"
                  description=""
@@ -1396,7 +1396,7 @@
                     "ParameterName" : "ThingName"
                   }, {
                     "Aspects" : {
-                      "dataShape" : "QueryRepository.DataShape"
+                       "dataShape" : "GitBackup.QueryRepository"
                     },
                     "BaseType" : "INFOTABLE",
                     "Description" : "",

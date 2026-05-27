@@ -11,7 +11,7 @@
          description=""
          documentationContent=""
          homeMashup=""
-         name="GitBackup.ConfigurationSetting.DataShape"
+         name="GitBackup.ConfigurationSetting"
          projectName="GitBackup"
          tags="">
             <avatar></avatar>
