@@ -7,7 +7,7 @@
          haCompatible="true"
          minimumThingWorxVersion="9.3.0"
          name="GitBackupExtension"
-         packageVersion="5.1.1"
+         packageVersion="5.2.2"
          vendor="Open Source / Vladimir Rosu">
             <JarResources>
                 <FileResource
