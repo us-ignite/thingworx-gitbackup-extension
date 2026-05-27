@@ -5,16 +5,15 @@
  universal="password">
     <Mashups>
         <Mashup
-         aspect.isEditableExtensionObject="true"
-         aspect.isExtension="true"
-         aspect.isFlex="true"
-         aspect.isResponsive="true"
-         aspect.mashupType="mashup"
-         columns="0.0"
-         description="Displays the various extensions versions that compose the GitBackup Extension."
-         documentationContent=""
-         homeMashup=""
-         name="GitBackup.Version.Mashup"
+          aspect.isEditableExtensionObject="true"
+          aspect.isExtension="true"
+          aspect.isResponsive="true"
+          aspect.mashupType="mashup"
+          columns="0.0"
+          description="Displays the various extensions versions that compose the GitBackup Extension."
+          documentationContent=""
+          homeMashup=""
+          name="GitBackup.Version.Mashup"
          projectName="GitBackup"
          rows="0.0"
          tags="">
