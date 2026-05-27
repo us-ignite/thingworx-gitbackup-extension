@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import org.eclipse.jgit.api.CreateBranchCommand.SetupUpstreamMode;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.ListBranchCommand.ListMode;
@@ -28,7 +29,10 @@ import org.eclipse.jgit.api.MergeResult;
 import org.eclipse.jgit.api.PullResult;
 import org.eclipse.jgit.api.RebaseResult;
 import org.eclipse.jgit.api.ResetCommand.ResetType;
+import org.eclipse.jgit.api.VerifySignatureCommand;
+import org.eclipse.jgit.api.VerificationResult;
 import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.lib.SignatureVerifier;
 import org.eclipse.jgit.api.errors.RefNotFoundException;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffFormatter;
@@ -858,8 +862,17 @@ public class GitBackupTemplate extends Thing {
 					vc.put("Date", new DatetimePrimitive(new DateTime(((long) commitAgain.getCommitTime() * 1000))));
 					vc.put("Commiter", new StringPrimitive(commitAgain.getCommitterIdent().getName() + " "
 							+ commitAgain.getCommitterIdent().getEmailAddress()));
-					vc.put("CommitDescription", new StringPrimitive(commitAgain.getFullMessage()));
-					InfoTable iftbl_CommitChangedFiles = InfoTableInstanceFactory
+				vc.put("CommitDescription", new StringPrimitive(commitAgain.getFullMessage()));
+				String str_SigVerification = "";
+				byte[] rawBuf = commitAgain.getRawBuffer();
+				if (rawBuf != null) {
+					String rawStr = new String(rawBuf, java.nio.charset.StandardCharsets.UTF_8);
+					if (rawStr.contains("\ngpgsig ")) {
+						str_SigVerification = "SIGNED";
+					}
+				}
+				vc.put("SignatureVerification", new StringPrimitive(str_SigVerification));
+				InfoTable iftbl_CommitChangedFiles = InfoTableInstanceFactory
 							.createInfoTableFromDataShape(Const.str_CommitChangedFiles);
 					DiffFormatter diffFormatter = new DiffFormatter(DisabledOutputStream.INSTANCE);
 					diffFormatter.setRepository(myGitRepository);
