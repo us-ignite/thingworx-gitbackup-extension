@@ -155,9 +155,6 @@ task packagePack(type: Zip, dependsOn: packageExtension) {
     destinationDirectory = zipDir
     from zipDir, { include "${packageName}.zip" }
     from thirdPartyDir
-    doLast {
-        delete file("${zipDir}/${packageName}.zip")
-    }
 }
 
 def jdkCacheDir = file("${projectDir}/.cache/jdk21")
