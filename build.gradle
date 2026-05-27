@@ -19,7 +19,7 @@ ext {
     thirdPartyDir = file('3rdPartyExtensions')
     zipDir = file("${buildDir}/distributions")
     packageName = 'GitBackupExtension'
-    packageVersion = '5.2.5'
+    packageVersion = '5.2.6'
     packageVendor = 'Open Source / Vladimir Rosu'
 }
 
