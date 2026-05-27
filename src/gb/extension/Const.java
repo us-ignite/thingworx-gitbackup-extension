@@ -17,9 +17,9 @@ public final class Const {
 	
 	// Entity names
 	public final static String str_UtilityThingShapeName = "Git.Utility.ThingShape";
-	public final static String str_CommitListDataShapeName = "Git.CommitList.DataShape";
-	public final static String str_CommitInfoDataShapeName = "GitBackup.CommitInfo.DataShape";
-	public final static String str_CommitChangedFiles = "GitBackup.CommitChangedFiles.DataShape";
+	public final static String str_CommitListDataShapeName = "Git.CommitList";
+	public final static String str_CommitInfoDataShapeName = "GitBackup.CommitInfo";
+	public final static String str_CommitChangedFiles = "GitBackup.CommitChangedFiles";
 	public final static String str_UtilityThingName = "GIT.Utility.Thing";
 
 	// Proxy related settings
@@ -41,5 +41,5 @@ public final class Const {
 	public final static String str_GpgKeyPassphrase = "GpgKeyPassphrase";
 	public final static String str_SignCommits = "SignCommits";
 	public final static String str_GpgKeyFingerprint = "GpgKeyFingerprint";
-	public final static String str_GpgKeyDataShapeName = "GitBackup.GpgKey.DataShape";
+	public final static String str_GpgKeyDataShapeName = "GitBackup.GpgKey";
 }

@@ -366,7 +366,7 @@ public class GitBackupTemplate extends Thing {
 	@ThingworxServiceDefinition(name = "VerifyGpgKey", description = "Verifies a pasted PGP private key can be loaded and used for signing. Returns the key fingerprint on success.", category = "", isAllowOverride = false, aspects = {
 			"isAsync:false" })
 	@ThingworxServiceResult(name = "Result", description = "", baseType = "INFOTABLE", aspects = {
-			"isEntityDataShape:true", "dataShape:GitBackup.GpgKey.DataShape" })
+			"isEntityDataShape:true", "dataShape:GitBackup.GpgKey" })
 	public InfoTable VerifyGpgKey(
 			@ThingworxServiceParameter(name = "GpgPrivateKey", description = "ASCII-armored PGP private key", baseType = "STRING") String GpgPrivateKey,
 			@ThingworxServiceParameter(name = "GpgKeyPassphrase", description = "Passphrase for the PGP private key", baseType = "PASSWORD") String GpgKeyPassphrase)
@@ -565,12 +565,12 @@ public class GitBackupTemplate extends Thing {
 	@ThingworxServiceDefinition(name = "GetCurrentBranch", description = "", category = "", isAllowOverride = false, aspects = {
 			"isAsync:false" })
 	@ThingworxServiceResult(name = "Result", description = "", baseType = "INFOTABLE", aspects = {
-			"isEntityDataShape:true", "dataShape:Git.CurrentBranchStatus.DataShape" })
+			"isEntityDataShape:true", "dataShape:Git.CurrentBranchStatus" })
 	public InfoTable GetCurrentBranch() {
 		try {
 			_logger.trace("Entering Service: GetCurrentBranch");
 			InfoTable iftbl_CurrentBranchStatus = InfoTableInstanceFactory
-					.createInfoTableFromDataShape("Git.CurrentBranchStatus.DataShape");
+					.createInfoTableFromDataShape("Git.CurrentBranchStatus");
 			ValueCollection vc = new ValueCollection();
 
 			vc.put("BranchName", new StringPrimitive(str_CurrentBranchOrCommit));
@@ -589,13 +589,13 @@ public class GitBackupTemplate extends Thing {
 	@ThingworxServiceDefinition(name = "GetBranchList", description = "", category = "", isAllowOverride = false, aspects = {
 			"isAsync:false" })
 	@ThingworxServiceResult(name = "Result", description = "", baseType = "INFOTABLE", aspects = {
-			"isEntityDataShape:true", "dataShape:Git.BranchList.DataShape" })
+			"isEntityDataShape:true", "dataShape:Git.BranchList" })
 	public InfoTable GetBranchList() {
 		_logger.trace("Entering Service: GetBranchList");
 
 		try {
 			InfoTable iftbl_BranchList = InfoTableInstanceFactory
-					.createInfoTableFromDataShape("Git.BranchList.DataShape");
+					.createInfoTableFromDataShape("Git.BranchList");
 			Git myGit = getGitObject("GetBranchList");
 			List<Ref> branches = myGit.branchList().setListMode(ListMode.ALL).call();
 			for (Iterator<Ref> iterator = branches.iterator(); iterator.hasNext();) {
@@ -668,7 +668,7 @@ public class GitBackupTemplate extends Thing {
 	@ThingworxServiceDefinition(name = "GetCommitList", description = "Get a list of the commits for the current branch; if the current index is pointing to a commit, then it will return the commit list for the Initial branch configured in the Config section", category = "", isAllowOverride = false, aspects = {
 			"isAsync:false" })
 	@ThingworxServiceResult(name = "Result", description = "", baseType = "INFOTABLE", aspects = {
-			"isEntityDataShape:true", "dataShape:Git.CommitList.DataShape" })
+			"isEntityDataShape:true", "dataShape:Git.CommitList" })
 	public InfoTable GetCommitList() {
 		_logger.trace("Entering Service: GetCommitList");
 		try {
@@ -704,10 +704,10 @@ public class GitBackupTemplate extends Thing {
 	@ThingworxServiceDefinition(name = "Status", description = "", category = "", isAllowOverride = false, aspects = {
 			"isAsync:false" })
 	@ThingworxServiceResult(name = "Result", description = "", baseType = "INFOTABLE", aspects = {
-			"isEntityDataShape:true", "dataShape:Git.Status.DataShape" })
+			"isEntityDataShape:true", "dataShape:Git.Status" })
 	public InfoTable Status() throws Exception {
 		_logger.trace("Entering Service: Status");
-		InfoTable iftbl_Status = InfoTableInstanceFactory.createInfoTableFromDataShape("Git.Status.DataShape");
+		InfoTable iftbl_Status = InfoTableInstanceFactory.createInfoTableFromDataShape("Git.Status");
 		Git myGitObject = getGitObject("Status");
 		org.eclipse.jgit.api.Status status = myGitObject.status().call();
 		for (String stat : status.getModified()) {
@@ -836,7 +836,7 @@ public class GitBackupTemplate extends Thing {
 	@ThingworxServiceDefinition(name = "GetCommitInfo", description = "This service gets a commit information based on the Commit ID", category = "", isAllowOverride = false, aspects = {
 			"isAsync:false" })
 	@ThingworxServiceResult(name = "Result", description = "", baseType = "INFOTABLE", aspects = {
-			"isEntityDataShape:true", "dataShape:GitBackup.CommitInfo.DataShape" })
+			"isEntityDataShape:true", "dataShape:GitBackup.CommitInfo" })
 	public InfoTable GetCommitInfo(
 			@ThingworxServiceParameter(name = "CommitID", description = "", baseType = "STRING") String CommitID)
 			throws Exception {
@@ -1213,14 +1213,14 @@ public class GitBackupTemplate extends Thing {
 	@ThingworxServiceDefinition(name = "GetTagList", description = "Returns all tags in the repository.", category = "", isAllowOverride = false, aspects = {
 			"isAsync:false" })
 	@ThingworxServiceResult(name = "Result", description = "", baseType = "INFOTABLE", aspects = {
-			"isEntityDataShape:true", "dataShape:Git.TagList.DataShape" })
+			"isEntityDataShape:true", "dataShape:Git.TagList" })
 	public InfoTable GetTagList() {
 		_logger.trace("Entering Service: GetTagList");
 		try {
 			Git myGitFolder = getGitObject("GetTagList");
 			Repository repo = myGitFolder.getRepository();
 			InfoTable iftbl_TagList = InfoTableInstanceFactory
-					.createInfoTableFromDataShape("Git.TagList.DataShape");
+					.createInfoTableFromDataShape("Git.TagList");
 			List<Ref> tags = myGitFolder.tagList().call();
 			for (Ref tagRef : tags) {
 				ValueCollection vc = new ValueCollection();

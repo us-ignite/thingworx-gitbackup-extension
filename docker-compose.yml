@@ -46,7 +46,7 @@ services:
       - "8080:8080"
     entrypoint: ["sh", "-c", "rm -rf /opt/jdk && ln -sf /mnt/jdk21 /opt/jdk && exec /docker-entrypoint.sh run"]
     volumes:
-      - ./build/jdk21-cache:/mnt/jdk21:ro
+      - ./.cache/jdk21:/mnt/jdk21:ro
     environment:
       DATABASE_HOST: postgres
       DATABASE_PORT: "5432"

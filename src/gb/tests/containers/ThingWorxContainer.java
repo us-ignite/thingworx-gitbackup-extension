@@ -26,13 +26,13 @@ public class ThingWorxContainer extends GenericContainer<ThingWorxContainer> {
     private static final Path JDK21_DIR = prepareCachedJdk21();
 
     private static Path prepareCachedJdk21() {
-        Path cacheDir = Path.of("build", "jdk21-cache");
+        Path cacheDir = Path.of(System.getProperty("user.dir"), ".cache", "jdk21");
         Path javaBin = cacheDir.resolve("bin/java");
         if (Files.exists(javaBin)) {
             return cacheDir;
         }
         throw new RuntimeException(
-            "JDK 21 not found at build/jdk21-cache. Run 'gradle fetchJdk21' first.");
+            "JDK 21 not found at .cache/jdk21. Run 'gradle fetchJdk21' first.");
     }
 
     private static Map<String, String> loadEnvFile() {

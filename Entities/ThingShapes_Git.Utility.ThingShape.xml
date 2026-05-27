@@ -131,7 +131,7 @@
                  isPrivate="false"
                  name="GetConfiguration">
                     <ResultType
-                     aspect.dataShape="GitBackup.Configuration.DataShape"
+                      aspect.dataShape="GitBackup.Configuration"
                      baseType="INFOTABLE"
                      description=""
                      name="result"
@@ -165,7 +165,7 @@
                  isPrivate="false"
                  name="GetLocalBranches">
                     <ResultType
-                     aspect.dataShape="Git.BranchList.DataShape"
+                     aspect.dataShape="Git.BranchList"
                      baseType="INFOTABLE"
                      description=""
                      name="result"
@@ -209,7 +209,7 @@
                  isPrivate="false"
                  name="QueryDiffFileList">
                     <ResultType
-                     aspect.dataShape="GitBackup.CommitChangedFiles.DataShape"
+                      aspect.dataShape="GitBackup.CommitChangedFiles"
                      baseType="INFOTABLE"
                      description=""
                      name="result"
@@ -237,7 +237,7 @@
                  isPrivate="false"
                  name="QueryStatus">
                     <ResultType
-                     aspect.dataShape="Git.Status.DataShape"
+                     aspect.dataShape="Git.Status"
                      baseType="INFOTABLE"
                      description=""
                      name="result"
@@ -864,8 +864,8 @@
                                     	tableName: "Configuration" /* STRING */
                                     });
                                     
-                                    var result = Resources["InfoTableFunctions"].CreateInfoTableFromDataShape({    infoTableName : "InfoTable",    dataShapeName : "GitBackup.Configuration.DataShape"});
-                                    // GitBackup.Configuration.DataShape entry object
+                                     var result = Resources["InfoTableFunctions"].CreateInfoTableFromDataShape({    infoTableName : "InfoTable",    dataShapeName : "GitBackup.Configuration"});
+                                     // GitBackup.Configuration entry object
                                     
                                     var row= iftbl_Cfg.getRow(0);
                                     var newEntry = new Object();

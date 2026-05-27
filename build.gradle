@@ -106,6 +106,13 @@ jar {
 }
 
 test {
+    enabled = false // Tests are disabled by default when 'build' is run
+
+    // This block ensures tests *can* still be run by explicitly invoking 'gradle test'
+    if (gradle.startParameter.taskNames.contains('test')) {
+        enabled = true
+    }
+    
     dependsOn 'packageExtension', 'fetchJdk21'
     useJUnitPlatform()
     testLogging {
@@ -153,30 +160,59 @@ task packagePack(type: Zip, dependsOn: packageExtension) {
     }
 }
 
+def jdkCacheDir = file("${projectDir}/.cache/jdk21")
+
 task fetchJdk21 {
-    description = 'Download and cache Corretto JDK 21 in build/jdk21-cache'
+    description = 'Download and cache Corretto JDK 21 in .cache/jdk21'
     group = 'development'
-    outputs.dir file("${buildDir}/jdk21-cache")
+    outputs.dir jdkCacheDir
     doLast {
-        def cacheDir = file("${buildDir}/jdk21-cache")
-        def javaBin = file("${cacheDir}/bin/java")
+        def javaBin = file("${jdkCacheDir}/bin/java")
         if (javaBin.exists()) {
-            logger.lifecycle("JDK 21 already cached at ${cacheDir}")
+            logger.lifecycle("JDK 21 already cached at ${jdkCacheDir}")
             return
         }
         def url = 'https://corretto.aws/downloads/latest/amazon-corretto-21-x64-linux-jdk.tar.gz'
-        def tar = file("${cacheDir}/corretto21.tar.gz")
-        cacheDir.mkdirs()
+        def tar = file("${jdkCacheDir}/corretto21.tar.gz")
+        jdkCacheDir.mkdirs()
         logger.lifecycle("Downloading Corretto 21 JDK...")
         exec {
             commandLine 'curl', '-sL', '-o', tar, url
         }
         logger.lifecycle("Extracting Corretto 21 JDK...")
         exec {
-            commandLine 'tar', 'xzf', tar, '-C', cacheDir, '--strip-components=1'
+            commandLine 'tar', 'xzf', tar, '-C', jdkCacheDir, '--strip-components=1'
         }
         tar.delete()
-        logger.lifecycle("Corretto 21 JDK cached at ${cacheDir}")
+        logger.lifecycle("Corretto 21 JDK cached at ${jdkCacheDir}")
+    }
+}
+
+task cleanJdkCache(type: Delete) {
+    description = 'Delete the cached JDK 21 download'
+    group = 'development'
+    delete jdkCacheDir
+}
+
+task fetchLemminx {
+    description = 'Download Eclipse LemMinX XML Language Server uber JAR'
+    group = 'development'
+    outputs.dir file("${buildDir}/lemminx")
+    doLast {
+        def cacheDir = file("${buildDir}/lemminx")
+        def jarFile = file("${cacheDir}/org.eclipse.lemminx-uber.jar")
+        if (jarFile.exists()) {
+            logger.lifecycle("LemMinX already cached at ${jarFile}")
+            return
+        }
+        def version = '0.31.1'
+        def url = "https://repo1.maven.org/maven2/org/eclipse/lemminx/org.eclipse.lemminx/${version}/org.eclipse.lemminx-${version}-uber.jar"
+        cacheDir.mkdirs()
+        logger.lifecycle("Downloading LemMinX ${version} XML Language Server...")
+        exec {
+            commandLine 'curl', '-sL', '-o', jarFile, url
+        }
+        logger.lifecycle("LemMinX cached at ${jarFile}")
     }
 }
 
@@ -210,7 +246,7 @@ task composeLogs(type: Exec) {
 }
 
 task devSetup {
-    dependsOn packageExtension, fetchJdk21
+    dependsOn packageExtension, fetchJdk21, fetchLemminx
     description = 'Build extension, start dev stack, install extension on ThingWorx, and create Gitea test repo'
     group = 'development'
     doLast {
@@ -289,6 +325,26 @@ task devSetup {
             logger.warn("Extension verification returned unexpected status: ${verifyStatus}")
         } else {
             logger.lifecycle("Extension verified (GIT.Utility.Thing accessible)!")
+        }
+
+        // 4a. Initialize UserExtension properties
+        logger.lifecycle("Initializing UserExtension properties for Administrator...")
+        def services = ['InitUserExtensionProperties', 'InitUserExtensionGpgKeysProperty']
+        services.each { serviceName ->
+            def serviceUrl = new URL("http://localhost:8080/Thingworx/Things/GIT.Utility.Thing/Services/${serviceName}")
+            def serviceConn = (HttpURLConnection) serviceUrl.openConnection()
+            serviceConn.setRequestMethod("POST")
+            serviceConn.setRequestProperty("Authorization", "Basic ${auth}")
+            serviceConn.setRequestProperty("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
+            serviceConn.setRequestProperty("X-Requested-By", "ThingWorx")
+            serviceConn.setRequestProperty("Content-Type", "application/json")
+            serviceConn.setDoOutput(true)
+            serviceConn.setConnectTimeout(10000)
+            serviceConn.setReadTimeout(10000)
+            def serviceStatus = serviceConn.getResponseCode()
+            if (serviceStatus != 200) {
+                logger.warn("Initialization service ${serviceName} failed with status ${serviceStatus}")
+            }
         }
 
         // 5. Ensure Gitea admin user exists

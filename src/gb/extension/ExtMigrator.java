@@ -14,7 +14,8 @@ public class ExtMigrator extends ExtensionMigratorBase {
 	private static Logger _logger = LogUtilities.getInstance().getApplicationLogger(ExtMigrator.class);
 
 	@Override
-	public void migrate(ImportedEntityCollection imports) throws Exception {
+ 	public void migrate(ImportedEntityCollection imports) throws Exception {
+		_logger.warn("ExtMigrator: Starting migration.");
 		// Migrated from any other version to 2.3.0
 		Thing thing = (Thing) EntityUtilities.findEntity("GIT.Utility.Thing", ThingworxRelationshipTypes.Thing);
 		thing.processServiceRequest("InitUserExtensionProperties", null);

@@ -39,7 +39,7 @@
                     <PropertyDefinition
                      aspect.cacheTime="0.0"
                      aspect.dataChangeType="VALUE"
-                     aspect.dataShape="Git.Status.DataShape"
+                     aspect.dataShape="Git.Status"
                      aspect.defaultValue="{&quot;rows&quot;:[{&quot;Status&quot;:&quot;Settings&quot;},{&quot;Status&quot;:&quot;Delete&quot;}],&quot;dataShape&quot;:{&quot;fieldDefinitions&quot;:{&quot;Status&quot;:{&quot;name&quot;:&quot;Status&quot;,&quot;aspects&quot;:{},&quot;description&quot;:&quot;&quot;,&quot;baseType&quot;:&quot;STRING&quot;,&quot;ordinal&quot;:2},&quot;File&quot;:{&quot;name&quot;:&quot;File&quot;,&quot;aspects&quot;:{},&quot;description&quot;:&quot;&quot;,&quot;baseType&quot;:&quot;STRING&quot;,&quot;ordinal&quot;:1}}}}"
                      aspect.isLogged="false"
                      aspect.isPersistent="true"
@@ -258,7 +258,7 @@
                      isPrivate="false"
                      name="GetGitExtensionVersion">
                         <ResultType
-                         aspect.dataShape="GIT.ExtensionVersion.DS"
+                          aspect.dataShape="GitBackup.ExtensionVersion"
                          baseType="INFOTABLE"
                          description=""
                          name="result"
@@ -275,7 +275,7 @@
                      isPrivate="false"
                      name="GetGitHeaderTabs">
                         <ResultType
-                         aspect.dataShape="GitBackup.GitHeader.DS"
+                          aspect.dataShape="GitBackup.GitHeader"
                          baseType="INFOTABLE"
                          description=""
                          name="result"
@@ -292,7 +292,7 @@
                      isPrivate="false"
                      name="GetGitUserExtensionsProperties">
                         <ResultType
-                         aspect.dataShape="GitBackup.UserExtensionProperties.DataShape"
+                          aspect.dataShape="GitBackup.UserExtensionProperties"
                          baseType="INFOTABLE"
                          description=""
                          name="result"
@@ -353,7 +353,7 @@
                      isPrivate="false"
                      name="GetRepoConfiguration">
                         <ResultType
-                         aspect.dataShape="GitBackup.Configuration.DataShape"
+                          aspect.dataShape="GitBackup.Configuration"
                          baseType="INFOTABLE"
                          description=""
                          name="result"
@@ -457,7 +457,7 @@
                      isPrivate="false"
                      name="GetGpgKeys">
                         <ResultType
-                         aspect.dataShape="GitBackup.GpgKey.DataShape"
+                          aspect.dataShape="GitBackup.GpgKey"
                          baseType="INFOTABLE"
                          description=""
                          name="result"
@@ -795,8 +795,8 @@
                                         <![CDATA[
                                         var guid_EntryID = generateGUID();
                                         
-                                        var values =  DataShapes["GitBackup.Log.DataShape"].CreateValues();
-                                        // GitBackup.Log.DataShape entry object
+                                         var values =  DataShapes["GitBackup.Log"].CreateValues();
+                                         // GitBackup.Log entry object
                                         var newEntry = new Object();
                                         newEntry.ID = guid_EntryID; // GUID [Primary Key]
                                         newEntry.timestamp = timestamp; // DATETIME
@@ -867,9 +867,9 @@
                                         	// CreateInfoTableFromDataShape(infoTableName:STRING("InfoTable"), dataShapeName:STRING):INFOTABLE(GitBackup.ConfigurationSetting.DataShape)
                                         	var iftbl_Configuration = Resources["InfoTableFunctions"].CreateInfoTableFromDataShape({
                                         		infoTableName: "InfoTable",
-                                        		dataShapeName: "GitBackup.ConfigurationSetting.DataShape"
+                                         		dataShapeName: "GitBackup.ConfigurationSetting"
                                         	});
-                                        	// GitBackup.ConfigurationSetting.DataShape entry object
+                                         	// GitBackup.ConfigurationSetting entry object
                                         	var row_Config = new Object();
                                         	row_Config.FileRepository = FileRepo; // THINGNAME
                                         	row_Config.GitRepoURL = GitRepoURL; // STRING
@@ -1023,16 +1023,16 @@
                                         <![CDATA[
                                         var params = {
                                             infoTableName : "InfoTable",
-                                            dataShapeName : "GIT.ExtensionVersion.DS"
+                                             dataShapeName : "GitBackup.ExtensionVersion"
                                         };
                                         
-                                        // CreateInfoTableFromDataShape(infoTableName:STRING("InfoTable"), dataShapeName:STRING):INFOTABLE(GIT.ExtensionVersion.DS)
+                                         // CreateInfoTableFromDataShape(infoTableName:STRING("InfoTable"), dataShapeName:STRING):INFOTABLE(GitBackup.ExtensionVersion)
                                         var result = Resources["InfoTableFunctions"].CreateInfoTableFromDataShape(params);
                                         
                                         // result: INFOTABLE dataShape: "ExtensionPackage"
                                         var inftbl_Extensions =  Subsystems["PlatformSubsystem"].GetExtensionPackageList();
                                         
-                                        // GIT.ExtensionVersion.DS entry object
+                                         // GitBackup.ExtensionVersion entry object
                                         var GitExtension = new Object();
                                         GitExtension.ExtensionName = "GitBackupExtension"; // STRING
                                         GitExtension.IsInstalled = false; // BOOLEAN
@@ -1054,7 +1054,7 @@
                                         }
                                         result.AddRow(GitExtension);
                                         
-                                        // GIT.ExtensionVersion.DS entry object
+                                         // GitBackup.ExtensionVersion entry object
                                         var DiffViewerExtension = new Object();
                                         DiffViewerExtension.ExtensionName = "DiffViewer"; // STRING
                                         DiffViewerExtension.IsInstalled = false; // BOOLEAN
@@ -1076,97 +1076,97 @@
                                         }
                                         result.AddRow(DiffViewerExtension);
                                         
-                                        // GIT.ExtensionVersion.DS entry object
-                                        var ExportExtensionExtension = new Object();
-                                        ExportExtensionExtension.ExtensionName = "ExportPlatformExt_Extension"; // STRING
-                                        ExportExtensionExtension.IsInstalled = false; // BOOLEAN
-                                        ExportExtensionExtension.ExtensionVersion = "N/A"; // STRING
-                                        
-                                        var params = {
-                                        	inclusive: true /* BOOLEAN */,
-                                        	fieldName: "name" /* STRING */,
-                                        	t: inftbl_Extensions /* INFOTABLE */,
-                                        	pattern: "ExportPlatformExt_Extension" /* STRING */
-                                        };
-                                        
-                                        // result: INFOTABLE
-                                        iftbl_resultExp=Resources["InfoTableFunctions"].LikeFilter(params);
-                                        if (iftbl_resultExp.getRowCount()>0)
-                                        {
-                                            ExportExtensionExtension.IsInstalled = true; // BOOLEAN
-                                        	ExportExtensionExtension.ExtensionVersion = iftbl_resultExp.getRow(0).packageVersion; // STRING
-                                        }
-                                        result.AddRow(ExportExtensionExtension);
-                                        
-                                        
-                                        //searching for the Autocomplete widget
-                                        // GIT.ExtensionVersion.DS entry object
-                                        var ExportExtensionExtension = new Object();
-                                        ExportExtensionExtension.ExtensionName = "Autocomplete"; // STRING
-                                        ExportExtensionExtension.IsInstalled = false; // BOOLEAN
-                                        ExportExtensionExtension.ExtensionVersion = "N/A"; // STRING
-                                        
-                                        var params = {
-                                        	inclusive: true /* BOOLEAN */,
-                                        	fieldName: "name" /* STRING */,
-                                        	t: inftbl_Extensions /* INFOTABLE */,
-                                        	pattern: "Autocomplete" /* STRING */
-                                        };
-                                        
-                                        // result: INFOTABLE
-                                        iftbl_resultExp=Resources["InfoTableFunctions"].LikeFilter(params);
-                                        if (iftbl_resultExp.getRowCount()>0)
-                                        {
-                                            ExportExtensionExtension.IsInstalled = true; // BOOLEAN
-                                        	ExportExtensionExtension.ExtensionVersion = iftbl_resultExp.getRow(0).packageVersion; // STRING
-                                        }
-                                        result.AddRow(ExportExtensionExtension);
-                                        
-                                        //Searching for the Infotable Selector Extension
-                                        // GIT.ExtensionVersion.DS entry object
-                                        var ExportExtensionExtension = new Object();
-                                        ExportExtensionExtension.ExtensionName = "GitInfoTableSelector_ExtensionPackage"; // STRING
-                                        ExportExtensionExtension.IsInstalled = false; // BOOLEAN
-                                        ExportExtensionExtension.ExtensionVersion = "N/A"; // STRING
-                                        
-                                        var params = {
-                                        	inclusive: true /* BOOLEAN */,
-                                        	fieldName: "name" /* STRING */,
-                                        	t: inftbl_Extensions /* INFOTABLE */,
-                                        	pattern: "GitInfoTableSelector_ExtensionPackage" /* STRING */
-                                        };
-                                        
-                                        // result: INFOTABLE
-                                        iftbl_resultExp=Resources["InfoTableFunctions"].LikeFilter(params);
-                                        if (iftbl_resultExp.getRowCount()>0)
-                                        {
-                                            ExportExtensionExtension.IsInstalled = true; // BOOLEAN
-                                        	ExportExtensionExtension.ExtensionVersion = iftbl_resultExp.getRow(0).packageVersion; // STRING
-                                        }
-                                        result.AddRow(ExportExtensionExtension);
-                                        
-                                        //Searching for the FileTuilities Extension
-                                        // GIT.ExtensionVersion.DS entry object
-                                        var ExportExtensionExtension = new Object();
-                                        ExportExtensionExtension.ExtensionName = "FileUtilities"; // STRING
-                                        ExportExtensionExtension.IsInstalled = false; // BOOLEAN
-                                        ExportExtensionExtension.ExtensionVersion = "N/A"; // STRING
-                                        
-                                        var params = {
-                                        	inclusive: true /* BOOLEAN */,
-                                        	fieldName: "name" /* STRING */,
-                                        	t: inftbl_Extensions /* INFOTABLE */,
-                                        	pattern: "FileUtilities" /* STRING */
-                                        };
-                                        
-                                        // result: INFOTABLE
-                                        iftbl_resultExp=Resources["InfoTableFunctions"].LikeFilter(params);
-                                        if (iftbl_resultExp.getRowCount()>0)
-                                        {
-                                            ExportExtensionExtension.IsInstalled = true; // BOOLEAN
-                                        	ExportExtensionExtension.ExtensionVersion = iftbl_resultExp.getRow(0).packageVersion; // STRING
-                                        }
-                                        result.AddRow(ExportExtensionExtension);
+                                          // GitBackup.ExtensionVersion entry object
+                                         var ExportPlatformExt = new Object();
+                                         ExportPlatformExt.ExtensionName = "ExportPlatformExt_Extension"; // STRING
+                                         ExportPlatformExt.IsInstalled = false; // BOOLEAN
+                                         ExportPlatformExt.ExtensionVersion = "N/A"; // STRING
+                                         
+                                         var params = {
+                                         	inclusive: true /* BOOLEAN */,
+                                         	fieldName: "name" /* STRING */,
+                                         	t: inftbl_Extensions /* INFOTABLE */,
+                                         	pattern: "ExportPlatformExt_Extension" /* STRING */
+                                         };
+                                         
+                                         // result: INFOTABLE
+                                         var iftbl_resultExpPlatform = Resources["InfoTableFunctions"].LikeFilter(params);
+                                         if (iftbl_resultExpPlatform.getRowCount()>0)
+                                         {
+                                             ExportPlatformExt.IsInstalled = true; // BOOLEAN
+                                         	ExportPlatformExt.ExtensionVersion = iftbl_resultExpPlatform.getRow(0).packageVersion; // STRING
+                                         }
+                                         result.AddRow(ExportPlatformExt);
+                                         
+                                         
+                                         //searching for the Autocomplete widget
+                                          // GitBackup.ExtensionVersion entry object
+                                         var AutocompleteExtension = new Object();
+                                         AutocompleteExtension.ExtensionName = "Autocomplete"; // STRING
+                                         AutocompleteExtension.IsInstalled = false; // BOOLEAN
+                                         AutocompleteExtension.ExtensionVersion = "N/A"; // STRING
+                                         
+                                         var params = {
+                                         	inclusive: true /* BOOLEAN */,
+                                         	fieldName: "name" /* STRING */,
+                                         	t: inftbl_Extensions /* INFOTABLE */,
+                                         	pattern: "Autocomplete" /* STRING */
+                                         };
+                                         
+                                         // result: INFOTABLE
+                                         var iftbl_resultAutocomplete = Resources["InfoTableFunctions"].LikeFilter(params);
+                                         if (iftbl_resultAutocomplete.getRowCount()>0)
+                                         {
+                                             AutocompleteExtension.IsInstalled = true; // BOOLEAN
+                                         	AutocompleteExtension.ExtensionVersion = iftbl_resultAutocomplete.getRow(0).packageVersion; // STRING
+                                         }
+                                         result.AddRow(AutocompleteExtension);
+                                         
+                                         //Searching for the Infotable Selector Extension
+                                          // GitBackup.ExtensionVersion entry object
+                                         var GitInfoTableSelector = new Object();
+                                         GitInfoTableSelector.ExtensionName = "GitInfoTableSelector_ExtensionPackage"; // STRING
+                                         GitInfoTableSelector.IsInstalled = false; // BOOLEAN
+                                         GitInfoTableSelector.ExtensionVersion = "N/A"; // STRING
+                                         
+                                         var params = {
+                                         	inclusive: true /* BOOLEAN */,
+                                         	fieldName: "name" /* STRING */,
+                                         	t: inftbl_Extensions /* INFOTABLE */,
+                                         	pattern: "GitInfoTableSelector_ExtensionPackage" /* STRING */
+                                         };
+                                         
+                                         // result: INFOTABLE
+                                         var iftbl_resultGitInfoTableSelector = Resources["InfoTableFunctions"].LikeFilter(params);
+                                         if (iftbl_resultGitInfoTableSelector.getRowCount()>0)
+                                         {
+                                             GitInfoTableSelector.IsInstalled = true; // BOOLEAN
+                                         	GitInfoTableSelector.ExtensionVersion = iftbl_resultGitInfoTableSelector.getRow(0).packageVersion; // STRING
+                                         }
+                                         result.AddRow(GitInfoTableSelector);
+                                         
+                                         //Searching for the FileUtilities Extension
+                                          // GitBackup.ExtensionVersion entry object
+                                         var FileUtilitiesExtension = new Object();
+                                         FileUtilitiesExtension.ExtensionName = "FileUtilities"; // STRING
+                                         FileUtilitiesExtension.IsInstalled = false; // BOOLEAN
+                                         FileUtilitiesExtension.ExtensionVersion = "N/A"; // STRING
+                                         
+                                         var params = {
+                                         	inclusive: true /* BOOLEAN */,
+                                         	fieldName: "name" /* STRING */,
+                                         	t: inftbl_Extensions /* INFOTABLE */,
+                                         	pattern: "FileUtilities" /* STRING */
+                                         };
+                                         
+                                         // result: INFOTABLE
+                                         var iftbl_resultFileUtilities = Resources["InfoTableFunctions"].LikeFilter(params);
+                                         if (iftbl_resultFileUtilities.getRowCount()>0)
+                                         {
+                                             FileUtilitiesExtension.IsInstalled = true; // BOOLEAN
+                                         	FileUtilitiesExtension.ExtensionVersion = iftbl_resultFileUtilities.getRow(0).packageVersion; // STRING
+                                         }
+                                         result.AddRow(FileUtilitiesExtension);
                                         ]]>
                                         </code>
                                     </Row>
@@ -1199,10 +1199,10 @@
                                         <code>
                                         <![CDATA[
                                         //1. Creating holder infotable for the result
-                                        // CreateInfoTableFromDataShape(infoTableName:STRING("InfoTable"), dataShapeName:STRING):INFOTABLE(GitBackup.GitHeader.DS)
+                                         // CreateInfoTableFromDataShape(infoTableName:STRING("InfoTable"), dataShapeName:STRING):INFOTABLE(GitBackup.GitHeader)
                                         var iftbl_Result = Resources["InfoTableFunctions"].CreateInfoTableFromDataShape({
                                             infoTableName: "InfoTable",
-                                            dataShapeName: "GitBackup.GitHeader.DS"
+                                             dataShapeName: "GitBackup.GitHeader"
                                         });
                                         
                                         //2. Getting a list of all the Git Things, required for insertion in the holder infotable
@@ -1219,7 +1219,7 @@
                                         
                                         for (var x = 0; x < tableLength; x++) {
                                             var row = iftbl_GitThings.rows[x];
-                                            // GitBackup.GitHeader.DS entry object
+                                             // GitBackup.GitHeader entry object
                                             var newEntry = new Object();
                                             newEntry.HeightY = 50; // NUMBER
                                             newEntry.MashupName = "GitBackup.NameTab.Mashup"; // STRING
@@ -1417,17 +1417,17 @@
                                         <![CDATA[
                                         var params = {
                                             infoTableName : "InfoTable",
-                                            dataShapeName : "GitBackup.Configuration.DataShape"
+                                             dataShapeName : "GitBackup.Configuration"
                                         };
                                         
-                                        // CreateInfoTableFromDataShape(infoTableName:STRING("InfoTable"), dataShapeName:STRING):INFOTABLE(GitBackup.Configuration.DataShape)
+                                         // CreateInfoTableFromDataShape(infoTableName:STRING("InfoTable"), dataShapeName:STRING):INFOTABLE(GitBackup.Configuration)
                                         var result = Resources["InfoTableFunctions"].CreateInfoTableFromDataShape(params);
                                         
                                         let str_CurrentUser = Resources["CurrentSessionInfo"].GetCurrentUser();
                                         let iftblRow_Credential = Users[str_CurrentUser].GitCredentials.Find({GitThing: GitThingName});
                                         
                                         var iftbl_Cfg = Things[GitThingName].GetConfigurationTable({tableName:"Configuration"});
-                                        // GitBackup.Configuration.DataShape entry object
+                                         // GitBackup.Configuration entry object
                                         var newEntry = new Object();
                                         newEntry.FileRepoPath = iftbl_Cfg.getRow(0).RepoPathName; // STRING
                                         newEntry.CommitUser = iftblRow_Credential.GitCommitterFullName; // STRING
@@ -1598,33 +1598,33 @@
                                     <Row>
                                         <code>
                                         <![CDATA[
-                                        var str_CurrentUser = Resources["CurrentSessionInfo"].GetCurrentUser();
-                                        
-                                        if (str_CurrentUser !== undefined && Users[str_CurrentUser]["GitCredentials"] === undefined) {
-                                        	ThingShapes["UserExtensions"].AddPropertyDefinition({
-                                        		defaultValue: undefined /* STRING */ ,
-                                        		remoteBindingAspects: undefined /* JSON */ ,
-                                        		description: "User-specific Git credentials store." /* STRING */ ,
-                                        		readOnly: false /* BOOLEAN */ ,
-                                        		type: "INFOTABLE" /* BASETYPENAME */ ,
-                                        		remote: false /* BOOLEAN */ ,
-                                        		remotePropertyName: undefined /* STRING */ ,
-                                        		timeout: undefined /* INTEGER */ ,
-                                        		pushType: undefined /* STRING */ ,
-                                        		dataChangeThreshold: undefined /* NUMBER */ ,
-                                        		logged: false /* BOOLEAN */ ,
-                                        		name: "GitCredentials" /* STRING */ ,
-                                        		pushThreshold: undefined /* NUMBER */ ,
-                                        		dataChangeType: undefined /* STRING */ ,
-                                        		category: undefined /* STRING */ ,
-                                        		persistent: true /* BOOLEAN */ ,
-                                        		dataShape: "GitBackup.GitCredentials.DataShape" /* DATASHAPENAME */
-                                        	});
-                                        
-                                        	Resources["EntityServices"].RestartDependenciesForThingShape({
-                                        		name: "UserExtensions" /* THINGSHAPENAME */
-                                        	});
-                                        }
+                                         var str_CurrentUser = Resources["CurrentSessionInfo"].GetCurrentUser();
+
+                                         if (str_CurrentUser !== undefined && Users[str_CurrentUser]["GitCredentials"] === undefined) {
+                                         	ThingShapes["UserExtensions"].AddPropertyDefinition({
+                                         		defaultValue: undefined /* STRING */ ,
+                                         		remoteBindingAspects: undefined /* JSON */ ,
+                                         		description: "User-specific Git credentials store." /* STRING */ ,
+                                         		readOnly: false /* BOOLEAN */ ,
+                                         		type: "INFOTABLE" /* BASETYPENAME */ ,
+                                         		remote: false /* BOOLEAN */ ,
+                                         		remotePropertyName: undefined /* STRING */ ,
+                                         		timeout: undefined /* INTEGER */ ,
+                                         		pushType: undefined /* STRING */ ,
+                                         		dataChangeThreshold: undefined /* NUMBER */ ,
+                                         		logged: false /* BOOLEAN */ ,
+                                         		name: "GitCredentials" /* STRING */ ,
+                                         		pushThreshold: undefined /* NUMBER */ ,
+                                         		dataChangeType: undefined /* STRING */ ,
+                                         		category: undefined /* STRING */ ,
+                                         		persistent: true /* BOOLEAN */ ,
+                                          		dataShape: "GitBackup.GitCredentials" /* DATASHAPENAME */
+                                         	});
+                                         
+                                         	Resources["EntityServices"].RestartDependenciesForThingShape({
+                                         		name: "UserExtensions" /* THINGSHAPENAME */
+                                         	});
+                                         }
                                         //upgrade path for version 5.0
                                         //removes the UseGitCommitUserValues, GitCommitterEmail, GitCommitterPassword and GitCommitterName since they are no longer needed
                                         //in V5.0 we use GitCredentials infotable which is a store for all credentials for all Git Things in the system.
@@ -1780,7 +1780,7 @@
                                         	// CreateInfoTableFromDataShape(infoTableName:STRING("InfoTable"), dataShapeName:STRING):INFOTABLE(GitBackup.ConfigurationSetting.DataShape)
                                         	var iftbl_ConfigurationNew = Resources["InfoTableFunctions"].CreateInfoTableFromDataShape({
                                         		infoTableName: "InfoTable",
-                                        		dataShapeName: "GitBackup.ConfigurationSetting.DataShape"
+                                         		dataShapeName: "GitBackup.ConfigurationSetting"
                                         	});
                                         	var row_Config = iftbl_Configuration.getRow(0);
                                         	//We do not allow the user to change the File Repository as the Extension does not handle this usecase
@@ -1921,31 +1921,31 @@
                                     <Row>
                                         <code>
                                         <![CDATA[
-                                        var str_CurrentUser = Resources["CurrentSessionInfo"].GetCurrentUser();
-                                        if (str_CurrentUser !== undefined && Users[str_CurrentUser]["GpgKeys"] === undefined) {
-                                            ThingShapes["UserExtensions"].AddPropertyDefinition({
-                                                defaultValue: undefined /* STRING */,
-                                                remoteBindingAspects: undefined /* JSON */,
-                                                description: "User-specific GPG signing keys store." /* STRING */,
-                                                readOnly: false /* BOOLEAN */,
-                                                type: "INFOTABLE" /* BASETYPENAME */,
-                                                remote: false /* BOOLEAN */,
-                                                remotePropertyName: undefined /* STRING */,
-                                                timeout: undefined /* INTEGER */,
-                                                pushType: undefined /* STRING */,
-                                                dataChangeThreshold: undefined /* NUMBER */,
-                                                logged: false /* BOOLEAN */,
-                                                name: "GpgKeys" /* STRING */,
-                                                pushThreshold: undefined /* NUMBER */,
-                                                dataChangeType: undefined /* STRING */,
-                                                category: undefined /* STRING */,
-                                                persistent: true /* BOOLEAN */,
-                                                dataShape: "GitBackup.GpgKey.DataShape" /* DATASHAPENAME */
-                                            });
-                                            Resources["EntityServices"].RestartDependenciesForThingShape({
-                                                name: "UserExtensions" /* THINGSHAPENAME */
-                                            });
-                                        }
+                                         var str_CurrentUser = Resources["CurrentSessionInfo"].GetCurrentUser();
+                                         if (str_CurrentUser !== undefined && Users[str_CurrentUser]["GpgKeys"] === undefined) {
+                                             ThingShapes["UserExtensions"].AddPropertyDefinition({
+                                                 defaultValue: undefined /* STRING */,
+                                                 remoteBindingAspects: undefined /* JSON */,
+                                                 description: "User-specific GPG signing keys store." /* STRING */,
+                                                 readOnly: false /* BOOLEAN */,
+                                                 type: "INFOTABLE" /* BASETYPENAME */,
+                                                 remote: false /* BOOLEAN */,
+                                                 remotePropertyName: undefined /* STRING */,
+                                                 timeout: undefined /* INTEGER */,
+                                                 pushType: undefined /* STRING */,
+                                                 dataChangeThreshold: undefined /* NUMBER */,
+                                                 logged: false /* BOOLEAN */,
+                                                 name: "GpgKeys" /* STRING */,
+                                                 pushThreshold: undefined /* NUMBER */,
+                                                 dataChangeType: undefined /* STRING */,
+                                                 category: undefined /* STRING */,
+                                                 persistent: true /* BOOLEAN */,
+                                                  dataShape: "GitBackup.GpgKey" /* DATASHAPENAME */
+                                             });
+                                             Resources["EntityServices"].RestartDependenciesForThingShape({
+                                                 name: "UserExtensions" /* THINGSHAPENAME */
+                                             });
+                                         }
                                         ]]>
                                         </code>
                                     </Row>
@@ -1983,7 +1983,7 @@
                                         } else {
                                             result = Resources["InfoTableFunctions"].CreateInfoTableFromDataShape({
                                                 infoTableName: "InfoTable",
-                                                dataShapeName: "GitBackup.GpgKey.DataShape"
+                                                dataShapeName: "GitBackup.GpgKey"
                                             });
                                         }
                                         ]]>
@@ -2022,7 +2022,7 @@
                                             if (Users[str_CurrentUser]["GpgKeys"] === undefined) {
                                                 Users[str_CurrentUser].GpgKeys = Resources["InfoTableFunctions"].CreateInfoTableFromDataShape({
                                                     infoTableName: "InfoTable",
-                                                    dataShapeName: "GitBackup.GpgKey.DataShape"
+                                                    dataShapeName: "GitBackup.GpgKey"
                                                 });
                                             }
                                             var iftbl_GpgKeys = Resources["InfoTableFunctions"].Clone({
@@ -2114,7 +2114,7 @@
                                         	if (Users[str_CurrentUser].GitCredentials === undefined) {
                                         		Users[str_CurrentUser].GitCredentials = Resources["InfoTableFunctions"].CreateInfoTableFromDataShape({
                                         			infoTableName: "InfoTable",
-                                        			dataShapeName: "GitBackup.GitCredentials.DataShape"
+                                         			dataShapeName: "GitBackup.GitCredentials"
                                         		});
                                         	}
                                         	var iftbl_Credentials = Resources["InfoTableFunctions"].Clone({

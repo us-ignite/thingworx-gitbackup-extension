@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Entities
  build="b90"
- majorVersion="8"
- minorVersion="5"
+  majorVersion="9"
+  minorVersion="3"
  modelPersistenceProviderPackage="PostgresPersistenceProviderPackage"
  revision="1"
  schemaVersion="1051"
@@ -20,7 +20,7 @@
          homeMashup=""
          lastModifiedDate="2020-01-08T07:55:21.405-08:00"
          name="GitBackup.PushSettings.Mashup"
-         projectName=""
+         projectName="GitBackup"
          rows="0.0"
          tags="">
             <avatar></avatar>
@@ -278,7 +278,7 @@
                       "version" : "1.0"
                     }
                   },
-                  "StyleTheme" : "PTC Convergence Theme",
+                  "StyleTheme" : "GitBackup.StyleTheme",
                   "Title" : "",
                   "TitleBar" : false,
                   "TitleBarStyle" : "DefaultTitleBarStyle",

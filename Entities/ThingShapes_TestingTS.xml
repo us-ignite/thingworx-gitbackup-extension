@@ -63,7 +63,7 @@
                  isPrivate="false"
                  name="ExecuteTest">
                     <ResultType
-                     aspect.dataShape="TestResultData"
+                          aspect.dataShape="GitBackup.TestResult"
                      baseType="INFOTABLE"
                      description=""
                      name="result"
@@ -80,7 +80,7 @@
                          name="InputParams"
                          ordinal="2"></FieldDefinition>
                         <FieldDefinition
-                         aspect.dataShape="TestResultData"
+                         aspect.dataShape="GitBackup.TestResult"
                          baseType="INFOTABLE"
                          description=""
                          name="PreviousTestResults"
@@ -108,7 +108,7 @@
                      ordinal="0"></ResultType>
                     <ParameterDefinitions>
                         <FieldDefinition
-                         aspect.dataShape="TestResultData"
+                         aspect.dataShape="GitBackup.TestResult"
                          baseType="INFOTABLE"
                          description=""
                          name="tests"
@@ -125,7 +125,7 @@
                  isPrivate="false"
                  name="RunAllTests">
                     <ResultType
-                     aspect.dataShape="TestResultData"
+                          aspect.dataShape="GitBackup.TestResult"
                      baseType="INFOTABLE"
                      description=""
                      name="result"
@@ -287,10 +287,10 @@
                                     //Build the results infotable
                                     var params = {
                                         infoTableName : "InfoTable",
-                                        dataShapeName : "TestResultData"
+                                         dataShapeName : "GitBackup.TestResult"
                                     };
                                     
-                                    // CreateInfoTableFromDataShape(infoTableName:STRING("InfoTable"), dataShapeName:STRING):INFOTABtrLE(TestResultData)
+                                     // CreateInfoTableFromDataShape(infoTableName:STRING("InfoTable"), dataShapeName:STRING):INFOTABtrLE(GitBackup.TestResult)
                                     var result = Resources["InfoTableFunctions"].CreateInfoTableFromDataShape(params);
                                     PreviousTestResults.AddRow({
                                         testName: TestName, 
@@ -304,7 +304,7 @@
                                     //optionally store the results in a DataTable
                                     var tags = new Array();
                                     
-                                    // values:INFOTABLE(Datashape: TestResultData)
+                                     // values:INFOTABLE(Datashape: GitBackup.TestResult)
                                     values.comments = testResult ? "passed" : ExpectedOutput.result; // STRING
                                     values.inputParams = InputParams; // JSON
                                     values.expectedOutput = ExpectedOutput; // JSON
@@ -416,7 +416,7 @@
                                     //2. Create a variable that will store all the results 
                                     var prevTestResult= Resources["InfoTableFunctions"].CreateInfoTableFromDataShape({
                                         infoTableName : "InfoTable",
-                                        dataShapeName : "TestResultData"
+                                         dataShapeName : "GitBackup.TestResult"
                                     });
                                     
                                     //3. Search all the services in the category Test and execute them.
@@ -462,7 +462,7 @@
                                 <Row>
                                     <code>
                                     <![CDATA[
-                                    // result: INFOTABLE dataShape: "TestResultData"
+                                     // result: INFOTABLE dataShape: "GitBackup.TestResult"
                                     var result =  me.RunAllTests();
                                     var allTestsPassed = true; 
                                     for each (var row in result.rows) {

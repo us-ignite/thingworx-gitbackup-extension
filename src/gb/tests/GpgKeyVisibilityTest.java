@@ -45,7 +45,7 @@ public class GpgKeyVisibilityTest {
     void gpgKeyDataShapeEntityDoesNotExist() throws Exception {
         var req = HttpRequest.newBuilder()
                 .uri(java.net.URI.create(
-                        stack.thingworx.getExternalUrl() + "/Thingworx/DataShapes/GitBackup.GpgKey.DataShape"))
+                        stack.thingworx.getExternalUrl() + "/Thingworx/DataShapes/GitBackup.GpgKey"))
                 .header("Accept", "application/json")
                 .header("Authorization", "Basic " + java.util.Base64.getEncoder()
                         .encodeToString((credentials.thingworxAdminUser + ":" + credentials.thingworxAdminPass).getBytes()))
@@ -63,7 +63,7 @@ public class GpgKeyVisibilityTest {
     void otherDataShapesStillExist() throws Exception {
         var req = HttpRequest.newBuilder()
                 .uri(java.net.URI.create(
-                        stack.thingworx.getExternalUrl() + "/Thingworx/DataShapes/GitBackup.GitCredentials.DataShape"))
+                        stack.thingworx.getExternalUrl() + "/Thingworx/DataShapes/GitBackup.GitCredentials"))
                 .header("Accept", "application/json")
                 .header("Authorization", "Basic " + java.util.Base64.getEncoder()
                         .encodeToString((credentials.thingworxAdminUser + ":" + credentials.thingworxAdminPass).getBytes()))

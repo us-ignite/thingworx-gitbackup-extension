@@ -424,7 +424,7 @@
                         "ParameterName" : "userRepositories",
                         "ParmDef" : {
                           "aspects" : {
-                            "dataShape" : "QueryRepository.DataShape",
+                             "dataShape" : "GitBackup.QueryRepository",
                             "ordinal" : "1"
                           },
                           "baseType" : "INFOTABLE",
