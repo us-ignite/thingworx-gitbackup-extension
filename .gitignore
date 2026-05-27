@@ -24,3 +24,6 @@ graalvm-jdk-21*
 # Integration test credentials
 .env
 twx-lib/*
+
+# Cached downloads
+.cache/
