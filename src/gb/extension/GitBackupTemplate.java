@@ -177,9 +177,7 @@ public class GitBackupTemplate extends Thing {
 			// System.gc();
 			Thread.sleep(200);
 			gitObject = null;
-			String str_FolderPath = srcRepo.getRootPath();
-			str_FolderPath += str_FileRepoPath;
-			// delete(new File(str_FolderPath), "dispose");
+			String str_FolderPath = new File(srcRepo.getRootPath(), str_FileRepoPath).getPath();
 			deleteGitFolder(new File(str_FolderPath), "dispose");
 		}
 		super.dispose();
@@ -253,6 +251,7 @@ public class GitBackupTemplate extends Thing {
 			throws Exception, GitAPIException {
 		_logger.trace("Entering Service: Push");
 		String str_CurrentMethodName = "Push";
+		boolean bool_SignCommits = false;
 		try {
 			// 1. Retrieve the GitRepository as a Git object that is needed for the next
 			// operations
@@ -295,7 +294,6 @@ public class GitBackupTemplate extends Thing {
 			// Check if GPG signing is configured for this repo (stored in separate GpgKeys property)
 			String str_GpgPrivateKey = null;
 			String str_GpgPassphrase = null;
-			boolean bool_SignCommits = false;
 			try {
 				InfoTable iftbl_GpgKeys = ((InfoTablePrimitive) us_currentUser
 						.getPropertyValue(Const.str_GpgKeys)).getValue();
@@ -335,6 +333,11 @@ public class GitBackupTemplate extends Thing {
 			BigDecimal durationTimeCommitToLocalRepository = new BigDecimal(
 					(double) (endTimeCommitToLocalRepository - endTimeAddAllFilesWithSetUpdate) / (double) 1000000)
 					.setScale(3, RoundingMode.HALF_DOWN);
+			// Warn if SignCommits is not enabled - remote may require signed commits
+			if (!bool_SignCommits) {
+				_logger.warn("Push: SignCommits is not enabled for this repository. If the remote requires signed commits, the push will be rejected.");
+			}
+
 			// 3. We will push the commit to the remote repository
 			// 3.1. Create the credentials that are needed to authenticate to the online Git
 			// repository provider
@@ -348,7 +351,17 @@ public class GitBackupTemplate extends Thing {
 					.setScale(3, RoundingMode.HALF_DOWN);
 			String str_LogResult = "";
 			for (PushResult pr : prList) {
-				str_LogResult += pr.getRemoteUpdates().toString();
+				String updateStr = pr.getRemoteUpdates().toString();
+				str_LogResult += updateStr;
+				// Check for pre-receive hook rejection
+				if (updateStr.contains("REJECTED_OTHER_REASON") || updateStr.contains("pre-receive hook declined")) {
+					String hint = "";
+					if (!bool_SignCommits) {
+						hint = " The remote may require GPG-signed commits. Enable SignCommits via SetGpgKey and ensure GPG signing is configured.";
+					}
+					_logger.warn("Push rejected by remote pre-receive hook." + hint);
+					str_LogResult += hint;
+				}
 			}
 			str_LogResult += " Debug Timings (ms): #1.OpenGit: " + durationTimeOpenRepository + "#2.AddFiles: "
 					+ durationTimeAddFiles + "#3.AddAllDeletedFiles: " + durationTimeAddAllFilesWithSetUpdate
@@ -360,9 +373,18 @@ public class GitBackupTemplate extends Thing {
 		} catch (Exception e) {
 			StringWriter errors = new StringWriter();
 			e.printStackTrace(new PrintWriter(errors));
-			_logger.error(errors.toString());
-			LogOperationResult(errors.toString(), str_CurrentMethodName);
-			return "Push Error: " + errors.toString();
+			String errMsg = errors.toString();
+			_logger.error(errMsg);
+			// Provide clearer error when push is rejected by pre-receive hook
+			if (errMsg.contains("pre-receive hook declined") || errMsg.contains("REJECTED_OTHER_REASON")) {
+				String hint = "";
+				if (!bool_SignCommits) {
+					hint = " The remote may require GPG-signed commits. Configure a GPG key via SetGpgKey with SignCommits=true, then retry.";
+				}
+				errMsg = "Push rejected by remote server (pre-receive hook)." + hint + " Original error: " + errMsg;
+			}
+			LogOperationResult(errMsg, str_CurrentMethodName);
+			return "Push Error: " + errMsg;
 		}
 
 	}
@@ -503,10 +525,9 @@ public class GitBackupTemplate extends Thing {
 		FileRepositoryThing srcRepo = (FileRepositoryThing) EntityUtilities.findEntity(str_FileRepository,
 				ThingworxRelationshipTypes.Thing);
 		try {
-			String str_FolderPath = srcRepo.getRootPath();
+			String str_FolderPath = new File(srcRepo.getRootPath(), str_FileRepoPath).getPath();
 			closeGit();
 			_logger.warn("DeleteLocalRepoContent:2, starting to delete files. All files should not be locked;");
-			str_FolderPath += str_FileRepoPath;
 			// deleteDirectory(new File(str_FolderPath), "DeleteLocalRepoContent");
 			deleteGitFolder(new File(str_FolderPath), "DeleteLocalRepoContent");
 			Thread.sleep(5);
@@ -1079,8 +1100,7 @@ public class GitBackupTemplate extends Thing {
 		if (gitObject == null) {
 			FileRepositoryThing srcRepo = (FileRepositoryThing) EntityUtilities.findEntity(str_FileRepository,
 					ThingworxRelationshipTypes.Thing);
-			String str_FolderPath = srcRepo.getRootPath();
-			str_FolderPath += str_FileRepoPath;
+			String str_FolderPath = new File(srcRepo.getRootPath(), str_FileRepoPath).getPath();
 			Git myGitObject = openOrCreate(new File(str_FolderPath));
 			StoredConfig config = myGitObject.getRepository().getConfig();
 			config.setString("remote", "origin", "url", str_GitRepoURL);

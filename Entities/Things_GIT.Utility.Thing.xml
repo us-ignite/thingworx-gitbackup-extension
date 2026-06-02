@@ -366,33 +366,73 @@
                              ordinal="1"></FieldDefinition>
                         </ParameterDefinitions>
                     </ServiceDefinition>
-                    <ServiceDefinition
-                     aspect.isAsync="false"
-                     category=""
-                     description="This will import an entity in the system."
-                     isAllowOverride="false"
-                     isLocalOnly="false"
-                     isOpen="false"
-                     isPrivate="false"
-                     name="ImportEntity">
-                        <ResultType
-                         baseType="NOTHING"
-                         description=""
-                         name="result"
-                         ordinal="0"></ResultType>
-                        <ParameterDefinitions>
-                            <FieldDefinition
-                             baseType="STRING"
-                             description="relative to the repository"
-                             name="entityPath"
-                             ordinal="1"></FieldDefinition>
-                            <FieldDefinition
-                             baseType="STRING"
-                             description=""
-                             name="FileRepositoryName"
-                             ordinal="2"></FieldDefinition>
-                        </ParameterDefinitions>
-                    </ServiceDefinition>
+                     <ServiceDefinition
+                      aspect.isAsync="false"
+                      category=""
+                      description="This will import an entity in the system."
+                      isAllowOverride="false"
+                      isLocalOnly="false"
+                      isOpen="false"
+                      isPrivate="false"
+                      name="ImportEntity">
+                         <ResultType
+                          baseType="NOTHING"
+                          description=""
+                          name="result"
+                          ordinal="0"></ResultType>
+                         <ParameterDefinitions>
+                             <FieldDefinition
+                              baseType="STRING"
+                              description="relative to the repository"
+                              name="entityPath"
+                              ordinal="1"></FieldDefinition>
+                             <FieldDefinition
+                              baseType="STRING"
+                              description=""
+                              name="FileRepositoryName"
+                              ordinal="2"></FieldDefinition>
+                             <FieldDefinition
+                              aspect.defaultValue="false"
+                              baseType="BOOLEAN"
+                              description="If true, strips dependency validation during import"
+                              name="ignoreDependencies"
+                              ordinal="3"></FieldDefinition>
+                         </ParameterDefinitions>
+                     </ServiceDefinition>
+                     <ServiceDefinition
+                      aspect.isAsync="false"
+                      category=""
+                      description="Bulk imports all entity XML files from a FileRepository path. Returns a summary INFOTABLE with success/failure per entity."
+                      isAllowOverride="false"
+                      isLocalOnly="false"
+                      isOpen="false"
+                      isPrivate="false"
+                      name="ImportProjectEntities">
+                         <ResultType
+                           aspect.dataShape="GitBackup.TestResult"
+                          baseType="INFOTABLE"
+                          description=""
+                          name="result"
+                          ordinal="0"></ResultType>
+                         <ParameterDefinitions>
+                             <FieldDefinition
+                              baseType="STRING"
+                              description="GitBackup Thing name whose FileRepository and path to scan"
+                              name="GitThingName"
+                              ordinal="1"></FieldDefinition>
+                             <FieldDefinition
+                              baseType="STRING"
+                              description="Relative path within the FileRepository to scan for XML files"
+                              name="entityPath"
+                              ordinal="2"></FieldDefinition>
+                             <FieldDefinition
+                              aspect.defaultValue="false"
+                              baseType="BOOLEAN"
+                              description="If true, strips dependency validation during import"
+                              name="ignoreDependencies"
+                              ordinal="3"></FieldDefinition>
+                         </ParameterDefinitions>
+                     </ServiceDefinition>
                     <ServiceDefinition
                      aspect.isAsync="false"
                      category=""
@@ -1474,9 +1514,16 @@
                                         <code>
                                         <![CDATA[
                                         logger.warn("Started single entity import.");
-                                        //1. Import entity 
-                                        var appKey = ApplicationKeys["GitExtensionAppKey"].GetKeyID();
-                                        var URL = Things["ExtensionImportTargets"].importTargets.getRow(0).baseURL+"/Importer?IgnoreBadValueStreamData=false&WithSubsystems=false&overwritePropertyValues=true&purpose=import&usedefaultdataprovider=true";
+                                        //1. Validate AppKey exists
+                                        var appKeyObj = ApplicationKeys["GitExtensionAppKey"];
+                                        if (!appKeyObj) throw "GitExtensionAppKey not found. Run InitExtensionImportTargets first.";
+                                        var appKey = appKeyObj.GetKeyID();
+
+                                        // Validate ExtensionImportTargets exists
+                                        if (!Things["ExtensionImportTargets"] || !Things["ExtensionImportTargets"].importTargets || Things["ExtensionImportTargets"].importTargets.getRowCount() === 0) throw "ExtensionImportTargets not configured. Run InitExtensionImportTargets first.";
+
+                                        var str_IgnoreDeps = (ignoreDependencies === true) ? "&ignoreDependencies=true" : "";
+                                        var URL = Things["ExtensionImportTargets"].importTargets.getRow(0).baseURL+"/Importer?IgnoreBadValueStreamData=false&WithSubsystems=false&overwritePropertyValues=true&purpose=import&usedefaultdataprovider=true" + str_IgnoreDeps;
                                         var params = {
                                         	proxyScheme: undefined /* STRING */,
                                         	headers: {"appKey": appKey, "X-XSRF-TOKEN":"TWX-XSRF-TOKEN-VALUE"} /* JSON */,
@@ -1497,8 +1544,141 @@
                                         };
                                         
                                         // result: JSON
-                                        var result = Resources["ContentLoaderFunctions"].PostMultipart(params);
-                                        logger.warn("Finished importing single Entity "+entityPath+".");
+                                        var importResponse = Resources["ContentLoaderFunctions"].PostMultipart(params);
+                                        logger.warn("Finished importing single Entity "+entityPath+". Response: " + (importResponse ? JSON.stringify(importResponse) : "empty"));
+                                        if (importResponse && importResponse.success === false) {
+                                            throw "Import failed for " + entityPath + ": " + (importResponse.message || "Unknown error");
+                                        }
+                                        ]]>
+                                        </code>
+                                    </Row>
+                                </Rows>
+                            </ConfigurationTable>
+                        </ConfigurationTables>
+                    </ServiceImplementation>
+                    <ServiceImplementation
+                     description=""
+                     handlerName="Script"
+                     name="ImportProjectEntities">
+                        <ConfigurationTables>
+                            <ConfigurationTable
+                             dataShapeName=""
+                             description=""
+                             isMultiRow="false"
+                             name="Script"
+                             ordinal="0">
+                                <DataShape>
+                                    <FieldDefinitions>
+                                        <FieldDefinition
+                                         baseType="STRING"
+                                         description="code"
+                                         name="code"
+                                         ordinal="0"></FieldDefinition>
+                                    </FieldDefinitions>
+                                </DataShape>
+                                <Rows>
+                                    <Row>
+                                        <code>
+                                        <![CDATA[
+                                        logger.warn("Started bulk import for GitThing: " + GitThingName);
+                                        //1. Validate inputs
+                                        if (!GitThingName) throw "GitThingName is required.";
+                                        var iftbl_Config = Things[GitThingName].GetConfiguration();
+                                        var str_FileRepositoryName = iftbl_Config.FileRepository;
+                                        var str_RepoPath = entityPath || iftbl_Config.FileRepoPath;
+
+                                        //2. Validate AppKey and ExtensionImportTargets
+                                        var appKeyObj = ApplicationKeys["GitExtensionAppKey"];
+                                        if (!appKeyObj) throw "GitExtensionAppKey not found. Run InitExtensionImportTargets first.";
+                                        var appKey = appKeyObj.GetKeyID();
+                                        if (!Things["ExtensionImportTargets"] || !Things["ExtensionImportTargets"].importTargets || Things["ExtensionImportTargets"].importTargets.getRowCount() === 0) throw "ExtensionImportTargets not configured. Run InitExtensionImportTargets first.";
+
+                                        var str_IgnoreDeps = (ignoreDependencies === true) ? "&ignoreDependencies=true" : "";
+                                        var str_BaseURL = Things["ExtensionImportTargets"].importTargets.getRow(0).baseURL;
+
+                                        //3. Recursively list all XML files in the repository path
+                                        var iftbl_Files = Things[str_FileRepositoryName].ListFiles({
+                                            path: str_RepoPath /* STRING */,
+                                            nameMask: "*.xml" /* STRING */
+                                        });
+                                        
+                                        //4. Also get files from subdirectories
+                                        function collectXmlFiles(path) {
+                                            var dirs = Things[str_FileRepositoryName].ListDirectories({
+                                                path: path /* STRING */,
+                                                nameMask: undefined /* STRING */
+                                            });
+                                            if (dirs && dirs.getRowCount() > 0) {
+                                                for (var d = 0; d < dirs.getRowCount(); d++) {
+                                                    var subFiles = Things[str_FileRepositoryName].ListFiles({
+                                                        path: dirs.getRow(d).path /* STRING */,
+                                                        nameMask: "*.xml" /* STRING */
+                                                    });
+                                                    iftbl_Files = Resources["InfoTableFunctions"].Union({
+                                                        t1: iftbl_Files /* INFOTABLE */,
+                                                        t2: subFiles /* INFOTABLE */
+                                                    });
+                                                    collectXmlFiles(dirs.getRow(d).path);
+                                                }
+                                            }
+                                        }
+                                        collectXmlFiles(str_RepoPath);
+
+                                        logger.warn("Found " + iftbl_Files.getRowCount() + " XML files for import.");
+
+                                        //5. Create result infotable
+                                        var result = Resources["InfoTableFunctions"].CreateInfoTableFromDataShape({
+                                            infoTableName: "InfoTable",
+                                            dataShapeName: "GitBackup.TestResult"
+                                        });
+
+                                        //6. Import each file
+                                        var int_SuccessCount = 0;
+                                        var int_FailCount = 0;
+                                        for (var x = 0; x < iftbl_Files.getRowCount(); x++) {
+                                            var filePath = iftbl_Files.getRow(x).path;
+                                            var fileName = iftbl_Files.getRow(x).name;
+                                            var startTime = new Date();
+                                            // GitBackup.TestResult entry object
+                                            var entry = new Object();
+                                            entry.testName = filePath; // STRING
+                                            entry.startTimestamp = startTime; // DATETIME
+                                            try {
+                                                var importURL = str_BaseURL + "/Importer?IgnoreBadValueStreamData=false&WithSubsystems=false&overwritePropertyValues=true&purpose=import&usedefaultdataprovider=true" + str_IgnoreDeps;
+                                                var importParams = {
+                                                    proxyScheme: undefined /* STRING */,
+                                                    headers: {"appKey": appKey, "X-XSRF-TOKEN":"TWX-XSRF-TOKEN-VALUE"} /* JSON */,
+                                                    ignoreSSLErrors: true /* BOOLEAN */,
+                                                    useNTLM: undefined /* BOOLEAN */,
+                                                    partsToSend: undefined /* INFOTABLE */,
+                                                    workstation: undefined /* STRING */,
+                                                    useProxy: undefined /* BOOLEAN */,
+                                                    repository: str_FileRepositoryName /* STRING */,
+                                                    proxyHost: undefined /* STRING */,
+                                                    url: importURL /* STRING */,
+                                                    timeout: undefined /* NUMBER */,
+                                                    proxyPort: undefined /* INTEGER */,
+                                                    password: undefined /* STRING */,
+                                                    pathOnRepository: filePath /* STRING */,
+                                                    domain: undefined /* STRING */,
+                                                    username: undefined /* STRING */
+                                                };
+                                                var importResponse = Resources["ContentLoaderFunctions"].PostMultipart(importParams);
+                                                entry.passed = true; // BOOLEAN
+                                                entry.comments = (importResponse ? JSON.stringify(importResponse) : "Import completed"); // STRING
+                                                int_SuccessCount++;
+                                                logger.warn("Successfully imported: " + filePath);
+                                            } catch (err) {
+                                                entry.passed = false; // BOOLEAN
+                                                entry.comments = "Import failed: " + err.message; // STRING
+                                                int_FailCount++;
+                                                logger.error("Failed to import: " + filePath + "; Error: " + err.message);
+                                            }
+                                            entry.endTimestamp = new Date(); // DATETIME
+                                            result.AddRow(entry);
+                                        }
+
+                                        logger.warn("Bulk import completed. Success: " + int_SuccessCount + ", Failed: " + int_FailCount + ", Total: " + iftbl_Files.getRowCount());
                                         ]]>
                                         </code>
                                     </Row>
@@ -2019,6 +2199,34 @@
                                         <![CDATA[
                                         var str_CurrentUser = Resources["CurrentSessionInfo"].GetCurrentUser();
                                         if (str_CurrentUser !== undefined && Users[str_CurrentUser] !== undefined) {
+                                            // Auto-initialize GpgKeys property on UserExtensions ThingShape if missing
+                                            try {
+                                                var testProp = Users[str_CurrentUser]["GpgKeys"];
+                                            } catch (e) {
+                                                logger.warn("GpgKeys property not found on UserExtensions ThingShape. Auto-initializing.");
+                                                ThingShapes["UserExtensions"].AddPropertyDefinition({
+                                                    defaultValue: undefined /* STRING */,
+                                                    remoteBindingAspects: undefined /* JSON */,
+                                                    description: "User-specific GPG signing keys store." /* STRING */,
+                                                    readOnly: false /* BOOLEAN */,
+                                                    type: "INFOTABLE" /* BASETYPENAME */,
+                                                    remote: false /* BOOLEAN */,
+                                                    remotePropertyName: undefined /* STRING */,
+                                                    timeout: undefined /* INTEGER */,
+                                                    pushType: undefined /* STRING */,
+                                                    dataChangeThreshold: undefined /* NUMBER */,
+                                                    logged: false /* BOOLEAN */,
+                                                    name: "GpgKeys" /* STRING */,
+                                                    pushThreshold: undefined /* NUMBER */,
+                                                    dataChangeType: undefined /* STRING */,
+                                                    category: undefined /* STRING */,
+                                                    persistent: true /* BOOLEAN */,
+                                                    dataShape: "GitBackup.GpgKey" /* DATASHAPENAME */
+                                                });
+                                                Resources["EntityServices"].RestartDependenciesForThingShape({
+                                                    name: "UserExtensions" /* THINGSHAPENAME */
+                                                });
+                                            }
                                             if (Users[str_CurrentUser]["GpgKeys"] === undefined) {
                                                 Users[str_CurrentUser].GpgKeys = Resources["InfoTableFunctions"].CreateInfoTableFromDataShape({
                                                     infoTableName: "InfoTable",
