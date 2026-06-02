@@ -72,39 +72,44 @@
                          ordinal="1"></FieldDefinition>
                     </ParameterDefinitions>
                 </ServiceDefinition>
-                <ServiceDefinition
-                 aspect.isAsync="false"
-                 category=""
-                 description="Wrapper for the ExportToSourceControl service.&#xA;BE WARNED: this service will clean ALL your project files with the lastModifiedDate and PersistanceProvider. This will happen regardless of what files you actually changed."
-                 isAllowOverride="false"
-                 isLocalOnly="false"
-                 isOpen="false"
-                 isPrivate="false"
-                 name="ExportProjectEntities">
-                    <ResultType
-                     baseType="NOTHING"
-                     description=""
-                     name="result"
-                     ordinal="0"></ResultType>
-                    <ParameterDefinitions>
-                        <FieldDefinition
-                         aspect.dataShape="SpotlightSearch"
-                         baseType="INFOTABLE"
-                         description="Optional; if not set all project entities will be exported"
-                         name="EntitiesToExport"
-                         ordinal="3"></FieldDefinition>
-                        <FieldDefinition
-                         baseType="BOOLEAN"
-                         description=""
-                         name="includeDependents"
-                         ordinal="2"></FieldDefinition>
-                        <FieldDefinition
-                         baseType="STRING"
-                         description=""
-                         name="ProjectName"
-                         ordinal="1"></FieldDefinition>
-                    </ParameterDefinitions>
-                </ServiceDefinition>
+                 <ServiceDefinition
+                  aspect.isAsync="false"
+                  category=""
+                  description="Wrapper for the ExportToSourceControl service.&#xA;BE WARNED: this service will clean ALL your project files with the lastModifiedDate and PersistanceProvider. This will happen regardless of what files you actually changed."
+                  isAllowOverride="false"
+                  isLocalOnly="false"
+                  isOpen="false"
+                  isPrivate="false"
+                  name="ExportProjectEntities">
+                     <ResultType
+                      baseType="NOTHING"
+                      description=""
+                      name="result"
+                      ordinal="0"></ResultType>
+                     <ParameterDefinitions>
+                         <FieldDefinition
+                          aspect.dataShape="SpotlightSearch"
+                          baseType="INFOTABLE"
+                          description="Optional; if not set all project entities will be exported"
+                          name="EntitiesToExport"
+                          ordinal="3"></FieldDefinition>
+                         <FieldDefinition
+                          baseType="BOOLEAN"
+                          description=""
+                          name="includeDependents"
+                          ordinal="2"></FieldDefinition>
+                         <FieldDefinition
+                          baseType="STRING"
+                          description=""
+                          name="ProjectName"
+                          ordinal="1"></FieldDefinition>
+                         <FieldDefinition
+                          baseType="STRING"
+                          description="Optional commit message. If provided, a git commit and push will be performed after export."
+                          name="commitMessage"
+                          ordinal="4"></FieldDefinition>
+                     </ParameterDefinitions>
+                 </ServiceDefinition>
                 <ServiceDefinition
                  aspect.isAsync="false"
                  category=""
@@ -709,6 +714,12 @@
                                     //6. Remove the mashup preview tag - ONLY ACTIVATE FOR 8.2
                                     //me.RemoveMashupPreviewTag();
                                     bool_ExportSpecificEntities==true?logger.warn("Finished exporting subset of " +EntitiesToExport.getRowCount() + " entities for Project: "+ProjectName):logger.warn("Finished exporting all source controlled entities for Project: " + ProjectName);
+                                    
+                                    //7. Optionally commit and push if a commit message was provided
+                                    if (commitMessage !== undefined && commitMessage !== null && commitMessage !== "") {
+                                        logger.warn("Auto-committing and pushing exported entities for Project: " + ProjectName);
+                                        me.Push({Message: commitMessage});
+                                    }
                                     
                                     function ExportSpecificEntities(entityList) {
                                     	//1. Export all the entities in a temporary folder
