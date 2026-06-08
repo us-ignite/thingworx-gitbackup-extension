@@ -1,0 +1,30 @@
+{
+  "name": "gitbackup-puppeteer-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Puppeteer UI tests for ThingWorx GitBackup Extension mashups",
+  "scripts": {
+    "test": "jest --forceExit --detectOpenHandles",
+    "test:sequential": "jest --forceExit --detectOpenHandles --runInBand",
+    "test:setup": "jest --forceExit --runInBand specs/01-setup.spec.js",
+    "test:smoke": "jest --forceExit --runInBand specs/01-setup.spec.js specs/02-mashup-main.spec.js specs/04-mashup-push.spec.js specs/05-mashup-pull.spec.js",
+    "test:all": "jest --forceExit --detectOpenHandles --runInBand",
+    "screenshots": "ls -la screenshots/"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "jest": "^29.7.0",
+    "puppeteer": "^24.4.0"
+  },
+  "jest": {
+    "displayName": "GitBackup UI Tests",
+    "testEnvironment": "node",
+    "roots": ["<rootDir>/specs"],
+    "testMatch": ["**/*.spec.js"],
+    "setupFilesAfterSetup": [],
+    "globalSetup": "<rootDir>/jest.global-setup.js",
+    "globalTeardown": "<rootDir>/jest.global-teardown.js",
+    "verbose": true,
+    "bail": false
+  }
+}

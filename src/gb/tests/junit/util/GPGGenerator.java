@@ -1,4 +1,4 @@
-package gb.tests.util;
+package gb.tests.junit.util;
 
 import java.io.ByteArrayOutputStream;
 import java.security.KeyPairGenerator;
