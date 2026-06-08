@@ -1,14 +1,14 @@
-package gb.tests;
+package gb.tests.junit;
 
 import org.testcontainers.containers.Network;
 
-import gb.tests.containers.DBInit;
-import gb.tests.containers.GiteaRepo;
-import gb.tests.containers.GitBackupExtensionInstaller;
-import gb.tests.containers.Postgres;
-import gb.tests.containers.ThingWorxContainer;
-import gb.tests.util.TestingCredentials;
-import gb.tests.util.ThingWorxVersion;
+import gb.tests.junit.containers.DBInit;
+import gb.tests.junit.containers.GitBackupExtensionInstaller;
+import gb.tests.junit.containers.GiteaRepo;
+import gb.tests.junit.containers.Postgres;
+import gb.tests.junit.containers.ThingWorxContainer;
+import gb.tests.junit.util.TestingCredentials;
+import gb.tests.junit.util.ThingWorxVersion;
 
 import java.net.URI;
 import java.net.http.HttpClient;

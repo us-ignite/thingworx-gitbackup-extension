@@ -26,3 +26,7 @@ graalvm-jdk-21*
 
 # Cached downloads
 .cache/
+
+# Node.js / Puppeteer tests
+node_modules/
+tests/puppeteer/node_modules/

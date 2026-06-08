@@ -1,4 +1,4 @@
-package gb.tests;
+package gb.tests.junit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -17,8 +17,8 @@ import org.junit.jupiter.api.TestMethodOrder;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.google.gson.JsonObject;
-import gb.tests.util.TestingCredentials;
-import gb.tests.util.ThingWorxVersion;
+import gb.tests.junit.util.TestingCredentials;
+import gb.tests.junit.util.ThingWorxVersion;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
