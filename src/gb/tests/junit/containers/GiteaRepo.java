@@ -1,4 +1,4 @@
-package gb.tests.containers;
+package gb.tests.junit.containers;
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.time.Duration;
@@ -7,7 +7,7 @@ import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.wait.strategy.Wait;
 
-import gb.tests.util.TestingCredentials;
+import gb.tests.junit.util.TestingCredentials;
 
 public class GiteaRepo extends GenericContainer<GiteaRepo> {
     TestingCredentials credentials;

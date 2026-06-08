@@ -22,7 +22,7 @@ services:
   db-init:
     image: devopscadit/postgresql-init-twx:platform9.7.5
     container_name: twx-db-init
-    entrypoint: ["/usr/local/bin/db-setup.sh"]
+    entrypoint: ["/bin/bash", "/scripts/db-init-wrapper.sh"]
     environment:
       DATABASE_ADMIN_USERNAME: postgres
       DATABASE_ADMIN_PASSWORD: twx_password_123
@@ -38,6 +38,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      - ./scripts/db-init-wrapper.sh:/scripts/db-init-wrapper.sh:ro
 
   thingworx:
     image: devopscadit/platform-postgres:platform9.7.5
@@ -105,6 +107,44 @@ services:
       - twx-network
     volumes:
       - gitea-data:/data
+
+  gitea-init:
+    image: gitea/gitea:1.22.3
+    container_name: twx-gitea-init
+    user: "1000:1000"
+    depends_on:
+      gitea:
+        condition: service_healthy
+    networks:
+      - twx-network
+    volumes:
+      - gitea-data:/data
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        set -e
+        echo "[gitea-init] Waiting for Gitea API..."
+        for i in $$(seq 1 30); do
+          if curl -sf http://gitea:3000/api/v1/version > /dev/null 2>&1; then
+            echo "[gitea-init] Gitea API ready."
+            break
+          fi
+          echo "[gitea-init]  Waiting... ($$i/30)"
+          sleep 3
+        done
+
+        echo "[gitea-init] Creating admin user 'testadmin'..."
+        gitea admin user create --username testadmin --password testadmin123 --email admin@example.com --admin 2>&1 || echo "[gitea-init] User may already exist, continuing."
+
+        echo "[gitea-init] Creating test repo 'gitbackup-test'..."
+        HTTP_CODE=$$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+          "http://gitea:3000/api/v1/user/repos" \
+          -H "Content-Type: application/json" \
+          -H "Authorization: Basic $$(printf '%s' 'testadmin:testadmin123' | base64)" \
+          -d '{"name":"gitbackup-test","auto_init":false,"private":false}')
+        echo "[gitea-init] Repo creation HTTP status: $$HTTP_CODE"
+
+        echo "[gitea-init] Setup complete."
 
 networks:
   twx-network:

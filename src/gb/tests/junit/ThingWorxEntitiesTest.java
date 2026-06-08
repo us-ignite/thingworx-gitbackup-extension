@@ -1,12 +1,12 @@
-package gb.tests;
+package gb.tests.junit;
 
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import gb.tests.util.TestingCredentials;
-import gb.tests.util.ThingWorxVersion;
+import gb.tests.junit.util.TestingCredentials;
+import gb.tests.junit.util.ThingWorxVersion;
 
 import java.net.http.HttpClient;
 import java.net.http.HttpResponse;

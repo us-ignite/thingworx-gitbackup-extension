@@ -302,6 +302,38 @@
                     <ServiceDefinition
                      aspect.isAsync="false"
                      category=""
+                     description="Sets the Git committer name, email, and the UseGitCommitUserValues flag on the current user's extension properties."
+                     isAllowOverride="false"
+                     isLocalOnly="false"
+                     isOpen="false"
+                     isPrivate="false"
+                     name="SetGitUserExtensionsProperties">
+                        <ResultType
+                         baseType="NOTHING"
+                         description=""
+                         name="result"
+                         ordinal="0"></ResultType>
+                        <ParameterDefinitions>
+                            <FieldDefinition
+                             baseType="STRING"
+                             description=""
+                             name="GitCommitterName"
+                             ordinal="1"></FieldDefinition>
+                            <FieldDefinition
+                             baseType="STRING"
+                             description=""
+                             name="GitCommitterEmail"
+                             ordinal="2"></FieldDefinition>
+                            <FieldDefinition
+                             baseType="BOOLEAN"
+                             description=""
+                             name="UseGitCommitUserValues"
+                             ordinal="3"></FieldDefinition>
+                        </ParameterDefinitions>
+                    </ServiceDefinition>
+                    <ServiceDefinition
+                     aspect.isAsync="false"
+                     category=""
                      description=""
                      isAllowOverride="false"
                      isLocalOnly="false"
@@ -1313,6 +1345,88 @@
                                         <![CDATA[
                                         // result: INFOTABLE
                                         var result = Resources["CurrentSessionInfo"].GetCurrentUserExtensionProperties();
+                                        ]]>
+                                        </code>
+                                    </Row>
+                                </Rows>
+                            </ConfigurationTable>
+                        </ConfigurationTables>
+                    </ServiceImplementation>
+                    <ServiceImplementation
+                     description=""
+                     handlerName="Script"
+                     name="SetGitUserExtensionsProperties">
+                        <ConfigurationTables>
+                            <ConfigurationTable
+                             dataShapeName=""
+                             description=""
+                             isMultiRow="false"
+                             name="Script"
+                             ordinal="0">
+                                <DataShape>
+                                    <FieldDefinitions>
+                                        <FieldDefinition
+                                         baseType="STRING"
+                                         description="code"
+                                         name="code"
+                                         ordinal="0"></FieldDefinition>
+                                    </FieldDefinitions>
+                                </DataShape>
+                                <Rows>
+                                    <Row>
+                                        <code>
+                                        <![CDATA[
+                                        var str_CurrentUser = Resources["CurrentSessionInfo"].GetCurrentUser();
+                                        if (str_CurrentUser !== undefined && Users[str_CurrentUser] !== undefined) {
+                                            try {
+                                                var testProp = Users[str_CurrentUser]["GitCommitterName"];
+                                            } catch (e) {
+                                                ThingShapes["UserExtensions"].AddPropertyDefinition({
+                                                    defaultValue: undefined,
+                                                    description: "User-specific GitBackup Committer Name. Will be used instead the committer name specified at the Thing level, if UseGitCommitUserValues is set to true.",
+                                                    readOnly: false,
+                                                    type: "STRING",
+                                                    name: "GitCommitterName",
+                                                    persistent: true
+                                                });
+                                                Resources["EntityServices"].RestartDependenciesForThingShape({
+                                                    name: "UserExtensions"
+                                                });
+                                            }
+                                            try {
+                                                var testProp = Users[str_CurrentUser]["GitCommitterEmail"];
+                                            } catch (e) {
+                                                ThingShapes["UserExtensions"].AddPropertyDefinition({
+                                                    defaultValue: undefined,
+                                                    description: "User-specific GitBackup Committer Email. Will be used instead the committer email specified at the Thing level, if UseGitCommitUserValues is set to true.",
+                                                    readOnly: false,
+                                                    type: "STRING",
+                                                    name: "GitCommitterEmail",
+                                                    persistent: true
+                                                });
+                                                Resources["EntityServices"].RestartDependenciesForThingShape({
+                                                    name: "UserExtensions"
+                                                });
+                                            }
+                                            try {
+                                                var testProp = Users[str_CurrentUser]["UseGitCommitUserValues"];
+                                            } catch (e) {
+                                                ThingShapes["UserExtensions"].AddPropertyDefinition({
+                                                    defaultValue: false,
+                                                    description: "This property is used to decide if the Push will use the GitBackup Thing committer name and email, or the user specific values",
+                                                    readOnly: false,
+                                                    type: "BOOLEAN",
+                                                    name: "UseGitCommitUserValues",
+                                                    persistent: true
+                                                });
+                                                Resources["EntityServices"].RestartDependenciesForThingShape({
+                                                    name: "UserExtensions"
+                                                });
+                                            }
+                                            Users[str_CurrentUser].GitCommitterName = GitCommitterName;
+                                            Users[str_CurrentUser].GitCommitterEmail = GitCommitterEmail;
+                                            Users[str_CurrentUser].UseGitCommitUserValues = UseGitCommitUserValues;
+                                        }
                                         ]]>
                                         </code>
                                     </Row>

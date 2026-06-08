@@ -1,9 +1,9 @@
-package gb.tests.containers;
+package gb.tests.junit.containers;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.wait.strategy.Wait;
 
-import gb.tests.util.TestingCredentials;
+import gb.tests.junit.util.TestingCredentials;
 
 public class DBInit extends GenericContainer<DBInit> {
     public DBInit(String dbInitImage,

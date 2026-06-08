@@ -1,15 +1,15 @@
-package gb.tests;
+package gb.tests.junit;
 
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.testcontainers.containers.Network;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import gb.tests.containers.DBInit;
-import gb.tests.containers.Postgres;
-import gb.tests.containers.ThingWorxContainer;
-import gb.tests.util.TestingCredentials;
-import gb.tests.util.ThingWorxVersion;
+import gb.tests.junit.containers.DBInit;
+import gb.tests.junit.containers.Postgres;
+import gb.tests.junit.containers.ThingWorxContainer;
+import gb.tests.junit.util.TestingCredentials;
+import gb.tests.junit.util.ThingWorxVersion;
 
 import java.net.http.HttpClient;
 import java.net.http.HttpResponse;

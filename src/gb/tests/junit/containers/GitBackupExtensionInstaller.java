@@ -1,4 +1,4 @@
-package gb.tests.containers;
+package gb.tests.junit.containers;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
@@ -9,7 +9,7 @@ import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.wait.strategy.Wait;
 
-import gb.tests.util.TestingCredentials;
+import gb.tests.junit.util.TestingCredentials;
 
 public class GitBackupExtensionInstaller extends GenericContainer<GitBackupExtensionInstaller> {
         public GitBackupExtensionInstaller(Path extensionZip, ThingWorxContainer platform, Network network, TestingCredentials credentials) {

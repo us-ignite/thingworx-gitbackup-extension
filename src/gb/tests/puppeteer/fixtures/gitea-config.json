@@ -1,0 +1,10 @@
+{
+  "gitRepoUrl": "http://gitea:3000/testadmin/gitbackup-test.git",
+  "user": "testadmin",
+  "password": "testadmin123",
+  "commitUser": "Puppeteer Tester",
+  "commitEmail": "puppeteer@test.local",
+  "fileRepoName": "GitBackupTestRepository",
+  "repoPath": "PuppeteerGitBackup",
+  "initialBranch": "main"
+}
