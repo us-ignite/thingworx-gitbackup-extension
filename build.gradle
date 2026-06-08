@@ -19,7 +19,7 @@ ext {
     thirdPartyDir = file('3rdPartyExtensions')
     zipDir = file("${buildDir}/distributions")
     packageName = 'GitBackupExtension'
-    packageVersion = '5.2.6'
+    packageVersion = '5.3.0'
     packageVendor = 'Open Source / Vladimir Rosu'
 }
 
@@ -50,6 +50,7 @@ sourceSets {
     test {
         java {
             srcDir 'src'
+            include 'gb/tests/junit/**'
         }
         compileClasspath += sourceSets.main.output
         runtimeClasspath += sourceSets.main.output
