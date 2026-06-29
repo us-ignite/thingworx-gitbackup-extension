@@ -58,11 +58,17 @@ public class ThingWorxContainer extends GenericContainer<ThingWorxContainer> {
 
     public ThingWorxContainer(String platformImage,
                 GenericContainer<?> dbInit, GenericContainer<?> postgres, Network network, TestingCredentials credentials) {
+        this(platformImage, dbInit, postgres, network, credentials, "postgresql", "thingworx");
+    }
+
+    public ThingWorxContainer(String platformImage,
+                GenericContainer<?> dbInit, GenericContainer<?> postgres, Network network, TestingCredentials credentials,
+                String dbHostAlias, String thingworxAlias) {
         super(platformImage);
         withNetwork(network);
-        withNetworkAliases("thingworx");
+        withNetworkAliases(thingworxAlias);
         dependsOn(dbInit, postgres);
-        withEnv("DATABASE_HOST", "postgresql");
+        withEnv("DATABASE_HOST", dbHostAlias);
         withEnv("DATABASE_PORT", "5432");
         withEnv("TWX_DATABASE_USERNAME", credentials.twxDatabaseUser);
         withEnv("TWX_DATABASE_SCHEMA", credentials.twxDatabaseSchema);

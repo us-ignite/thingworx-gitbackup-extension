@@ -1,0 +1,13 @@
+{
+  "description": "A virtual vertical scroller",
+  "homepage": "",
+  "name": "ptcs-v-scroller",
+  "version": "9.8.5-1768384234",
+  "main": "ptcs-v-scroller.js",
+  "license": "MIT",
+  "author": "Magnus Tobiasson <mtobiasson@ptc.com>",
+  "dependencies": {
+    "@polymer/polymer": "^3.0.0"
+  },
+  "devDependencies": {}
+}
