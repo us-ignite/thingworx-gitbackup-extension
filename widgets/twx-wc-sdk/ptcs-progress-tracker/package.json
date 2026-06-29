@@ -1,0 +1,8 @@
+{
+  "name": "ptcs-progress-tracker",
+  "version": "9.8.5-1768384234",
+  "description": "The Progress Tracker is a web component that helps users achieve a goal through completing a series of steps",
+  "main": "ptcs-progress-tracker.js",
+  "author": "Miki Makmel <mmakmel@ptc.com>",
+  "license": "MIT"
+}

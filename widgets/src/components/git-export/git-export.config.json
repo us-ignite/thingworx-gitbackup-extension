@@ -1,0 +1,13 @@
+{
+  "elementName": "git-export",
+  "name": "Git Export",
+  "description": "Export ThingWorx entities to the Git repository",
+  "category": ["GitBackup"],
+  "flags": { "supportsAutoResize": true },
+  "properties": {
+    "GitThing": { "baseType": "THINGNAME", "isBindingTarget": true, "description": "Git repository Thing" }
+  },
+  "services": {
+    "DoSearch": { "description": "Search for entities to export" }
+  }
+}

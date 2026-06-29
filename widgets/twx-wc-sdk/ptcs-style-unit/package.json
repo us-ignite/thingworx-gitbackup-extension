@@ -1,0 +1,11 @@
+{
+  "description": "An element that dynamically styles components",
+  "homepage": "",
+  "name": "ptcs-style-unit",
+  "version": "9.8.5-1768384234",
+  "main": "ptcs-style-unit.js",
+  "license": "MIT",
+  "author": "Magnus Tobiasson <mtobiasson@ptc.com>",
+  "dependencies": {},
+  "devDependencies": {}
+}

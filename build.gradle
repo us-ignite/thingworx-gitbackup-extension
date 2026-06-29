@@ -19,7 +19,7 @@ ext {
     thirdPartyDir = file('3rdPartyExtensions')
     zipDir = file("${buildDir}/distributions")
     packageName = 'GitBackupExtension'
-    packageVersion = '5.3.0'
+    packageVersion = '5.8.9'
     packageVendor = 'Open Source / Vladimir Rosu'
 }
 
@@ -121,7 +121,33 @@ test {
     }
 }
 
-task prepPackage(dependsOn: jar) {
+// ─── Widget Build (Vite + Lit + PTC Web Component SDK) ───
+
+task extractWcSdk(type: Copy) {
+    description = 'Extract PTC Web Component SDK Library into widgets/twx-wc-sdk'
+    group = 'widgets'
+    from zipTree(file('twx-lib/MED-61348-CD-097_9-7-5_WEB-Component-SDK-Library.zip'))
+    into file('widgets/twx-wc-sdk')
+    onlyIf { !file('widgets/twx-wc-sdk/ptcs-library').exists() }
+}
+
+task extractWcUtility(type: Copy) {
+    description = 'Extract PTC Web Component SDK Utility'
+    group = 'widgets'
+    from zipTree(file('twx-lib/MED-61347-CD-097_9-7-5_WEB-Component-SDK-Utility.zip'))
+    into file('widgets/twx-mub')
+    onlyIf { !file('widgets/twx-mub/package.json').exists() }
+}
+
+task buildWidgets(type: Exec) {
+    description = 'Build Lit + Vite widgets for ThingWorx extension'
+    group = 'widgets'
+    workingDir = file('widgets')
+    commandLine 'npm', 'run', 'build'
+    dependsOn extractWcSdk
+}
+
+task prepPackage(dependsOn: [jar, buildWidgets]) {
     def zipStage = file("${buildDir}/zip")
     doFirst { delete zipStage }
     doLast {
@@ -141,6 +167,15 @@ task prepPackage(dependsOn: jar) {
             from entitiesDir.parent
             include "${entitiesDir.name}/**/*.xml"
             into zipStage
+        }
+        // Include widget UI files only (no duplicate entities/metadata)
+        def widgetBuildDir = file('widgets/build')
+        if (widgetBuildDir.exists()) {
+            copy {
+                from widgetBuildDir
+                include 'ui/**'
+                into zipStage
+            }
         }
     }
 }
@@ -291,25 +326,71 @@ task devSetup {
         body.write(extZip.bytes)
         body.write("\r\n--${boundary}--\r\n".bytes)
 
-        def uploadUrl = new URL("http://localhost:8080/Thingworx/ExtensionPackageUploader?purpose=import")
-        def uploadConn = (HttpURLConnection) uploadUrl.openConnection()
-        uploadConn.setRequestMethod("POST")
-        uploadConn.setRequestProperty("Content-Type", "multipart/form-data; boundary=${boundary}")
-        uploadConn.setRequestProperty("Authorization", "Basic ${auth}")
-        uploadConn.setRequestProperty("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
-        uploadConn.setRequestProperty("X-Requested-By", "ThingWorx")
-        uploadConn.setRequestProperty("Accept", "application/json")
-        uploadConn.setDoOutput(true)
-        uploadConn.setConnectTimeout(30000)
-        uploadConn.setReadTimeout(300000)
-        body.writeTo(uploadConn.getOutputStream())
+        def uploadExtension = { String purpose ->
+            def uBody = new ByteArrayOutputStream()
+            uBody.write("--${boundary}\r\n".bytes)
+            uBody.write("Content-Disposition: form-data; name=\"file\"; filename=\"${packageName}.zip\"\r\n".bytes)
+            uBody.write("Content-Type: application/octet-stream\r\n\r\n".bytes)
+            uBody.write(extZip.bytes)
+            uBody.write("\r\n--${boundary}--\r\n".bytes)
 
-        def uploadStatus = uploadConn.getResponseCode()
-        def uploadResponse = uploadConn.getInputStream().text
-        if (uploadStatus != 200 && uploadStatus != 201) {
-            throw new GradleException("Extension installation failed: ${uploadStatus} ${uploadResponse}")
+            def url = new URL("http://localhost:8080/Thingworx/ExtensionPackageUploader?purpose=${purpose}")
+            def conn = (HttpURLConnection) url.openConnection()
+            conn.setRequestMethod("POST")
+            conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=${boundary}")
+            conn.setRequestProperty("Authorization", "Basic ${auth}")
+            conn.setRequestProperty("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
+            conn.setRequestProperty("X-Requested-By", "ThingWorx")
+            conn.setRequestProperty("Accept", "application/json")
+            conn.setDoOutput(true)
+            conn.setConnectTimeout(30000)
+            conn.setReadTimeout(300000)
+            uBody.writeTo(conn.getOutputStream())
+
+            def status = conn.getResponseCode()
+            def respText = status >= 200 && status < 400 ? conn.getInputStream().text : conn.getErrorStream().text
+            return [status: status, body: respText]
         }
-        logger.lifecycle("Extension installed successfully!")
+
+        def uploadResult = uploadExtension('import')
+        if (uploadResult.status == 406) {
+            logger.lifecycle("Extension already installed, trying upgrade...")
+            uploadResult = uploadExtension('upgrade')
+        }
+
+        if (uploadResult.status >= 400 && uploadResult.status != 406) {
+            throw new GradleException("Extension installation failed: ${uploadResult.status} ${uploadResult.body}")
+        }
+        logger.lifecycle("Extension uploaded (status ${uploadResult.status}).")
+
+        def needsRestart = uploadResult.body.contains("queued for installation")
+        if (needsRestart) {
+            logger.lifecycle("Extension queued for installation — restarting ThingWorx...")
+            exec {
+                workingDir = projectDir
+                commandLine 'docker', 'compose', 'restart', 'thingworx'
+            }
+            logger.lifecycle("Waiting for ThingWorx to become healthy after restart...")
+            def postUpgradeHealthy = false
+            for (def i = 1; i <= 60; i++) {
+                try {
+                    def healthUrl = new URL("http://localhost:8080/Thingworx/health")
+                    def healthConn = (HttpURLConnection) healthUrl.openConnection()
+                    healthConn.setConnectTimeout(5000)
+                    healthConn.setReadTimeout(5000)
+                    if (healthConn.getResponseCode() == 200) {
+                        postUpgradeHealthy = true
+                        logger.lifecycle("ThingWorx is healthy after upgrade!")
+                        break
+                    }
+                } catch (Exception ignored) {}
+                logger.lifecycle("  Waiting... (${i}/60)")
+                Thread.sleep(15000)
+            }
+            if (!postUpgradeHealthy) {
+                throw new GradleException("ThingWorx did not become healthy after upgrade")
+            }
+        }
 
         // 4. Verify extension installed
         def verifyUrl = new URL("http://localhost:8080/Thingworx/Things/GIT.Utility.Thing")

@@ -7,7 +7,7 @@
          haCompatible="true"
          minimumThingWorxVersion="9.3.0"
          name="GitBackupExtension"
-         packageVersion="5.3.0"
+         packageVersion="5.8.9"
          vendor="Open Source / Vladimir Rosu">
             <JarResources>
                 <FileResource
@@ -38,6 +38,10 @@
          className="gb.extension.GitBackupTemplate"
          description=""
          name="GitExtensionPackage"></ThingPackage>
+        <ThingPackage
+         className="gb.extension.GitUtilityThing"
+         description=""
+         name="GitUtilityThingPackage"></ThingPackage>
     </ThingPackages>
     <ThingTemplates>
         <ThingTemplate
