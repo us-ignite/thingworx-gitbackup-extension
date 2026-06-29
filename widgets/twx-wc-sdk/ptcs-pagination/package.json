@@ -1,0 +1,7 @@
+{
+  "name": "ptcs-pagination",
+  "version": "9.8.5-1768384234",
+  "main": "ptcs-pagination.js",
+  "license": "ISC",
+  "dependencies": {}
+}

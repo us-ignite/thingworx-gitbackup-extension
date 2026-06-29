@@ -1,0 +1,13 @@
+{
+  "elementName": "git-push-settings",
+  "name": "Git Push Settings",
+  "description": "Configure user committer identity and per-repository credentials",
+  "category": ["GitBackup"],
+  "flags": { "supportsAutoResize": true },
+  "properties": {
+    "GitThing": { "baseType": "THINGNAME", "isBindingTarget": true, "description": "Git repository Thing for credential management" }
+  },
+  "services": {
+    "DoRefresh": { "description": "Refresh user settings" }
+  }
+}

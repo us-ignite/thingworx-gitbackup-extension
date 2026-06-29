@@ -1,0 +1,8 @@
+{
+  "name": "ptcs-kpi-dial",
+  "version": "9.8.5-1768384234",
+  "description": "KPI Dial",
+  "main": "ptcs-kpi-dial.js",
+  "author": "Miki Makmel <mmakmel@ptc.com>",
+  "license": "MIT"
+}

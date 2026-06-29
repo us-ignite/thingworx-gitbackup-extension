@@ -1,0 +1,13 @@
+{
+  "elementName": "git-pull",
+  "name": "Git Pull",
+  "description": "Pull changes from remote repository",
+  "category": ["GitBackup"],
+  "flags": { "supportsAutoResize": true },
+  "properties": {
+    "GitThing": { "baseType": "THINGNAME", "isBindingTarget": true, "description": "Git repository Thing" }
+  },
+  "services": {
+    "DoPull": { "description": "Execute git pull" }
+  }
+}
