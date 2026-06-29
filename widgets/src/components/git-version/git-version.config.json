@@ -1,0 +1,8 @@
+{
+  "elementName": "git-version",
+  "name": "Git Version",
+  "description": "Display the extension version number",
+  "category": ["GitBackup"],
+  "flags": { "supportsAutoResize": true },
+  "properties": {}
+}

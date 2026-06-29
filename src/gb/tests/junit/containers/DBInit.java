@@ -8,13 +8,19 @@ import gb.tests.junit.util.TestingCredentials;
 public class DBInit extends GenericContainer<DBInit> {
     public DBInit(String dbInitImage,
             GenericContainer<?> postgres, Network network, TestingCredentials credentials) {
+        this(dbInitImage, postgres, network, credentials, "postgresql");
+    }
+
+    public DBInit(String dbInitImage,
+            GenericContainer<?> postgres, Network network, TestingCredentials credentials,
+            String dbHostAlias) {
         super(dbInitImage);
         withNetwork(network);
         dependsOn(postgres);
         withEnv("DATABASE_ADMIN_USERNAME", credentials.dbAdminUser);
         withEnv("DATABASE_ADMIN_PASSWORD", credentials.dbAdminPass);
         withEnv("DATABASE_ADMIN_SCHEMA", credentials.dbAdminSchema);
-        withEnv("DATABASE_HOST", "postgresql");
+        withEnv("DATABASE_HOST", dbHostAlias);
         withEnv("DATABASE_PORT", "5432");
         withEnv("TWX_DATABASE_USERNAME", credentials.twxDatabaseUser);
         withEnv("TWX_DATABASE_SCHEMA", credentials.twxDatabaseSchema);

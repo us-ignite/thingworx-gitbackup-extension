@@ -1,0 +1,12 @@
+{
+  "name": "ptcs-base-theme",
+  "description": "",
+  "keywords": [],
+  "homepage": "",
+  "version": "9.8.5-1768383920",
+  "main": "ptcs-base-theme.js",
+  "author": "",
+  "license": "ISC",
+  "dependencies": {},
+  "devDependencies": {}
+}
