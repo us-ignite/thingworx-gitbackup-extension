@@ -1,6 +1,6 @@
 {
   "elementName": "git-merge-rebase",
-  "name": "Git Merge / Rebase",
+  "name": "Git Merge Rebase",
   "description": "Merge or rebase branches",
   "category": ["GitBackup"],
   "flags": { "supportsAutoResize": true },
