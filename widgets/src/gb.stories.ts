@@ -3,11 +3,9 @@ import { html } from 'lit';
 
 import './components/git-about/git-about.js';
 import './components/git-branch-manager/git-branch-manager.js';
-import './components/git-checkout/git-checkout.js';
 import './components/git-commit-history/git-commit-history.js';
 import './components/git-delete/git-delete.js';
 import './components/git-export/git-export.js';
-import './components/git-gpg-settings/git-gpg-settings.js';
 import './components/git-import/git-import.js';
 import './components/git-loading/git-loading.js';
 import './components/git-log/git-log.js';
@@ -16,9 +14,11 @@ import './components/git-merge-rebase/git-merge-rebase.js';
 import './components/git-new-repo/git-new-repo.js';
 import './components/git-pull/git-pull.js';
 import './components/git-push/git-push.js';
-import './components/git-push-settings/git-push-settings.js';
 import './components/git-status/git-status.js';
+import './components/git-repo-settings/git-repo-settings.js';
+import './components/git-backup-extension-settings/git-backup-extension-settings.js';
 import './components/git-version/git-version.js';
+import './components/git-repo/git-repo.js';
 
 const meta: Meta = {
   title: 'GitBackup',
@@ -42,12 +42,6 @@ export const GitBranchManager: Story = {
   render: (args) => html`<git-branch-manager .gitThing=${args.gitThing}></git-branch-manager>`,
 };
 
-export const GitCheckout: Story = {
-  argTypes: gitThingArgTypes,
-  args: { gitThing: 'GitBackup.Tests.Thing' },
-  render: (args) => html`<git-checkout .gitThing=${args.gitThing}></git-checkout>`,
-};
-
 export const GitCommitHistory: Story = {
   argTypes: gitThingArgTypes,
   args: { gitThing: 'GitBackup.Tests.Thing' },
@@ -69,10 +63,14 @@ export const GitExport: Story = {
   render: (args) => html`<git-export .gitThing=${args.gitThing}></git-export>`,
 };
 
-export const GitGpgSettings: Story = {
+export const GitRepoSettings: Story = {
   argTypes: gitThingArgTypes,
   args: { gitThing: 'GitBackup.Tests.Thing' },
-  render: (args) => html`<git-gpg-settings .gitThing=${args.gitThing}></git-gpg-settings>`,
+  render: (args) => html`<git-repo-settings .gitThing=${args.gitThing}></git-repo-settings>`,
+};
+
+export const GitBackupExtensionSettings: Story = {
+  render: () => html`<git-backup-extension-settings></git-backup-extension-settings>`,
 };
 
 export const GitImport: Story = {
@@ -121,12 +119,6 @@ export const GitPush: Story = {
   render: (args) => html`<git-push .gitThing=${args.gitThing}></git-push>`,
 };
 
-export const GitPushSettings: Story = {
-  argTypes: gitThingArgTypes,
-  args: { gitThing: 'GitBackup.Tests.Thing' },
-  render: (args) => html`<git-push-settings .gitThing=${args.gitThing}></git-push-settings>`,
-};
-
 export const GitStatus: Story = {
   argTypes: gitThingArgTypes,
   args: { gitThing: 'GitBackup.Tests.Thing' },
@@ -135,4 +127,13 @@ export const GitStatus: Story = {
 
 export const GitVersion: Story = {
   render: () => html`<git-version></git-version>`,
+};
+
+export const GitRepo: Story = {
+  argTypes: {
+    gitThing: { control: 'text', description: 'ThingWorx GitBackup Thing name' },
+    defaultTab: { control: 'text', description: 'Default active tab' },
+  },
+  args: { gitThing: 'GitBackup.Tests.Thing', defaultTab: 'push' },
+  render: (args) => html`<git-repo .gitThing=${args.gitThing} .defaultTab=${args.defaultTab}></git-repo>`,
 };

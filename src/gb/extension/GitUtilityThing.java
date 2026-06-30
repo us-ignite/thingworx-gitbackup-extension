@@ -21,6 +21,7 @@ import com.thingworx.metadata.annotations.ThingworxServiceResult;
 import com.thingworx.relationships.RelationshipTypes.ThingworxRelationshipTypes;
 import com.thingworx.resources.entities.EntityServices;
 import com.thingworx.security.users.User;
+import com.thingworx.system.subsystems.platform.PlatformSubsystem;
 import com.thingworx.things.Thing;
 import com.thingworx.things.repository.FileRepositoryThing;
 import com.thingworx.thingshape.ThingShape;
@@ -32,6 +33,7 @@ import com.thingworx.types.primitives.BooleanPrimitive;
 import com.thingworx.types.primitives.DatetimePrimitive;
 import com.thingworx.types.primitives.IPrimitiveType;
 import com.thingworx.types.primitives.InfoTablePrimitive;
+import com.thingworx.types.primitives.IntegerPrimitive;
 import com.thingworx.types.primitives.PasswordPrimitive;
 import com.thingworx.types.primitives.StringPrimitive;
 import com.thingworx.webservices.context.ThreadLocalContext;
@@ -148,7 +150,11 @@ public class GitUtilityThing extends Thing {
 		repoThing.processServiceRequest("SetConfigurationTable", setConfigParams);
 		repoThing.processServiceRequest("RestartThing", new ValueCollection());
 
-		SetGitCredentials(User, Password, CommitEmail, CommitUser, RepoName);
+		try {
+			SetGitCredentials(User, Password, CommitEmail, CommitUser, RepoName);
+		} catch (Exception e) {
+			_logger.error("GitBackup Thing " + RepoName + " was created but saving credentials failed: " + e.getMessage());
+		}
 	}
 
 	@ThingworxServiceDefinition(name = "DeteleGitThing", description = "Deletes a GitBackup Thing involves two operations: 1. Deleting the Thing itself and 2. Deleting the FileRepository subfolder that stored that Git repository.", category = "", isAllowOverride = false, aspects = { "isAsync:false" })
@@ -212,18 +218,13 @@ public class GitUtilityThing extends Thing {
 	@ThingworxServiceResult(name = "result", description = "", baseType = "INFOTABLE", aspects = { "isEntityDataShape:true", "dataShape:GitBackup.ExtensionVersion" })
 	public InfoTable GetGitExtensionVersion() throws Exception {
 		InfoTable result = InfoTableInstanceFactory.createInfoTableFromDataShape("GitBackup.ExtensionVersion");
-		Thing platformSubsystem = (Thing) EntityUtilities.findEntity("PlatformSubsystem",
+		PlatformSubsystem platformSubsystem = (PlatformSubsystem) EntityUtilities.findEntity("PlatformSubsystem",
 				ThingworxRelationshipTypes.Subsystem);
-		InfoTable extensionList = (InfoTable) platformSubsystem
-				.processServiceRequest("GetExtensionPackageList", new ValueCollection());
+		InfoTable extensionList = platformSubsystem.GetExtensionPackageList();
 
 		String[][] extensions = {
 			{ "GitBackupExtension", "GitBackupExtension" },
-			{ "DiffViewer", "DiffViewer" },
-			{ "ExportPlatformExt_Extension", "ExportPlatformExt_Extension" },
-			{ "Autocomplete", "Autocomplete" },
-			{ "GitInfoTableSelector_ExtensionPackage", "GitInfoTableSelector_ExtensionPackage" },
-			{ "FileUtilities", "FileUtilities" }
+			{ "GitBackupUI", "GitBackupUI" }
 		};
 
 		for (String[] ext : extensions) {
@@ -246,13 +247,13 @@ public class GitUtilityThing extends Thing {
 	}
 
 	@ThingworxServiceDefinition(name = "GetGitHeaderTabs", description = "This service gets the list of the Git Things in the System, plus one additional Mashup for the plus sign", category = "", isAllowOverride = false, aspects = { "isAsync:false" })
-	@ThingworxServiceResult(name = "result", description = "", baseType = "INFOTABLE", aspects = { "isEntityDataShape:true", "dataShape:GitBackup.GitHeader" })
+	@ThingworxServiceResult(name = "result", description = "", baseType = "INFOTABLE", aspects = { "dataShape:GitBackup.GitHeader" })
 	public InfoTable GetGitHeaderTabs() throws Exception {
 		InfoTable result = InfoTableInstanceFactory.createInfoTableFromDataShape("GitBackup.GitHeader");
 		ThingTemplate gitTemplate = (ThingTemplate) EntityUtilities.findEntity("GitBackupTemplate",
 				ThingworxRelationshipTypes.ThingTemplate);
 		ValueCollection queryParams = new ValueCollection();
-		queryParams.put("maxItems", new StringPrimitive(""));
+		queryParams.put("maxItems", new IntegerPrimitive(0));
 		queryParams.put("nameMask", new StringPrimitive(""));
 		queryParams.put("query", new StringPrimitive(""));
 		queryParams.put("tags", new StringPrimitive(""));
@@ -260,10 +261,8 @@ public class GitUtilityThing extends Thing {
 		for (int x = 0; x < gitThings.getRowCount(); x++) {
 			ValueCollection row = gitThings.getRow(x);
 			ValueCollection entry = new ValueCollection();
-			entry.put("HeightY", new StringPrimitive("50"));
 			entry.put("MashupName", new StringPrimitive("GitBackup.NameTab.Mashup"));
 			entry.put("GitThingName", new StringPrimitive(row.getPrimitive("name").getValue().toString()));
-			entry.put("WidthX", new StringPrimitive("230"));
 			result.addRow(entry);
 		}
 		return result;
@@ -712,6 +711,19 @@ public class GitUtilityThing extends Thing {
 			userExtensions.processServiceRequest("AddPropertyDefinition", addPropParams);
 			new EntityServices().RestartDependenciesForThingShape("UserExtensions");
 		}
+		// Ensure the property value is initialized on the current user.
+		// After AddPropertyDefinition + RestartDependenciesForThingShape, the user
+		// entity may not yet have the property available for setPropertyValue.
+		// Initialize it with an empty InfoTable so subsequent reads/writes work.
+		try {
+			Object val = user.getPropertyValue("GitCredentials");
+			if (val == null) {
+				InfoTable empty = InfoTableInstanceFactory.createInfoTableFromDataShape("GitBackup.GitCredentials");
+				user.setPropertyValue("GitCredentials", new InfoTablePrimitive(empty));
+			}
+		} catch (Exception e) {
+			_logger.warn("Could not initialize GitCredentials property value for user " + str_CurrentUser + ": " + e.getMessage());
+		}
 
 		String[] oldProps = {"UseGitCommitUserValues", "GitCommitterEmail", "GitCommitterPassword", "GitCommitterName"};
 		for (String prop : oldProps) {
@@ -926,7 +938,11 @@ public class GitUtilityThing extends Thing {
 		repoThing.processServiceRequest("SaveConfigurationTables", new ValueCollection());
 		repoThing.processServiceRequest("RestartThing", new ValueCollection());
 
-		SetGitCredentials(User, Password, CommitEmail, CommitUser, RepoName);
+		try {
+			SetGitCredentials(User, Password, CommitEmail, CommitUser, RepoName);
+		} catch (Exception e) {
+			_logger.error("Git Thing configuration was updated but saving credentials failed: " + e.getMessage());
+		}
 		_logger.warn("Git Thing configuration was updated successfully.");
 	}
 
@@ -979,6 +995,7 @@ public class GitUtilityThing extends Thing {
 			@ThingworxServiceParameter(name = "GitCommitterFullName", description = "", baseType = "STRING") String GitCommitterFullName,
 			@ThingworxServiceParameter(name = "GitThing", description = "", baseType = "THINGNAME") String GitThing)
 			throws Exception {
+		InitUserExtensionProperties();
 		User currentUser = UserUtilities.findUser(GetCurrentUser());
 		if (currentUser == null) return;
 
@@ -1002,7 +1019,12 @@ public class GitUtilityThing extends Thing {
 		entry.put("GitCommitterFullName", new StringPrimitive(GitCommitterFullName));
 		entry.put("GitThing", new StringPrimitive(GitThing));
 		creds.addRow(entry);
-		currentUser.setPropertyValue("GitCredentials", new InfoTablePrimitive(creds));
+		try {
+			currentUser.setPropertyValue("GitCredentials", new InfoTablePrimitive(creds));
+		} catch (Exception e) {
+			_logger.error("Failed to save GitCredentials for user " + GetCurrentUser() + ": " + e.getMessage());
+			throw e;
+		}
 	}
 
 	// ---- Services from GitUtilityThingShape (merged) ----

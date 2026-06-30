@@ -19,7 +19,7 @@ ext {
     thirdPartyDir = file('3rdPartyExtensions')
     zipDir = file("${buildDir}/distributions")
     packageName = 'GitBackupExtension'
-    packageVersion = '5.8.13'
+    packageVersion = '5.8.23'
     packageVendor = 'Open Source / Vladimir Rosu'
 }
 
@@ -186,11 +186,11 @@ task packageExtension(type: Zip, dependsOn: prepPackage) {
     from file("${buildDir}/zip")
 }
 
-task packagePack(type: Zip, dependsOn: packageExtension) {
+task packagePack(type: Zip, dependsOn: [packageExtension, buildWidgets]) {
     archiveFileName = "${packageName}Pack.zip"
     destinationDirectory = zipDir
     from zipDir, { include "${packageName}.zip" }
-    from thirdPartyDir
+    from file('widgets/dist'), { include 'GitBackupUI-*.zip' }
 }
 
 def jdkCacheDir = file("${projectDir}/.cache/jdk21")
@@ -486,10 +486,20 @@ task devSetup {
             }
         }
 
+        // 6. Start Storybook dev server in background
+        logger.lifecycle("Starting Storybook dev server on port 6006...")
+        Runtime.getRuntime().exec(
+            ['bash', '-c',
+             'cd "' + projectDir + '/widgets" && nohup npx storybook dev -p 6006 --no-open --ci > /tmp/storybook.log 2>&1 &'],
+            null as String[], null)
+        Thread.sleep(3000)
+        logger.lifecycle("Storybook dev server starting on http://localhost:6006 (see /tmp/storybook.log)")
+
         logger.lifecycle("")
         logger.lifecycle("=== Dev Setup Complete ===")
         logger.lifecycle("ThingWorx:  http://localhost:8080/Thingworx  (Administrator / TwxAdm1nP@ssw0rd!)")
         logger.lifecycle("Gitea:      http://localhost:3000             (testadmin / testadmin123)")
+        logger.lifecycle("Storybook:  http://localhost:6006")
         logger.lifecycle("PostgreSQL: localhost:5432                    (postgres / twx_password_123)")
         logger.lifecycle("")
         logger.lifecycle("Gitea internal URL for Git thing config: http://gitea:3000/testadmin/gitbackup-test.git")
