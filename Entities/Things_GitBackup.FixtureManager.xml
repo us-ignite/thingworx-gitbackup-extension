@@ -58,7 +58,11 @@
             <RemoteServiceBindings></RemoteServiceBindings>
             <RemoteEventBindings></RemoteEventBindings>
             <AlertConfigurations></AlertConfigurations>
-            <ImplementedShapes></ImplementedShapes>
+            <ImplementedShapes>
+                <ImplementedShape
+                 name="Git.Utility.ThingShape"
+                 type="ThingShape"></ImplementedShape>
+            </ImplementedShapes>
             <ThingProperties>
                 <status>
                     <Value>initialized</Value>
