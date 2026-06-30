@@ -8,12 +8,16 @@ module.exports = {
     options: {},
   },
   async viteFinal(config) {
+    const existingAlias = Array.isArray(config.resolve?.alias) ? config.resolve.alias
+      : typeof config.resolve?.alias === 'object' && config.resolve?.alias !== null
+        ? Object.entries(config.resolve.alias).map(([k, v]) => ({ find: k, replacement: v }))
+        : [];
     return {
       ...config,
       resolve: {
         ...config.resolve,
         alias: [
-          ...(config.resolve?.alias ?? []),
+          ...existingAlias,
           { find: /^(ptcs-.+)$/, replacement: path.resolve(__dirname, '../twx-wc-sdk/$1') },
         ],
       },

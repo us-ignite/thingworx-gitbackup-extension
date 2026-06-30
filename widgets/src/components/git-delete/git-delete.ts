@@ -1,5 +1,6 @@
 import { LitElement, html, css } from 'lit';
 import { property, state } from 'lit/decorators.js';
+import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { twx } from '../../lib/twx-service.js';
 
 export class GitDelete extends LitElement {
@@ -48,10 +49,10 @@ export class GitDelete extends LitElement {
     return html`
       <div class="warning">
         <h3>Delete Repository</h3>
-        <p>${this.confirmed
-          ? 'This action cannot be undone. Are you absolutely sure?'
-          : `You are about to delete <strong>${this.thingName || this.gitThing}</strong>. This will remove the GitBackup thing and its configuration.`}
-        </p>
+        ${this.confirmed
+          ? html`<p>This action cannot be undone. Are you absolutely sure?</p>`
+          : html`<p>You are about to delete <strong>${this.thingName || this.gitThing}</strong>. This will remove the GitBackup thing and its configuration.</p>`}
+      
       </div>
       <div class="actions">
         <ptcs-button label="Cancel" @click=${this.cancel} ?disabled=${this.deleting}></ptcs-button>

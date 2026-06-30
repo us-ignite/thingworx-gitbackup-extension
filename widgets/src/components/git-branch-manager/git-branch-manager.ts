@@ -30,7 +30,7 @@ export class GitBranchManager extends LitElement {
     .error { background: #ffebee; color: #c62828; }
     .success { background: #e8f5e9; color: #2e7d32; }
     .loading { opacity: 0.6; pointer-events: none; }
-    .actions { display: flex; gap: 8px; }
+    .card { border: 1px solid #e0e0e0; border-radius: 6px; padding: 16px; margin-bottom: 16px; }
   `;
 
   @property({ type: String }) gitThing = '';
@@ -38,7 +38,6 @@ export class GitBranchManager extends LitElement {
   @state() private currentBranch = '';
   @state() private loading = false;
   @state() private createName = '';
-  @state() private checkoutName = '';
   @state() private deleteTarget = '';
   @state() private message = '';
   @state() private isError = false;
@@ -79,15 +78,34 @@ export class GitBranchManager extends LitElement {
     }
   }
 
-  async checkout() {
-    const target = this.checkoutName.trim();
-    if (!target) return;
+  async createAndCheckoutBranch() {
+    const name = this.createName.trim();
+    if (!name) return;
     this.message = '';
     try {
-      await twx.invokeService(this.gitThing, 'Checkout', { BranchNameOrCommit: target });
-      this.message = `Switched to ${target}`;
+      await twx.invokeService(this.gitThing, 'CreateBranch', { BranchName: name });
+      await twx.invokeService(this.gitThing, 'Checkout', { BranchNameOrCommit: name });
+      this.message = `Created and switched to ${name}`;
       this.isError = false;
-      this.checkoutName = '';
+      this.createName = '';
+      await this.loadBranches();
+    } catch (e: any) {
+      const msg = e.message || '';
+      if (msg.includes('Ref HEAD cannot be resolved')) {
+        this.message = 'Repository has no commits yet. Push an initial commit first, then create branches.';
+      } else {
+        this.message = msg;
+      }
+      this.isError = true;
+    }
+  }
+
+  async checkoutBranch(branch: string) {
+    this.message = '';
+    try {
+      await twx.invokeService(this.gitThing, 'Checkout', { BranchNameOrCommit: branch });
+      this.message = `Switched to ${branch}`;
+      this.isError = false;
       await this.loadBranches();
     } catch (e: any) {
       this.message = e.message || 'Checkout failed';
@@ -125,8 +143,7 @@ export class GitBranchManager extends LitElement {
   }
 
   DoCheckout(target: string) {
-    this.checkoutName = target;
-    this.checkout();
+    this.checkoutBranch(target);
   }
 
   DoDeleteBranch(name: string) {
@@ -141,16 +158,13 @@ export class GitBranchManager extends LitElement {
           <ptcs-button label="Refresh" @click=${this.loadBranches} ?disabled=${this.loading}></ptcs-button>
         </div>
 
-        <div class="section-title">Create Branch</div>
-        <div class="input-row">
-          <input placeholder="Branch name" .value=${this.createName} @input=${(e: InputEvent) => this.createName = (e.target as HTMLInputElement).value}>
-          <ptcs-button label="Create" @click=${this.createBranch} ?disabled=${!this.createName.trim()}></ptcs-button>
-        </div>
-
-        <div class="section-title">Checkout</div>
-        <div class="input-row">
-          <input placeholder="Branch name or commit hash" .value=${this.checkoutName} @input=${(e: InputEvent) => this.checkoutName = (e.target as HTMLInputElement).value}>
-          <ptcs-button label="Checkout" @click=${this.checkout} ?disabled=${!this.checkoutName.trim()}></ptcs-button>
+        <div class="card">
+          <div class="section-title">Create & Checkout Branch</div>
+          <div class="input-row">
+            <input placeholder="Branch name" .value=${this.createName} @input=${(e: InputEvent) => this.createName = (e.target as HTMLInputElement).value}>
+            <ptcs-button label="Create & Checkout" @click=${this.createAndCheckoutBranch} ?disabled=${!this.createName.trim()}></ptcs-button>
+            <ptcs-button label="Create Only" @click=${this.createBranch} ?disabled=${!this.createName.trim()}></ptcs-button>
+          </div>
         </div>
 
         <div class="section-title">All Branches</div>
@@ -160,6 +174,9 @@ export class GitBranchManager extends LitElement {
               <span class="branch-name">${b.BranchName}</span>
               ${b.BranchName === this.currentBranch ? html`<span class="branch-tag">HEAD</span>` : ''}
               ${b.IsRemote ? html`<span class="branch-tag remote">remote</span>` : ''}
+              ${!b.IsRemote && b.BranchName !== this.currentBranch ? html`
+                <ptcs-button label="Checkout" @click=${() => this.checkoutBranch(b.BranchName)}></ptcs-button>
+              ` : ''}
               ${!b.IsRemote && b.BranchName !== this.currentBranch ? html`
                 <ptcs-button label=${this.deleteTarget === b.BranchName ? 'Confirm?' : 'Delete'} @click=${() => this.deleteBranch(b.BranchName)}></ptcs-button>
               ` : ''}

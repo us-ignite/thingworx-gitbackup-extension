@@ -50,12 +50,14 @@ async function build() {
   console.log(`Building ${widgets.length} widgets for extension: ${pn}`);
 
   const buildDir = join(root, 'build');
-  const uiDir = join(buildDir, 'ui', pn);
-  mkdirSync(uiDir, { recursive: true });
+  mkdirSync(buildDir, { recursive: true });
   mkdirSync(outDir, { recursive: true });
 
   for (const w of widgets) {
     const tn = toTwName(w.name);
+    const wDisplayName = w.config.name;
+    const wDir = join(buildDir, 'ui', wDisplayName);
+    mkdirSync(wDir, { recursive: true });
     const componentDir = join(srcDir, 'components', w.name);
 
     console.log(`  Building: ${w.name} (${tn})`);
@@ -103,7 +105,7 @@ async function build() {
       bundle: true,
       format: 'iife',
       globalName: 'TW',
-      outfile: join(uiDir, `${tn}.runtime.bundle.js`),
+      outfile: join(wDir, `${tn}.runtime.bundle.js`),
       loader: { '.ts': 'ts' },
       tsconfig: join(root, 'tsconfig.json'),
       minify: true,
@@ -143,7 +145,7 @@ async function build() {
       bundle: true,
       format: 'iife',
       globalName: 'TW',
-      outfile: join(uiDir, `${tn}.ide.bundle.js`),
+      outfile: join(wDir, `${tn}.ide.bundle.js`),
       tsconfig: join(root, 'tsconfig.json'),
       minify: true,
       logLevel: 'warning',
@@ -154,14 +156,11 @@ async function build() {
     try { writeFileSync(ideEntry, ''); } catch {}
   }
 
-  // Copy Entities
-  const entitiesDir = resolve(root, '..', 'Entities');
-  if (existsSync(entitiesDir)) {
-    const targetEntities = join(buildDir, 'Entities');
-    mkdirSync(targetEntities, { recursive: true });
-    for (const f of readdirSync(entitiesDir)) {
-      if (f.endsWith('.xml')) writeFileSync(join(targetEntities, f), readFileSync(join(entitiesDir, f)));
-    }
+  // Remove stale entities from previous builds (they conflict with main extension)
+  const staleEntitiesDir = join(buildDir, 'Entities');
+  if (existsSync(staleEntitiesDir)) {
+    const { rmSync } = await import('fs');
+    rmSync(staleEntitiesDir, { recursive: true, force: true });
   }
 
   // Generate metadata.xml
