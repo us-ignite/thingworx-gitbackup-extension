@@ -7,7 +7,7 @@
         <ThingShape
          aspect.isEditableExtensionObject="false"
          aspect.isExtension="true"
-         className="gb.extension.GitUtilityThingShape"
+         className="gb.extension.GitUtilityThing"
          description="This Utility shape is used to add useful functionality to the GitBackup Things, which are built in Java."
          documentationContent=""
          homeMashup=""
