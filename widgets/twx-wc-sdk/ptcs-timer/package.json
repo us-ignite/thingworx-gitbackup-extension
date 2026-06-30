@@ -1,7 +1,0 @@
-{
-  "name": "ptcs-timer",
-  "description": "Timer WC",
-  "version": "9.8.5-1768384234",
-  "main": "ptcs-timer.js",
-  "license": "MIT"
-}

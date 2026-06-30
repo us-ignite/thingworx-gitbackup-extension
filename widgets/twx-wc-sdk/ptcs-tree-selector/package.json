@@ -1,8 +1,0 @@
-{
-  "name": "ptcs-tree-selector",
-  "version": "9.8.5-1768384234",
-  "description": "The Tree selector is a component for showing a hierarchical structure of data",
-  "main": "ptcs-tree-selector.js",
-  "author": "Peter Lidbaum <plidbaum@ptc.com>",
-  "license": "MIT"
-}

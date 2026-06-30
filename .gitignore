@@ -8,6 +8,7 @@ build/
 .settings/
 bin/
 twx-lib/*
+*/twx-wc-sdk/*
 
 # IDE
 *.iml
