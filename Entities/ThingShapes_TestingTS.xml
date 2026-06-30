@@ -7,6 +7,7 @@
         <ThingShape
          className=""
          aspect.isEditableExtensionObject="true"
+         aspect.isExtension="true"
          description=""
          documentationContent=""
          homeMashup=""
@@ -290,7 +291,7 @@
                                          dataShapeName : "GitBackup.TestResult"
                                     };
                                     
-                                     // CreateInfoTableFromDataShape(infoTableName:STRING("InfoTable"), dataShapeName:STRING):INFOTABtrLE(GitBackup.TestResult)
+                                     // CreateInfoTableFromDataShape(infoTableName:STRING("InfoTable"), dataShapeName:STRING):INFOTABLE(GitBackup.TestResult)
                                     var result = Resources["InfoTableFunctions"].CreateInfoTableFromDataShape(params);
                                     PreviousTestResults.AddRow({
                                         testName: TestName, 
