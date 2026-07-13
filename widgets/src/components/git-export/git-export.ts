@@ -4,15 +4,9 @@ import { twx } from '../../lib/twx-service.js';
 import type { InfotableResponse } from '../../lib/twx-types.js';
 
 interface EntityItem {
-  EntityName: string;
-  EntityType: string;
-  ProjectName: string;
-}
-
-interface ExportResult {
-  EntityName: string;
-  Status: string;
-  Message: string;
+  name: string;
+  type: string;
+  projectName: string;
 }
 
 export class GitExport extends LitElement {
@@ -66,13 +60,15 @@ export class GitExport extends LitElement {
     this.message = '';
     this.entities = [];
     try {
-      const res = await twx.invokeService<InfotableResponse<EntityItem>>('GIT.Utility.Thing', 'GetProjectEntities', {
+      const params: Record<string, unknown> = {
         project: this.projectName,
         entityName: '',
-        entityType: this.entityType || undefined,
         includeDependents: this.includeDependents,
-        tags: null,
-      });
+      };
+      if (this.entityType) {
+        params.entityType = this.entityType;
+      }
+      const res = await twx.invokeService<InfotableResponse<EntityItem>>('GIT.Utility.Thing', 'GetProjectEntities', params);
       this.entities = res.rows || [];
       this.selectedEntities = new Set();
     } catch (e: any) {
@@ -92,7 +88,7 @@ export class GitExport extends LitElement {
     if (this.selectedEntities.size === this.entities.length) {
       this.selectedEntities = new Set();
     } else {
-      this.selectedEntities = new Set(this.entities.map(e => e.EntityName));
+      this.selectedEntities = new Set(this.entities.map(e => e.name));
     }
   }
 
@@ -103,17 +99,22 @@ export class GitExport extends LitElement {
     this.isError = false;
     this.isInfo = false;
     try {
-      // Build the entities infotable from selected entities
-      const selected = this.entities.filter(e => this.selectedEntities.has(e.EntityName));
+      const selected = this.entities.filter(e => this.selectedEntities.has(e.name));
       const entitiesInfoTable = {
-        dataShape: { fieldDefinitions: { EntityName: { name: "EntityName", baseType: "STRING" } } },
-        rows: selected.map(e => ({ EntityName: e.EntityName })),
+        dataShape: {
+          fieldDefinitions: {
+            name: { name: "name", baseType: "STRING" },
+            type: { name: "type", baseType: "STRING" },
+          },
+        },
+        rows: selected.map(e => ({ name: e.name, type: e.type })),
       };
-      // Use Push to write and commit
-      await twx.invokeService(this.gitThing, 'Push', {
-        Message: this.commitMessage || `Export ${selected.length} entities from ${this.projectName}`,
+      await twx.invokeServiceWithInit(this.gitThing, 'ExportProjectEntities', {
+        ProjectName: this.projectName,
+        includeDependents: this.includeDependents,
+        EntitiesToExport: entitiesInfoTable,
       });
-      this.message = `Push initiated for ${selected.length} entities`;
+      this.message = `Exported ${selected.length} entities from ${this.projectName}. Review and commit from the Commit & Push tab.`;
       this.isInfo = true;
     } catch (e: any) {
       this.message = e.message || 'Export failed';
@@ -124,7 +125,7 @@ export class GitExport extends LitElement {
   }
 
   get entityTypes() {
-    return [...new Set(this.entities.map(e => e.EntityType).filter(Boolean))].sort();
+    return [...new Set(this.entities.map(e => e.type).filter(Boolean))].sort();
   }
 
   render() {
@@ -137,6 +138,7 @@ export class GitExport extends LitElement {
 
         ${!this.gitThing ? html`<div class="empty-state">Set a GitThing to export entities</div>` : ''}
 
+        <form @submit=${(e: SubmitEvent) => { e.preventDefault(); this.searchEntities(); }}>
         <div class="card">
           <div class="section-title">Search Entities</div>
           <div class="form-grid">
@@ -163,6 +165,7 @@ export class GitExport extends LitElement {
             <div></div>
           </div>
         </div>
+        </form>
 
         ${this.entities.length > 0 ? html`
           <div class="card">
@@ -181,20 +184,22 @@ export class GitExport extends LitElement {
               </div>
               ${this.entities.map(e => html`
                 <div class="entity-row">
-                  <input type="checkbox" .checked=${this.selectedEntities.has(e.EntityName)} @change=${() => this.toggleEntity(e.EntityName)}>
-                  <span class="entity-name">${e.EntityName}</span>
-                  <span class="entity-type">${e.EntityType || '—'}</span>
-                  <span class="entity-project">${e.ProjectName || '—'}</span>
+                  <input type="checkbox" .checked=${this.selectedEntities.has(e.name)} @change=${() => this.toggleEntity(e.name)}>
+                  <span class="entity-name">${e.name}</span>
+                  <span class="entity-type">${e.type || '—'}</span>
+                  <span class="entity-project">${e.projectName || '—'}</span>
                 </div>
               `)}
             </div>
 
+            <form @submit=${(e: SubmitEvent) => { e.preventDefault(); this.doExport(); }}>
             <div class="section-title">Commit</div>
             <div class="form-grid">
               <label>Message</label>
               <input .value=${this.commitMessage} @input=${(e: InputEvent) => this.commitMessage = (e.target as HTMLInputElement).value} placeholder="Export entities from ${this.projectName}" />
               <ptcs-button label="Export Selected (${this.selectedEntities.size})" @click=${this.doExport} ?disabled=${busy || this.selectedEntities.size === 0}></ptcs-button>
             </div>
+            </form>
           </div>
         ` : ''}
 

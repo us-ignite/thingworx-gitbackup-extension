@@ -93,6 +93,7 @@ export class GitLog extends LitElement {
 
         ${this.error ? html`<div class="error">${this.error}</div>` : ''}
 
+        <form @submit=${(e: SubmitEvent) => { e.preventDefault(); this.load(); }}>
         <div class="filters">
           <input placeholder="Search logs..." .value=${this.searchTerm} @input=${(e: InputEvent) => this.searchTerm = (e.target as HTMLInputElement).value} />
           <select .value=${this.filterService} @change=${(e: Event) => this.filterService = (e.target as HTMLSelectElement).value}>
@@ -101,6 +102,7 @@ export class GitLog extends LitElement {
           </select>
           <span style="font-size:12px;color:#999">${this.filteredLogs.length} entries</span>
         </div>
+        </form>
 
         ${this.filteredLogs.length > 0 ? html`
           <div style="overflow-x:auto">

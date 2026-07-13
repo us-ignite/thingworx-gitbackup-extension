@@ -36,6 +36,7 @@ export class GitRepoSettings extends LitElement {
   `;
 
   @property({ type: String }) gitThing = '';
+  @state() private projectName = '';
   @state() private creds: RepoCreds = { GitCommitterUser: '', GitCommitterPassword: '', GitCommitterEmail: '', GitCommitterFullName: '' };
   @state() private gpgKeys: GpgKeyEntry[] = [];
   @state() private selectedGpgThing = '';
@@ -55,9 +56,11 @@ export class GitRepoSettings extends LitElement {
     this.loading = true;
     this.message = '';
     try {
-      const [gpgRes] = await Promise.all([
+      const [configRes, gpgRes] = await Promise.all([
+        twx.invokeService<InfotableResponse<any>>(this.gitThing, 'GetConfigurationTable', { tableName: 'Configuration' }),
         twx.invokeService<InfotableResponse<GpgKeyEntry>>('GIT.Utility.Thing', 'GetGpgKeys', {}),
       ]);
+      this.projectName = configRes?.rows?.[0]?.ProjectName || '';
       this.gpgKeys = gpgRes.rows || [];
       const currentKey = this.gpgKeys.find(k => k.GitThing === this.gitThing);
       if (currentKey) {
@@ -66,6 +69,24 @@ export class GitRepoSettings extends LitElement {
       }
     } catch { }
     finally { this.loading = false; }
+  }
+
+  async saveProjectName() {
+    this.saving = true;
+    this.message = '';
+    this.isError = false;
+    try {
+      await twx.invokeService('GIT.Utility.Thing', 'SetProjectName', {
+        GitThingName: this.gitThing,
+        ProjectName: this.projectName,
+      });
+      this.message = 'Project name saved';
+    } catch (e: any) {
+      this.message = e.message || 'Failed to save project name';
+      this.isError = true;
+    } finally {
+      this.saving = false;
+    }
   }
 
   async saveCredentials() {
@@ -117,6 +138,7 @@ export class GitRepoSettings extends LitElement {
     return html`
       <div class=${busy ? 'loading' : ''}>
         <div class="card">
+          <form @submit=${(e: SubmitEvent) => { e.preventDefault(); this.saveCredentials(); }}>
           <div class="section-title">Repository Credentials</div>
           <div class="form-grid">
             <label>Username</label>
@@ -131,9 +153,25 @@ export class GitRepoSettings extends LitElement {
           <div class="actions">
             <ptcs-button label="Save Credentials" @click=${this.saveCredentials} ?disabled=${busy}></ptcs-button>
           </div>
+          </form>
         </div>
 
         <div class="card">
+          <form @submit=${(e: SubmitEvent) => { e.preventDefault(); this.saveProjectName(); }}>
+          <div class="section-title">Repository Configuration</div>
+          <div class="form-grid">
+            <label>Project Name</label>
+            <input .value=${this.projectName} @input=${(e: InputEvent) => { this.projectName = (e.target as HTMLInputElement).value; }} placeholder="e.g. GitBackup" />
+            <span class="hint">Syncs entities from this project on every Status/Push/Pull</span>
+          </div>
+          <div class="actions">
+            <ptcs-button label="Save Project Name" @click=${this.saveProjectName} ?disabled=${busy}></ptcs-button>
+          </div>
+          </form>
+        </div>
+
+        <div class="card">
+          <form @submit=${(e: SubmitEvent) => { e.preventDefault(); this.saveGpgSelection(); }}>
           <div class="section-title">GPG Signing Key</div>
           <div class="form-grid">
             <label>Signing Key</label>
@@ -153,6 +191,7 @@ export class GitRepoSettings extends LitElement {
           <div class="actions">
             <ptcs-button label="Save GPG Selection" @click=${this.saveGpgSelection} ?disabled=${busy}></ptcs-button>
           </div>
+          </form>
         </div>
 
         ${this.message ? html`<div class="result ${this.isError ? 'error' : 'success'}">${this.message}</div>` : ''}

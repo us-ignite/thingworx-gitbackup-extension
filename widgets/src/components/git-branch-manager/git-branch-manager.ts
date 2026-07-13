@@ -159,12 +159,14 @@ export class GitBranchManager extends LitElement {
         </div>
 
         <div class="card">
+          <form @submit=${(e: SubmitEvent) => { e.preventDefault(); this.createAndCheckoutBranch(); }}>
           <div class="section-title">Create & Checkout Branch</div>
           <div class="input-row">
             <input placeholder="Branch name" .value=${this.createName} @input=${(e: InputEvent) => this.createName = (e.target as HTMLInputElement).value}>
             <ptcs-button label="Create & Checkout" @click=${this.createAndCheckoutBranch} ?disabled=${!this.createName.trim()}></ptcs-button>
             <ptcs-button label="Create Only" @click=${this.createBranch} ?disabled=${!this.createName.trim()}></ptcs-button>
           </div>
+          </form>
         </div>
 
         <div class="section-title">All Branches</div>

@@ -59,7 +59,7 @@ export const GitDelete: Story = {
 
 export const GitExport: Story = {
   argTypes: gitThingArgTypes,
-  args: { gitThing: 'GitBackup.Tests.Thing' },
+  args: { gitThing: 'GitBackup.DevRepo' },
   render: (args) => html`<git-export .gitThing=${args.gitThing}></git-export>`,
 };
 
@@ -134,6 +134,6 @@ export const GitRepo: Story = {
     gitThing: { control: 'text', description: 'ThingWorx GitBackup Thing name' },
     defaultTab: { control: 'text', description: 'Default active tab' },
   },
-  args: { gitThing: 'GitBackup.Tests.Thing', defaultTab: 'push' },
+  args: { gitThing: 'GitBackup.DevRepo', defaultTab: 'push' },
   render: (args) => html`<git-repo .gitThing=${args.gitThing} .defaultTab=${args.defaultTab}></git-repo>`,
 };

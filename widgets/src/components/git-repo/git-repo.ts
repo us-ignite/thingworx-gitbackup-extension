@@ -4,10 +4,9 @@ import '../git-push/git-push.js';
 import '../git-pull/git-pull.js';
 import '../git-branch-manager/git-branch-manager.js';
 import '../git-status/git-status.js';
-import '../git-import/git-import.js';
-import '../git-export/git-export.js';
 import '../git-delete/git-delete.js';
 import '../git-repo-settings/git-repo-settings.js';
+import '../git-log/git-log.js';
 
 export class GitRepo extends LitElement {
   static styles = css`
@@ -34,13 +33,12 @@ export class GitRepo extends LitElement {
   render() {
     return html`
       <div class="tabs">
-        ${this.renderTabHeader('Push', 'push')}
+        ${this.renderTabHeader('Commit & Push', 'push')}
         ${this.renderTabHeader('Pull', 'pull')}
         ${this.renderTabHeader('Branch', 'branch')}
         ${this.renderTabHeader('Status', 'status')}
-        ${this.renderTabHeader('Import', 'import')}
-        ${this.renderTabHeader('Export', 'export')}
         ${this.renderTabHeader('Settings', 'settings')}
+        ${this.renderTabHeader('Log', 'log')}
         ${this.renderTabHeader('Delete Repo', 'delete')}
       </div>
       <div class="tab-content">
@@ -48,11 +46,10 @@ export class GitRepo extends LitElement {
         ${this.activeTab === 'pull' ? html`<git-pull .gitThing=${this.gitThing}></git-pull>` : ''}
         ${this.activeTab === 'branch' ? html`<git-branch-manager .gitThing=${this.gitThing}></git-branch-manager>` : ''}
         ${this.activeTab === 'status' ? html`<git-status .gitThing=${this.gitThing}></git-status>` : ''}
-        ${this.activeTab === 'import' ? html`<git-import .gitThing=${this.gitThing}></git-import>` : ''}
-        ${this.activeTab === 'export' ? html`<git-export .gitThing=${this.gitThing}></git-export>` : ''}
         ${this.activeTab === 'settings' ? html`
           <git-repo-settings .gitThing=${this.gitThing}></git-repo-settings>
         ` : ''}
+        ${this.activeTab === 'log' ? html`<git-log></git-log>` : ''}
         ${this.activeTab === 'delete' ? html`<git-delete .gitThing=${this.gitThing} .thingName=${this.gitThing} @deleted=${this.onRepoDeleted}></git-delete>` : ''}
       </div>
     `;
