@@ -27,6 +27,7 @@ export class GitPush extends LitElement {
   @state() private selectedFiles: Set<string> = new Set();
   @state() private loading = false;
   @state() private pushing = false;
+  @state() private commitMessage = '';
   @state() private result = '';
   @state() private error = '';
 
@@ -39,7 +40,7 @@ export class GitPush extends LitElement {
     if (!this.gitThing) return;
     this.loading = true;
     try {
-      const res = await twx.invokeService<InfotableResponse<GitStatus>>(this.gitThing, 'QueryStatus', {});
+      const res = await twx.invokeService<InfotableResponse<GitStatus>>(this.gitThing, 'Status', {});
       this.files = res.rows || [];
       this.selectedFiles = new Set(this.files.map(f => f.File));
     } catch { }
@@ -59,8 +60,11 @@ export class GitPush extends LitElement {
     this.result = '';
     this.error = '';
     try {
-      const res = await twx.invokeService(this.gitThing, 'Push', {}) as any;
+      const res = await twx.invokeService(this.gitThing, 'Push', { Message: this.commitMessage }) as any;
       this.result = res?.result || 'Push completed';
+      this.commitMessage = '';
+      this.selectedFiles = new Set();
+      await this.loadStatus();
     } catch (e: any) {
       this.error = e.message || 'Push failed';
     } finally {
@@ -72,9 +76,17 @@ export class GitPush extends LitElement {
     const statusColor = (s: string) => `status ${s}`;
     return html`
       <div class=${this.loading || this.pushing ? 'loading' : ''}>
+        <form @submit=${(e: SubmitEvent) => { e.preventDefault(); this.doPush(); }}>
         <div style="display:flex;justify-content:space-between;align-items:center">
-          <h3 style="margin:0">Push to Remote</h3>
+          <h3 style="margin:0">Commit & Push</h3>
           <ptcs-button label="Refresh" @click=${this.loadStatus} ?disabled=${this.loading}></ptcs-button>
+        </div>
+
+        <div style="margin:12px 0">
+          <label style="display:block;font-size:13px;font-weight:600;color:#333;margin-bottom:4px">Commit Message</label>
+          <textarea .value=${this.commitMessage} @input=${(e: InputEvent) => this.commitMessage = (e.target as HTMLTextAreaElement).value}
+            style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;font-size:13px;font-family:inherit;box-sizing:border-box;resize:vertical"
+            rows="3" placeholder="Describe your changes..."></textarea>
         </div>
 
         <div class="files">
@@ -94,12 +106,13 @@ export class GitPush extends LitElement {
         </div>
 
         <div class="actions">
-          <ptcs-button label="Push" @click=${this.doPush} ?disabled=${this.pushing || this.files.length === 0}></ptcs-button>
+          <ptcs-button label="Commit & Push" @click=${this.doPush} ?disabled=${this.pushing || this.files.length === 0}></ptcs-button>
           ${this.pushing ? html`<span style="margin-left:8px">Pushing...</span>` : ''}
         </div>
 
         ${this.result ? html`<div class="result">${this.result}</div>` : ''}
         ${this.error ? html`<div class="result error">${this.error}</div>` : ''}
+        </form>
       </div>
     `;
   }

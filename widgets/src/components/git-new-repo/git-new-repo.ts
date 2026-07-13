@@ -7,6 +7,7 @@ interface FormData {
   gitRepoUrl: string;
   repoPath: string;
   fileRepo: string;
+  projectName: string;
   username: string;
   password: string;
   commitUser: string;
@@ -43,6 +44,7 @@ export class GitNewRepo extends LitElement {
     gitRepoUrl: 'http://gitea:3000/testadmin/gitbackup-test.git',
     repoPath: 'GitBackup',
     fileRepo: 'GitRepository',
+    projectName: '',
     username: 'testadmin',
     password: 'testadmin123',
     commitUser: 'testadmin',
@@ -83,6 +85,7 @@ export class GitNewRepo extends LitElement {
         ProxyURL: this.data.proxyUrl || 'none',
         ProxyPort: parseInt(this.data.proxyPort) || 3281,
         LocalizationTokensPrefix: this.data.localizationTokensPrefix,
+        ProjectName: this.data.projectName,
       });
       this.createdThing = this.data.repoName;
       this.result = `Repository "${this.data.repoName}" created successfully.`;
@@ -123,6 +126,7 @@ export class GitNewRepo extends LitElement {
     const busy = this.loading || this.doingOp;
     return html`
       <div class=${busy ? 'loading' : ''}>
+        <form @submit=${(e: SubmitEvent) => { e.preventDefault(); this.doCreate(); }}>
         <div class="section-title">Repository</div>
         <div class="form-grid">
           <label>Thing Name</label>
@@ -137,6 +141,10 @@ export class GitNewRepo extends LitElement {
           <label>File Repository</label>
           <input .value=${d.fileRepo} @input=${(e: InputEvent) => this.updateField('fileRepo', (e.target as HTMLInputElement).value)} placeholder="GitRepository" />
           <span class="hint">ThingWorx File Repository name</span>
+
+          <label>Project Name</label>
+          <input .value=${d.projectName} @input=${(e: InputEvent) => this.updateField('projectName', (e.target as HTMLInputElement).value)} placeholder="e.g. GitBackup" />
+          <span class="hint">Syncs entities from this project on every Status/Push/Pull</span>
 
           <label>Initial Branch</label>
           <input .value=${d.initialBranch} @input=${(e: InputEvent) => this.updateField('initialBranch', (e.target as HTMLInputElement).value)} placeholder="main" />
@@ -191,6 +199,7 @@ export class GitNewRepo extends LitElement {
         ` : ''}
         ${this.error && !this.createdThing ? html`<div class="result error">${this.error}</div>` : ''}
         ${this.error && this.createdThing ? html`<div class="result error">${this.error}</div>` : ''}
+        </form>
       </div>
     `;
   }

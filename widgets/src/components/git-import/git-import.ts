@@ -76,10 +76,10 @@ export class GitImport extends LitElement {
   }
 
   async loadFiles() {
-    if (!this.fileRepo || !this.repoPath) return;
+    if (!this.gitThing || !this.repoPath) return;
     this.loading = true;
     try {
-      const res = await twx.invokeService<InfotableResponse<DirEntry>>(this.fileRepo, 'GetFileListing', { path: `/${this.repoPath}` });
+      const res = await twx.invokeService<InfotableResponse<DirEntry>>('GIT.Utility.Thing', 'GetRecursiveFileListing', { GitThingName: this.gitThing });
       this.files = (res.rows || []).filter(f => f.name.endsWith('.xml'));
     } catch {
       this.files = [];
@@ -95,7 +95,7 @@ export class GitImport extends LitElement {
     this.isInfo = false;
     try {
       const entityPath = `${this.repoPath}/${fileName}`;
-      await twx.invokeService('GIT.Utility.Thing', 'ImportEntity', {
+      await twx.invokeServiceWithInit('GIT.Utility.Thing', 'ImportEntity', {
         entityPath: entityPath,
         FileRepositoryName: this.fileRepo,
         ignoreDependencies: false,
@@ -117,7 +117,7 @@ export class GitImport extends LitElement {
     this.isError = false;
     this.importResults = [];
     try {
-      const res = await twx.invokeService<InfotableResponse<ImportResult>>('GIT.Utility.Thing', 'ImportProjectEntities', {
+      const res = await twx.invokeServiceWithInit<InfotableResponse<ImportResult>>('GIT.Utility.Thing', 'ImportProjectEntities', {
         GitThingName: this.gitThing,
         entityPath: this.bulkPath,
         ignoreDependencies: false,
@@ -162,6 +162,7 @@ export class GitImport extends LitElement {
         </div>
 
         <div class="card">
+          <form @submit=${(e: SubmitEvent) => { e.preventDefault(); this.bulkImport(); }}>
           <div class="section-title">Bulk Import</div>
           <div class="bulk-row">
             <input placeholder="Entity path relative to repo (e.g. Entities)" .value=${this.bulkPath} @input=${(e: InputEvent) => this.bulkPath = (e.target as HTMLInputElement).value} />
@@ -178,6 +179,7 @@ export class GitImport extends LitElement {
             </div>
           ` : ''}
         </div>
+        </form>
 
         ${this.message ? html`<div class="result ${this.isError ? 'error' : this.isInfo ? 'info' : 'success'}">${this.message}</div>` : ''}
       </div>
