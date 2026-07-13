@@ -2,7 +2,7 @@
   "name": "GitBackup UI Widgets",
   "packageName": "GitBackupUI",
   "description": "Git Backup Extension - UI Widgets built with Lit and PTC Web Component SDK",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "vendor": "Open Source / Vladimir Rosu",
   "minimumThingWorxVersion": "9.0.0"
 }

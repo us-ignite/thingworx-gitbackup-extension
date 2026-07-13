@@ -164,6 +164,7 @@ export class GitBackupExtensionSettings extends LitElement {
     return html`
       <div class=${busy ? 'loading' : ''}>
         <div class="card">
+          <form @submit=${(e: SubmitEvent) => { e.preventDefault(); this.saveUserProps(); }}>
           <div class="section-title">User Settings</div>
           <div class="form-grid">
             <label>Committer Name</label>
@@ -179,6 +180,7 @@ export class GitBackupExtensionSettings extends LitElement {
           <div class="actions">
             <ptcs-button label="Save Settings" @click=${this.saveUserProps} ?disabled=${busy}></ptcs-button>
           </div>
+          </form>
         </div>
 
         <div class="card">
@@ -197,6 +199,7 @@ export class GitBackupExtensionSettings extends LitElement {
             </div>
           ` : html`<div class="empty-state">No GPG keys configured</div>`}
 
+          <form @submit=${(e: SubmitEvent) => { e.preventDefault(); this.saveGpgKey(); }}>
           <div style="margin-top:16px">
             <div class="section-title">${this.form.GpgPrivateKey ? 'Edit' : 'Add'} GPG Key</div>
             <div class="form-grid">
@@ -219,6 +222,7 @@ export class GitBackupExtensionSettings extends LitElement {
               ${this.verifyResult ? html`<span style="font-size:12px;color:#666">${this.verifyResult}</span>` : ''}
             </div>
           </div>
+          </form>
         </div>
 
         ${this.message ? html`<div class="result ${this.isError ? 'error' : 'success'}">${this.message}</div>` : ''}
