@@ -111,6 +111,7 @@ export class GitMergeRebase extends LitElement {
         </div>
 
         ${this.targetBranches.length > 0 ? html`
+          <form @submit=${(e: SubmitEvent) => { e.preventDefault(); this.doMerge(); }}>
           <div class="form">
             <label for="branch-select">Target branch</label>
             <select id="branch-select" .value=${this.selectedBranch} @change=${(e: Event) => this.selectedBranch = (e.target as HTMLSelectElement).value}>
@@ -125,6 +126,7 @@ export class GitMergeRebase extends LitElement {
               <ptcs-button label="Rebase onto" @click=${this.doRebase} ?disabled=${!this.selectedBranch || this.operating}></ptcs-button>
             </div>
           </div>
+          </form>
         ` : html`
           <div class="empty">No other local branches available</div>
         `}

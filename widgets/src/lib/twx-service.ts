@@ -85,6 +85,26 @@ export class TwxService {
     const params = filters || {};
     return this.invokeService<T>('GIT.Utility.Thing', 'QueryThings', params);
   }
+
+  async ensureInitExtensionTargets(): Promise<void> {
+    await this.invokeService('GIT.Utility.Thing', 'InitExtensionImportTargets', {});
+  }
+
+  async invokeServiceWithInit<T = unknown>(
+    thingName: string,
+    serviceName: string,
+    params: Record<string, unknown> = {}
+  ): Promise<T> {
+    try {
+      return await this.invokeService<T>(thingName, serviceName, params);
+    } catch (e: any) {
+      if (e.message?.includes('GitExtensionAppKey not found')) {
+        await this.ensureInitExtensionTargets();
+        return this.invokeService<T>(thingName, serviceName, params);
+      }
+      throw e;
+    }
+  }
 }
 
 export const twx = new TwxService();
