@@ -1,0 +1,14 @@
+{
+  "elementName": "git-backup-extension-settings",
+  "name": "Git Backup Extension Settings",
+  "description": "Extension-wide settings: user committer identity and GPG key management",
+  "category": ["GitBackup"],
+  "flags": { "supportsAutoResize": true },
+  "properties": {},
+  "services": {
+    "DoSaveUserSettings": { "description": "Save user committer settings" },
+    "DoSaveGpgKey": { "description": "Save a GPG signing key" },
+    "DoDeleteGpgKey": { "description": "Delete a GPG signing key" },
+    "DoVerifyGpgKey": { "description": "Verify a GPG key" }
+  }
+}

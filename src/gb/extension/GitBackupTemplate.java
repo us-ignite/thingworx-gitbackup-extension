@@ -1,5 +1,11 @@
 package gb.extension;
 
+import static gb.extension.Values.hasText;
+import static gb.extension.Values.isBlank;
+import static gb.extension.Values.isTrue;
+import static gb.extension.Values.orDefault;
+import static gb.extension.Values.primitiveString;
+
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
@@ -17,7 +23,6 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.Iterator;
 import java.util.List;
@@ -54,6 +59,7 @@ import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.eclipse.jgit.storage.file.WindowCacheConfig;
 import org.eclipse.jgit.transport.CredentialsProvider;
 import org.eclipse.jgit.transport.PushResult;
+import org.eclipse.jgit.transport.RemoteRefUpdate;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import org.eclipse.jgit.treewalk.AbstractTreeIterator;
 import org.eclipse.jgit.treewalk.CanonicalTreeParser;
@@ -96,14 +102,13 @@ import com.thingworx.webservices.context.ThreadLocalContext;
 @ThingworxConfigurationTableDefinitions(tables = {
 		@ThingworxConfigurationTableDefinition(name = Const.str_ConfTableName, description = "", isMultiRow = false, ordinal = 0, dataShape = @ThingworxDataShapeDefinition(fields = {
 				@ThingworxFieldDefinition(name = Const.str_GitRepoURL, description = "", baseType = "STRING", ordinal = 4, aspects = {
-						"defaultValue:https://bitbucket.org/username/reponame", "friendlyName:Git Repo URL" }),
+						"friendlyName:Git Repo URL" }),
 
 				@ThingworxFieldDefinition(name = Const.str_FileRepository, description = "", baseType = "THINGNAME", ordinal = 5, aspects = {
-						"thingTemplate:FileRepository", "friendlyName:File Repository",
-						"defaultValue: GitRepository" }),
+						"thingTemplate:FileRepository", "friendlyName:File Repository" }),
 
 				@ThingworxFieldDefinition(name = Const.str_RepoPathName, description = "", baseType = "STRING", ordinal = 6, aspects = {
-						"friendlyName:File Repository Path", "defaultValue:/smartparking" }),
+						"friendlyName:File Repository Path" }),
 
 				@ThingworxFieldDefinition(name = Const.str_InitialBranch, description = "Must be the main branch setup in the remote Git repository", baseType = "STRING", ordinal = 7, aspects = {
 						"friendlyName:Initial branch", "defaultValue:main" }),
@@ -112,11 +117,14 @@ import com.thingworx.webservices.context.ThreadLocalContext;
 						"friendlyName:Use Proxy?", "defaultValue:false" }),
 
 				@ThingworxFieldDefinition(name = Const.str_ProxyURL, description = "The HTTP proxy used for connection to the remote; leave blank if not used ", baseType = "STRING", ordinal = 9, aspects = {
-						"friendlyName:Proxy URL", "defaultValue:proxyHostName" }),
+						"friendlyName:Proxy URL" }),
 				@ThingworxFieldDefinition(name = Const.str_ProxyPort, description = "Proxy Port", baseType = "INTEGER", ordinal = 10, aspects = {
 						"friendlyName:Proxy Port", "defaultValue:0" }),
 				@ThingworxFieldDefinition(name = Const.str_LocalizationTokensPrefix, description = "Prefix used for exporting Localization tokens", baseType = "STRING", ordinal = 10, aspects = {
-						"friendlyName:Localization Tokens Prefix", "defaultValue:prefix" }),
+						"friendlyName:Localization Tokens Prefix" }),
+
+				@ThingworxFieldDefinition(name = Const.str_ProjectName, description = "ThingWorx project to sync entities from", baseType = "STRING", ordinal = 11, aspects = {
+						"friendlyName:Project Name" }),
 
 		// ,@ThingworxFieldDefinition(name = Const.str_DefaultProjectToExport,
 		// description = "", baseType = "STRING", ordinal = 8, aspects = {
@@ -125,7 +133,7 @@ import com.thingworx.webservices.context.ThreadLocalContext;
 		})) })
 public class GitBackupTemplate extends Thing {
 	/**
-	 * 
+	 *
 	 */
 	// set background file system resolution to false and enable debugging
 	static {
@@ -137,7 +145,7 @@ public class GitBackupTemplate extends Thing {
 
 	// Complete git path will be calculated by concatenating the SCR absolute
 	// path and the relative path
-	private String str_GitRepoURL, str_FileRepository, str_FileRepoPath, str_CurrentBranchOrCommit, str_ProxyURL;
+	private String str_GitRepoURL, str_FileRepository, str_FileRepoPath, str_CurrentBranchOrCommit, str_ProxyURL, str_ProjectName;
 	private Integer int_ProxyPort;
 	private boolean bool_isDetachedHead = false, bool_UseProxy;
 	private Git gitObject;
@@ -188,21 +196,24 @@ public class GitBackupTemplate extends Thing {
 
 		// Initialize internal fields based on the Configuration Table
 		this.str_GitRepoURL = ((String) getConfigurationSetting(Const.str_ConfTableName, Const.str_GitRepoURL));
-		this.str_FileRepository = ((String) getConfigurationSetting(Const.str_ConfTableName, Const.str_FileRepository));
+		String fileRepo = (String) getConfigurationSetting(Const.str_ConfTableName, Const.str_FileRepository);
+		this.str_FileRepository = orDefault(fileRepo, Const.str_FileRepositoryDefaultValue);
 		this.str_FileRepoPath = ((String) getConfigurationSetting(Const.str_ConfTableName, Const.str_RepoPathName));
 		this.str_CurrentBranchOrCommit = ((String) getConfigurationSetting(Const.str_ConfTableName,
 				Const.str_InitialBranch));
-		this.bool_UseProxy = ((boolean) getConfigurationSetting(Const.str_ConfTableName, Const.str_UseProxy));
+		this.bool_UseProxy = isTrue((Boolean) getConfigurationSetting(Const.str_ConfTableName, Const.str_UseProxy));
 		this.str_ProxyURL = ((String) getConfigurationSetting(Const.str_ConfTableName, Const.str_ProxyURL));
 		this.int_ProxyPort = ((Integer) getConfigurationSetting(Const.str_ConfTableName, Const.str_ProxyPort));
+		this.str_ProjectName = ((String) getConfigurationSetting(Const.str_ConfTableName, Const.str_ProjectName));
 		ProxySelector.setDefault(new ProxySelector() {
 			@Override
 			public List<Proxy> select(URI uri) {
-				if (bool_UseProxy == true && str_GitRepoURL.contains(uri.getHost())) {
-					return Arrays.asList(
+				if (bool_UseProxy && uri != null && hasText(str_GitRepoURL)
+						&& str_GitRepoURL.contains(uri.getHost()) && hasText(str_ProxyURL) && int_ProxyPort != null) {
+					return List.of(
 							new Proxy(Type.HTTP, InetSocketAddress.createUnresolved(str_ProxyURL, int_ProxyPort)));
 				}
-				return Arrays.asList(Proxy.NO_PROXY);
+				return List.of(Proxy.NO_PROXY);
 			}
 
 			@Override
@@ -216,14 +227,13 @@ public class GitBackupTemplate extends Thing {
 		wconfig.setPackedGitMMAP(false);
 		wconfig.install();
 		_logger.warn("1. GitBackup Thing: " + this.getName() + " initialize phase 1.1. PackedGitMMAP set false");
-		// prevents creation of disk folder with default values from configuration table
-		// at the first initialization
-		if (!str_GitRepoURL.equals(Const.str_GitRepoURLDefaultValue)) {
+		// prevents creation of disk folder when no repo URL is configured
+		if (hasText(str_GitRepoURL)) {
 			_logger.warn("1. GitBackup Thing: " + this.getName()
 					+ " initialize phase 1.2. GitRepoDefault contains real repository URL.");
 			Git Mygit = getGitObject("initializeThing");
 			String str_Branch = Mygit.getRepository().getFullBranch();
-			bool_isDetachedHead = (str_Branch.indexOf("refs/heads") != -1 || str_Branch != null) ? false : true;
+			bool_isDetachedHead = str_Branch == null || !str_Branch.startsWith("refs/heads/");
 			str_CurrentBranchOrCommit = (str_Branch != null) ? Mygit.getRepository().getBranch()
 					: Const.str_InitialBranch;
 		}
@@ -250,8 +260,12 @@ public class GitBackupTemplate extends Thing {
 			@ThingworxServiceParameter(name = "Message", description = "A message that will appear in the git for this commit", baseType = "STRING") String Message)
 			throws Exception, GitAPIException {
 		_logger.trace("Entering Service: Push");
+		syncFromThingworx();
 		String str_CurrentMethodName = "Push";
 		boolean bool_SignCommits = false;
+		if (isBlank(str_GitRepoURL)) {
+			return "Push Error: No Git repository URL configured for this thing. Please set the GitRepoURL in the Configuration table.";
+		}
 		try {
 			// 1. Retrieve the GitRepository as a Git object that is needed for the next
 			// operations
@@ -264,17 +278,14 @@ public class GitBackupTemplate extends Thing {
 					.setScale(3, RoundingMode.HALF_DOWN);
 			User us_currentUser = UserUtilities.findUser(UserUtilities.getCurrentUser());
 			ValueCollection vc_RepoCredentials = getGitRepoRemoteCredential(us_currentUser);
-			if (vc_RepoCredentials.getPrimitive(Const.str_GitCommitterUser) == null) {
+			String str_User = primitiveString(vc_RepoCredentials, Const.str_GitCommitterUser);
+			String str_Password = primitiveString(vc_RepoCredentials, Const.str_GitCommitterPassword);
+			String str_CommitterName = primitiveString(vc_RepoCredentials, Const.str_GitCommitterName);
+			String str_CommitterEmail = primitiveString(vc_RepoCredentials, Const.str_GitCommitterEmail);
+			if (isBlank(str_User) || isBlank(str_Password)
+					|| isBlank(str_CommitterName) || isBlank(str_CommitterEmail)) {
 				return "Push Error: Missing Git credentials for this thing. Please configure credentials in the extension settings.";
 			}
-			String str_User = ((StringPrimitive) vc_RepoCredentials.getPrimitive(Const.str_GitCommitterUser))
-					.getValue();
-			String str_Password = ((PasswordPrimitive) vc_RepoCredentials.getPrimitive(Const.str_GitCommitterPassword))
-					.getValue();
-			String str_CommitterName = ((StringPrimitive) vc_RepoCredentials.getPrimitive(Const.str_GitCommitterName))
-					.getValue();
-			String str_CommitterEmail = ((StringPrimitive) vc_RepoCredentials.getPrimitive(Const.str_GitCommitterEmail))
-					.getValue();
 			// 2. Create the commit
 			// 2.1. We add all the modified files to the commit
 			myGitObject.add().addFilepattern(".").call();
@@ -315,7 +326,7 @@ public class GitBackupTemplate extends Thing {
 			}
 
 			PastedKeyGpgSigner gpgSigner = null;
-			if (bool_SignCommits && str_GpgPrivateKey != null && !str_GpgPrivateKey.isEmpty()) {
+			if (bool_SignCommits && hasText(str_GpgPrivateKey)) {
 				gpgSigner = new PastedKeyGpgSigner(str_GpgPrivateKey, str_GpgPassphrase);
 				Signers.set(GpgConfig.GpgFormat.OPENPGP, gpgSigner);
 				commitCmd.setSign(true).setSigningKey(null);
@@ -350,17 +361,20 @@ public class GitBackupTemplate extends Thing {
 					(double) (endTimePushFinish - endTimeCommitToLocalRepository) / (double) 1000000)
 					.setScale(3, RoundingMode.HALF_DOWN);
 			String str_LogResult = "";
+			String pushError = null;
 			for (PushResult pr : prList) {
-				String updateStr = pr.getRemoteUpdates().toString();
-				str_LogResult += updateStr;
-				// Check for pre-receive hook rejection
-				if (updateStr.contains("REJECTED_OTHER_REASON") || updateStr.contains("pre-receive hook declined")) {
-					String hint = "";
-					if (!bool_SignCommits) {
-						hint = " The remote may require GPG-signed commits. Enable SignCommits via SetGpgKey and ensure GPG signing is configured.";
+				for (RemoteRefUpdate update : pr.getRemoteUpdates()) {
+					str_LogResult += update;
+					RemoteRefUpdate.Status status = update.getStatus();
+					if (status != RemoteRefUpdate.Status.OK && status != RemoteRefUpdate.Status.UP_TO_DATE) {
+						String hint = status == RemoteRefUpdate.Status.REJECTED_NONFASTFORWARD
+								? " Pull or rebase the remote branch before pushing again."
+								: " Check the remote repository policy and credentials.";
+						if (status == RemoteRefUpdate.Status.REJECTED_OTHER_REASON && !bool_SignCommits) {
+							hint += " If signed commits are required, configure a GPG key and enable SignCommits.";
+						}
+						pushError = "Remote rejected " + update.getRemoteName() + " with status " + status + "." + hint;
 					}
-					_logger.warn("Push rejected by remote pre-receive hook." + hint);
-					str_LogResult += hint;
 				}
 			}
 			str_LogResult += " Debug Timings (ms): #1.OpenGit: " + durationTimeOpenRepository + "#2.AddFiles: "
@@ -369,6 +383,7 @@ public class GitBackupTemplate extends Thing {
 					+ durationTimePushFinish;
 			Thread.sleep(2000);
 			LogOperationResult(str_LogResult, str_CurrentMethodName);
+			if (pushError != null) return "Push Error: " + pushError;
 			return str_LogResult;
 		} catch (Exception e) {
 			StringWriter errors = new StringWriter();
@@ -395,7 +410,7 @@ public class GitBackupTemplate extends Thing {
 			"isEntityDataShape:true", "dataShape:GitBackup.GpgKey" })
 	public InfoTable VerifyGpgKey(
 			@ThingworxServiceParameter(name = "GpgPrivateKey", description = "ASCII-armored PGP private key", baseType = "STRING") String GpgPrivateKey,
-			@ThingworxServiceParameter(name = "GpgKeyPassphrase", description = "Passphrase for the PGP private key", baseType = "PASSWORD") String GpgKeyPassphrase)
+			@ThingworxServiceParameter(name = "GpgKeyPassphrase", description = "Passphrase for the PGP private key", baseType = "STRING") String GpgKeyPassphrase)
 			throws Exception {
 		String str_CurrentMethodName = "VerifyGpgKey";
 		InfoTable iftbl_Result = InfoTableInstanceFactory
@@ -474,24 +489,23 @@ public class GitBackupTemplate extends Thing {
 			@ThingworxServiceParameter(name = "Force", description = "Forces a hard reset instead of a normal pull", baseType = "BOOLEAN") Boolean Force) {
 		String str_CurrentMethodName = "Pull";
 		try {
+			syncFromThingworx();
 			_logger.warn("Starting Pull for GitBackup Thing: " + this.getName());
 			Thread.sleep(500);
 			Git myGitFolder = getGitObject("Pull");
 			User us_currentUser = UserUtilities.findUser(UserUtilities.getCurrentUser());
 			ValueCollection vc_RepoCredentials = getGitRepoRemoteCredential(us_currentUser);
-			if (vc_RepoCredentials.getPrimitive(Const.str_GitCommitterUser) == null) {
+			String str_User = primitiveString(vc_RepoCredentials, Const.str_GitCommitterUser);
+			String str_Password = primitiveString(vc_RepoCredentials, Const.str_GitCommitterPassword);
+			if (isBlank(str_User) || isBlank(str_Password)) {
 				return "Pull Error: Missing Git credentials for this thing. Please configure credentials in the extension settings.";
 			}
-			String str_User = ((StringPrimitive) vc_RepoCredentials.getPrimitive(Const.str_GitCommitterUser))
-					.getValue();
-			String str_Password = ((PasswordPrimitive) vc_RepoCredentials.getPrimitive(Const.str_GitCommitterPassword))
-					.getValue();
 			CredentialsProvider credentialsProvider = new UsernamePasswordCredentialsProvider(str_User, str_Password);
-			if (Force != null && Force == true) {
+			if (isTrue(Force)) {
 				myGitFolder.reset().setMode(ResetType.HARD).call();
 			}
 			PullResult pr = myGitFolder.pull().setRemote("origin").setCredentialsProvider(credentialsProvider).call();
-			String str_LogResult = (pr.isSuccessful() == true ? "Successful. " : "Unsuccessful.") + pr.toString();
+			String str_LogResult = (pr.isSuccessful() ? "Successful. " : "Unsuccessful.") + pr.toString();
 			Thread.sleep(2000);
 			LogOperationResult(str_LogResult, str_CurrentMethodName);
 			_logger.warn("Finished Pull for GitBackup Thing: " + this.getName());
@@ -550,7 +564,7 @@ public class GitBackupTemplate extends Thing {
 		_logger.trace("Entering Service: CreateBranch");
 		String str_CurrentMethodName = "CreateBranch";
 		Git myGitFolder = getGitObject("CreateBranch");
-		String str_StartPoint = (StartPoint != null && !StartPoint.isEmpty()) ? StartPoint : "HEAD";
+		String str_StartPoint = orDefault(StartPoint, "HEAD");
 		Ref branchRef = myGitFolder.branchCreate().setName(BranchName).setStartPoint(str_StartPoint).call();
 		String str_LogResult = "Branch " + BranchName + " created from " + str_StartPoint + ": " + branchRef.toString();
 		LogOperationResult(str_LogResult, str_CurrentMethodName);
@@ -562,10 +576,10 @@ public class GitBackupTemplate extends Thing {
 			"isAsync:false" })
 	@ThingworxServiceResult(name = "Result", description = "", baseType = "NOTHING", aspects = {})
 	public void Checkout(
-			@ThingworxServiceParameter(name = "BranchNameOrCommit", description = "Switches the working tree to the specified branch. This is a wrapper on top of checkout <branch>.It does not autocreate new branches.", baseType = "STRING", aspects = {
-					"defaultValue:master" }) String BranchNameOrCommit)
+			@ThingworxServiceParameter(name = "BranchNameOrCommit", description = "Switches the working tree to the specified branch. This is a wrapper on top of checkout <branch>.It does not autocreate new branches.", baseType = "STRING") String BranchNameOrCommit)
 			throws Throwable, GitAPIException {
 		_logger.trace("Entering Service: Checkout");
+		syncFromThingworx();
 		String str_CurrentMethodName = "Checkout";
 		Git myGitFolder = getGitObject("Checkout");
 		Ref ref;
@@ -732,6 +746,7 @@ public class GitBackupTemplate extends Thing {
 			"isEntityDataShape:true", "dataShape:Git.Status" })
 	public InfoTable Status() throws Exception {
 		_logger.trace("Entering Service: Status");
+		syncFromThingworx();
 		InfoTable iftbl_Status = InfoTableInstanceFactory.createInfoTableFromDataShape("Git.Status");
 		Git myGitObject = getGitObject("Status");
 		org.eclipse.jgit.api.Status status = myGitObject.status().call();
@@ -966,16 +981,33 @@ public class GitBackupTemplate extends Thing {
 		return str_Parents;
 	}
 
-	private void LogOperationResult(String str_OperationResult, String str_ServiceName) throws Exception {
-		Thing rsc = (Thing) EntityUtilities.findEntity(Const.str_UtilityThingName, ThingworxRelationshipTypes.Thing);
-		ValueCollection vc = new ValueCollection();
-		vc.put("timestamp", new DatetimePrimitive(new DateTime(System.currentTimeMillis())));
-		vc.put("User", new StringPrimitive(GetCurrentUser()));
-		vc.put("ServiceName", new StringPrimitive(str_ServiceName));
-		vc.put("Content", new StringPrimitive(str_OperationResult));
-		vc.put("Source", new StringPrimitive(this.getName()));
-		rsc.processServiceRequest("AddLogEntry", vc);
+	private void syncFromThingworx() {
+		try {
+			if (isBlank(str_ProjectName)) return;
+			Thing utilityThing = (Thing) EntityUtilities.findEntity(Const.str_UtilityThingName,
+					ThingworxRelationshipTypes.Thing);
+			if (utilityThing == null) return;
+			ValueCollection params = new ValueCollection();
+			params.put("GitThingName", new StringPrimitive(this.getName()));
+			utilityThing.processServiceRequest("SyncProjectToRepository", params);
+		} catch (Exception e) {
+			_logger.error("syncFromThingworx failed for " + this.getName() + ": " + e.getMessage());
+		}
+	}
 
+	private void LogOperationResult(String str_OperationResult, String str_ServiceName) {
+		try {
+			Thing rsc = (Thing) EntityUtilities.findEntity(Const.str_UtilityThingName, ThingworxRelationshipTypes.Thing);
+			ValueCollection vc = new ValueCollection();
+			vc.put("timestamp", new DatetimePrimitive(new DateTime(System.currentTimeMillis())));
+			vc.put("User", new StringPrimitive(GetCurrentUser()));
+			vc.put("ServiceName", new StringPrimitive(str_ServiceName));
+			vc.put("Content", new StringPrimitive(str_OperationResult));
+			vc.put("Source", new StringPrimitive(this.getName()));
+			rsc.processServiceRequest("AddLogEntry", vc);
+		} catch (Exception ex) {
+			_logger.error("LogOperationResult failed: " + ex.getMessage());
+		}
 	}
 
 	private String GetCurrentUser() {
@@ -1016,7 +1048,7 @@ public class GitBackupTemplate extends Thing {
 					getFilesToDelete(files[i], str_Source, lst_FilesToDelete, lst_FoldersToDelete);
 				} else {
 					lst_FilesToDelete.add(files[i]);
-					
+
 				}
 			}
 		}
@@ -1139,6 +1171,7 @@ public class GitBackupTemplate extends Thing {
 			throws Exception, GitAPIException {
 		String str_CurrentMethodName = "Merge";
 		try {
+			syncFromThingworx();
 			Git myGitFolder = getGitObject("Merge");
 			ObjectId mergeBase = myGitFolder.getRepository().resolve(BranchName);
 			if (mergeBase == null) {
@@ -1169,6 +1202,7 @@ public class GitBackupTemplate extends Thing {
 			throws Exception, GitAPIException {
 		String str_CurrentMethodName = "Rebase";
 		try {
+			syncFromThingworx();
 			Git myGitFolder = getGitObject("Rebase");
 			ObjectId upstream = myGitFolder.getRepository().resolve(UpstreamBranch);
 			if (upstream == null) {
@@ -1200,7 +1234,7 @@ public class GitBackupTemplate extends Thing {
 			@ThingworxServiceParameter(name = "CommitID", description = "Optional commit to tag (defaults to HEAD)", baseType = "STRING") String CommitID)
 			throws Exception, GitAPIException {
 		String str_CurrentMethodName = "CreateTag";
-		if (TagName == null || TagName.isEmpty()) {
+		if (isBlank(TagName)) {
 			LogOperationResult("CreateTag skipped: no tag name provided.", str_CurrentMethodName);
 			return "CreateTag skipped: no tag name provided.";
 		}
@@ -1208,7 +1242,7 @@ public class GitBackupTemplate extends Thing {
 			Git myGitFolder = getGitObject("CreateTag");
 			Repository repo = myGitFolder.getRepository();
 			ObjectId commitId;
-			if (CommitID != null && !CommitID.isEmpty()) {
+			if (hasText(CommitID)) {
 				commitId = repo.resolve(CommitID);
 				if (commitId == null) {
 					return "CreateTag Error: Commit '" + CommitID + "' not found.";
@@ -1222,7 +1256,7 @@ public class GitBackupTemplate extends Thing {
 				walk.dispose();
 			}
 			Ref tagRef;
-			if (Message != null && !Message.isEmpty()) {
+			if (hasText(Message)) {
 				tagRef = myGitFolder.tag().setName(TagName).setMessage(Message).setObjectId(revCommit).call();
 			} else {
 				tagRef = myGitFolder.tag().setName(TagName).setObjectId(revCommit).call();
@@ -1313,19 +1347,16 @@ public class GitBackupTemplate extends Thing {
 	}
 
 	private ValueCollection getGitRepoRemoteCredential(User us_currentUser) throws Exception {
+		if (us_currentUser == null) return new ValueCollection();
 		var propValue = us_currentUser.getPropertyValue(Const.str_GitCredentials);
-		if (propValue == null) {
-			return new ValueCollection();
-		}
+		if (!(propValue instanceof InfoTablePrimitive)) return new ValueCollection();
 		InfoTable iftbl_CredentialStore = ((InfoTablePrimitive) propValue).getValue();
-		if (iftbl_CredentialStore == null) {
-			return new ValueCollection();
+		if (iftbl_CredentialStore == null) return new ValueCollection();
+		for (int i = 0; i < iftbl_CredentialStore.getRowCount(); i++) {
+			ValueCollection row = iftbl_CredentialStore.getRow(i);
+			if (this.getName().equals(primitiveString(row, "GitThing"))) return row;
 		}
-		ValueCollection vc = new ValueCollection();
-		vc.put("GitThing", new StringPrimitive(this.getName()));
-		ValueCollection result = iftbl_CredentialStore.find(vc);
-		return result != null ? result : new ValueCollection();
-
+		return new ValueCollection();
 	}
 
 }

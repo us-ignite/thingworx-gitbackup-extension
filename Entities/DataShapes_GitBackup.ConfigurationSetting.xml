@@ -30,14 +30,12 @@
             <ConfigurationTables></ConfigurationTables>
             <FieldDefinitions>
                 <FieldDefinition
-                 aspect.defaultValue="master"
                  aspect.friendlyName="Initial branch"
                  baseType="STRING"
                  description=""
                  name="BranchName"
                  ordinal="7"></FieldDefinition>
                 <FieldDefinition
-                 aspect.defaultValue="GitRepository"
                  aspect.friendlyName="File Repository"
                  aspect.thingTemplate="FileRepository"
                  baseType="THINGNAME"
@@ -45,7 +43,12 @@
                  name="FileRepository"
                  ordinal="5"></FieldDefinition>
                 <FieldDefinition
-                 aspect.defaultValue="https://bitbucket.org/username/reponame"
+                 aspect.friendlyName="Project Name"
+                 baseType="STRING"
+                 description="ThingWorx project to sync entities from (leave empty to disable auto-sync)"
+                 name="ProjectName"
+                 ordinal="13"></FieldDefinition>
+                <FieldDefinition
                  aspect.friendlyName="Git Repo URL"
                  baseType="STRING"
                  description=""
@@ -68,7 +71,6 @@
                  name="ProxyURL"
                  ordinal="9"></FieldDefinition>
                 <FieldDefinition
-                 aspect.defaultValue="/smartparking"
                  aspect.friendlyName="File Repository Path"
                  baseType="STRING"
                  description=""

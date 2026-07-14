@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Entities majorVersion="9" minorVersion="3" universal="password">
+    <DataShapes>
+        <DataShape
+         aspect.isEditableExtensionObject="true"
+         aspect.isExtension="true"
+         baseDataShape=""
+         description="Test fixture for GitBackup extension tests"
+         documentationContent=""
+         homeMashup=""
+         name="GitBackup.TestFixture"
+         projectName="GitBackup"
+         tags="">
+            <avatar></avatar>
+            <DesignTimePermissions><Create></Create><Read></Read><Update></Update><Delete></Delete><Metadata></Metadata></DesignTimePermissions>
+            <RunTimePermissions></RunTimePermissions>
+            <VisibilityPermissions><Visibility></Visibility></VisibilityPermissions>
+            <ConfigurationTableDefinitions></ConfigurationTableDefinitions>
+            <ConfigurationTables></ConfigurationTables>
+            <FieldDefinitions>
+                <FieldDefinition aspect.isPrimaryKey="true" baseType="STRING" description="" name="name" ordinal="1"></FieldDefinition>
+                <FieldDefinition aspect.isPrimaryKey="false" baseType="STRING" description="" name="description" ordinal="2"></FieldDefinition>
+                <FieldDefinition aspect.isPrimaryKey="false" baseType="INTEGER" description="" name="value" ordinal="3"></FieldDefinition>
+            </FieldDefinitions>
+        </DataShape>
+    </DataShapes>
+</Entities>

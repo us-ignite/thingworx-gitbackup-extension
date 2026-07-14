@@ -1,0 +1,16 @@
+{
+  "elementName": "git-branch-manager",
+  "name": "Git Branch Manager",
+  "description": "Manage branches: create, checkout, delete, and list all branches",
+  "category": ["GitBackup"],
+  "flags": { "supportsAutoResize": true },
+  "properties": {
+    "GitThing": { "baseType": "THINGNAME", "isBindingTarget": true, "description": "Git repository Thing" }
+  },
+  "services": {
+    "DoRefresh": { "description": "Refresh branch list" },
+    "DoCreateBranch": { "description": "Create a new branch" },
+    "DoCheckout": { "description": "Checkout a branch or commit" },
+    "DoDeleteBranch": { "description": "Delete a local branch" }
+  }
+}

@@ -1,0 +1,11 @@
+import 'ptcs-base-theme/ptcs-base-theme.js';
+import 'ptcs-library/library-lit.js';
+import 'ptcs-button/ptcs-button.js';
+import 'ptcs-icon/ptcs-icon.js';
+import 'ptcs-label/ptcs-label.js';
+import 'ptcs-textfield/ptcs-textfield.js';
+import 'ptcs-confirmation/ptcs-confirmation.js';
+import 'ptcs-checkbox/ptcs-checkbox.js';
+import 'ptcs-tabs/ptcs-tabs.js';
+import 'ptcs-image/ptcs-image.js';
+import 'ptcs-toolbar/ptcs-toolbar.js';

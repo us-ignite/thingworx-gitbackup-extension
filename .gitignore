@@ -7,6 +7,9 @@ build/
 .classpath
 .settings/
 bin/
+twx-lib/*
+*/twx-wc-sdk/*
+widgets/dist/
 
 # IDE
 *.iml

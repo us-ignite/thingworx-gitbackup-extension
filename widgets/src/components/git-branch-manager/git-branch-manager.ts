@@ -1,0 +1,195 @@
+import { html, css } from 'lit';
+import { GitElementBase } from '../git-base.js';
+import { themeVars, statusStyles } from '../../lib/git-styles.js';
+import { property, state } from 'lit/decorators.js';
+import { twx } from '../../lib/twx-service.js';
+import type { InfotableResponse } from '../../lib/twx-types.js';
+
+interface BranchRow {
+  BranchName: string;
+  IsRemote: boolean;
+  IsCurrent: boolean;
+}
+
+export class GitBranchManager extends GitElementBase {
+  static styles = [themeVars, statusStyles, css`
+    :host { display: block; padding: 16px; font-family: sans-serif; }
+    .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .title { font-size: 18px; font-weight: 600; margin: 0; }
+    .current-badge { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 12px; background: var(--git-color-bg-success, #e8f5e9); color: var(--git-color-success, #2e7d32); font-weight: 600; margin-left: 8px; }
+    .branch-list { border: 1px solid var(--git-color-border, #e0e0e0); border-radius: var(--git-border-radius-sm, 4px); overflow: hidden; margin-bottom: 16px; }
+    .branch-row { display: flex; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--git-color-border-light, #f0f0f0); gap: 8px; }
+    .branch-row:last-child { border-bottom: none; }
+    .branch-row:hover { background: var(--git-color-bg-stripe, #fafafa); }
+    .branch-row.current { background: var(--git-color-bg-success, #e8f5e9); }
+    .branch-name { flex: 1; font-weight: 500; }
+    .branch-tag { font-size: 11px; padding: 2px 6px; border-radius: var(--git-border-radius-sm, 4px); }
+    .section-title { font-weight: 600; margin: 12px 0 6px; color: var(--git-color-label, #555); }
+    .input-row { display: flex; gap: 8px; margin-bottom: 8px; }
+    input { flex: 1; padding: 8px; border: 1px solid var(--git-color-border-strong, #ccc); border-radius: var(--git-border-radius-sm, 4px); box-sizing: border-box; }
+    .card { border: 1px solid var(--git-color-border, #e0e0e0); border-radius: var(--git-border-radius-md, 6px); padding: 16px; margin-bottom: 16px; }
+  `];
+
+  @property({ type: String }) gitThing = '';
+  @state() private branches: BranchRow[] = [];
+  @state() private currentBranch = '';
+  @state() private loading = false;
+  @state() private createName = '';
+  @state() private deleteTarget = '';
+  @state() private message = '';
+  @state() private isError = false;
+
+  async connectedCallback() {
+    super.connectedCallback();
+    if (this.gitThing) this.loadBranches();
+  }
+
+  async loadBranches() {
+    if (!this.gitThing) return;
+    this.loading = true;
+    this.message = '';
+    this.clearLoadError();
+    try {
+      const [branchListRes, curRes] = await Promise.all([
+        twx.invokeService<InfotableResponse<BranchRow>>(this.gitThing, 'GetBranchList', {}),
+        twx.invokeService<InfotableResponse<{ BranchName: string }>>(this.gitThing, 'GetCurrentBranch', {}),
+      ]);
+      this.branches = branchListRes.rows || [];
+      this.currentBranch = curRes.rows?.[0]?.BranchName || '';
+    } catch (error) { this.reportLoadError('Unable to load branches', error); }
+    finally { this.loading = false; }
+  }
+
+  async createBranch() {
+    const name = this.createName.trim();
+    if (!name) return;
+    this.message = '';
+    try {
+      await twx.invokeService(this.gitThing, 'CreateBranch', { BranchName: name });
+      this.message = `Created branch ${name}`;
+      this.isError = false;
+      this.createName = '';
+      await this.loadBranches();
+    } catch (e: any) {
+      this.message = e.message || 'Failed to create branch';
+      this.isError = true;
+    }
+  }
+
+  async createAndCheckoutBranch() {
+    const name = this.createName.trim();
+    if (!name) return;
+    this.message = '';
+    try {
+      await twx.invokeService(this.gitThing, 'CreateBranch', { BranchName: name });
+      await twx.invokeService(this.gitThing, 'Checkout', { BranchNameOrCommit: name });
+      this.message = `Created and switched to ${name}`;
+      this.isError = false;
+      this.createName = '';
+      await this.loadBranches();
+    } catch (e: any) {
+      const msg = e.message || '';
+      if (msg.includes('Ref HEAD cannot be resolved')) {
+        this.message = 'Repository has no commits yet. Push an initial commit first, then create branches.';
+      } else {
+        this.message = msg;
+      }
+      this.isError = true;
+    }
+  }
+
+  async checkoutBranch(branch: string) {
+    this.message = '';
+    try {
+      await twx.invokeService(this.gitThing, 'Checkout', { BranchNameOrCommit: branch });
+      this.message = `Switched to ${branch}`;
+      this.isError = false;
+      await this.loadBranches();
+    } catch (e: any) {
+      this.message = e.message || 'Checkout failed';
+      this.isError = true;
+    }
+  }
+
+  async deleteBranch(branch: string) {
+    if (this.deleteTarget !== branch) {
+      this.deleteTarget = branch;
+      this.message = '';
+      return;
+    }
+    this.message = '';
+    try {
+      await twx.invokeService(this.gitThing, 'DeleteLocalBranch', { BranchName: branch, Force: true });
+      this.message = `Deleted branch ${branch}`;
+      this.isError = false;
+      this.deleteTarget = '';
+      await this.loadBranches();
+    } catch (e: any) {
+      this.message = e.message || 'Failed to delete branch';
+      this.isError = true;
+      this.deleteTarget = '';
+    }
+  }
+
+  DoRefresh() {
+    this.loadBranches();
+  }
+
+  DoCreateBranch(name: string) {
+    this.createName = name;
+    this.createBranch();
+  }
+
+  DoCheckout(target: string) {
+    this.checkoutBranch(target);
+  }
+
+  DoDeleteBranch(name: string) {
+    this.deleteBranch(name);
+  }
+
+  render() {
+    return html`
+      <div class=${this.loading ? 'loading' : ''}>
+        ${this.renderLoadError()}
+        <div class="header">
+          <h3 class="title">Branches <span class="current-badge">${this.currentBranch}</span></h3>
+          <ptcs-button label="Refresh" @click=${this.loadBranches} ?disabled=${this.loading}></ptcs-button>
+        </div>
+
+        <div class="card">
+          <form @submit=${(e: SubmitEvent) => { e.preventDefault(); this.createAndCheckoutBranch(); }}>
+          <div class="section-title">Create & Checkout Branch</div>
+          <div class="input-row">
+            <input placeholder="Branch name" .value=${this.createName} @input=${(e: InputEvent) => this.createName = (e.target as HTMLInputElement).value}>
+            <ptcs-button label="Create & Checkout" @click=${this.createAndCheckoutBranch} ?disabled=${!this.createName.trim()}></ptcs-button>
+            <ptcs-button label="Create Only" @click=${this.createBranch} ?disabled=${!this.createName.trim()}></ptcs-button>
+          </div>
+          </form>
+        </div>
+
+        <div class="section-title">All Branches</div>
+        <div class="branch-list">
+          ${this.branches.map(b => html`
+            <div class="branch-row ${b.BranchName === this.currentBranch ? 'current' : ''}">
+              <span class="branch-name">${b.BranchName}</span>
+              ${b.BranchName === this.currentBranch ? html`<span class="branch-tag">HEAD</span>` : ''}
+              ${b.IsRemote ? html`<span class="branch-tag remote">remote</span>` : ''}
+              ${!b.IsRemote && b.BranchName !== this.currentBranch ? html`
+                <ptcs-button label="Checkout" @click=${() => this.checkoutBranch(b.BranchName)}></ptcs-button>
+              ` : ''}
+              ${!b.IsRemote && b.BranchName !== this.currentBranch ? html`
+                <ptcs-button label=${this.deleteTarget === b.BranchName ? 'Confirm?' : 'Delete'} @click=${() => this.deleteBranch(b.BranchName)}></ptcs-button>
+              ` : ''}
+            </div>
+          `)}
+          ${this.branches.length === 0 ? html`<div style="text-align:center;padding:24px;color:#999">No branches found</div>` : ''}
+        </div>
+
+        ${this.message ? html`<div class="result ${this.isError ? 'error' : 'success'}">${this.message}</div>` : ''}
+      </div>
+    `;
+  }
+}
+
+if (!customElements.get('git-branch-manager')) { customElements.define('git-branch-manager', GitBranchManager); };

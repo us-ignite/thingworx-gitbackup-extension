@@ -1,5 +1,7 @@
 package gb.extension;
 
+import static gb.extension.Values.isBlank;
+
 import com.thingworx.entities.utils.EntityUtilities;
 import com.thingworx.logging.LogUtilities;
 import com.thingworx.metadata.annotations.ThingworxServiceDefinition;
@@ -15,11 +17,11 @@ import org.slf4j.Logger;
 public class GitBackupValidation extends Resource {
 
 	/**
-	 * 
+	 *
 	 */
 	private static final long serialVersionUID = 9085129963750550673L;
 	private static Logger _logger = LogUtilities.getInstance().getApplicationLogger(GitBackupValidation.class);
-	
+
 
 	public GitBackupValidation() {
 		// TODO Auto-generated constructor stub
@@ -32,18 +34,19 @@ public class GitBackupValidation extends Resource {
 			"isAsync:false" })
 	@ThingworxServiceResult(name = "Result", description = "", baseType = "STRING", aspects = {})
 	public String CheckConfiguration(
-			@ThingworxServiceParameter(name = "FileRepository", description = "", baseType = "THINGNAME", aspects = {
-					"defaultValue:GitRepository" }) String str_FileRepository) {
+			@ThingworxServiceParameter(name = "FileRepository", description = "", baseType = "THINGNAME") String str_FileRepository) {
 		_logger.trace("Entering Service: CheckConfiguration");
 		String str_Result = "";
 		FileRepositoryThing srcRepo = (FileRepositoryThing) EntityUtilities.findEntity(str_FileRepository,
 				ThingworxRelationshipTypes.Thing);
-		if (srcRepo.getRootPath().length()!=0)
+		if (srcRepo == null) {
+			str_Result = "Failed! The configured file repository does not exist.";
+		} else if (!isBlank(srcRepo.getRootPath()))
 		{
 			str_Result= "Success! The system has a correctly configured file repository path.";
 		}
 		else str_Result= "Failed! The system does not contain a correctly configured file repository path. Make sure you are not using relative paths in the platform-settings.json file.";
-		
+
 		_logger.trace("Exiting Service: CheckConfiguration");
 		return str_Result;
 	}
