@@ -1,26 +1,24 @@
-import { LitElement, html, css } from 'lit';
+import { html, css } from 'lit';
+import { GitElementBase } from '../git-base.js';
+import { themeVars, statusStyles } from '../../lib/git-styles.js';
 import { property, state } from 'lit/decorators.js';
 import { twx } from '../../lib/twx-service.js';
-import type { InfotableResponse, GitStatus } from '../../lib/twx-types.js';
+import {readServiceResult, type InfotableResponse, type GitStatus, type ServiceResultResponse} from '../../lib/twx-types.js';
 
-export class GitPush extends LitElement {
-  static styles = css`
+export class GitPush extends GitElementBase {
+  static styles = [themeVars, statusStyles, css`
     :host { display: block; padding: 16px; }
-    .files { margin: 12px 0; border: 1px solid #e0e0e0; border-radius: 4px; }
-    .file-row { display: flex; align-items: center; padding: 6px 12px; border-bottom: 1px solid #f0f0f0; }
+    .files { margin: 12px 0; border: 1px solid var(--git-color-border, #e0e0e0); border-radius: var(--git-border-radius-sm, 4px); }
+    .file-row { display: flex; align-items: center; padding: 6px 12px; border-bottom: 1px solid var(--git-color-border-light, #f0f0f0); }
     .file-row:last-child { border-bottom: none; }
     .file-row input { margin-right: 8px; }
     .file-name { flex: 1; }
     .status { padding: 2px 8px; border-radius: 3px; font-size: 12px; }
-    .status.M { background: #fff3e0; }
-    .status.A { background: #e8f5e9; }
-    .status.D { background: #ffebee; }
-    .status.? { background: #f3e5f5; }
-    .actions { margin-top: 12px; }
-    .result { margin-top: 12px; padding: 12px; background: #f5f5f5; border-radius: 4px; }
-    .error { color: #c62828; }
-    .loading { opacity: 0.6; pointer-events: none; }
-  `;
+    .status.M { background: var(--git-color-bg-warning, #fff3e0); }
+    .status.A { background: var(--git-color-bg-success, #e8f5e9); }
+    .status.D { background: var(--git-color-bg-error, #ffebee); }
+    .result { margin-top: 12px; padding: 12px; background: var(--git-color-bg-hover, #f5f5f5); border-radius: var(--git-border-radius-sm, 4px); }
+  `];
 
   @property({ type: String }) gitThing = '';
   @state() private files: GitStatus[] = [];
@@ -39,11 +37,12 @@ export class GitPush extends LitElement {
   async loadStatus(): Promise<void> {
     if (!this.gitThing) return;
     this.loading = true;
+    this.clearLoadError();
     try {
       const res = await twx.invokeService<InfotableResponse<GitStatus>>(this.gitThing, 'Status', {});
       this.files = res.rows || [];
       this.selectedFiles = new Set(this.files.map(f => f.File));
-    } catch { }
+    } catch (error) { this.reportLoadError('Unable to load changed files', error); }
     finally { this.loading = false; }
   }
 
@@ -60,8 +59,16 @@ export class GitPush extends LitElement {
     this.result = '';
     this.error = '';
     try {
-      const res = await twx.invokeService(this.gitThing, 'Push', { Message: this.commitMessage }) as any;
-      this.result = res?.result || 'Push completed';
+      const res = await twx.invokeService<ServiceResultResponse>(
+        this.gitThing,
+        'Push',
+        {Message: this.commitMessage},
+      );
+      const message = readServiceResult(res, 'Push completed');
+      if (/^Push Error:/i.test(message.trim())) {
+        throw new Error(message);
+      }
+      this.result = message;
       this.commitMessage = '';
       this.selectedFiles = new Set();
       await this.loadStatus();
@@ -76,6 +83,7 @@ export class GitPush extends LitElement {
     const statusColor = (s: string) => `status ${s}`;
     return html`
       <div class=${this.loading || this.pushing ? 'loading' : ''}>
+        ${this.renderLoadError()}
         <form @submit=${(e: SubmitEvent) => { e.preventDefault(); this.doPush(); }}>
         <div style="display:flex;justify-content:space-between;align-items:center">
           <h3 style="margin:0">Commit & Push</h3>
@@ -118,4 +126,4 @@ export class GitPush extends LitElement {
   }
 }
 
-customElements.define('git-push', GitPush);
+if (!customElements.get('git-push')) { customElements.define('git-push', GitPush); };

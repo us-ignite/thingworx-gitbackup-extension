@@ -1,18 +1,16 @@
-import { LitElement, html, css } from 'lit';
+import { html, css } from 'lit';
+import { GitElementBase } from '../git-base.js';
+import { themeVars, statusStyles } from '../../lib/git-styles.js';
 import { property, state } from 'lit/decorators.js';
-import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { twx } from '../../lib/twx-service.js';
 
-export class GitDelete extends LitElement {
-  static styles = css`
+export class GitDelete extends GitElementBase {
+  static styles = [themeVars, statusStyles, css`
     :host { display: block; padding: 16px; }
-    .warning { background: #fff3e0; border: 1px solid #ffcc02; border-radius: 4px; padding: 16px; margin-bottom: 16px; }
-    .warning h3 { margin: 0 0 8px 0; color: #e65100; }
+    .warning { background: var(--git-color-bg-warning, #fff3e0); border: 1px solid #ffcc02; border-radius: 4px; padding: 16px; margin-bottom: 16px; }
+    .warning h3 { margin: 0 0 8px 0; color: var(--git-color-warning, #e65100); }
     .actions { display: flex; gap: 8px; justify-content: flex-end; }
-    .result { margin-top: 12px; padding: 12px; border-radius: 4px; }
-    .error { background: #ffebee; color: #c62828; }
-    .success { background: #e8f5e9; color: #2e7d32; }
-  `;
+  `];
 
   @property({ type: String }) gitThing = '';
   @property({ type: String }) thingName = '';
@@ -63,4 +61,4 @@ export class GitDelete extends LitElement {
   }
 }
 
-customElements.define('git-delete', GitDelete);
+if (!customElements.get('git-delete')) { customElements.define('git-delete', GitDelete); };

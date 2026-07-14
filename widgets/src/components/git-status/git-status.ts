@@ -1,4 +1,6 @@
-import { LitElement, html, css } from 'lit';
+import { html, css } from 'lit';
+import { GitElementBase } from '../git-base.js';
+import { themeVars } from '../../lib/git-styles.js';
 import { property, state } from 'lit/decorators.js';
 import { twx } from '../../lib/twx-service.js';
 import type { GitCurrentBranch, InfotableResponse } from '../../lib/twx-types.js';
@@ -9,30 +11,26 @@ interface StatusRow {
   ChangesInWorkingDir?: string;
 }
 
-export class GitStatus extends LitElement {
-  static styles = css`
+export class GitStatus extends GitElementBase {
+  static styles = [themeVars, css`
     :host { display: block; padding: 16px; font-family: sans-serif; }
     .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-    .branch-name { font-size: 22px; font-weight: 700; color: #1565c0; }
-    .file-list { border: 1px solid #e0e0e0; border-radius: 4px; overflow: hidden; }
-    .file-row { display: flex; padding: 8px 12px; border-bottom: 1px solid #f0f0f0; cursor: pointer; }
-    .file-row:hover { background: #f5f5f5; }
-    .file-row.selected { background: #e3f2fd; }
+    .branch-name { font-size: 22px; font-weight: 700; color: var(--git-color-accent, #1565c0); }
+    .file-list { border: 1px solid var(--git-color-border, #e0e0e0); border-radius: var(--git-border-radius-sm, 4px); overflow: hidden; }
+    .file-row { display: flex; padding: 8px 12px; border-bottom: 1px solid var(--git-color-border-light, #f0f0f0); cursor: pointer; }
+    .file-row:hover { background: var(--git-color-bg-hover, #f5f5f5); }
+    .file-row.selected { background: var(--git-color-bg-selected, #e3f2fd); }
     .file-name { flex: 1; }
     .file-status { width: 40px; text-align: center; font-weight: 700; font-size: 14px; }
-    .status-A { color: #2e7d32; }
-    .status-M { color: #e65100; }
-    .status-D { color: #c62828; }
-    .status-R { color: #1565c0; }
-    .status-C { color: #6a1b9a; }
-    .status-U { color: #4e342e; }
-    .status-? { color: #9e9e9e; }
-    .diff-panel { margin-top: 12px; border: 1px solid #e0e0e0; border-radius: 4px; overflow: hidden; }
-    .diff-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: #fafafa; border-bottom: 1px solid #e0e0e0; font-weight: 600; }
-    .diff-body { padding: 12px; background: #f5f5f5; overflow-x: auto; white-space: pre-wrap; font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.5; max-height: 400px; overflow-y: auto; }
-    .loading { opacity: 0.6; pointer-events: none; }
-    .empty-state { text-align: center; padding: 32px; color: #999; }
-  `;
+    .status-A { color: var(--git-color-success, #2e7d32); }
+    .status-M { color: var(--git-color-warning, #e65100); }
+    .status-D { color: var(--git-color-error, #c62828); }
+    .status-R { color: var(--git-color-accent, #1565c0); }
+    .diff-panel { margin-top: 12px; border: 1px solid var(--git-color-border, #e0e0e0); border-radius: var(--git-border-radius-sm, 4px); overflow: hidden; }
+    .diff-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--git-color-bg-stripe, #fafafa); border-bottom: 1px solid var(--git-color-border, #e0e0e0); font-weight: 600; }
+    .diff-body { padding: 12px; background: var(--git-color-bg-hover, #f5f5f5); overflow-x: auto; white-space: pre-wrap; font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.5; max-height: 400px; overflow-y: auto; }
+    .empty-state { text-align: center; padding: 32px; color: var(--git-color-text-muted, #999); }
+  `];
 
   @property({ type: String }) gitThing = '';
   @state() private currentBranch = '';
@@ -50,6 +48,7 @@ export class GitStatus extends LitElement {
   async loadData() {
     if (!this.gitThing) return;
     this.loading = true;
+    this.clearLoadError();
     try {
       const [statusRes, branchRes] = await Promise.all([
         twx.invokeService<InfotableResponse<StatusRow>>(this.gitThing, 'Status', {}),
@@ -57,7 +56,7 @@ export class GitStatus extends LitElement {
       ]);
       this.files = statusRes.rows || [];
       this.currentBranch = branchRes.rows?.[0]?.BranchName || '';
-    } catch { }
+    } catch (error) { this.reportLoadError('Unable to load repository status', error); }
     finally { this.loading = false; }
   }
 
@@ -102,6 +101,7 @@ export class GitStatus extends LitElement {
   render() {
     return html`
       <div class=${this.loading ? 'loading' : ''}>
+        ${this.renderLoadError()}
         <div class="header">
           <span class="branch-name">${this.currentBranch}</span>
           <ptcs-button label="Refresh" @click=${this.loadData} ?disabled=${this.loading}></ptcs-button>
@@ -131,4 +131,4 @@ export class GitStatus extends LitElement {
   }
 }
 
-customElements.define('git-status', GitStatus);
+if (!customElements.get('git-status')) { customElements.define('git-status', GitStatus); };

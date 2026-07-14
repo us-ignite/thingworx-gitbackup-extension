@@ -1,4 +1,6 @@
-import { LitElement, html, css } from 'lit';
+import { html, css } from 'lit';
+import { GitElementBase } from '../git-base.js';
+import { themeVars, statusStyles } from '../../lib/git-styles.js';
 import { property, state } from 'lit/decorators.js';
 import { twx } from '../../lib/twx-service.js';
 import type { InfotableResponse } from '../../lib/twx-types.js';
@@ -9,29 +11,24 @@ interface BranchRow {
   IsCurrent: boolean;
 }
 
-export class GitBranchManager extends LitElement {
-  static styles = css`
+export class GitBranchManager extends GitElementBase {
+  static styles = [themeVars, statusStyles, css`
     :host { display: block; padding: 16px; font-family: sans-serif; }
     .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
     .title { font-size: 18px; font-weight: 600; margin: 0; }
-    .current-badge { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 12px; background: #c8e6c9; color: #2e7d32; font-weight: 600; margin-left: 8px; }
-    .branch-list { border: 1px solid #e0e0e0; border-radius: 4px; overflow: hidden; margin-bottom: 16px; }
-    .branch-row { display: flex; align-items: center; padding: 8px 12px; border-bottom: 1px solid #f0f0f0; gap: 8px; }
+    .current-badge { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 12px; background: var(--git-color-bg-success, #e8f5e9); color: var(--git-color-success, #2e7d32); font-weight: 600; margin-left: 8px; }
+    .branch-list { border: 1px solid var(--git-color-border, #e0e0e0); border-radius: var(--git-border-radius-sm, 4px); overflow: hidden; margin-bottom: 16px; }
+    .branch-row { display: flex; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--git-color-border-light, #f0f0f0); gap: 8px; }
     .branch-row:last-child { border-bottom: none; }
-    .branch-row:hover { background: #fafafa; }
-    .branch-row.current { background: #e8f5e9; }
+    .branch-row:hover { background: var(--git-color-bg-stripe, #fafafa); }
+    .branch-row.current { background: var(--git-color-bg-success, #e8f5e9); }
     .branch-name { flex: 1; font-weight: 500; }
-    .branch-tag { font-size: 11px; padding: 2px 6px; border-radius: 4px; background: #eceff1; color: #546e7a; }
-    .branch-tag.remote { background: #fff3e0; color: #e65100; }
-    .section-title { font-weight: 600; margin: 12px 0 6px; color: #555; }
+    .branch-tag { font-size: 11px; padding: 2px 6px; border-radius: var(--git-border-radius-sm, 4px); }
+    .section-title { font-weight: 600; margin: 12px 0 6px; color: var(--git-color-label, #555); }
     .input-row { display: flex; gap: 8px; margin-bottom: 8px; }
-    input { flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-    .result { margin-top: 8px; padding: 10px; border-radius: 4px; font-size: 14px; }
-    .error { background: #ffebee; color: #c62828; }
-    .success { background: #e8f5e9; color: #2e7d32; }
-    .loading { opacity: 0.6; pointer-events: none; }
-    .card { border: 1px solid #e0e0e0; border-radius: 6px; padding: 16px; margin-bottom: 16px; }
-  `;
+    input { flex: 1; padding: 8px; border: 1px solid var(--git-color-border-strong, #ccc); border-radius: var(--git-border-radius-sm, 4px); box-sizing: border-box; }
+    .card { border: 1px solid var(--git-color-border, #e0e0e0); border-radius: var(--git-border-radius-md, 6px); padding: 16px; margin-bottom: 16px; }
+  `];
 
   @property({ type: String }) gitThing = '';
   @state() private branches: BranchRow[] = [];
@@ -51,6 +48,7 @@ export class GitBranchManager extends LitElement {
     if (!this.gitThing) return;
     this.loading = true;
     this.message = '';
+    this.clearLoadError();
     try {
       const [branchListRes, curRes] = await Promise.all([
         twx.invokeService<InfotableResponse<BranchRow>>(this.gitThing, 'GetBranchList', {}),
@@ -58,7 +56,7 @@ export class GitBranchManager extends LitElement {
       ]);
       this.branches = branchListRes.rows || [];
       this.currentBranch = curRes.rows?.[0]?.BranchName || '';
-    } catch { }
+    } catch (error) { this.reportLoadError('Unable to load branches', error); }
     finally { this.loading = false; }
   }
 
@@ -153,6 +151,7 @@ export class GitBranchManager extends LitElement {
   render() {
     return html`
       <div class=${this.loading ? 'loading' : ''}>
+        ${this.renderLoadError()}
         <div class="header">
           <h3 class="title">Branches <span class="current-badge">${this.currentBranch}</span></h3>
           <ptcs-button label="Refresh" @click=${this.loadBranches} ?disabled=${this.loading}></ptcs-button>
@@ -193,4 +192,4 @@ export class GitBranchManager extends LitElement {
   }
 }
 
-customElements.define('git-branch-manager', GitBranchManager);
+if (!customElements.get('git-branch-manager')) { customElements.define('git-branch-manager', GitBranchManager); };

@@ -1,6 +1,9 @@
-import { LitElement, html, css } from 'lit';
+import { html, css } from 'lit';
+import { GitElementBase } from '../git-base.js';
+import { themeVars, statusStyles } from '../../lib/git-styles.js';
 import { property, state } from 'lit/decorators.js';
 import { twx } from '../../lib/twx-service.js';
+import type { InfotableResponse } from '../../lib/twx-types.js';
 
 interface FormData {
   repoName: string;
@@ -19,24 +22,21 @@ interface FormData {
   localizationTokensPrefix: string;
 }
 
-export class GitNewRepo extends LitElement {
-  static styles = css`
+export class GitNewRepo extends GitElementBase {
+  static styles = [themeVars, statusStyles, css`
     :host { display: block; padding: 16px; }
     .form-grid { display: grid; grid-template-columns: 180px 1fr; gap: 10px 16px; align-items: center; }
-    .form-grid label { font-size: 13px; color: #555; text-align: right; }
-    .form-grid input, .form-grid select { padding: 7px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; width: 100%; }
+    .form-grid label { font-size: 13px; color: var(--git-color-label, #555); text-align: right; }
+    .form-grid input, .form-grid select { padding: 7px 10px; border: 1px solid var(--git-color-border-strong, #ccc); border-radius: var(--git-border-radius-sm, 4px); font-size: 13px; width: 100%; }
     .form-grid .full-row { grid-column: 1 / -1; }
-    .section-title { font-size: 14px; font-weight: 600; color: #1976d2; margin: 16px 0 8px; border-bottom: 1px solid #e0e0e0; padding-bottom: 4px; }
+    .section-title { font-size: 14px; font-weight: 600; color: var(--git-color-accent-light, #1976d2); margin: 16px 0 8px; border-bottom: 1px solid var(--git-color-border, #e0e0e0); padding-bottom: 4px; }
     .section-title:first-of-type { margin-top: 0; }
     .actions { margin-top: 20px; display: flex; gap: 8px; align-items: center; }
-    .result { margin-top: 12px; padding: 12px; background: #f5f5f5; border-radius: 4px; white-space: pre-wrap; font-size: 13px; }
-    .error { color: #c62828; }
-    .success { color: #2e7d32; }
-    .loading { opacity: 0.6; pointer-events: none; }
+    .result { margin-top: 12px; padding: 12px; background: var(--git-color-bg-hover, #f5f5f5); border-radius: var(--git-border-radius-sm, 4px); white-space: pre-wrap; font-size: 13px; }
     .checkbox-row { display: flex; align-items: center; gap: 8px; }
     .checkbox-row input[type="checkbox"] { width: auto; }
-    .hint { font-size: 11px; color: #999; grid-column: 2; margin-top: -6px; }
-  `;
+    .hint { font-size: 11px; color: var(--git-color-text-muted, #999); grid-column: 2; margin-top: -6px; }
+  `];
 
   @property({ type: String }) gitThing = '';
   @state() private data: FormData = {
@@ -65,7 +65,55 @@ export class GitNewRepo extends LitElement {
     this.data = { ...this.data, [field]: value };
   }
 
+  private configurationRow() {
+    return {
+      GitRepoURL: this.data.gitRepoUrl,
+      FileRepository: this.data.fileRepo,
+      RepoPathName: this.data.repoPath,
+      BranchName: this.data.initialBranch,
+      UseProxy: this.data.useProxy,
+      ProxyURL: this.data.useProxy ? this.data.proxyUrl : '',
+      ProxyPort: this.data.useProxy ? parseInt(this.data.proxyPort) || 0 : 0,
+      LocalizationTokensPrefix: this.data.localizationTokensPrefix,
+      ProjectName: this.data.projectName,
+    };
+  }
+
+  private async persistAndVerifyConfiguration(thingName: string): Promise<void> {
+    const current = await twx.invokeService<InfotableResponse<Record<string, unknown>>>(
+      thingName,
+      'GetConfigurationTable',
+      {tableName: 'Configuration'},
+    );
+    await twx.invokeService(thingName, 'SetConfigurationTable', {
+      tableName: 'Configuration',
+      persistent: true,
+      configurationTable: {
+        dataShape: current.dataShape,
+        rows: [this.configurationRow()],
+      },
+    });
+    await twx.invokeService('GIT.Utility.Thing', 'SetGitCredentials', {
+      GitCommitterUser: this.data.username,
+      GitCommitterPassword: this.data.password,
+      GitCommitterEmail: this.data.commitEmail,
+      GitCommitterFullName: this.data.commitUser,
+      GitThing: thingName,
+    });
+    await twx.invokeService(thingName, 'RestartThing', {});
+
+    const saved = await twx.invokeService<InfotableResponse<Record<string, unknown>>>(
+      thingName,
+      'GetConfigurationTable',
+      {tableName: 'Configuration'},
+    );
+    if (saved.rows?.[0]?.GitRepoURL !== this.data.gitRepoUrl) {
+      throw new Error(`Repository Thing "${thingName}" was created, but its Configuration table was not persisted.`);
+    }
+  }
+
   async doCreate() {
+    if (this.loading) return;
     this.loading = true;
     this.result = '';
     this.error = '';
@@ -87,6 +135,7 @@ export class GitNewRepo extends LitElement {
         LocalizationTokensPrefix: this.data.localizationTokensPrefix,
         ProjectName: this.data.projectName,
       });
+      await this.persistAndVerifyConfiguration(this.data.repoName);
       this.createdThing = this.data.repoName;
       this.result = `Repository "${this.data.repoName}" created successfully.`;
       this.dispatchEvent(new CustomEvent('repo-created', { detail: { thingName: this.data.repoName } }));
@@ -205,4 +254,4 @@ export class GitNewRepo extends LitElement {
   }
 }
 
-customElements.define('git-new-repo', GitNewRepo);
+if (!customElements.get('git-new-repo')) { customElements.define('git-new-repo', GitNewRepo); };
