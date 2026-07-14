@@ -1,0 +1,10 @@
+{
+  "elementName": "git-loading",
+  "name": "Git Loading",
+  "description": "Loading spinner indicator",
+  "category": ["GitBackup"],
+  "flags": { "supportsAutoResize": true },
+  "properties": {
+    "Message": { "baseType": "STRING", "defaultValue": "Loading...", "description": "Loading message text" }
+  }
+}

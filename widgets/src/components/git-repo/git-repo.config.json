@@ -1,0 +1,16 @@
+{
+  "elementName": "git-repo",
+  "name": "Git Repository",
+  "description": "Consolidated Git repository operations: push, pull, branch, status, import, export, and new repo setup",
+  "category": ["GitBackup"],
+  "flags": { "supportsAutoResize": true },
+  "properties": {
+    "GitThing": { "baseType": "THINGNAME", "isBindingTarget": true, "description": "Git repository Thing" },
+    "DefaultTab": { "baseType": "STRING", "isBindingTarget": true, "description": "Default active tab" }
+  },
+  "services": {
+    "DoPush": { "description": "Execute git push" },
+    "DoPull": { "description": "Execute git pull" },
+    "DoRefresh": { "description": "Refresh current tab data" }
+  }
+}

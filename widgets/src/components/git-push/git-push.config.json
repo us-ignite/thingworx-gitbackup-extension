@@ -1,0 +1,14 @@
+{
+  "elementName": "git-push",
+  "name": "Git Push",
+  "description": "Stage and push files to remote repository",
+  "category": ["GitBackup"],
+  "flags": { "supportsAutoResize": true },
+  "properties": {
+    "GitThing": { "baseType": "THINGNAME", "isBindingTarget": true, "description": "Git repository Thing" }
+  },
+  "services": {
+    "DoPush": { "description": "Execute git push" },
+    "RefreshStatus": { "description": "Refresh file status" }
+  }
+}

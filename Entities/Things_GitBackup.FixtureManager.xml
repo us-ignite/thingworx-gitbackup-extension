@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Entities
+ majorVersion="9"
+ minorVersion="3"
+ universal="password">
+    <Things>
+        <Thing
+         aspect.isEditableExtensionObject="true"
+         aspect.isExtension="true"
+         description="Test fixture manager for GitBackup extension tests"
+         documentationContent=""
+         effectiveThingPackage="ConfiguredThing"
+         enabled="true"
+         homeMashup=""
+         identifier=""
+         name="GitBackup.FixtureManager"
+         projectName="GitBackup"
+         published="false"
+         tags=""
+         thingTemplate="GenericThing"
+         valueStream="">
+            <avatar></avatar>
+            <DesignTimePermissions>
+                <Create></Create>
+                <Read></Read>
+                <Update></Update>
+                <Delete></Delete>
+                <Metadata></Metadata>
+            </DesignTimePermissions>
+            <RunTimePermissions></RunTimePermissions>
+            <VisibilityPermissions>
+                <Visibility></Visibility>
+            </VisibilityPermissions>
+            <ConfigurationTableDefinitions></ConfigurationTableDefinitions>
+            <ConfigurationTables></ConfigurationTables>
+            <ThingShape>
+                <PropertyDefinitions>
+                    <PropertyDefinition
+                     aspect.dataShape=""
+                     aspect.isPersistent="true"
+                     baseType="STRING"
+                     description="Current status of the fixture"
+                     name="status"
+                     ordinal="1"></PropertyDefinition>
+                    <PropertyDefinition
+                     aspect.dataShape=""
+                     aspect.isPersistent="true"
+                     baseType="INTEGER"
+                     description="Fixture counter value"
+                     name="counter"
+                     ordinal="2"></PropertyDefinition>
+                </PropertyDefinitions>
+                <ServiceDefinitions></ServiceDefinitions>
+                <EventDefinitions></EventDefinitions>
+            </ThingShape>
+            <PropertyBindings></PropertyBindings>
+            <RemotePropertyBindings></RemotePropertyBindings>
+            <RemoteServiceBindings></RemoteServiceBindings>
+            <RemoteEventBindings></RemoteEventBindings>
+            <AlertConfigurations></AlertConfigurations>
+            <ImplementedShapes>
+                <ImplementedShape
+                 name="Git.Utility.ThingShape"
+                 type="ThingShape"></ImplementedShape>
+            </ImplementedShapes>
+            <ThingProperties>
+                <status>
+                    <Value>initialized</Value>
+                    <Timestamp>2024-01-01T00:00:00.000Z</Timestamp>
+                    <Quality>GOOD</Quality>
+                </status>
+                <counter>
+                    <Value>0</Value>
+                    <Timestamp>2024-01-01T00:00:00.000Z</Timestamp>
+                    <Quality>GOOD</Quality>
+                </counter>
+            </ThingProperties>
+            <ConfigurationChanges>
+                <ConfigurationChange
+                 changeAction="CREATE"
+                 changeReason="Created by test fixture setup"
+                 timestamp="2024-01-01T00:00:00.000Z"
+                 user="Administrator"></ConfigurationChange>
+            </ConfigurationChanges>
+        </Thing>
+    </Things>
+</Entities>

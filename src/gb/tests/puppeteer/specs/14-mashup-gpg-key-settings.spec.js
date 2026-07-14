@@ -1,100 +1,114 @@
-const { launch, close, getPage } = require('../utils/browser');
-const { login, restPost, restGet } = require('../utils/auth');
-const { openMashup, waitForLoadingDone } = require('../utils/navigate');
-const widgets = require('../utils/widgets');
-const assertions = require('../utils/assertions');
-const config = require('../config');
 const fs = require('fs');
 const path = require('path');
-const testGpgKey = fs.readFileSync(path.join(__dirname, '..', 'fixtures', 'test-gpg-key.asc'), 'utf8');
+const {launch, close} = require('../utils/browser');
+const {login} = require('../utils/auth');
+const {openMashup} = require('../utils/navigate');
+const config = require('../config');
+
+const privateKey = fs.readFileSync(path.join(__dirname, '..', 'fixtures', 'test-gpg-key.asc'), 'utf8');
+const keyInfo = require('../fixtures/test-gpg-key.json');
 
 jest.setTimeout(config.navigationTimeout);
 
-let browser, page;
+let page;
+let widget;
+let shadow;
+
+async function replaceValue(handle, value) {
+  await handle.click({clickCount: 3});
+  await handle.press('Backspace');
+  await handle.type(value);
+}
+
+async function shadowText() {
+  return shadow.evaluate(root => root.textContent || '');
+}
+
+async function clickPtcsButton(label) {
+  const host = await shadow.$(`ptcs-button[label="${label}"]`);
+  const clickable = await host.evaluateHandle(element =>
+    element.shadowRoot?.querySelector('button') || element,
+  );
+  await clickable.asElement().click();
+}
 
 beforeAll(async () => {
-  const ctx = await launch();
-  browser = ctx.browser;
-  page = ctx.page;
+  ({page} = await launch());
+  page.on('response', async response => {
+    if (/VerifyGpgKey|SetGpgKey/.test(response.url())) {
+      console.log(`GPG service ${response.status()}: ${response.url()} ${await response.text()}`);
+    }
+  });
   await login(page);
+  await openMashup(page, 'GitBackup.ExtensionSettings.Mashup');
+  await page.waitForSelector('git-backup-extension-settings', {timeout: 30000});
+  widget = await page.$('git-backup-extension-settings');
+  shadow = await widget.evaluateHandle(element => element.shadowRoot);
+  await page.waitForFunction(
+    element => element.shadowRoot?.querySelector('textarea'),
+    {timeout: 30000},
+    widget,
+  );
 });
 
 afterAll(async () => {
   await close();
 });
 
-describe('14 — GPG Key Settings (GitBackup.GpgKeySettings.Mashup)', () => {
-
-  test('14.1 GPG key settings mashup loads', async () => {
-    await openMashup(page, 'GitBackup.GpgKeySettings.Mashup', {
-      GitThing: config.testThingName,
-    });
-    await page.waitForTimeout(2000);
-    console.log('  GPG settings mashup loaded.');
+describe('14 — GPG signing through the real ThingWorx mashup UI', () => {
+  test('14.1 Extension Settings renders its interactive GPG form', async () => {
+    expect(await shadow.$('textarea')).toBeTruthy();
+    expect(await shadow.$('input[type="password"]')).toBeTruthy();
+    expect(await shadow.$('ptcs-button[label="Verify Key"]')).toBeTruthy();
+    expect(await shadow.$('ptcs-button[label="Save Key"]')).toBeTruthy();
   });
 
-  test('14.2 Verify key is visible (textarea or password field)', async () => {
-    const textarea = await page.$('textarea');
-    const passwordField = await page.$('input[type="password"]');
-    expect(textarea || passwordField).toBeTruthy();
-    console.log(`  GPG key input found: ${textarea ? 'textarea' : 'password field'}`);
+  test('14.2 Fill the repository, private key, passphrase, and signing checkbox', async () => {
+    const label = await shadow.$('input[placeholder="e.g. My Work Key"]');
+    const key = await shadow.$('textarea');
+    const passphrase = await shadow.$('input[type="password"]');
+    const signing = (await shadow.$$('input[type="checkbox"]')).at(-1);
+
+    await replaceValue(label, config.testThingName);
+    await replaceValue(key, privateKey);
+    await replaceValue(passphrase, keyInfo.passphrase);
+    if (!await signing.evaluate(input => input.checked)) await signing.click();
+
+    expect(await label.evaluate(input => input.value)).toBe(config.testThingName);
+    expect(await key.evaluate(input => input.value)).toContain('BEGIN PGP PRIVATE KEY BLOCK');
+    expect(await signing.evaluate(input => input.checked)).toBe(true);
   });
 
-  test('14.3 VerifyGpgKey with invalid key', async () => {
-    const res = await restPost(`/Things/${config.testThingName}/Services/VerifyGpgKey`, {
-      GpgPrivateKey: 'invalid-key-data',
-      GpgKeyPassphrase: '',
-    });
-    console.log(`  Verify invalid key: status=${res.status}`);
-    // Should fail
-    expect(res.status).toBe(500);
+  test('14.3 Click Verify Key and display the expected fingerprint', async () => {
+    await clickPtcsButton('Verify Key');
+    await page.waitForFunction(
+      (element, fingerprint) => {
+        const input = element.shadowRoot?.querySelector('input[placeholder="Will be filled by Verify"]');
+        return input?.value.toLowerCase() === fingerprint.toLowerCase();
+      },
+      {timeout: config.serviceTimeout},
+      widget,
+      keyInfo.fingerprint,
+    );
+    const fingerprint = await shadow.$('input[placeholder="Will be filled by Verify"]');
+    expect((await fingerprint.evaluate(input => input.value)).toLowerCase()).toBe(keyInfo.fingerprint.toLowerCase());
   });
 
-  test('14.4 VerifyGpgKey with test key and passphrase', async () => {
-    const res = await restPost(`/Things/${config.testThingName}/Services/VerifyGpgKey`, {
-      GpgPrivateKey: testGpgKey,
-      GpgKeyPassphrase: 'testpassphrase',
-    });
-    console.log(`  Verify test key: status=${res.status}`);
+  test('14.4 Click Save Key and render the saved Signing ON row', async () => {
+    await clickPtcsButton('Save Key');
+    await page.waitForFunction(
+      (element, thing, fingerprint) => {
+        const text = element.shadowRoot?.textContent || '';
+        return text.includes(thing) && text.toLowerCase().includes(fingerprint.toLowerCase()) && text.includes('Signing ON');
+      },
+      {timeout: config.serviceTimeout},
+      widget,
+      config.testThingName,
+      keyInfo.fingerprint,
+    );
+    const text = await shadowText();
+    expect(text).toContain(config.testThingName);
+    expect(text.toLowerCase()).toContain(keyInfo.fingerprint.toLowerCase());
+    expect(text).toContain('Signing ON');
   });
-
-  test('14.5 SetGpgKey (auto-initializes GpgKeys property)', async () => {
-    const res = await restPost('/Things/GIT.Utility.Thing/Services/SetGpgKey', {
-      GitThing: config.testThingName,
-      GpgPrivateKey: testGpgKey,
-      GpgKeyPassphrase: 'testpassphrase',
-      SignCommits: false,
-    });
-    console.log(`  SetGpgKey: status=${res.status}`);
-  });
-
-  test('14.6 Get existing GPG keys', async () => {
-    const res = await restPost('/Things/GIT.Utility.Thing/Services/GetGpgKeys', {
-      GitThing: config.testThingName,
-    });
-    if (res.status === 200 && res.data.rows) {
-      console.log(`  GPG keys found: ${res.data.rows.length}`);
-      for (const row of res.data.rows) {
-        console.log(`    Key: ${row.GpgKeyFingerprint || '(no fingerprint)'}`);
-      }
-    } else {
-      console.log(`  GetGpgKeys: status=${res.status}`);
-    }
-  });
-
-  test('14.7 Enable commit signing and push', async () => {
-    // Set SignCommits on the test thing
-    const configRes = await restPost(`/Things/${config.testThingName}/Services/GetConfiguration`, {});
-    if (configRes.status === 200) {
-      // The SignCommits property is part of the Configuration table
-      console.log('  SignCommits can be set via Configuration table.');
-    }
-
-    // Push with signing enabled
-    const res = await restPost(`/Things/${config.testThingName}/Services/Push`, {
-      CommitMessage: 'GPG signed push from puppeteer',
-    });
-    console.log(`  Push after GPG setup: ${res.status}`);
-  });
-
 });

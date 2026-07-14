@@ -8,6 +8,8 @@
     "test:sequential": "jest --forceExit --detectOpenHandles --runInBand",
     "test:setup": "jest --forceExit --runInBand specs/01-setup.spec.js",
     "test:smoke": "jest --forceExit --runInBand specs/01-setup.spec.js specs/02-mashup-main.spec.js specs/04-mashup-push.spec.js specs/05-mashup-pull.spec.js",
+    "test:widget-runtime": "node smoke-widgets.js",
+    "test:signing": "jest --forceExit --runInBand specs/14-mashup-gpg-key-settings.spec.js",
     "test:all": "jest --forceExit --detectOpenHandles --runInBand",
     "screenshots": "ls -la screenshots/"
   },
@@ -21,7 +23,6 @@
     "testEnvironment": "node",
     "roots": ["<rootDir>/specs"],
     "testMatch": ["**/*.spec.js"],
-    "setupFilesAfterSetup": [],
     "globalSetup": "<rootDir>/jest.global-setup.js",
     "globalTeardown": "<rootDir>/jest.global-teardown.js",
     "verbose": true,
