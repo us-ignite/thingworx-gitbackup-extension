@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Entities majorVersion="9" minorVersion="3" universal="password">
+  <Mashups>
+    <Mashup aspect.isEditableExtensionObject="true" aspect.isExtension="true" aspect.isFlex="true" aspect.isResponsive="true" columns="12.0" description="" documentationContent="" homeMashup="" name="GitBackup.Main.Mashup" projectName="GitBackup" rows="12.0" tags="">
+      <Owner name="Administrator" type="User"/>
+      <avatar/>
+      <DesignTimePermissions><Create/><Read/><Update/><Delete/><Metadata/></DesignTimePermissions>
+      <RunTimePermissions/>
+      <VisibilityPermissions><Visibility/></VisibilityPermissions>
+      <ConfigurationTableDefinitions/>
+      <ConfigurationTables/>
+      <ParameterDefinitions>
+      <FieldDefinition baseType="THINGNAME" description="" name="GitThing" ordinal="0"/>
+      </ParameterDefinitions>
+      <Things/>
+      <ThingShapes/>
+      <ThingTemplates/>
+      <mashupContent><![CDATA[
+{
+  "Presentation": {
+    "mashupType": "mashup",
+    "aspect.isFlex": true,
+    "aspect.isResponsive": true,
+    "layoutStrategy": "responsive",
+    "columns": 12.0,
+    "rows": 12.0,
+    "widgetId": "mashup-root"
+  },
+  "mashupType": "mashup",
+  "Layouts": {},
+  "UI": {
+    "Properties": {
+      "Type": "mashup",
+      "Area": "Mashup",
+      "widgetId": "mashup-root",
+      "Width": 800,
+      "Height": 600,
+      "ShowDataLoading": true,
+      "ResponsiveLayout": true,
+      "Margin": "0",
+      "LastContainer": true,
+      "Left": 0,
+      "Top": 0,
+      "Visible": true,
+      "TabSequence": 0,
+      "Z-index": 10
+    },
+    "Widgets": [
+      {
+        "Properties": {
+          "Area": "UI",
+          "DisplayName": "GitRepository",
+          "Id": "b04fa903-fa4f-4ba7-92da-c1a35c81f7fc",
+          "Type": "gitrepo",
+          "__TypeDisplayName": "Git Repository",
+          "LastContainer": true,
+          "Left": 0,
+          "Top": 0,
+          "Width": 800,
+          "Height": 600,
+          "Visible": true,
+          "TabSequence": 0,
+          "Z-index": 10,
+          "ShowDataLoading": true,
+          "ResponsiveLayout": true,
+          "Margin": "0",
+          "DefaultTab": "status"
+        },
+        "Widgets": []
+      }
+    ]
+  },
+  "DataBindings": [
+    {
+      "Id": "29dd4266-2986-4d13-abce-b13cfaeb61ed",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "GitThing",
+          "SourcePropertyBaseType": "THINGNAME",
+          "SourcePropertyType": "property",
+          "TargetProperty": "GitThing",
+          "TargetPropertyBaseType": "THINGNAME",
+          "TargetPropertyType": "property"
+        }
+      ],
+      "SourceArea": "Mashup",
+      "SourceDetails": "",
+      "SourceId": "mashup-root",
+      "SourceSection": "",
+      "TargetArea": "UI",
+      "TargetId": "b04fa903-fa4f-4ba7-92da-c1a35c81f7fc",
+      "TargetSection": ""
+    }
+  ],
+  "Events": {},
+  "DesignTimePermissions": {},
+  "RunTimePermissions": {},
+  "Data": {},
+  "ParameterDefinitions": {
+    "GitThing": {
+      "baseType": "THINGNAME",
+      "ordinal": 0
+    }
+  }
+}
+]]></mashupContent>
+    </Mashup>
+  </Mashups>
+</Entities>

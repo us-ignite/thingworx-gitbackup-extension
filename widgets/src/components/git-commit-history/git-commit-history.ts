@@ -1,4 +1,6 @@
-import { LitElement, html, css } from 'lit';
+import { html, css } from 'lit';
+import { GitElementBase } from '../git-base.js';
+import { themeVars, statusStyles } from '../../lib/git-styles.js';
 import { property, state } from 'lit/decorators.js';
 import { twx } from '../../lib/twx-service.js';
 import type { InfotableResponse } from '../../lib/twx-types.js';
@@ -25,33 +27,30 @@ interface CommitInfoEntry {
   Changes: string;
 }
 
-export class GitCommitHistory extends LitElement {
-  static styles = css`
+export class GitCommitHistory extends GitElementBase {
+  static styles = [themeVars, statusStyles, css`
     :host { display: block; padding: 16px; }
     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
     .header h3 { margin: 0; }
     .layout { display: flex; gap: 16px; }
     .main { flex: 1; min-width: 0; }
     .sidebar { flex: 0 0 220px; }
-    .sidebar h4 { margin: 0 0 8px 0; font-size: 14px; color: #666; }
-    .tag { display: inline-block; padding: 3px 10px; margin: 3px; border-radius: 10px; font-size: 12px; background: #e8eaf6; color: #283593; }
-    .commit { border: 1px solid #e0e0e0; border-radius: 6px; margin-bottom: 6px; overflow: hidden; }
+    .sidebar h4 { margin: 0 0 8px 0; font-size: 14px; color: var(--git-color-text-secondary, #666); }
+    .tag { display: inline-block; padding: 3px 10px; margin: 3px; border-radius: 10px; font-size: 12px; }
+    .commit { border: 1px solid var(--git-color-border, #e0e0e0); border-radius: var(--git-border-radius-md, 6px); margin-bottom: 6px; overflow: hidden; }
     .commit-header { display: flex; align-items: center; padding: 10px 14px; cursor: pointer; gap: 12px; }
-    .commit-header:hover { background: #f5f5f5; }
-    .commit-header.selected { background: #e3f2fd; border-color: #1976d2; }
-    .commit-id { font-family: monospace; font-weight: 600; color: #1976d2; font-size: 13px; min-width: 72px; }
-    .commit-author { color: #333; font-weight: 500; flex: 0 0 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .commit-msg { flex: 1; color: #555; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .commit-date { color: #888; font-size: 12px; white-space: nowrap; }
-    .commit-body { padding: 12px 14px; border-top: 1px solid #e0e0e0; background: #fafafa; }
+    .commit-header:hover { background: var(--git-color-bg-hover, #f5f5f5); }
+    .commit-header.selected { background: var(--git-color-bg-selected, #e3f2fd); border-color: var(--git-color-accent-light, #1976d2); }
+    .commit-id { font-family: monospace; font-weight: 600; color: var(--git-color-accent-light, #1976d2); font-size: 13px; min-width: 72px; }
+    .commit-author { color: var(--git-color-text, #333); font-weight: 500; flex: 0 0 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .commit-msg { flex: 1; color: var(--git-color-label, #555); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .commit-body { padding: 12px 14px; border-top: 1px solid var(--git-color-border, #e0e0e0); background: var(--git-color-bg-stripe, #fafafa); }
     .commit-body .row { display: flex; padding: 4px 0; font-size: 13px; }
-    .commit-body .label { flex: 0 0 100px; color: #666; }
-    .commit-body .value { flex: 1; color: #333; }
-    .commit-body .changes { white-space: pre-wrap; font-family: monospace; font-size: 12px; background: #fff; padding: 8px; border-radius: 4px; border: 1px solid #eee; margin-top: 6px; max-height: 300px; overflow: auto; }
-    .empty { text-align: center; padding: 32px; color: #999; }
-    .error { margin-top: 8px; padding: 10px; background: #ffebee; color: #c62828; border-radius: 4px; font-size: 13px; }
-    .loading { opacity: 0.6; pointer-events: none; }
-  `;
+    .commit-body .label { flex: 0 0 100px; color: var(--git-color-text-secondary, #666); }
+    .commit-body .value { flex: 1; color: var(--git-color-text, #333); }
+    .commit-body .changes { white-space: pre-wrap; font-family: monospace; font-size: 12px; background: var(--git-color-bg, #fff); padding: 8px; border-radius: var(--git-border-radius-sm, 4px); border: 1px solid #eee; margin-top: 6px; max-height: 300px; overflow: auto; }
+    .empty { text-align: center; padding: 32px; color: var(--git-color-text-muted, #999); }
+  `];
 
   @property({ type: String }) gitThing = '';
   @state() private commits: CommitEntry[] = [];
@@ -158,4 +157,4 @@ export class GitCommitHistory extends LitElement {
   }
 }
 
-customElements.define('git-commit-history', GitCommitHistory);
+if (!customElements.get('git-commit-history')) { customElements.define('git-commit-history', GitCommitHistory); };

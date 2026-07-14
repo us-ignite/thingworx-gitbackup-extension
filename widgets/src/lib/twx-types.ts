@@ -118,5 +118,14 @@ export interface InfotableResponse<T> {
 }
 
 export interface ServiceResult {
+  Result?: string;
   result?: string;
+}
+
+export type ServiceResultResponse = string | ServiceResult | InfotableResponse<ServiceResult>;
+
+export function readServiceResult(response: ServiceResultResponse, fallback: string): string {
+  if (typeof response === 'string') return response;
+  const result = 'rows' in response ? response.rows?.[0] : response;
+  return result?.Result ?? result?.result ?? fallback;
 }

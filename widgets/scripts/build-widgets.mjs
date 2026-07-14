@@ -1,17 +1,27 @@
-import { readFileSync, existsSync, mkdirSync, writeFileSync, readdirSync } from 'fs';
-import { resolve, join } from 'path';
+import { readFileSync, existsSync, mkdirSync, writeFileSync, readdirSync, rmSync, createWriteStream, copyFileSync } from 'fs';
+import { resolve, join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import * as esbuild from 'esbuild';
 
-const __dirname = join(fileURLToPath(import.meta.url), '..');
+const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, '..');
 const srcDir = join(root, 'src');
 const outDir = join(root, 'dist');
 
-function loadExtConfig() {
-  const p = join(srcDir, 'extension.json');
-  if (existsSync(p)) return JSON.parse(readFileSync(p, 'utf-8'));
-  return { name: 'GitBackupWidgets', packageName: 'GitBackupUI', description: '', version: '1.0.0', vendor: '', minimumThingWorxVersion: '9.0.0' };
+function loadJson(p) {
+  return JSON.parse(readFileSync(p, 'utf-8'));
+}
+
+function esc(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function toTwName(name) {
+  return name.replace(/-/g, '').toLowerCase();
+}
+
+function packageWidgetName(name) {
+  return process.env.GITBACKUP_WIDGET_NAMES_DASHED === 'true' ? name : toTwName(name);
 }
 
 function discoverWidgets() {
@@ -23,24 +33,82 @@ function discoverWidgets() {
     const configPath = join(componentsDir, entry.name, `${entry.name}.config.json`);
     if (!existsSync(configPath)) continue;
     try {
-      widgets.push({ name: entry.name, config: JSON.parse(readFileSync(configPath, 'utf-8')) });
+      widgets.push({ name: entry.name, config: loadJson(configPath) });
     } catch { }
   }
   return widgets;
 }
 
-function toTwName(name) {
-  return name.replace(/-/g, '').toLowerCase();
-}
+const sharedLitPlugin = {
+  name: 'shared-lit',
+  setup(build) {
+    const fromShared = (...names) => ({
+      contents: `const shared = window.__GW;
+        if (!shared) throw new Error('GitBackup shared runtime was not loaded before a widget bundle');
+        const { ${names.join(', ')} } = shared;
+        export { ${names.join(', ')} };`,
+      loader: 'js',
+    });
+    build.onResolve({ filter: /^lit$/ }, args => ({
+      path: 'lit', namespace: 'gw-shared',
+    }));
+    build.onResolve({ filter: /^lit\// }, args => ({
+      path: args.path, namespace: 'gw-shared',
+    }));
+    build.onResolve({ filter: /\/lib\/(twx-service|widget-bridge)\.js$/ }, args => ({
+      path: args.path, namespace: 'gw-shared',
+    }));
+    build.onResolve({ filter: /\/components\/git-base\.js$/ }, args => ({
+      path: args.path, namespace: 'gw-shared',
+    }));
 
-function esc(s) {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    build.onLoad({ filter: /.*/, namespace: 'gw-shared' }, args => {
+      if (args.path === 'lit') {
+        return fromShared('LitElement', 'html', 'css');
+      }
+      if (args.path === 'lit/decorators.js') {
+        return fromShared('state', 'property');
+      }
+      if (args.path.includes('lit/directives/unsafe-html')) {
+        return fromShared('unsafeHTML');
+      }
+      if (args.path.includes('lit/directives/')) {
+        const part = args.path.split('/').pop().replace('.js', '');
+        const camel = part.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+        return fromShared(camel);
+      }
+      if (args.path.endsWith('/lib/twx-service.js')) {
+        return fromShared('TwxService', 'twx');
+      }
+      if (args.path.endsWith('/lib/widget-bridge.js')) {
+        return fromShared('WidgetBridge');
+      }
+      if (args.path.endsWith('/components/git-base.js')) {
+        return fromShared('GitElementBase');
+      }
+      console.warn('  [plugin] unhandled shared module:', args.path);
+      return null;
+    });
+  },
+};
+
+function verifyRuntimeBundle(result, widgetName) {
+  const inputs = Object.keys(result.metafile?.inputs ?? {});
+  const forbidden = inputs.filter(p =>
+    p.includes('/node_modules/lit') ||
+    p.includes('/node_modules/@lit/') ||
+    p.includes('/twx-wc-sdk/')
+  );
+  if (forbidden.length) {
+    throw new Error(`${widgetName}: shared dependencies leaked into the runtime bundle:\n${forbidden.join('\n')}`);
+  }
 }
 
 async function build() {
-  const ext = loadExtConfig();
+  const ext = loadJson(join(srcDir, 'extension.json'));
   const widgets = discoverWidgets();
-  const pn = ext.packageName;
+  const pn = process.env.GITBACKUP_UI_PACKAGE_NAME || ext.packageName;
+  const version = process.env.GITBACKUP_UI_VERSION || ext.version;
 
   if (widgets.length === 0) {
     console.log('No widgets found');
@@ -48,120 +116,72 @@ async function build() {
   }
 
   console.log(`Building ${widgets.length} widgets for extension: ${pn}`);
-
   const buildDir = join(root, 'build');
+  rmSync(join(buildDir, 'ui'), { recursive: true, force: true });
   mkdirSync(buildDir, { recursive: true });
   mkdirSync(outDir, { recursive: true });
 
+  const sharedDir = join(buildDir, 'ui', '0-gitbackup-shared-runtime');
+  mkdirSync(sharedDir, { recursive: true });
+
+  console.log('  Building shared runtime...');
+  await esbuild.build({
+    entryPoints: [join(srcDir, 'shared-runtime.entry.ts')],
+    bundle: true,
+    format: 'iife',
+    outfile: join(sharedDir, 'shared.runtime.bundle.js'),
+    banner: { js: `if (!window.__GW || window.__GW.version !== ${JSON.stringify(version)}) {` },
+    footer: { js: '}' },
+    define: { __GW_VERSION__: JSON.stringify(version) },
+    tsconfig: join(root, 'tsconfig.json'),
+    minify: true,
+    logLevel: 'warning',
+  });
+
   for (const w of widgets) {
-    const tn = toTwName(w.name);
-    const wDisplayName = w.config.name;
-    const wDir = join(buildDir, 'ui', wDisplayName);
+    const tn = packageWidgetName(w.name);
+    const wDir = join(buildDir, 'ui', tn);
     mkdirSync(wDir, { recursive: true });
-    const componentDir = join(srcDir, 'components', w.name);
+    copyFileSync(
+      join(sharedDir, 'shared.runtime.bundle.js'),
+      join(wDir, 'shared.runtime.bundle.js'),
+    );
 
     console.log(`  Building: ${w.name} (${tn})`);
 
-    // Build runtime bundle
-    const rtContents = readFileSync(join(componentDir, `${w.name}.ts`), 'utf-8');
-    const propMapEntries = Object.entries(w.config.properties || {})
-      .map(([k, v]) => `"${k}": "${v.src || k.charAt(0).toLowerCase() + k.slice(1)}"`)
-      .join(',\n          ');
+    const componentDir = join(srcDir, 'components', w.name);
 
-    const rtWrapper = `
-      // Auto-generated ThingWorx runtime wrapper
-      const _twName = '${tn}';
-      TW.Runtime.Widgets[_twName] = function() {
-        let _el = null;
-        const _propMap = {
-          ${propMapEntries}
-        };
-        this.renderHtml = function() {
-          return '<${w.config.elementName}></${w.config.elementName}>';
-        };
-        this.afterRender = function() {
-          _el = this.jqElement ? (this.jqElement[0] ? this.jqElement[0].firstElementChild : null) : null;
-          if (_el) {
-            for (const [prop, attr] of Object.entries(_propMap)) {
-              const val = this.getProperty ? this.getProperty(prop) : undefined;
-              if (val !== undefined) _el[attr] = val;
-            }
-          }
-        };
-        this.updateProperty = function(info) {
-          if (!_el) return;
-          const attr = _propMap[info.TargetProperty];
-          if (attr) _el[attr] = info.SinglePropertyValue;
-        };
-        this.beforeDestroy = function() { _el = null; };
-      };
-    `;
-
-    const rtEntry = join(componentDir, `_${w.name}.runtime.entry.ts`);
-    writeFileSync(rtEntry, rtContents + '\n' + rtWrapper);
-
-    await esbuild.build({
-      entryPoints: [rtEntry],
+    const runtimeResult = await esbuild.build({
+      entryPoints: [join(componentDir, `_${w.name}.runtime.entry.ts`)],
       bundle: true,
       format: 'iife',
       outfile: join(wDir, `${tn}.runtime.bundle.js`),
-      loader: { '.ts': 'ts' },
+      plugins: [sharedLitPlugin],
+      loader: { '.ts': 'ts', '.json': 'json' },
       tsconfig: join(root, 'tsconfig.json'),
       minify: true,
+      metafile: true,
       logLevel: 'warning',
     });
-
-    // Build IDE bundle
-    const propsJson = JSON.stringify(w.config.properties || {});
-    const eventsJson = JSON.stringify(w.config.events || {});
-    const ideWrapper = `
-      // Auto-generated ThingWorx IDE wrapper
-      const _twName = '${tn}';
-      TW.IDE.Widgets[_twName] = function() {
-        this.widgetIconUrl = function() { return null; };
-        this.widgetProperties = function() {
-          return {
-            name: ${JSON.stringify(w.config.name)},
-            description: ${JSON.stringify(w.config.description || '')},
-            category: ${JSON.stringify(w.config.category || ['Common'])},
-            properties: ${propsJson},
-            events: ${eventsJson}
-          };
-        };
-        this.renderHtml = function() {
-          return '<div style="padding:32px;border:1px dashed #ccc;border-radius:4px;text-align:center;color:#999;font-family:sans-serif;font-size:14px">${esc(w.config.name)}</div>';
-        };
-        this.afterSetProperty = function() { return true; };
-        this.beforeDestroy = function() {};
-      };
-    `;
-
-    const ideEntry = join(componentDir, `_${w.name}.ide.entry.ts`);
-    writeFileSync(ideEntry, ideWrapper);
+    verifyRuntimeBundle(runtimeResult, w.name);
 
     await esbuild.build({
-      entryPoints: [ideEntry],
+      entryPoints: [join(componentDir, `_${w.name}.ide.entry.ts`)],
       bundle: true,
       format: 'iife',
       outfile: join(wDir, `${tn}.ide.bundle.js`),
+      loader: { '.ts': 'ts', '.json': 'json' },
       tsconfig: join(root, 'tsconfig.json'),
       minify: true,
       logLevel: 'warning',
     });
-
-    // Clean up temp entries
-    try { writeFileSync(rtEntry, ''); } catch {}
-    try { writeFileSync(ideEntry, ''); } catch {}
   }
 
-  // Remove stale entities from previous builds (they conflict with main extension)
   const staleEntitiesDir = join(buildDir, 'Entities');
   if (existsSync(staleEntitiesDir)) {
-    const { rmSync } = await import('fs');
     rmSync(staleEntitiesDir, { recursive: true, force: true });
   }
 
-  // Generate metadata.xml
   let xml = `<?xml version="1.0" encoding="UTF-8"?>
 <Entities majorVersion="9" minorVersion="3" universal="password">
   <ExtensionPackages>
@@ -169,15 +189,16 @@ async function build() {
       name="${esc(pn)}"
       description="${esc(ext.description)}"
       vendor="${esc(ext.vendor)}"
-      packageVersion="${esc(ext.version)}"
+      packageVersion="${esc(version)}"
       minimumThingWorxVersion="${esc(ext.minimumThingWorxVersion)}"
     />
   </ExtensionPackages>
   <Widgets>\n`;
   for (const w of widgets) {
-    const tn = toTwName(w.name);
-    xml += `    <Widget name="${esc(w.config.name)}">
+    const tn = packageWidgetName(w.name);
+    xml += `    <Widget name="${esc(tn)}">
       <UIResources>
+        <FileResource type="JS" file="shared.runtime.bundle.js" description="GitBackup shared runtime" isDevelopment="false" isRuntime="true"/>
         <FileResource type="JS" file="${tn}.runtime.bundle.js" description="" isDevelopment="false" isRuntime="true"/>
         <FileResource type="JS" file="${tn}.ide.bundle.js" description="" isDevelopment="true" isRuntime="false"/>
       </UIResources>
@@ -187,13 +208,8 @@ async function build() {
 </Entities>`;
   writeFileSync(join(buildDir, 'metadata.xml'), xml);
 
-  // Create ZIP file using Node.js built-in zlib
-  const { createWriteStream, createReadStream, statSync } = await import('fs');
-  const { deflateRawSync } = await import('zlib');
-  const { PassThrough, pipeline } = await import('stream');
-  const zipPath = join(outDir, `${pn}-v${ext.version}.zip`);
+  const zipPath = join(outDir, `${pn}-v${version}.zip`);
   try {
-    // Use archiver if available
     const { createRequire } = await import('module');
     const require = createRequire(import.meta.url);
     const archiver = require('archiver');
@@ -210,7 +226,7 @@ async function build() {
       archive.finalize();
     });
   } catch {
-    console.log(`\nBuild files ready at: ${buildDir}\nTo create extension ZIP: cd "${buildDir}" && zip -r "${zipPath}" .`);
+    console.log(`\nBuild files ready at: ${buildDir}`);
   }
 }
 

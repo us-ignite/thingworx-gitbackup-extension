@@ -19,9 +19,12 @@ ext {
     thirdPartyDir = file('3rdPartyExtensions')
     zipDir = file("${buildDir}/distributions")
     packageName = 'GitBackupExtension'
-    packageVersion = '5.8.24'
+    packageVersion = '5.8.45'
     packageVendor = 'Open Source / Vladimir Rosu'
 }
+
+def uiExtensionMetadata = new groovy.json.JsonSlurper().parse(file('widgets/src/extension.json'))
+def uiPackageFile = "${uiExtensionMetadata.packageName}-v${uiExtensionMetadata.version}.zip"
 
 repositories {
     mavenCentral()
@@ -144,7 +147,6 @@ task buildWidgets(type: Exec) {
     group = 'widgets'
     workingDir = file('widgets')
     commandLine 'npm', 'run', 'build'
-    dependsOn extractWcSdk
 }
 
 task prepPackage(dependsOn: [jar, buildWidgets]) {
@@ -168,15 +170,7 @@ task prepPackage(dependsOn: [jar, buildWidgets]) {
             include "${entitiesDir.name}/**/*.xml"
             into zipStage
         }
-        // Include widget UI files only (no duplicate entities/metadata)
-        def widgetBuildDir = file('widgets/build')
-        if (widgetBuildDir.exists()) {
-            copy {
-                from widgetBuildDir
-                include 'ui/**'
-                into zipStage
-            }
-        }
+        // Widget UI files are packaged as a separate extension (GitBackupUI)
     }
 }
 
@@ -190,7 +184,7 @@ task packagePack(type: Zip, dependsOn: [packageExtension, buildWidgets]) {
     archiveFileName = "${packageName}Pack.zip"
     destinationDirectory = zipDir
     from zipDir, { include "${packageName}.zip" }
-    from file('widgets/dist'), { include 'GitBackupUI-*.zip' }
+    from file('widgets/dist'), { include uiPackageFile }
 }
 
 def jdkCacheDir = file("${projectDir}/.cache/jdk21")
@@ -406,7 +400,67 @@ task devSetup {
             logger.lifecycle("Extension verified (GIT.Utility.Thing accessible)!")
         }
 
-        // 4a. Initialize UserExtension properties
+        // 4a. Install widget extension
+        logger.lifecycle("Installing widget extension...")
+        def widgetZip = file("widgets/dist/${uiPackageFile}")
+        if (widgetZip.exists()) {
+            def widgetUpload = { String purpose ->
+                def wBody = new ByteArrayOutputStream()
+                def wBoundary = "----FormBoundary${System.currentTimeMillis()}"
+                wBody.write("--${wBoundary}\r\n".bytes)
+                wBody.write("Content-Disposition: form-data; name=\"file\"; filename=\"GitBackupUI.zip\"\r\n".bytes)
+                wBody.write("Content-Type: application/octet-stream\r\n\r\n".bytes)
+                wBody.write(widgetZip.bytes)
+                wBody.write("\r\n--${wBoundary}--\r\n".bytes)
+
+                def wUrl = new URL("http://localhost:8080/Thingworx/ExtensionPackageUploader?purpose=${purpose}")
+                def wConn = (HttpURLConnection) wUrl.openConnection()
+                wConn.setRequestMethod("POST")
+                wConn.setRequestProperty("Content-Type", "multipart/form-data; boundary=${wBoundary}")
+                wConn.setRequestProperty("Authorization", "Basic ${auth}")
+                wConn.setRequestProperty("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
+                wConn.setRequestProperty("X-Requested-By", "ThingWorx")
+                wConn.setRequestProperty("Accept", "application/json")
+                wConn.setDoOutput(true)
+                wConn.setConnectTimeout(30000)
+                wConn.setReadTimeout(300000)
+                wBody.writeTo(wConn.getOutputStream())
+
+                def wStatus = wConn.getResponseCode()
+                def wRespText = wStatus >= 200 && wStatus < 400 ? wConn.getInputStream().text : wConn.getErrorStream().text
+                return [status: wStatus, body: wRespText]
+            }
+            def widgetResult = widgetUpload('import')
+            if (widgetResult.status == 406) {
+                logger.lifecycle("Widget extension already installed, trying upgrade...")
+                widgetResult = widgetUpload('upgrade')
+            }
+            logger.lifecycle("Widget extension uploaded (status ${widgetResult.status}).")
+            def wNeedsRestart = widgetResult.body.contains("queued for installation")
+            if (wNeedsRestart) {
+                logger.lifecycle("Widget extension queued — restarting ThingWorx...")
+                exec {
+                    workingDir = projectDir
+                    commandLine 'docker', 'compose', 'restart', 'thingworx'
+                }
+                logger.lifecycle("Waiting for ThingWorx after widget restart...")
+                for (def i = 1; i <= 60; i++) {
+                    try {
+                        def hUrl = new URL("http://localhost:8080/Thingworx/health")
+                        def hConn = (HttpURLConnection) hUrl.openConnection()
+                        hConn.setConnectTimeout(5000)
+                        hConn.setReadTimeout(5000)
+                        if (hConn.getResponseCode() == 200) { break }
+                    } catch (Exception ignored) {}
+                    logger.lifecycle("  Waiting... (${i}/60)")
+                    Thread.sleep(15000)
+                }
+            }
+        } else {
+            logger.warn("Widget extension ZIP not found at ${widgetZip}. Skipping widget installation.")
+        }
+
+        // 4b. Initialize UserExtension properties
         logger.lifecycle("Initializing UserExtension properties for Administrator...")
         def services = ['InitUserExtensionProperties', 'InitUserExtensionGpgKeysProperty']
         services.each { serviceName ->
@@ -488,10 +542,10 @@ task devSetup {
 
         // 6. Start Storybook dev server in background
         logger.lifecycle("Starting Storybook dev server on port 6006...")
-        Runtime.getRuntime().exec(
-            ['bash', '-c',
-             'cd "' + projectDir + '/widgets" && nohup npx storybook dev -p 6006 --no-open --ci > /tmp/storybook.log 2>&1 &'],
-            null as String[], null)
+        new ProcessBuilder(
+            'bash', '-c',
+            'cd "' + projectDir + '/widgets" && nohup npx storybook dev -p 6006 --no-open --ci > /tmp/storybook.log 2>&1 &'
+        ).start()
         Thread.sleep(3000)
         logger.lifecycle("Storybook dev server starting on http://localhost:6006 (see /tmp/storybook.log)")
 

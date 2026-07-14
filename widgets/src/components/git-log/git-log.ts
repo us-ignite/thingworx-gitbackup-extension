@@ -1,4 +1,6 @@
-import { LitElement, html, css } from 'lit';
+import { html, css } from 'lit';
+import { GitElementBase } from '../git-base.js';
+import { themeVars, statusStyles } from '../../lib/git-styles.js';
 import { state } from 'lit/decorators.js';
 import { twx } from '../../lib/twx-service.js';
 import type { InfotableResponse } from '../../lib/twx-types.js';
@@ -12,24 +14,22 @@ interface LogEntry {
   User: string;
 }
 
-export class GitLog extends LitElement {
-  static styles = css`
+export class GitLog extends GitElementBase {
+  static styles = [themeVars, statusStyles, css`
     :host { display: block; padding: 16px; font-family: sans-serif; }
     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
     .header h3 { margin: 0; }
     .filters { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; flex-wrap: wrap; }
-    .filters input, .filters select { padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
+    .filters input, .filters select { padding: 6px 10px; border: 1px solid var(--git-color-border-strong, #ccc); border-radius: var(--git-border-radius-sm, 4px); font-size: 13px; }
     .filters input { flex: 1; min-width: 150px; }
-    .log-table { width: 100%; border-collapse: collapse; border: 1px solid #e0e0e0; border-radius: 4px; overflow: hidden; }
-    .log-table th { text-align: left; padding: 8px 12px; background: #fafafa; border-bottom: 2px solid #e0e0e0; font-size: 12px; color: #666; text-transform: uppercase; }
-    .log-table td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; font-size: 13px; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .log-table tr:hover td { background: #f5f5f5; }
+    .log-table { width: 100%; border-collapse: collapse; border: 1px solid var(--git-color-border, #e0e0e0); border-radius: var(--git-border-radius-sm, 4px); overflow: hidden; }
+    .log-table th { text-align: left; padding: 8px 12px; background: var(--git-color-bg-stripe, #fafafa); border-bottom: 2px solid var(--git-color-border, #e0e0e0); font-size: 12px; color: var(--git-color-text-secondary, #666); text-transform: uppercase; }
+    .log-table td { padding: 8px 12px; border-bottom: 1px solid var(--git-color-border-light, #f0f0f0); font-size: 13px; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .log-table tr:hover td { background: var(--git-color-bg-hover, #f5f5f5); }
     .log-content { max-width: 400px; }
-    .empty { text-align: center; padding: 32px; color: #999; }
-    .loading { opacity: 0.6; pointer-events: none; }
-    .error { padding: 10px; background: #ffebee; color: #c62828; border-radius: 4px; font-size: 13px; margin-bottom: 12px; }
-    .timestamp { white-space: nowrap; color: #666; font-size: 12px; }
-  `;
+    .empty { text-align: center; padding: 32px; color: var(--git-color-text-muted, #999); }
+    .timestamp { white-space: nowrap; color: var(--git-color-text-secondary, #666); font-size: 12px; }
+  `];
 
   @state() private logs: LogEntry[] = [];
   @state() private loading = false;
@@ -133,4 +133,4 @@ export class GitLog extends LitElement {
   }
 }
 
-customElements.define('git-log', GitLog);
+if (!customElements.get('git-log')) { customElements.define('git-log', GitLog); };

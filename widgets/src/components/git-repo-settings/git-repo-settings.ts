@@ -1,4 +1,6 @@
-import { LitElement, html, css } from 'lit';
+import { html, css } from 'lit';
+import { GitElementBase } from '../git-base.js';
+import { themeVars, statusStyles } from '../../lib/git-styles.js';
 import { property, state } from 'lit/decorators.js';
 import { twx } from '../../lib/twx-service.js';
 import type { InfotableResponse } from '../../lib/twx-types.js';
@@ -18,22 +20,18 @@ interface GpgKeyEntry {
   GpgKeyFingerprint: string;
 }
 
-export class GitRepoSettings extends LitElement {
-  static styles = css`
+export class GitRepoSettings extends GitElementBase {
+  static styles = [themeVars, statusStyles, css`
     :host { display: block; padding: 16px; font-family: sans-serif; }
-    .section-title { font-size: 16px; font-weight: 600; color: #333; margin: 0 0 12px; border-bottom: 1px solid #e0e0e0; padding-bottom: 6px; }
+    .section-title { font-size: 16px; font-weight: 600; color: var(--git-color-text, #333); margin: 0 0 12px; border-bottom: 1px solid var(--git-color-border, #e0e0e0); padding-bottom: 6px; }
     .section-title:not(:first-of-type) { margin-top: 24px; }
     .form-grid { display: grid; grid-template-columns: 180px 1fr; gap: 10px 16px; align-items: center; }
-    .form-grid label { font-size: 13px; color: #555; text-align: right; }
-    .form-grid input, .form-grid select { padding: 7px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; width: 100%; box-sizing: border-box; }
+    .form-grid label { font-size: 13px; color: var(--git-color-label, #555); text-align: right; }
+    .form-grid input, .form-grid select { padding: 7px 10px; border: 1px solid var(--git-color-border-strong, #ccc); border-radius: var(--git-border-radius-sm, 4px); font-size: 13px; width: 100%; box-sizing: border-box; }
     .actions { margin-top: 16px; display: flex; gap: 8px; align-items: center; }
-    .result { margin-top: 12px; padding: 12px; border-radius: 4px; font-size: 13px; }
-    .result.success { background: #e8f5e9; color: #2e7d32; }
-    .result.error { background: #ffebee; color: #c62828; }
-    .loading { opacity: 0.6; pointer-events: none; }
-    .card { border: 1px solid #e0e0e0; border-radius: 6px; padding: 16px; margin-bottom: 16px; }
-    .hint { font-size: 11px; color: #999; grid-column: 2; margin-top: -4px; }
-  `;
+    .card { border: 1px solid var(--git-color-border, #e0e0e0); border-radius: var(--git-border-radius-md, 6px); padding: 16px; margin-bottom: 16px; }
+    .hint { font-size: 11px; color: var(--git-color-text-muted, #999); grid-column: 2; margin-top: -4px; }
+  `];
 
   @property({ type: String }) gitThing = '';
   @state() private projectName = '';
@@ -55,6 +53,7 @@ export class GitRepoSettings extends LitElement {
     if (!this.gitThing) return;
     this.loading = true;
     this.message = '';
+    this.clearLoadError();
     try {
       const [configRes, gpgRes] = await Promise.all([
         twx.invokeService<InfotableResponse<any>>(this.gitThing, 'GetConfigurationTable', { tableName: 'Configuration' }),
@@ -67,7 +66,7 @@ export class GitRepoSettings extends LitElement {
         this.selectedGpgThing = currentKey.GitThing;
         this.signCommits = currentKey.SignCommits;
       }
-    } catch { }
+    } catch (error) { this.reportLoadError('Unable to load repository settings', error); }
     finally { this.loading = false; }
   }
 
@@ -137,6 +136,7 @@ export class GitRepoSettings extends LitElement {
     const availableKeys = this.gpgKeys.filter(k => k.GpgKeyFingerprint);
     return html`
       <div class=${busy ? 'loading' : ''}>
+        ${this.renderLoadError()}
         <div class="card">
           <form @submit=${(e: SubmitEvent) => { e.preventDefault(); this.saveCredentials(); }}>
           <div class="section-title">Repository Credentials</div>
@@ -200,4 +200,4 @@ export class GitRepoSettings extends LitElement {
   }
 }
 
-customElements.define('git-repo-settings', GitRepoSettings);
+if (!customElements.get('git-repo-settings')) { customElements.define('git-repo-settings', GitRepoSettings); };

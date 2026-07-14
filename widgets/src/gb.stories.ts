@@ -32,19 +32,23 @@ const gitThingArgTypes = {
   gitThing: { control: 'text' as const, description: 'ThingWorx GitBackup Thing name' },
 };
 
+// Keep Storybook connected to the repository created by the local dev setup.
+// GitBackup.Tests.Thing is a legacy GenericThing fixture and has no Git services.
+const devGitThing = 'GitBackup.DevRepo1';
+
 export const GitAbout: Story = {
   render: () => html`<git-about></git-about>`,
 };
 
 export const GitBranchManager: Story = {
   argTypes: gitThingArgTypes,
-  args: { gitThing: 'GitBackup.Tests.Thing' },
+  args: { gitThing: devGitThing },
   render: (args) => html`<git-branch-manager .gitThing=${args.gitThing}></git-branch-manager>`,
 };
 
 export const GitCommitHistory: Story = {
   argTypes: gitThingArgTypes,
-  args: { gitThing: 'GitBackup.Tests.Thing' },
+  args: { gitThing: devGitThing },
   render: (args) => html`<git-commit-history .gitThing=${args.gitThing}></git-commit-history>`,
 };
 
@@ -53,19 +57,19 @@ export const GitDelete: Story = {
     ...gitThingArgTypes,
     thingName: { control: 'text', description: 'Thing name to delete' },
   },
-  args: { gitThing: 'GitBackup.Tests.Thing', thingName: 'GitBackup.Tests.Thing' },
+  args: { gitThing: devGitThing, thingName: devGitThing },
   render: (args) => html`<git-delete .gitThing=${args.gitThing} .thingName=${args.thingName}></git-delete>`,
 };
 
 export const GitExport: Story = {
   argTypes: gitThingArgTypes,
-  args: { gitThing: 'GitBackup.DevRepo' },
+  args: { gitThing: devGitThing },
   render: (args) => html`<git-export .gitThing=${args.gitThing}></git-export>`,
 };
 
 export const GitRepoSettings: Story = {
   argTypes: gitThingArgTypes,
-  args: { gitThing: 'GitBackup.Tests.Thing' },
+  args: { gitThing: devGitThing },
   render: (args) => html`<git-repo-settings .gitThing=${args.gitThing}></git-repo-settings>`,
 };
 
@@ -75,7 +79,7 @@ export const GitBackupExtensionSettings: Story = {
 
 export const GitImport: Story = {
   argTypes: gitThingArgTypes,
-  args: { gitThing: 'GitBackup.Tests.Thing' },
+  args: { gitThing: devGitThing },
   render: (args) => html`<git-import .gitThing=${args.gitThing}></git-import>`,
 };
 
@@ -97,31 +101,31 @@ export const GitMain: Story = {
 
 export const GitMergeRebase: Story = {
   argTypes: gitThingArgTypes,
-  args: { gitThing: 'GitBackup.Tests.Thing' },
+  args: { gitThing: devGitThing },
   render: (args) => html`<git-merge-rebase .gitThing=${args.gitThing}></git-merge-rebase>`,
 };
 
 export const GitNewRepo: Story = {
   argTypes: gitThingArgTypes,
-  args: { gitThing: 'GitBackup.Tests.Thing' },
+  args: { gitThing: devGitThing },
   render: (args) => html`<git-new-repo .gitThing=${args.gitThing}></git-new-repo>`,
 };
 
 export const GitPull: Story = {
   argTypes: gitThingArgTypes,
-  args: { gitThing: 'GitBackup.Tests.Thing' },
+  args: { gitThing: devGitThing },
   render: (args) => html`<git-pull .gitThing=${args.gitThing}></git-pull>`,
 };
 
 export const GitPush: Story = {
   argTypes: gitThingArgTypes,
-  args: { gitThing: 'GitBackup.Tests.Thing' },
+  args: { gitThing: devGitThing },
   render: (args) => html`<git-push .gitThing=${args.gitThing}></git-push>`,
 };
 
 export const GitStatus: Story = {
   argTypes: gitThingArgTypes,
-  args: { gitThing: 'GitBackup.Tests.Thing' },
+  args: { gitThing: devGitThing },
   render: (args) => html`<git-status .gitThing=${args.gitThing}></git-status>`,
 };
 
@@ -134,6 +138,6 @@ export const GitRepo: Story = {
     gitThing: { control: 'text', description: 'ThingWorx GitBackup Thing name' },
     defaultTab: { control: 'text', description: 'Default active tab' },
   },
-  args: { gitThing: 'GitBackup.DevRepo', defaultTab: 'push' },
+  args: { gitThing: devGitThing, defaultTab: 'push' },
   render: (args) => html`<git-repo .gitThing=${args.gitThing} .defaultTab=${args.defaultTab}></git-repo>`,
 };

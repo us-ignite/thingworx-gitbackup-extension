@@ -33,14 +33,12 @@
             <ConfigurationTables></ConfigurationTables>
             <FieldDefinitions>
                 <FieldDefinition
-                 aspect.defaultValue="false"
                  aspect.isPersistent="true"
                  baseType="STRING"
                  description="User-specific GitBackup Committer Email. Will be used instead the committer email specified at the Thing level, if UseGitCommitUserValues is set to true."
                  name="GitCommitterEmail"
                  ordinal="0"></FieldDefinition>
                 <FieldDefinition
-                 aspect.defaultValue="false"
                  aspect.isPersistent="true"
                  baseType="STRING"
                  description="User-specific GitBackup Committer Name. Will be used instead the committer name specified at the Thing level, if UseGitCommitUserValues is set to true."

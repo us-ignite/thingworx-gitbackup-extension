@@ -83,14 +83,12 @@
                  name="Password"
                  ordinal="7"></FieldDefinition>
                 <FieldDefinition
-                 aspect.defaultValue="3281"
                  aspect.isPrimaryKey="false"
                  baseType="INTEGER"
                  description=""
                  name="ProxyPort"
                  ordinal="12"></FieldDefinition>
                 <FieldDefinition
-                 aspect.defaultValue="none"
                  aspect.isPrimaryKey="false"
                  baseType="STRING"
                  description=""
