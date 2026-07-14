@@ -1,4 +1,6 @@
-import { LitElement, html, css } from 'lit';
+import { html, css } from 'lit';
+import { GitElementBase } from '../git-base.js';
+import { themeVars, statusStyles } from '../../lib/git-styles.js';
 import { property, state } from 'lit/decorators.js';
 import { twx } from '../../lib/twx-service.js';
 import type { InfotableResponse } from '../../lib/twx-types.js';
@@ -9,33 +11,26 @@ interface EntityItem {
   projectName: string;
 }
 
-export class GitExport extends LitElement {
-  static styles = css`
+export class GitExport extends GitElementBase {
+  static styles = [themeVars, statusStyles, css`
     :host { display: block; padding: 16px; font-family: sans-serif; }
     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
     .header h3 { margin: 0; }
     .form-grid { display: grid; grid-template-columns: 140px 1fr auto; gap: 10px 12px; align-items: center; margin-bottom: 12px; }
-    .form-grid label { font-size: 13px; color: #555; text-align: right; }
-    .form-grid input, .form-grid select { padding: 7px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; width: 100%; box-sizing: border-box; }
-    .entity-list { border: 1px solid #e0e0e0; border-radius: 4px; overflow: hidden; margin-bottom: 16px; }
-    .entity-row { display: flex; align-items: center; padding: 8px 12px; border-bottom: 1px solid #f0f0f0; gap: 8px; }
+    .form-grid label { font-size: 13px; color: var(--git-color-label, #555); text-align: right; }
+    .form-grid input, .form-grid select { padding: 7px 10px; border: 1px solid var(--git-color-border-strong, #ccc); border-radius: var(--git-border-radius-sm, 4px); font-size: 13px; width: 100%; box-sizing: border-box; }
+    .entity-list { border: 1px solid var(--git-color-border, #e0e0e0); border-radius: var(--git-border-radius-sm, 4px); overflow: hidden; margin-bottom: 16px; }
+    .entity-row { display: flex; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--git-color-border-light, #f0f0f0); gap: 8px; }
     .entity-row:last-child { border-bottom: none; }
-    .entity-row:hover { background: #f5f5f5; }
+    .entity-row:hover { background: var(--git-color-bg-hover, #f5f5f5); }
     .entity-row input[type="checkbox"] { margin: 0; }
     .entity-name { flex: 1; font-weight: 500; }
-    .entity-type { font-size: 12px; padding: 2px 8px; border-radius: 4px; background: #eceff1; color: #546e7a; }
-    .entity-project { font-size: 12px; color: #999; }
+    .entity-project { font-size: 12px; color: var(--git-color-text-muted, #999); }
     .actions { margin-top: 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    .result { margin-top: 12px; padding: 12px; border-radius: 4px; font-size: 13px; }
-    .result.success { background: #e8f5e9; color: #2e7d32; }
-    .result.error { background: #ffebee; color: #c62828; }
-    .result.info { background: #e3f2fd; color: #1565c0; }
-    .empty-state { text-align: center; padding: 24px; color: #999; }
-    .loading { opacity: 0.6; pointer-events: none; }
-    .card { border: 1px solid #e0e0e0; border-radius: 6px; padding: 16px; margin-bottom: 16px; }
-    .section-title { font-size: 14px; font-weight: 600; color: #333; margin: 0 0 8px; }
+    .card { border: 1px solid var(--git-color-border, #e0e0e0); border-radius: var(--git-border-radius-md, 6px); padding: 16px; margin-bottom: 16px; }
+    .section-title { font-size: 14px; font-weight: 600; color: var(--git-color-text, #333); margin: 0 0 8px; }
     .entity-type-filter { display: flex; gap: 8px; align-items: center; }
-  `;
+  `];
 
   @property({ type: String }) gitThing = '';
   @state() private projectName = '';
@@ -211,4 +206,4 @@ export class GitExport extends LitElement {
   }
 }
 
-customElements.define('git-export', GitExport);
+if (!customElements.get('git-export')) { customElements.define('git-export', GitExport); };

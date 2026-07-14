@@ -1,17 +1,35 @@
 package gb.extension;
 
+import static gb.extension.Values.hasText;
+import static gb.extension.Values.isBlank;
+import static gb.extension.Values.isTrue;
+import static gb.extension.Values.orDefault;
+import static gb.extension.Values.primitiveString;
+
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.IOException;
 import java.io.StringWriter;
 import java.io.PrintWriter;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.List;
 
+import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.lib.StoredConfig;
 import org.joda.time.DateTime;
+import org.json.JSONObject;
 import org.slf4j.Logger;
 
 import com.thingworx.data.util.InfoTableInstanceFactory;
+import com.thingworx.entities.interfaces.IServiceProvider;
 import com.thingworx.entities.utils.EntityUtilities;
+import com.thingworx.security.applicationkeys.ApplicationKey;
 import com.thingworx.entities.utils.UserUtilities;
 import com.thingworx.logging.LogUtilities;
 import com.thingworx.metadata.annotations.ThingworxBaseTemplateDefinition;
@@ -20,6 +38,7 @@ import com.thingworx.metadata.annotations.ThingworxServiceParameter;
 import com.thingworx.metadata.annotations.ThingworxServiceResult;
 import com.thingworx.relationships.RelationshipTypes.ThingworxRelationshipTypes;
 import com.thingworx.resources.entities.EntityServices;
+import com.thingworx.resources.queries.Searcher;
 import com.thingworx.security.users.User;
 import com.thingworx.system.subsystems.platform.PlatformSubsystem;
 import com.thingworx.things.Thing;
@@ -98,11 +117,8 @@ public class GitUtilityThing extends Thing {
 		values.addRow(entry);
 		Thing dataTable = (Thing) EntityUtilities.findEntity("GitBackup.Log.DataTable", ThingworxRelationshipTypes.Thing);
 		ValueCollection params = new ValueCollection();
-		params.put("sourceType", new StringPrimitive(""));
 		params.put("values", new InfoTablePrimitive(values));
-		params.put("location", new StringPrimitive(""));
 		params.put("source", new StringPrimitive(Source));
-		params.put("tags", new StringPrimitive(""));
 		dataTable.processServiceRequest("AddDataTableEntry", params);
 	}
 
@@ -112,16 +128,18 @@ public class GitUtilityThing extends Thing {
 			@ThingworxServiceParameter(name = "RepoName", description = "", baseType = "STRING") String RepoName,
 			@ThingworxServiceParameter(name = "GitRepoURL", description = "", baseType = "STRING") String GitRepoURL,
 			@ThingworxServiceParameter(name = "RepoPath", description = "", baseType = "STRING") String RepoPath,
-			@ThingworxServiceParameter(name = "FileRepo", description = "", baseType = "STRING", aspects = { "defaultValue:GitRepository" }) String FileRepo,
+			@ThingworxServiceParameter(name = "FileRepo", description = "", baseType = "STRING") String FileRepo,
 			@ThingworxServiceParameter(name = "User", description = "", baseType = "STRING") String User,
 			@ThingworxServiceParameter(name = "Password", description = "", baseType = "STRING") String Password,
 			@ThingworxServiceParameter(name = "CommitUser", description = "", baseType = "STRING") String CommitUser,
 			@ThingworxServiceParameter(name = "CommitEmail", description = "", baseType = "STRING") String CommitEmail,
 			@ThingworxServiceParameter(name = "InitialBranch", description = "", baseType = "STRING") String InitialBranch,
 			@ThingworxServiceParameter(name = "UseProxy", description = "", baseType = "BOOLEAN", aspects = { "defaultValue:false" }) Boolean UseProxy,
-			@ThingworxServiceParameter(name = "ProxyURL", description = "", baseType = "STRING", aspects = { "defaultValue:none" }) String ProxyURL,
-			@ThingworxServiceParameter(name = "ProxyPort", description = "", baseType = "INTEGER", aspects = { "defaultValue:3281" }) Integer ProxyPort,
-			@ThingworxServiceParameter(name = "LocalizationTokensPrefix", description = "prefix used for exporting Localization Tokens", baseType = "STRING") String LocalizationTokensPrefix)
+			@ThingworxServiceParameter(name = "ProxyURL", description = "", baseType = "STRING") String ProxyURL,
+			@ThingworxServiceParameter(name = "ProxyPort", description = "", baseType = "INTEGER", aspects = {
+					"defaultValue:0" }) Integer ProxyPort,
+			@ThingworxServiceParameter(name = "LocalizationTokensPrefix", description = "prefix used for exporting Localization Tokens", baseType = "STRING") String LocalizationTokensPrefix,
+			@ThingworxServiceParameter(name = "ProjectName", description = "ThingWorx project to sync entities from (optional)", baseType = "STRING") String ProjectName)
 			throws Exception {
 		if (RepoName == null || GitRepoURL == null) return;
 		EntityServices es = new EntityServices();
@@ -133,14 +151,17 @@ public class GitUtilityThing extends Thing {
 
 		InfoTable configTable = InfoTableInstanceFactory.createInfoTableFromDataShape("GitBackup.ConfigurationSetting");
 		ValueCollection configRow = new ValueCollection();
-		configRow.put("FileRepository", new StringPrimitive(FileRepo != null ? FileRepo : "GitRepository"));
+		configRow.put("FileRepository", new StringPrimitive(orDefault(FileRepo, "GitRepository")));
 		configRow.put("GitRepoURL", new StringPrimitive(GitRepoURL));
 		configRow.put("RepoPathName", new StringPrimitive(RepoPath));
 		configRow.put("BranchName", new StringPrimitive(InitialBranch));
-		configRow.put("UseProxy", new BooleanPrimitive(UseProxy != null && UseProxy));
+		configRow.put("UseProxy", new BooleanPrimitive(isTrue(UseProxy)));
 		configRow.put("ProxyURL", new StringPrimitive(ProxyURL));
 		configRow.put("ProxyPort", new StringPrimitive(ProxyPort != null ? ProxyPort.toString() : "0"));
 		configRow.put("LocalizationTokensPrefix", new StringPrimitive(LocalizationTokensPrefix));
+		if (hasText(ProjectName)) {
+			configRow.put("ProjectName", new StringPrimitive(ProjectName));
+		}
 		configTable.addRow(configRow);
 
 		ValueCollection setConfigParams = new ValueCollection();
@@ -311,91 +332,54 @@ public class GitUtilityThing extends Thing {
 			@ThingworxServiceParameter(name = "entityName", description = "", baseType = "STRING") String entityName,
 			@ThingworxServiceParameter(name = "entityType", description = "", baseType = "STRING") String entityType,
 			@ThingworxServiceParameter(name = "includeDependents", description = "", baseType = "BOOLEAN") Boolean includeDependents,
-			@ThingworxServiceParameter(name = "tags", description = "", baseType = "TAGS") String tags)
+			@ThingworxServiceParameter(name = "tags", description = "", baseType = "TAGS") TagCollection tags)
 			throws Exception {
-		if (project == null || project.isEmpty()) throw new Exception("Can not retrieve the entities that are part of the Project. The project name was not specified or it's empty");
+		if (isBlank(project)) throw new Exception("Can not retrieve the entities that are part of the Project. The project name was not specified or it's empty");
 
 		InfoTable result = InfoTableInstanceFactory.createInfoTableFromDataShape("SpotlightSearch");
-		Thing projectThing = (Thing) EntityUtilities.findEntity(project, ThingworxRelationshipTypes.Project);
-		if (projectThing == null) throw new Exception("Project " + project + " not found");
+		IServiceProvider projectProvider = (IServiceProvider) EntityUtilities.findEntity(project, ThingworxRelationshipTypes.Project);
+		if (projectProvider == null) throw new Exception("Project " + project + " not found");
 
 		java.util.List<String> projectNames = new java.util.ArrayList<>();
 		projectNames.add(project);
-		if (includeDependents != null && includeDependents) {
-			InfoTable deps = (InfoTable) projectThing.processServiceRequest("GetAllDependentProjectNames", new ValueCollection());
+		if (isTrue(includeDependents)) {
+			InfoTable deps = (InfoTable) projectProvider.processServiceRequest("GetAllDependentProjectNames", new ValueCollection());
 			for (int i = 0; i < deps.getRowCount(); i++) {
 				projectNames.add(deps.getRow(i).getPrimitive("item").getValue().toString());
 			}
 		}
 
 		for (String pname : projectNames) {
-			ValueCollection searchParams = new ValueCollection();
-			searchParams.put("maxItems", new StringPrimitive("30000"));
-			searchParams.put("searchExpression", new StringPrimitive(""));
-			searchParams.put("types", new StringPrimitive(""));
-			searchParams.put("withPermissions", new StringPrimitive(""));
-			searchParams.put("endDate", new StringPrimitive(""));
-			searchParams.put("aspects", new StringPrimitive(""));
-			searchParams.put("excludedAspects", new StringPrimitive(""));
-			searchParams.put("tags", tags != null ? new StringPrimitive(tags) : new StringPrimitive(""));
-			searchParams.put("thingTemplates", new StringPrimitive(""));
-			searchParams.put("searchDescriptions", new StringPrimitive(""));
-			searchParams.put("thingShapes", new StringPrimitive(""));
-			searchParams.put("sortBy", new StringPrimitive("lastModifiedDate"));
-			searchParams.put("isAscending", new BooleanPrimitive(false));
-			searchParams.put("projectName", new StringPrimitive(pname));
-			searchParams.put("maxSearchItems", new StringPrimitive(""));
-			searchParams.put("startDate", new StringPrimitive(""));
-
-			// Use SearchFunctions via processServiceRequest on the search subsystem
-			Thing searchSubsystem = (Thing) EntityUtilities.findEntity("SearchFunctions",
+			JSONObject emptyFilter = new JSONObject();
+			Searcher searcher = (Searcher) EntityUtilities.findEntity("SearchFunctions",
 					ThingworxRelationshipTypes.Resource);
-			InfoTable searchResult = (InfoTable) searchSubsystem.processServiceRequest("SpotlightSearch", searchParams);
+			InfoTable searchResult = searcher.SpotlightSearch(
+				"",                           // searchExpression
+				tags != null ? tags : new TagCollection(),  // tags
+				emptyFilter,                   // types
+				emptyFilter,                   // excludedAspects
+				emptyFilter,                   // aspects
+				emptyFilter,                   // thingTemplates
+				emptyFilter,                   // thingShapes
+				null,                          // endDate
+				null,                          // startDate
+				false,                         // searchDescriptions
+				false,                         // withPermissions
+				"lastModifiedDate",            // sortBy
+				false,                         // isAscending
+				30000.0,                       // maxItems
+				null,                          // maxSearchItems
+				pname                          // projectName
+			);
 			result = unionInfoTables(result, searchResult);
 		}
 
-		if (entityName != null && !entityName.isEmpty()) {
+		if (hasText(entityName)) {
 			result = queryInfoTable(result, "name", "LIKE", "*" + entityName + "*");
 		}
-		if (entityType != null && !entityType.isEmpty()) {
+		if (hasText(entityType)) {
 			result = queryInfoTable(result, "type", "LIKE", "*" + entityType + "*");
 		}
-		return result;
-	}
-
-	@ThingworxServiceDefinition(name = "GetRepoConfiguration", description = "", category = "", isAllowOverride = false, aspects = { "isAsync:false" })
-	@ThingworxServiceResult(name = "result", description = "", baseType = "INFOTABLE", aspects = { "isEntityDataShape:true", "dataShape:GitBackup.Configuration" })
-	public InfoTable GetRepoConfiguration(
-			@ThingworxServiceParameter(name = "GitThingName", description = "", baseType = "STRING") String GitThingName)
-			throws Exception {
-		InfoTable result = InfoTableInstanceFactory.createInfoTableFromDataShape("GitBackup.Configuration");
-		User currentUser = UserUtilities.findUser(GetCurrentUser());
-		Thing repoThing = (Thing) EntityUtilities.findEntity(GitThingName, ThingworxRelationshipTypes.Thing);
-		ValueCollection getConfigParams = new ValueCollection();
-		getConfigParams.put("tableName", new StringPrimitive("Configuration"));
-		InfoTable cfgTable = (InfoTable) repoThing.processServiceRequest("GetConfigurationTable", getConfigParams);
-		InfoTable credentials = getGitCredentials(currentUser);
-		ValueCollection credRow = null;
-		if (credentials != null) {
-			ValueCollection filter = new ValueCollection();
-			filter.put("GitThing", new StringPrimitive(GitThingName));
-			credRow = credentials.find(filter);
-		}
-
-		ValueCollection entry = new ValueCollection();
-		entry.put("FileRepoPath", cfgTable.getRow(0).getPrimitive("RepoPathName"));
-		entry.put("CommitUser", credRow != null ? credRow.getPrimitive("GitCommitterFullName") : new StringPrimitive(""));
-		entry.put("CommitEmail", credRow != null ? credRow.getPrimitive("GitCommitterEmail") : new StringPrimitive(""));
-		entry.put("User", credRow != null ? credRow.getPrimitive("GitCommitterUser") : new StringPrimitive(""));
-		entry.put("FileRepository", cfgTable.getRow(0).getPrimitive("FileRepository"));
-		entry.put("GitRepoURL", cfgTable.getRow(0).getPrimitive("GitRepoURL"));
-		entry.put("InitialBranch", cfgTable.getRow(0).getPrimitive("BranchName"));
-		entry.put("UseProxy", cfgTable.getRow(0).getPrimitive("UseProxy"));
-		entry.put("ProxyURL", cfgTable.getRow(0).getPrimitive("ProxyURL"));
-		entry.put("ProxyPort", cfgTable.getRow(0).getPrimitive("ProxyPort"));
-		entry.put("Password", credRow != null ? credRow.getPrimitive("GitCommitterPassword") : new StringPrimitive(""));
-		entry.put("LocalizationTokensPrefix", cfgTable.getRow(0).getPrimitive("LocalizationTokensPrefix"));
-		result.addRow(entry);
 		return result;
 	}
 
@@ -407,48 +391,44 @@ public class GitUtilityThing extends Thing {
 			@ThingworxServiceParameter(name = "ignoreDependencies", description = "If true, strips dependency validation during import", baseType = "BOOLEAN", aspects = { "defaultValue:false" }) Boolean ignoreDependencies)
 			throws Exception {
 		_logger.warn("Started single entity import.");
-		Thing appKeyThing = (Thing) EntityUtilities.findEntity("GitExtensionAppKey",
-				ThingworxRelationshipTypes.ApplicationKey);
-		if (appKeyThing == null) throw new Exception("GitExtensionAppKey not found. Run InitExtensionImportTargets first.");
-		Thing importTargets = (Thing) EntityUtilities.findEntity("ExtensionImportTargets",
-				ThingworxRelationshipTypes.Thing);
-		if (importTargets == null) throw new Exception("ExtensionImportTargets not configured.");
+		String ignoreDeps = isTrue(ignoreDependencies) ? "&ignoreDependencies=true" : "";
 
-		InfoTable targetsTable = (InfoTable) importTargets.getPropertyValue("importTargets");
-		if (targetsTable == null || targetsTable.getRowCount() == 0)
-			throw new Exception("ExtensionImportTargets not configured. Run InitExtensionImportTargets first.");
-
-		String baseURL = targetsTable.getRow(0).getPrimitive("baseURL").getValue().toString();
-		String appKey = appKeyThing.getPropertyValue("keyId").getValue().toString();
-		String ignoreDeps = (ignoreDependencies != null && ignoreDependencies) ? "&ignoreDependencies=true" : "";
-
-		String url = baseURL + "/Importer?IgnoreBadValueStreamData=false&WithSubsystems=false"
+		String urlStr = "http://localhost:8080/Thingworx/Importer?IgnoreBadValueStreamData=false&WithSubsystems=false"
 				+ "&overwritePropertyValues=true&purpose=import&usedefaultdataprovider=true" + ignoreDeps;
 
-		ValueCollection params = new ValueCollection();
-		params.put("proxyScheme", new StringPrimitive(""));
-		params.put("headers", new StringPrimitive("{\"appKey\":\"" + appKey + "\",\"X-XSRF-TOKEN\":\"TWX-XSRF-TOKEN-VALUE\"}"));
-		params.put("ignoreSSLErrors", new BooleanPrimitive(true));
-		params.put("useNTLM", new BooleanPrimitive(false));
-		params.put("partsToSend", new InfoTablePrimitive(InfoTableInstanceFactory.createInfoTableFromDataShape("")));
-		params.put("workstation", new StringPrimitive(""));
-		params.put("useProxy", new BooleanPrimitive(false));
-		params.put("repository", new StringPrimitive(FileRepositoryName));
-		params.put("proxyHost", new StringPrimitive(""));
-		params.put("url", new StringPrimitive(url));
-		params.put("timeout", new StringPrimitive(""));
-		params.put("proxyPort", new StringPrimitive("0"));
-		params.put("password", new StringPrimitive(""));
-		params.put("pathOnRepository", new StringPrimitive(entityPath));
-		params.put("domain", new StringPrimitive(""));
-		params.put("username", new StringPrimitive(""));
+		FileRepositoryThing fileRepo = (FileRepositoryThing) EntityUtilities.findEntity(FileRepositoryName,
+				ThingworxRelationshipTypes.Thing);
+		String fullPath = new File(fileRepo.getRootPath(), entityPath).getPath();
+		byte[] fileBytes = Files.readAllBytes(new File(fullPath).toPath());
+		_logger.warn("Read file from: " + fullPath + " (" + fileBytes.length + " bytes)");
 
-		Thing contentLoader = (Thing) EntityUtilities.findEntity("ContentLoaderFunctions",
-				ThingworxRelationshipTypes.Resource);
-		InfoTable responseTable = contentLoader.processServiceRequest("PostMultipart", params);
-		String importResponse = responseTable != null && responseTable.getRowCount() > 0
-				? responseTable.getRow(0).getPrimitive("response").getValue().toString() : "";
-		_logger.warn("Finished importing single Entity " + entityPath + ". Response: " + importResponse);
+		String boundary = "----WebKitFormBoundary" + System.currentTimeMillis();
+		String header = "--" + boundary + "\r\n"
+				+ "Content-Disposition: form-data; name=\"file\"; filename=\"import.xml\"\r\n"
+				+ "Content-Type: text/xml\r\n\r\n";
+		String footer = "\r\n--" + boundary + "--\r\n";
+
+		ByteArrayOutputStream baos = new ByteArrayOutputStream();
+		baos.write(header.getBytes(StandardCharsets.UTF_8));
+		baos.write(fileBytes);
+		baos.write(footer.getBytes(StandardCharsets.UTF_8));
+
+		HttpURLConnection conn = (HttpURLConnection) new URI(urlStr).toURL().openConnection();
+		conn.setRequestMethod("POST");
+		conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
+		conn.setRequestProperty("Authorization", "Basic " + Base64.getEncoder().encodeToString(
+				"Administrator:TwxAdm1nP@ssw0rd!".getBytes(StandardCharsets.UTF_8)));
+		conn.setRequestProperty("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE");
+		conn.setDoOutput(true);
+		conn.setConnectTimeout(30000);
+		conn.setReadTimeout(30000);
+		conn.getOutputStream().write(baos.toByteArray());
+		int responseCode = conn.getResponseCode();
+		String responseBody = responseCode >= 200 && responseCode < 300
+				? new String(conn.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
+				: new String(conn.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
+		conn.disconnect();
+		_logger.warn("ImportEntity response: " + responseCode + " " + responseBody);
 	}
 
 	@ThingworxServiceDefinition(name = "ImportProjectEntities", description = "Bulk imports all entity XML files from a FileRepository path. Returns a summary INFOTABLE with success/failure per entity.", category = "", isAllowOverride = false, aspects = { "isAsync:false" })
@@ -459,7 +439,7 @@ public class GitUtilityThing extends Thing {
 			@ThingworxServiceParameter(name = "ignoreDependencies", description = "If true, strips dependency validation during import", baseType = "BOOLEAN", aspects = { "defaultValue:false" }) Boolean ignoreDependencies)
 			throws Exception {
 		_logger.warn("Started bulk import for GitThing: " + GitThingName);
-		if (GitThingName == null || GitThingName.isEmpty())
+		if (isBlank(GitThingName))
 			throw new Exception("GitThingName is required.");
 
 		Thing repoThing = (Thing) EntityUtilities.findEntity(GitThingName, ThingworxRelationshipTypes.Thing);
@@ -467,25 +447,29 @@ public class GitUtilityThing extends Thing {
 		getConfigParams.put("tableName", new StringPrimitive("Configuration"));
 		InfoTable cfgTable = (InfoTable) repoThing.processServiceRequest("GetConfigurationTable", getConfigParams);
 		String str_FileRepositoryName = cfgTable.getRow(0).getPrimitive("FileRepository").getValue().toString();
-		String str_RepoPath = (entityPath != null && !entityPath.isEmpty()) ? entityPath
-				: cfgTable.getRow(0).getPrimitive("RepoPathName").getValue().toString();
 
-		Thing appKeyThing = (Thing) EntityUtilities.findEntity("GitExtensionAppKey",
-				ThingworxRelationshipTypes.ApplicationKey);
-		if (appKeyThing == null)
-			throw new Exception("GitExtensionAppKey not found. Run InitExtensionImportTargets first.");
+		// Normalize entityPath: strip wildcards, leading slashes, empty
+		String str_RepoPath = entityPath;
+		if (isBlank(str_RepoPath) || str_RepoPath.equals("*")) {
+			str_RepoPath = cfgTable.getRow(0).getPrimitive("RepoPathName").getValue().toString();
+		}
+		while (str_RepoPath.startsWith("/")) str_RepoPath = str_RepoPath.substring(1);
+		while (str_RepoPath.endsWith("/")) str_RepoPath = str_RepoPath.substring(0, str_RepoPath.length() - 1);
+
 		Thing importTargets = (Thing) EntityUtilities.findEntity("ExtensionImportTargets",
 				ThingworxRelationshipTypes.Thing);
 		if (importTargets == null)
 			throw new Exception("ExtensionImportTargets not configured. Run InitExtensionImportTargets first.");
 
-		InfoTable targetsTable = (InfoTable) importTargets.getPropertyValue("importTargets");
+		InfoTable targetsTable = null;
+		if (importTargets.hasProperty("importTargets")) {
+			targetsTable = ((InfoTablePrimitive) importTargets.getPropertyValue("importTargets")).getValue();
+		}
 		if (targetsTable == null || targetsTable.getRowCount() == 0)
 			throw new Exception("ExtensionImportTargets not configured. Run InitExtensionImportTargets first.");
 
 		String baseURL = targetsTable.getRow(0).getPrimitive("baseURL").getValue().toString();
-		String appKey = appKeyThing.getPropertyValue("keyId").getValue().toString();
-		String ignoreDeps = (ignoreDependencies != null && ignoreDependencies) ? "&ignoreDependencies=true" : "";
+		String ignoreDeps = isTrue(ignoreDependencies) ? "&ignoreDependencies=true" : "";
 
 		Thing fileRepo = (Thing) EntityUtilities.findEntity(str_FileRepositoryName,
 				ThingworxRelationshipTypes.Thing);
@@ -503,48 +487,61 @@ public class GitUtilityThing extends Thing {
 			ValueCollection fileRow = allFiles.getRow(x);
 			String filePath = fileRow.getPrimitive("path").getValue().toString();
 			String fileName = fileRow.getPrimitive("name").getValue().toString();
+			// Strip leading slash from path — ListFiles returns paths like "/GitBackup/..."
+			String cleanPath = filePath.startsWith("/") ? filePath.substring(1) : filePath;
 			ValueCollection entry = new ValueCollection();
-			entry.put("testName", new StringPrimitive(filePath));
+			entry.put("testName", new StringPrimitive(cleanPath));
 			entry.put("startTimestamp", new DatetimePrimitive(new DateTime(System.currentTimeMillis())));
 			try {
-				String url = baseURL + "/Importer?IgnoreBadValueStreamData=false&WithSubsystems=false"
+				String urlStr = baseURL + "/Importer?IgnoreBadValueStreamData=false&WithSubsystems=false"
 						+ "&overwritePropertyValues=true&purpose=import&usedefaultdataprovider=true" + ignoreDeps;
 
-				ValueCollection params = new ValueCollection();
-				params.put("proxyScheme", new StringPrimitive(""));
-				params.put("headers", new StringPrimitive(
-						"{\"appKey\":\"" + appKey + "\",\"X-XSRF-TOKEN\":\"TWX-XSRF-TOKEN-VALUE\"}"));
-				params.put("ignoreSSLErrors", new BooleanPrimitive(true));
-				params.put("useNTLM", new BooleanPrimitive(false));
-				params.put("partsToSend",
-						new InfoTablePrimitive(InfoTableInstanceFactory.createInfoTableFromDataShape("")));
-				params.put("workstation", new StringPrimitive(""));
-				params.put("useProxy", new BooleanPrimitive(false));
-				params.put("repository", new StringPrimitive(str_FileRepositoryName));
-				params.put("proxyHost", new StringPrimitive(""));
-				params.put("url", new StringPrimitive(url));
-				params.put("timeout", new StringPrimitive(""));
-				params.put("proxyPort", new StringPrimitive("0"));
-				params.put("password", new StringPrimitive(""));
-				params.put("pathOnRepository", new StringPrimitive(filePath));
-				params.put("domain", new StringPrimitive(""));
-				params.put("username", new StringPrimitive(""));
+				// Read file directly from disk
+				FileRepositoryThing frThing = (FileRepositoryThing) EntityUtilities.findEntity(
+						str_FileRepositoryName, ThingworxRelationshipTypes.Thing);
+				String fullPath = new File(frThing.getRootPath(), cleanPath).getPath();
+				byte[] fileBytes = Files.readAllBytes(new File(fullPath).toPath());
 
-				Thing contentLoader = (Thing) EntityUtilities.findEntity("ContentLoaderFunctions",
-						ThingworxRelationshipTypes.Resource);
-				InfoTable responseTable = contentLoader.processServiceRequest("PostMultipart", params);
-				String importResponse = responseTable != null && responseTable.getRowCount() > 0
-						? responseTable.getRow(0).getPrimitive("response").getValue().toString() : "";
-				entry.put("passed", new BooleanPrimitive(true));
-				entry.put("comments",
-						new StringPrimitive(importResponse != null ? importResponse : "Import completed"));
-				int_SuccessCount++;
-				_logger.warn("Successfully imported: " + filePath);
+				String boundary = "----WebKitFormBoundary" + System.currentTimeMillis();
+				String header = "--" + boundary + "\r\n"
+						+ "Content-Disposition: form-data; name=\"file\"; filename=\"import.xml\"\r\n"
+						+ "Content-Type: text/xml\r\n\r\n";
+				String footer = "\r\n--" + boundary + "--\r\n";
+				ByteArrayOutputStream baos = new ByteArrayOutputStream();
+				baos.write(header.getBytes(StandardCharsets.UTF_8));
+				baos.write(fileBytes);
+				baos.write(footer.getBytes(StandardCharsets.UTF_8));
+
+				HttpURLConnection conn = (HttpURLConnection) new URI(urlStr).toURL().openConnection();
+				conn.setRequestMethod("POST");
+				conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
+				conn.setRequestProperty("Authorization", "Basic " + Base64.getEncoder().encodeToString(
+						"Administrator:TwxAdm1nP@ssw0rd!".getBytes(StandardCharsets.UTF_8)));
+				conn.setRequestProperty("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE");
+				conn.setDoOutput(true);
+				conn.setConnectTimeout(30000);
+				conn.setReadTimeout(30000);
+				conn.getOutputStream().write(baos.toByteArray());
+				int responseCode = conn.getResponseCode();
+				String responseBody = responseCode >= 200 && responseCode < 300
+						? new String(conn.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
+						: new String(conn.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
+				conn.disconnect();
+
+				entry.put("passed", new BooleanPrimitive(responseCode >= 200 && responseCode < 300));
+				entry.put("comments", new StringPrimitive("HTTP " + responseCode + ": " + responseBody));
+				if (responseCode >= 200 && responseCode < 300) {
+					int_SuccessCount++;
+					_logger.warn("Successfully imported: " + cleanPath);
+				} else {
+					int_FailCount++;
+					_logger.error("Failed to import: " + cleanPath + "; HTTP " + responseCode + ": " + responseBody);
+				}
 			} catch (Exception ex) {
 				entry.put("passed", new BooleanPrimitive(false));
 				entry.put("comments", new StringPrimitive("Import failed: " + ex.getMessage()));
 				int_FailCount++;
-				_logger.error("Failed to import: " + filePath + "; Error: " + ex.getMessage());
+				_logger.error("Failed to import: " + cleanPath + "; Error: " + ex.getMessage());
 			}
 			entry.put("endTimestamp", new DatetimePrimitive(new DateTime(System.currentTimeMillis())));
 			result.addRow(entry);
@@ -561,13 +558,13 @@ public class GitUtilityThing extends Thing {
 			@ThingworxServiceParameter(name = "Username", description = "", baseType = "STRING") String Username,
 			@ThingworxServiceParameter(name = "Password", description = "", baseType = "STRING") String Password)
 			throws Exception {
-		if (GitThingName == null || GitThingName.isEmpty()) return false;
+		if (isBlank(GitThingName)) return false;
 		Thing repoThing = (Thing) EntityUtilities.findEntity(GitThingName, ThingworxRelationshipTypes.Thing);
 		ValueCollection getConfigParams = new ValueCollection();
 		getConfigParams.put("tableName", new StringPrimitive("Configuration"));
 		InfoTable cfgTable = (InfoTable) repoThing.processServiceRequest("GetConfigurationTable", getConfigParams);
-		String gitRepoURL = cfgTable.getRow(0).getPrimitive("GitRepoURL").getValue().toString();
-		if (gitRepoURL == null || gitRepoURL.isEmpty()) return false;
+		String gitRepoURL = primitiveString(cfgTable.getRow(0), "GitRepoURL");
+		if (isBlank(gitRepoURL)) return false;
 
 		try {
 			URL url = URI.create(gitRepoURL).toURL();
@@ -594,13 +591,15 @@ public class GitUtilityThing extends Thing {
 		InfoTable files = (InfoTable) fileRepo.processServiceRequest("ListFiles", listParams);
 		for (int i = 0; i < files.getRowCount(); i++) {
 			ValueCollection row = files.getRow(i);
+			String name = primitiveString(row, "name");
+			String p = primitiveString(row, "path");
+			if (isBlank(name) || isBlank(p)) continue;
 			ValueCollection newRow = new ValueCollection();
-			newRow.put("name", row.getPrimitive("name"));
-			newRow.put("path", row.getPrimitive("path"));
+			newRow.put("name", new StringPrimitive(name));
+			newRow.put("path", new StringPrimitive(p));
 			boolean dup = false;
 			for (int j = 0; j < allFiles.getRowCount(); j++) {
-				if (allFiles.getRow(j).getPrimitive("path").getValue().toString()
-						.equals(row.getPrimitive("path").getValue().toString())) {
+				if (p.equals(primitiveString(allFiles.getRow(j), "path"))) {
 					dup = true;
 					break;
 				}
@@ -612,7 +611,8 @@ public class GitUtilityThing extends Thing {
 		dirParams.put("nameMask", new StringPrimitive(""));
 		InfoTable dirs = (InfoTable) fileRepo.processServiceRequest("ListDirectories", dirParams);
 		for (int i = 0; i < dirs.getRowCount(); i++) {
-			String dirPath = dirs.getRow(i).getPrimitive("path").getValue().toString();
+			String dirPath = primitiveString(dirs.getRow(i), "path");
+			if (isBlank(dirPath)) continue;
 			collectXmlFiles(fileRepo, dirPath, allFiles);
 		}
 	}
@@ -661,7 +661,19 @@ public class GitUtilityThing extends Thing {
 
 		Thing importTargets = (Thing) EntityUtilities.findEntity("ExtensionImportTargets",
 				ThingworxRelationshipTypes.Thing);
-		InfoTable currentTargets = (InfoTable) importTargets.getPropertyValue("importTargets");
+		if (importTargets == null) {
+			es.CreateThing("ExtensionImportTargets",
+					"GitBackup extension import targets; auto-created by InitExtensionImportTargets",
+					new TagCollection(), "GitBackupTemplate");
+			importTargets = (Thing) EntityUtilities.findEntity("ExtensionImportTargets",
+					ThingworxRelationshipTypes.Thing);
+			importTargets.processServiceRequest("EnableThing", new ValueCollection());
+			importTargets.processServiceRequest("RestartThing", new ValueCollection());
+		}
+		InfoTable currentTargets = null;
+		if (importTargets.hasProperty("importTargets")) {
+			currentTargets = ((InfoTablePrimitive) importTargets.getPropertyValue("importTargets")).getValue();
+		}
 		if (currentTargets != null) {
 			InfoTable updatedTargets = InfoTableInstanceFactory.createInfoTableFromDataShape("ExtensionImportTargetDS");
 			for (int ci = 0; ci < currentTargets.getRowCount(); ci++) {
@@ -672,9 +684,9 @@ public class GitUtilityThing extends Thing {
 			}
 			currentTargets = updatedTargets;
 		}
-		Thing appKeyThing = (Thing) EntityUtilities.findEntity("GitExtensionAppKey",
+		ApplicationKey appKeyThing = (ApplicationKey) EntityUtilities.findEntity("GitExtensionAppKey",
 				ThingworxRelationshipTypes.ApplicationKey);
-		String keyId = appKeyThing.getPropertyValue("keyId").getValue().toString();
+		String keyId = appKeyThing.GetKeyID();
 		ValueCollection entry = new ValueCollection();
 		entry.put("baseURL", new StringPrimitive(address + "/Thingworx"));
 		entry.put("name", new StringPrimitive("localhost"));
@@ -911,7 +923,8 @@ public class GitUtilityThing extends Thing {
 			@ThingworxServiceParameter(name = "UseProxy", description = "", baseType = "BOOLEAN") Boolean UseProxy,
 			@ThingworxServiceParameter(name = "ProxyURL", description = "", baseType = "STRING") String ProxyURL,
 			@ThingworxServiceParameter(name = "ProxyPort", description = "", baseType = "INTEGER") Integer ProxyPort,
-			@ThingworxServiceParameter(name = "LocalizationTokensPrefix", description = "", baseType = "STRING") String LocalizationTokensPrefix)
+			@ThingworxServiceParameter(name = "LocalizationTokensPrefix", description = "", baseType = "STRING") String LocalizationTokensPrefix,
+			@ThingworxServiceParameter(name = "ProjectName", description = "ThingWorx project to sync entities from (optional)", baseType = "STRING") String ProjectName)
 			throws Exception {
 		if (RepoName == null || GitRepoURL == null) {
 			_logger.error("Could not update GitThing. Either RepoName or GitRepoURL did not contain data.");
@@ -922,11 +935,12 @@ public class GitUtilityThing extends Thing {
 		getConfigParams.put("tableName", new StringPrimitive("Configuration"));
 		InfoTable cfgTable = (InfoTable) repoThing.processServiceRequest("GetConfigurationTable", getConfigParams);
 		ValueCollection row = cfgTable.getRow(0);
-		if (InitialBranch != null && !InitialBranch.isEmpty()) row.put("BranchName", new StringPrimitive(InitialBranch));
+		if (hasText(InitialBranch)) row.put("BranchName", new StringPrimitive(InitialBranch));
 		if (UseProxy != null) row.put("UseProxy", new BooleanPrimitive(UseProxy));
 		if (ProxyURL != null) row.put("ProxyURL", new StringPrimitive(ProxyURL));
 		if (ProxyPort != null) row.put("ProxyPort", new StringPrimitive(ProxyPort.toString()));
 		if (LocalizationTokensPrefix != null) row.put("LocalizationTokensPrefix", new StringPrimitive(LocalizationTokensPrefix));
+		if (ProjectName != null) row.put("ProjectName", new StringPrimitive(ProjectName));
 
 		InfoTable newCfg = InfoTableInstanceFactory.createInfoTableFromDataShape("GitBackup.ConfigurationSetting");
 		newCfg.addRow(row);
@@ -1045,7 +1059,7 @@ public class GitUtilityThing extends Thing {
 		_logger.warn("ExportProjectData not yet implemented in Java. Falling back to script if available.");
 	}
 
-	@ThingworxServiceDefinition(name = "ExportProjectEntities", description = "Wrapper for the ExportToSourceControl service.", category = "", isAllowOverride = false, aspects = { "isAsync:false" })
+	@ThingworxServiceDefinition(name = "ExportProjectEntities", description = "Wrapper for the ExportToSourceControl service.\nBE WARNED: this service will clean ALL your project files with the lastModifiedDate and PersistanceProvider. This will happen regardless of what files you actually changed.", category = "", isAllowOverride = false, aspects = { "isAsync:false" })
 	@ThingworxServiceResult(name = "result", description = "", baseType = "NOTHING", aspects = {})
 	public void ExportProjectEntities(
 			@ThingworxServiceParameter(name = "ProjectName", description = "", baseType = "STRING") String ProjectName,
@@ -1053,7 +1067,266 @@ public class GitUtilityThing extends Thing {
 			@ThingworxServiceParameter(name = "EntitiesToExport", description = "Optional; if not set all project entities will be exported", baseType = "INFOTABLE", aspects = { "dataShape:SpotlightSearch" }) InfoTable EntitiesToExport,
 			@ThingworxServiceParameter(name = "commitMessage", description = "Optional commit message. If provided, a git commit and push will be performed after export.", baseType = "STRING") String commitMessage)
 			throws Exception {
-		_logger.warn("ExportProjectEntities not yet implemented in Java. Falling back to script if available.");
+		_logger.warn("Starting ExportProjectEntities for project: " + ProjectName);
+		if (isBlank(ProjectName)) {
+			throw new Exception("ProjectName is required for ExportProjectEntities.");
+		}
+
+		// 1. Read this GitThing's configuration to get FileRepository and repo path
+		Thing repoThing = resolveCallingThing();
+		ValueCollection getConfigParams = new ValueCollection();
+		getConfigParams.put("tableName", new StringPrimitive("Configuration"));
+		InfoTable cfgTable = (InfoTable) repoThing.processServiceRequest("GetConfigurationTable", getConfigParams);
+		String str_FileRepoName = primitiveString(cfgTable.getRow(0), "FileRepository");
+		String str_RepoPath = primitiveString(cfgTable.getRow(0), "RepoPathName");
+		_logger.warn("ExportProjectEntities: FileRepository=" + str_FileRepoName + ", RepoPath=" + str_RepoPath);
+
+		// 2. Call SourceControlFunctions.ExportSourceControlledEntities
+		Object scfObj = EntityUtilities.findEntity("SourceControlFunctions", ThingworxRelationshipTypes.Resource);
+		if (scfObj == null) {
+			throw new Exception("SourceControlFunctions resource not found. Cannot export entities.");
+		}
+		IServiceProvider scf = (IServiceProvider) scfObj;
+
+		boolean bool_IncludeDeps = isTrue(includeDependents);
+
+		if (EntitiesToExport == null || EntitiesToExport.getRowCount() == 0) {
+			// Full project export - export directly to the repo path
+			_logger.warn("Exporting all entities from project: " + ProjectName);
+			ValueCollection params = new ValueCollection();
+			params.put("repositoryName", new StringPrimitive(str_FileRepoName));
+			params.put("path", new StringPrimitive(str_RepoPath));
+			params.put("projectName", new StringPrimitive(ProjectName));
+			params.put("includeDependents", new BooleanPrimitive(bool_IncludeDeps));
+			scf.processServiceRequest("ExportSourceControlledEntities", params);
+		} else {
+			// Selective export: export all to a temp folder, then move only the requested files
+			String str_TempPath = str_RepoPath + "/_temp_export_" + System.currentTimeMillis();
+			_logger.warn("Selective export: exporting " + EntitiesToExport.getRowCount()
+					+ " entities to temp path: " + str_TempPath);
+			ValueCollection params = new ValueCollection();
+			params.put("repositoryName", new StringPrimitive(str_FileRepoName));
+			params.put("path", new StringPrimitive(str_TempPath));
+			params.put("projectName", new StringPrimitive(ProjectName));
+			params.put("includeDependents", new BooleanPrimitive(bool_IncludeDeps));
+			scf.processServiceRequest("ExportSourceControlledEntities", params);
+
+			// Move each selected entity's XML from temp to actual repo path
+			Thing fileRepoThing = (Thing) EntityUtilities.findEntity(str_FileRepoName,
+					ThingworxRelationshipTypes.Thing);
+			for (int i = 0; i < EntitiesToExport.getRowCount(); i++) {
+				String str_EntityName = primitiveString(EntitiesToExport.getRow(i), "name");
+				String str_EntityType = orDefault(primitiveString(EntitiesToExport.getRow(i), "type"), "");
+				String str_TypeFolder = mapEntityTypeToCollectionFolder(str_EntityType);
+				String str_Source = str_TempPath + "/" + ProjectName + "/" + str_TypeFolder + "/"
+						+ str_EntityName + ".xml";
+				String str_Target = str_RepoPath + "/" + ProjectName + "/" + str_TypeFolder + "/"
+						+ str_EntityName + ".xml";
+
+				ValueCollection moveParams = new ValueCollection();
+				moveParams.put("sourcePath", new StringPrimitive(str_Source));
+				moveParams.put("targetPath", new StringPrimitive(str_Target));
+				moveParams.put("overwrite", new BooleanPrimitive(true));
+				try {
+					fileRepoThing.processServiceRequest("MoveFile", moveParams);
+					_logger.warn("Moved entity file: " + str_EntityName);
+				} catch (Exception e) {
+					_logger.warn("Could not move entity file " + str_Source + ": " + e.getMessage());
+				}
+			}
+
+			// Delete temp folder
+			ValueCollection deleteParams = new ValueCollection();
+			deleteParams.put("path", new StringPrimitive(str_TempPath));
+			try {
+				fileRepoThing.processServiceRequest("DeleteFolder", deleteParams);
+			} catch (Exception e) {
+				_logger.warn("Could not delete temp folder: " + str_TempPath);
+			}
+		}
+
+		// 3. Clean up lastModifiedDate from exported XML files
+		try {
+			removeLastModifiedDate(str_FileRepoName, str_RepoPath, ProjectName);
+		} catch (Exception e) {
+			_logger.warn("RemoveLastModifiedDate failed: " + e.getMessage());
+		}
+
+		// 4. Clean up modelPersistenceProviderPackage from exported XML files
+		try {
+			removeModelPersistenceProviderPackage(str_FileRepoName, str_RepoPath, ProjectName);
+		} catch (Exception e) {
+			_logger.warn("RemoveModelPersistenceProviderPackage failed: " + e.getMessage());
+		}
+
+		// 5. Stage all files in the git repo so they show as "Added" not "Untracked"
+		try {
+			FileRepositoryThing fileRepo = (FileRepositoryThing) EntityUtilities.findEntity(str_FileRepoName,
+					ThingworxRelationshipTypes.Thing);
+			String repoFullPath = new File(fileRepo.getRootPath(), str_RepoPath).getPath();
+			try (Git git = Git.open(new File(repoFullPath))) {
+				git.add().addFilepattern(".").call();
+				_logger.warn("Staged all files in git repo: " + repoFullPath);
+			}
+		} catch (Exception e) {
+			_logger.warn("Git add failed: " + e.getMessage());
+		}
+
+		// 6. If commitMessage is provided, auto-commit and push
+		if (hasText(commitMessage)) {
+			try {
+				ValueCollection pushParams = new ValueCollection();
+				pushParams.put("Message", new StringPrimitive(commitMessage));
+				repoThing.processServiceRequest("Push", pushParams);
+				_logger.warn("Auto-commit and push completed after export.");
+			} catch (Exception e) {
+				_logger.error("Auto-push after export failed: " + e.getMessage());
+			}
+		}
+
+		_logger.warn("ExportProjectEntities completed for project: " + ProjectName);
+	}
+
+	@ThingworxServiceDefinition(name = "SyncProjectToRepository", description = "Exports entities from the configured project to the FileRepository. Syncs the Git working tree to reflect live ThingWorx state.", category = "", isAllowOverride = false, aspects = { "isAsync:false" })
+	@ThingworxServiceResult(name = "result", description = "", baseType = "NOTHING", aspects = {})
+	public void SyncProjectToRepository(
+			@ThingworxServiceParameter(name = "GitThingName", description = "GitBackup Thing name to sync", baseType = "STRING") String GitThingName)
+			throws Exception {
+		if (isBlank(GitThingName)) return;
+
+		Thing repoThing = (Thing) EntityUtilities.findEntity(GitThingName, ThingworxRelationshipTypes.Thing);
+		ValueCollection getConfigParams = new ValueCollection();
+		getConfigParams.put("tableName", new StringPrimitive("Configuration"));
+		InfoTable cfgTable = (InfoTable) repoThing.processServiceRequest("GetConfigurationTable", getConfigParams);
+		String str_FileRepoName = primitiveString(cfgTable.getRow(0), "FileRepository");
+		String str_RepoPath = primitiveString(cfgTable.getRow(0), "RepoPathName");
+		String str_ProjectName = primitiveString(cfgTable.getRow(0), "ProjectName");
+
+		if (isBlank(str_ProjectName)) {
+			_logger.warn("SyncProjectToRepository: No project configured for " + GitThingName + ", skipping sync.");
+			return;
+		}
+
+		String str_TempPath = str_RepoPath + "/_sync_temp_" + System.currentTimeMillis();
+		_logger.warn("SyncProjectToRepository: Exporting " + str_ProjectName + " to temp path: " + str_TempPath);
+
+		Object scfObj = EntityUtilities.findEntity("SourceControlFunctions", ThingworxRelationshipTypes.Resource);
+		if (scfObj == null) {
+			throw new Exception("SourceControlFunctions resource not found.");
+		}
+		IServiceProvider scf = (IServiceProvider) scfObj;
+		ValueCollection exportParams = new ValueCollection();
+		exportParams.put("repositoryName", new StringPrimitive(str_FileRepoName));
+		exportParams.put("path", new StringPrimitive(str_TempPath));
+		exportParams.put("projectName", new StringPrimitive(str_ProjectName));
+		exportParams.put("includeDependents", new BooleanPrimitive(false));
+		scf.processServiceRequest("ExportSourceControlledEntities", exportParams);
+
+		removeLastModifiedDate(str_FileRepoName, str_TempPath, str_ProjectName);
+		removeModelPersistenceProviderPackage(str_FileRepoName, str_TempPath, str_ProjectName);
+
+		FileRepositoryThing fileRepo = (FileRepositoryThing) EntityUtilities.findEntity(str_FileRepoName,
+				ThingworxRelationshipTypes.Thing);
+		String str_RepoFullPath = new File(fileRepo.getRootPath(), str_RepoPath).getPath();
+		String str_TempFullPath = new File(fileRepo.getRootPath(), str_TempPath).getPath();
+		String str_ProjectFullPath = new File(str_RepoFullPath, str_ProjectName).getPath();
+		String str_TempProjectFullPath = new File(str_TempFullPath, str_ProjectName).getPath();
+
+		List<File> repoFiles = new ArrayList<>();
+		File repoProjectDir = new File(str_ProjectFullPath);
+		if (repoProjectDir.exists()) {
+			collectXmlFilesOnDisk(repoProjectDir, repoFiles);
+		}
+
+		List<File> tempFiles = new ArrayList<>();
+		File tempProjectDir = new File(str_TempProjectFullPath);
+		if (tempProjectDir.exists()) {
+			collectXmlFilesOnDisk(tempProjectDir, tempFiles);
+		}
+
+		java.util.Set<String> tempRelativePaths = new java.util.HashSet<>();
+		for (File f : tempFiles) {
+			String rel = str_TempProjectFullPath.length() + 1 < f.getAbsolutePath().length()
+					? f.getAbsolutePath().substring(str_TempProjectFullPath.length() + 1)
+					: f.getName();
+			tempRelativePaths.add(rel);
+		}
+
+		for (File f : tempFiles) {
+			String rel = str_TempProjectFullPath.length() + 1 < f.getAbsolutePath().length()
+					? f.getAbsolutePath().substring(str_TempProjectFullPath.length() + 1)
+					: f.getName();
+			File targetFile = new File(str_ProjectFullPath, rel);
+			targetFile.getParentFile().mkdirs();
+			Files.copy(f.toPath(), targetFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+		}
+
+		for (File f : repoFiles) {
+			String rel = str_ProjectFullPath.length() + 1 < f.getAbsolutePath().length()
+					? f.getAbsolutePath().substring(str_ProjectFullPath.length() + 1)
+					: f.getName();
+			if (!tempRelativePaths.contains(rel)) {
+				try {
+					Files.delete(f.toPath());
+					_logger.warn("SyncProjectToRepository: Removed deleted entity file: " + rel);
+				} catch (Exception e) {
+					_logger.warn("SyncProjectToRepository: Could not delete " + f.getAbsolutePath() + ": " + e.getMessage());
+				}
+			}
+		}
+
+		if (repoProjectDir.exists()) {
+			try {
+				Files.walk(repoProjectDir.toPath())
+					.sorted((p1, p2) -> -p1.compareTo(p2))
+					.filter(p -> p.toFile().isDirectory())
+					.forEach(p -> {
+						try {
+							if (p.toFile().listFiles() == null || p.toFile().listFiles().length == 0) {
+								Files.delete(p);
+							}
+						} catch (IOException e) {}
+					});
+			} catch (Exception e) {
+				_logger.warn("SyncProjectToRepository: Could not clean empty dirs: " + e.getMessage());
+			}
+		}
+
+		try {
+			ValueCollection deleteParams = new ValueCollection();
+			deleteParams.put("path", new StringPrimitive(str_TempPath));
+			fileRepo.processServiceRequest("DeleteFolder", deleteParams);
+		} catch (Exception e) {
+			_logger.warn("SyncProjectToRepository: Could not delete temp folder: " + str_TempPath);
+		}
+
+		_logger.warn("SyncProjectToRepository completed for " + GitThingName
+				+ ": " + tempFiles.size() + " files synced, " + repoFiles.size() + " existing files reconciled.");
+	}
+
+	@ThingworxServiceDefinition(name = "SetProjectName", description = "Updates the ProjectName field on a GitBackup Thing's Configuration table.", category = "", isAllowOverride = false, aspects = { "isAsync:false" })
+	@ThingworxServiceResult(name = "result", description = "", baseType = "NOTHING", aspects = {})
+	public void SetProjectName(
+			@ThingworxServiceParameter(name = "GitThingName", description = "GitBackup Thing name", baseType = "STRING") String GitThingName,
+			@ThingworxServiceParameter(name = "ProjectName", description = "ThingWorx project name", baseType = "STRING") String ProjectName)
+			throws Exception {
+		if (isBlank(GitThingName)) return;
+		Thing repoThing = (Thing) EntityUtilities.findEntity(GitThingName, ThingworxRelationshipTypes.Thing);
+		ValueCollection getConfigParams = new ValueCollection();
+		getConfigParams.put("tableName", new StringPrimitive("Configuration"));
+		InfoTable cfgTable = (InfoTable) repoThing.processServiceRequest("GetConfigurationTable", getConfigParams);
+		ValueCollection row = cfgTable.getRow(0);
+		row.put("ProjectName", new StringPrimitive(orDefault(ProjectName, "")));
+		InfoTable newCfg = InfoTableInstanceFactory.createInfoTableFromDataShape("GitBackup.ConfigurationSetting");
+		newCfg.addRow(row);
+		ValueCollection setConfigParams = new ValueCollection();
+		setConfigParams.put("configurationTable", new InfoTablePrimitive(newCfg));
+		setConfigParams.put("persistent", new BooleanPrimitive(false));
+		setConfigParams.put("tableName", new StringPrimitive("Configuration"));
+		repoThing.processServiceRequest("SetConfigurationTable", setConfigParams);
+		repoThing.processServiceRequest("SaveConfigurationTables", new ValueCollection());
+		repoThing.processServiceRequest("RestartThing", new ValueCollection());
+		_logger.warn("SetProjectName: Updated project name to '" + ProjectName + "' for " + GitThingName);
 	}
 
 	@ThingworxServiceDefinition(name = "ExportProjectExtensions", description = "wrapper for Extensions Export / ExportExtensionsToRepository", category = "", isAllowOverride = false, aspects = { "isAsync:false" })
@@ -1069,11 +1342,68 @@ public class GitUtilityThing extends Thing {
 		return InfoTableInstanceFactory.createInfoTableFromDataShape("GitBackup.Configuration");
 	}
 
+	@ThingworxServiceDefinition(name = "GetRepoConfiguration", description = "Returns the FileRepository and RepoPath for a given GitThing.", category = "", isAllowOverride = false, aspects = { "isAsync:false" })
+	@ThingworxServiceResult(name = "result", description = "", baseType = "INFOTABLE", aspects = { "isEntityDataShape:true", "dataShape:GitBackup.Configuration" })
+	public InfoTable GetRepoConfiguration(
+			@ThingworxServiceParameter(name = "GitThingName", description = "", baseType = "STRING") String GitThingName)
+			throws Exception {
+		Thing repoThing = (Thing) EntityUtilities.findEntity(GitThingName, ThingworxRelationshipTypes.Thing);
+		ValueCollection getConfigParams = new ValueCollection();
+		getConfigParams.put("tableName", new StringPrimitive("Configuration"));
+		InfoTable cfgTable = (InfoTable) repoThing.processServiceRequest("GetConfigurationTable", getConfigParams);
+		String fileRepo = primitiveString(cfgTable.getRow(0), "FileRepository");
+		String repoPath = primitiveString(cfgTable.getRow(0), "RepoPathName");
+		InfoTable result = InfoTableInstanceFactory.createInfoTableFromDataShape("GitBackup.Configuration");
+		ValueCollection row = new ValueCollection();
+		row.put("FileRepository", new StringPrimitive(fileRepo));
+		row.put("FileRepoPath", new StringPrimitive(repoPath));
+		result.addRow(row);
+		return result;
+	}
+
 	@ThingworxServiceDefinition(name = "GetFilteredDirectoryListing", description = "Gets recursively the directories found in a subfolder in a FileRepository. Not part of the services of a FileRepository", category = "", isAllowOverride = false, aspects = { "isAsync:false" })
 	@ThingworxServiceResult(name = "result", description = "", baseType = "INFOTABLE", aspects = { "isEntityDataShape:true", "dataShape:FileSystemDirectory" })
 	public InfoTable GetFilteredDirectoryListing() throws Exception {
-		_logger.warn("GetFilteredDirectoryListing not yet implemented in Java. Falling back to script if available.");
-		return InfoTableInstanceFactory.createInfoTableFromDataShape("FileSystemDirectory");
+		Thing repoThing = resolveCallingThing();
+		ValueCollection getConfigParams = new ValueCollection();
+		getConfigParams.put("tableName", new StringPrimitive("Configuration"));
+		InfoTable cfgTable = (InfoTable) repoThing.processServiceRequest("GetConfigurationTable", getConfigParams);
+		String str_FileRepoName = cfgTable.getRow(0).getPrimitive("FileRepository").getValue().toString();
+		String str_RepoPath = cfgTable.getRow(0).getPrimitive("RepoPathName").getValue().toString();
+		Thing fileRepo = (Thing) EntityUtilities.findEntity(str_FileRepoName, ThingworxRelationshipTypes.Thing);
+
+		InfoTable raw = (InfoTable) fileRepo.processServiceRequest("ListDirectories",
+				new ValueCollection() {{ put("path", new StringPrimitive(str_RepoPath)); put("nameMask", new StringPrimitive("")); }});
+		InfoTable result = InfoTableInstanceFactory.createInfoTableFromDataShape("FileSystemDirectory");
+		for (int i = 0; i < raw.getRowCount(); i++) {
+			String name = primitiveString(raw.getRow(i), "name");
+			String p = primitiveString(raw.getRow(i), "path");
+			if (isBlank(name) || isBlank(p)) continue;
+			ValueCollection row = new ValueCollection();
+			row.put("name", new StringPrimitive(name));
+			row.put("path", new StringPrimitive(p));
+			result.addRow(row);
+		}
+		_logger.warn("GetFilteredDirectoryListing found " + result.getRowCount() + " directories (filtered from " + raw.getRowCount() + ").");
+		return result;
+	}
+
+	@ThingworxServiceDefinition(name = "GetRecursiveFileListing", description = "Recursively lists all XML files in the repository path for a GitThing.", category = "", isAllowOverride = false, aspects = { "isAsync:false" })
+	@ThingworxServiceResult(name = "result", description = "", baseType = "INFOTABLE", aspects = { "isEntityDataShape:true", "dataShape:FileSystemFile" })
+	public InfoTable GetRecursiveFileListing(
+			@ThingworxServiceParameter(name = "GitThingName", description = "", baseType = "STRING") String GitThingName)
+			throws Exception {
+		Thing repoThing = (Thing) EntityUtilities.findEntity(GitThingName, ThingworxRelationshipTypes.Thing);
+		ValueCollection getConfigParams = new ValueCollection();
+		getConfigParams.put("tableName", new StringPrimitive("Configuration"));
+		InfoTable cfgTable = (InfoTable) repoThing.processServiceRequest("GetConfigurationTable", getConfigParams);
+		String str_FileRepositoryName = cfgTable.getRow(0).getPrimitive("FileRepository").getValue().toString();
+		String str_RepoPath = cfgTable.getRow(0).getPrimitive("RepoPathName").getValue().toString();
+		Thing fileRepo = (Thing) EntityUtilities.findEntity(str_FileRepositoryName, ThingworxRelationshipTypes.Thing);
+		InfoTable result = InfoTableInstanceFactory.createInfoTableFromDataShape("FileSystemFile");
+		collectXmlFiles(fileRepo, str_RepoPath, result);
+		_logger.warn("GetRecursiveFileListing found " + result.getRowCount() + " XML files.");
+		return result;
 	}
 
 	@ThingworxServiceDefinition(name = "GetLocalBranches", description = "overload of GetBranchList", category = "", isAllowOverride = false, aspects = { "isAsync:false" })
@@ -1121,7 +1451,14 @@ public class GitUtilityThing extends Thing {
 	@ThingworxServiceDefinition(name = "RemoveLastModifiedDate", description = "Removes the lastModifiedDate. Change history is already removed by ExportToSourceControlEntities", category = "", isAllowOverride = false, aspects = { "isAsync:false" })
 	@ThingworxServiceResult(name = "result", description = "", baseType = "NOTHING", aspects = {})
 	public void RemoveLastModifiedDate() throws Exception {
-		_logger.warn("RemoveLastModifiedDate not yet implemented in Java. Falling back to script if available.");
+		_logger.warn("RemoveLastModifiedDate called as service.");
+		Thing repoThing = resolveCallingThing();
+		ValueCollection getConfigParams = new ValueCollection();
+		getConfigParams.put("tableName", new StringPrimitive("Configuration"));
+		InfoTable cfgTable = (InfoTable) repoThing.processServiceRequest("GetConfigurationTable", getConfigParams);
+		String str_FileRepoName = cfgTable.getRow(0).getPrimitive("FileRepository").getValue().toString();
+		String str_RepoPath = cfgTable.getRow(0).getPrimitive("RepoPathName").getValue().toString();
+		removeLastModifiedDate(str_FileRepoName, str_RepoPath, null);
 	}
 
 	@ThingworxServiceDefinition(name = "RemoveMashupPreviewTag", description = "Removes the mashup preview tag to allow compatibility with 8.2. This service should be used only if you're doing crossplatform development between 8.5 and 8.2/8.3", category = "", isAllowOverride = false, aspects = { "isAsync:false" })
@@ -1133,7 +1470,181 @@ public class GitUtilityThing extends Thing {
 	@ThingworxServiceDefinition(name = "RemoveModelPersistenceProviderPackage", description = "Removes the modelPersistenceProviderPackage.", category = "", isAllowOverride = false, aspects = { "isAsync:false" })
 	@ThingworxServiceResult(name = "result", description = "", baseType = "NOTHING", aspects = {})
 	public void RemoveModelPersistenceProviderPackage() throws Exception {
-		_logger.warn("RemoveModelPersistenceProviderPackage not yet implemented in Java. Falling back to script if available.");
+		_logger.warn("RemoveModelPersistenceProviderPackage called as service.");
+		Thing repoThing = resolveCallingThing();
+		ValueCollection getConfigParams = new ValueCollection();
+		getConfigParams.put("tableName", new StringPrimitive("Configuration"));
+		InfoTable cfgTable = (InfoTable) repoThing.processServiceRequest("GetConfigurationTable", getConfigParams);
+		String str_FileRepoName = cfgTable.getRow(0).getPrimitive("FileRepository").getValue().toString();
+		String str_RepoPath = cfgTable.getRow(0).getPrimitive("RepoPathName").getValue().toString();
+		removeModelPersistenceProviderPackage(str_FileRepoName, str_RepoPath, null);
+	}
+
+	// ---- Helper Methods ----
+
+	private String mapEntityTypeToCollectionFolder(String entityType) {
+		if (isBlank(entityType)) return "";
+		switch (entityType) {
+		case "Thing":
+		case "DataTable":
+		case "Stream":
+		case "ValueStream":
+		case "Timer":
+		case "Scheduler":
+		case "IndustrialConnection":
+		case "IntegrationConnector":
+			return "Things";
+		case "Mashup":
+		case "Master":
+		case "MashupTemplate":
+		case "Gadget":
+			return "Mashups";
+		case "MediaEntity":
+			return "MediaEntitie";
+		case "UserGroup":
+			return "Group";
+		case "ModelTagVocabulary":
+		case "ModelTag":
+			return "ModelTags";
+		case "ThingShape":
+			return "ThingShapes";
+		case "ThingTemplate":
+			return "ThingTemplates";
+		case "DataShape":
+			return "DataShapes";
+		case "StateDefinition":
+			return "StateDefinitions";
+		case "StyleTheme":
+			return "StyleThemes";
+		case "Project":
+			return "Projects";
+		case "Menu":
+			return "Menus";
+		case "Resource":
+			return "Resources";
+		case "Organization":
+			return "Organizations";
+		case "ApplicationKey":
+			return "ApplicationKeys";
+		case "DirectoryService":
+			return "DirectoryServices";
+		case "Authenticator":
+			return "Authenticators";
+		case "User":
+			return "Users";
+		case "Group":
+			return "Groups";
+		case "NotificationDefinition":
+			return "NotificationDefinitions";
+		case "NotificationContent":
+			return "NotificationContent";
+		default:
+			return entityType + "s";
+		}
+	}
+
+	private void removeLastModifiedDate(String fileRepoName, String repoPath, String projectName) throws IOException {
+		FileRepositoryThing fileRepo = (FileRepositoryThing) EntityUtilities.findEntity(fileRepoName,
+				ThingworxRelationshipTypes.Thing);
+		String fullPath = new File(fileRepo.getRootPath(), repoPath).getPath();
+		if (hasText(projectName)) {
+			fullPath = new File(fullPath, projectName).getPath();
+		}
+		File rootDir = new File(fullPath);
+		if (!rootDir.exists()) {
+			_logger.warn("removeLastModifiedDate: path does not exist: " + fullPath);
+			return;
+		}
+		List<File> xmlFiles = new ArrayList<>();
+		collectXmlFilesOnDisk(rootDir, xmlFiles);
+		int count = 0;
+		for (File f : xmlFiles) {
+			String content = new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8);
+			String modified = content.replaceAll("\\s+lastModifiedDate=\"[^\"]*\"", "");
+			if (!modified.equals(content)) {
+				Files.write(f.toPath(), modified.getBytes(StandardCharsets.UTF_8));
+				count++;
+			}
+		}
+		_logger.warn("removeLastModifiedDate: cleaned " + count + " files in " + fullPath);
+	}
+
+	private void removeModelPersistenceProviderPackage(String fileRepoName, String repoPath, String projectName) throws IOException {
+		FileRepositoryThing fileRepo = (FileRepositoryThing) EntityUtilities.findEntity(fileRepoName,
+				ThingworxRelationshipTypes.Thing);
+		String fullPath = new File(fileRepo.getRootPath(), repoPath).getPath();
+		if (hasText(projectName)) {
+			fullPath = new File(fullPath, projectName).getPath();
+		}
+		File rootDir = new File(fullPath);
+		if (!rootDir.exists()) {
+			_logger.warn("removeModelPersistenceProviderPackage: path does not exist: " + fullPath);
+			return;
+		}
+		List<File> xmlFiles = new ArrayList<>();
+		collectXmlFilesOnDisk(rootDir, xmlFiles);
+		int count = 0;
+		for (File f : xmlFiles) {
+			String content = new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8);
+			String modified = content.replaceAll("\\s+modelPersistenceProviderPackage=\"[^\"]*\"", "");
+			if (!modified.equals(content)) {
+				Files.write(f.toPath(), modified.getBytes(StandardCharsets.UTF_8));
+				count++;
+			}
+		}
+		_logger.warn("removeModelPersistenceProviderPackage: cleaned " + count + " files in " + fullPath);
+	}
+
+	private void collectXmlFilesOnDisk(File directory, List<File> result) {
+		File[] files = directory.listFiles();
+		if (files == null) return;
+		for (File f : files) {
+			if (f.isDirectory()) {
+				collectXmlFilesOnDisk(f, result);
+			} else if (f.getName().toLowerCase().endsWith(".xml")) {
+				result.add(f);
+			}
+		}
+	}
+
+	private Thing resolveCallingThing() throws Exception {
+		try {
+			Object meObj = ThreadLocalContext.getMeContext();
+			_logger.warn("resolveCallingThing: getMeContext=" + meObj
+					+ " type=" + (meObj != null ? meObj.getClass().getName() : "null"));
+			if (meObj instanceof Thing) {
+				Thing t = (Thing) meObj;
+				_logger.warn("resolveCallingThing: meContext Thing name=" + t.getName());
+				return t;
+			}
+			if (meObj instanceof String) {
+				String name = (String) meObj;
+				_logger.warn("resolveCallingThing: meContext is String=" + name);
+				Thing t = (Thing) EntityUtilities.findEntity(name, ThingworxRelationshipTypes.Thing);
+				if (t != null) return t;
+			}
+		} catch (Exception e) {
+			_logger.warn("resolveCallingThing: getMeContext failed: " + e.getMessage());
+		}
+		try {
+			String name = this.getName();
+			_logger.warn("resolveCallingThing: this.getName()=" + name);
+			if (hasText(name)) {
+				Thing thing = (Thing) EntityUtilities.findEntity(name, ThingworxRelationshipTypes.Thing);
+				_logger.warn("resolveCallingThing: findEntity(" + name + ")=" + thing);
+				if (thing != null) return thing;
+			}
+		} catch (Exception e) {
+			_logger.warn("resolveCallingThing: this.getName() failed: " + e.getMessage());
+		}
+		// Try finding ancestor by checking the calling security context
+		try {
+			String secName = ThreadLocalContext.getSecurityContext().getName();
+			_logger.warn("resolveCallingThing: security context name=" + secName);
+		} catch (Exception e) {
+			_logger.warn("resolveCallingThing: security context failed: " + e.getMessage());
+		}
+		throw new Exception("Could not resolve calling GitThing. Ensure the service is invoked on a GitBackup Thing.");
 	}
 
 	private InfoTable getGitCredentials(User user) throws Exception {

@@ -7,7 +7,7 @@ async function openMashup(page, mashupName, params = {}) {
     .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
     .join('&');
   // Use the Runtime URL to load mashups directly (Composer hash routing doesn't work in 9.7.5)
-  const url = `${config.twxUrl}/Runtime/index.html?mashup=${mashupName}${paramStr ? '&' + paramStr : ''}`;
+  const url = `${config.twxUrl}/Runtime/index.html?mashup=${mashupName}&__enableWC=true${paramStr ? '&' + paramStr : ''}`;
 
   console.log(`  Navigating to ${mashupName}...`);
   await page.goto(url, {

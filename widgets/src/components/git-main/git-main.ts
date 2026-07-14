@@ -1,4 +1,6 @@
-import { LitElement, html, css } from 'lit';
+import { html, css } from 'lit';
+import { GitElementBase } from '../git-base.js';
+import { themeVars, statusStyles } from '../../lib/git-styles.js';
 import { state } from 'lit/decorators.js';
 import { twx } from '../../lib/twx-service.js';
 import type { InfotableResponse } from '../../lib/twx-types.js';
@@ -14,28 +16,26 @@ interface GitThingTab {
   MashupName: string;
 }
 
-export class GitMain extends LitElement {
-  static styles = css`
+export class GitMain extends GitElementBase {
+  static styles = [themeVars, statusStyles, css`
     :host { display: block; padding: 16px; font-family: sans-serif; }
-    .welcome { font-size: 24px; font-weight: 700; color: #1565c0; margin-bottom: 4px; }
-    .subtitle { color: #666; margin-bottom: 20px; font-size: 14px; }
-    .card { border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
-    .card-title { font-size: 16px; font-weight: 600; margin-bottom: 12px; color: #333; }
+    .welcome { font-size: 24px; font-weight: 700; color: var(--git-color-accent, #1565c0); margin-bottom: 4px; }
+    .subtitle { color: var(--git-color-text-secondary, #666); margin-bottom: 20px; font-size: 14px; }
+    .card { border: 1px solid var(--git-color-border, #e0e0e0); border-radius: var(--git-border-radius-lg, 8px); padding: 16px; margin-bottom: 16px; }
+    .card-title { font-size: 16px; font-weight: 600; margin-bottom: 12px; color: var(--git-color-text, #333); }
     .ext-grid { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; }
-    .ext-grid .header { font-weight: 600; color: #666; font-size: 12px; text-transform: uppercase; }
-    .ext-row { padding: 6px 0; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
+    .ext-grid .header { font-weight: 600; color: var(--git-color-text-secondary, #666); font-size: 12px; text-transform: uppercase; }
+    .ext-row { padding: 6px 0; border-bottom: 1px solid var(--git-color-border-light, #f0f0f0); font-size: 14px; }
     .ext-row:last-child { border-bottom: none; }
     .badge { padding: 2px 10px; border-radius: 10px; font-size: 12px; font-weight: 600; }
-    .badge.installed { background: #e8f5e9; color: #2e7d32; }
-    .badge.missing { background: #ffebee; color: #c62828; }
+    .badge.installed { background: var(--git-color-bg-success, #e8f5e9); color: var(--git-color-success, #2e7d32); }
+    .badge.missing { background: var(--git-color-bg-error, #ffebee); color: var(--git-color-error, #c62828); }
     .repo-table { width: 100%; border-collapse: collapse; }
-    .repo-table th { text-align: left; padding: 8px 12px; background: #fafafa; border-bottom: 2px solid #e0e0e0; font-size: 12px; color: #666; text-transform: uppercase; }
-    .repo-table td { padding: 8px 12px; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
-    .repo-table tr:hover td { background: #f5f5f5; }
-    .empty-state { text-align: center; padding: 32px; color: #999; }
-    .loading { opacity: 0.6; pointer-events: none; }
-    .error { padding: 10px; background: #ffebee; color: #c62828; border-radius: 4px; font-size: 13px; margin-bottom: 12px; }
-  `;
+    .repo-table th { text-align: left; padding: 8px 12px; background: var(--git-color-bg-stripe, #fafafa); border-bottom: 2px solid var(--git-color-border, #e0e0e0); font-size: 12px; color: var(--git-color-text-secondary, #666); text-transform: uppercase; }
+    .repo-table td { padding: 8px 12px; border-bottom: 1px solid var(--git-color-border-light, #f0f0f0); font-size: 14px; }
+    .repo-table tr:hover td { background: var(--git-color-bg-hover, #f5f5f5); }
+    .empty-state { text-align: center; padding: 32px; color: var(--git-color-text-muted, #999); }
+  `];
 
   @state() private extensions: ExtensionInfo[] = [];
   @state() private gitThings: GitThingTab[] = [];
@@ -124,4 +124,4 @@ export class GitMain extends LitElement {
   }
 }
 
-customElements.define('git-main', GitMain);
+if (!customElements.get('git-main')) { customElements.define('git-main', GitMain); };

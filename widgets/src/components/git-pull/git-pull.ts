@@ -1,16 +1,17 @@
-import { LitElement, html, css } from 'lit';
+import { html, css } from 'lit';
+import { GitElementBase } from '../git-base.js';
+import { themeVars, statusStyles } from '../../lib/git-styles.js';
 import { property, state } from 'lit/decorators.js';
 import { twx } from '../../lib/twx-service.js';
+import {readServiceResult, type ServiceResultResponse} from '../../lib/twx-types.js';
 
-export class GitPull extends LitElement {
-  static styles = css`
+export class GitPull extends GitElementBase {
+  static styles = [themeVars, statusStyles, css`
     :host { display: block; padding: 16px; }
-    .result { margin-top: 12px; padding: 12px; background: #f5f5f5; border-radius: 4px; white-space: pre-wrap; }
-    .error { color: #c62828; }
-    .success { color: #2e7d32; }
+    .result { margin-top: 12px; padding: 12px; background: var(--git-color-bg-hover, #f5f5f5); border-radius: var(--git-border-radius-sm, 4px); white-space: pre-wrap; }
     .loading { opacity: 0.6; pointer-events: none; }
     button { padding: 8px 24px; cursor: pointer; }
-  `;
+  `];
 
   @property({ type: String }) gitThing = '';
   @state() private loading = false;
@@ -23,8 +24,10 @@ export class GitPull extends LitElement {
     this.result = '';
     this.error = '';
     try {
-      const res = await twx.invokeService(this.gitThing, 'Pull', {}) as any;
-      this.result = res?.result || 'Pull completed successfully';
+      const res = await twx.invokeService<ServiceResultResponse>(this.gitThing, 'Pull', {});
+      const message = readServiceResult(res, 'Pull completed successfully');
+      if (/^Pull Error:/i.test(message.trim())) throw new Error(message);
+      this.result = message;
     } catch (e: any) {
       this.error = e.message || 'Pull failed';
     } finally {
@@ -45,4 +48,4 @@ export class GitPull extends LitElement {
   }
 }
 
-customElements.define('git-pull', GitPull);
+if (!customElements.get('git-pull')) { customElements.define('git-pull', GitPull); };

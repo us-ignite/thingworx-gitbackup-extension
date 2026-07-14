@@ -1,6 +1,7 @@
 name: Build and Publish
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     tags: ['v*']
@@ -9,32 +10,46 @@ on:
 
 jobs:
   build:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: corretto
           java-version: 21
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v5
 
-      - name: Build extension
-        run: ./gradlew build --no-daemon
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: widgets/package-lock.json
+
+      - name: Install widget dependencies
+        run: npm ci
+        working-directory: widgets
+
+      - name: Build extension and pack
+        run: ./gradlew packagePack --no-daemon
 
       - name: Upload extension ZIP
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: GitBackupExtension
           path: build/distributions/GitBackupExtension.zip
+          if-no-files-found: error
 
       - name: Upload extension pack ZIP
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: GitBackupExtensionPack
           path: build/distributions/GitBackupExtensionPack.zip
+          if-no-files-found: error
 
   publish:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -44,14 +59,14 @@ jobs:
       contents: write
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: GitBackupExtension
           path: artifacts
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: GitBackupExtensionPack
           path: artifacts
