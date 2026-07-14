@@ -1,6 +1,9 @@
-import { LitElement, html, css } from 'lit';
+import { html, css } from 'lit';
+import { GitElementBase } from '../git-base.js';
+import { themeVars, statusStyles } from '../../lib/git-styles.js';
 import { property, state } from 'lit/decorators.js';
 import { twx } from '../../lib/twx-service.js';
+import {readServiceResult, type ServiceResultResponse} from '../../lib/twx-types.js';
 import type { InfotableResponse } from '../../lib/twx-types.js';
 
 interface BranchEntry {
@@ -9,25 +12,21 @@ interface BranchEntry {
   IsCurrent: boolean;
 }
 
-export class GitMergeRebase extends LitElement {
-  static styles = css`
+export class GitMergeRebase extends GitElementBase {
+  static styles = [themeVars, statusStyles, css`
     :host { display: block; padding: 16px; }
     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
     .header h3 { margin: 0; }
-    .current-branch { padding: 10px 14px; background: #e8f5e9; border-radius: 6px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
-    .current-branch .label { color: #2e7d32; font-weight: 500; }
-    .current-branch .name { font-family: monospace; font-weight: 600; color: #1b5e20; }
+    .current-branch { padding: 10px 14px; background: var(--git-color-bg-success, #e8f5e9); border-radius: var(--git-border-radius-md, 6px); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    .current-branch .label { color: var(--git-color-success, #2e7d32); font-weight: 500; }
+    .current-branch .name { font-family: monospace; font-weight: 600; }
     .form { display: flex; flex-direction: column; gap: 12px; }
-    .form label { font-size: 14px; color: #555; font-weight: 500; }
-    .form select { padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; background: #fff; width: 100%; box-sizing: border-box; }
-    .form select:focus { outline: none; border-color: #1976d2; }
+    .form label { font-size: 14px; color: var(--git-color-label, #555); font-weight: 500; }
+    .form select { padding: 8px 12px; border: 1px solid var(--git-color-border-strong, #ccc); border-radius: var(--git-border-radius-sm, 4px); font-size: 14px; background: var(--git-color-bg, #fff); width: 100%; box-sizing: border-box; }
+    .form select:focus { outline: none; border-color: var(--git-color-accent-light, #1976d2); }
     .actions { display: flex; gap: 8px; margin-top: 4px; }
-    .result { margin-top: 12px; padding: 12px; border-radius: 4px; white-space: pre-wrap; }
-    .result.success { background: #e8f5e9; color: #2e7d32; }
-    .result.error { background: #ffebee; color: #c62828; }
-    .empty { text-align: center; padding: 24px; color: #999; }
-    .loading { opacity: 0.6; pointer-events: none; }
-  `;
+    .empty { text-align: center; padding: 24px; color: var(--git-color-text-muted, #999); }
+  `];
 
   @property({ type: String }) gitThing = '';
   @state() private branches: BranchEntry[] = [];
@@ -71,8 +70,8 @@ export class GitMergeRebase extends LitElement {
     this.result = '';
     this.isError = false;
     try {
-      const res = await twx.invokeService<string>(this.gitThing, 'Merge', { BranchName: this.selectedBranch });
-      this.result = typeof res === 'string' ? res : (res as any)?.result || 'Merge completed';
+      const res = await twx.invokeService<ServiceResultResponse>(this.gitThing, 'Merge', { BranchName: this.selectedBranch });
+      this.result = readServiceResult(res, 'Merge completed');
     } catch (e: any) {
       this.result = e.message || 'Merge failed';
       this.isError = true;
@@ -87,8 +86,8 @@ export class GitMergeRebase extends LitElement {
     this.result = '';
     this.isError = false;
     try {
-      const res = await twx.invokeService<string>(this.gitThing, 'Rebase', { UpstreamBranch: this.selectedBranch });
-      this.result = typeof res === 'string' ? res : (res as any)?.result || 'Rebase completed';
+      const res = await twx.invokeService<ServiceResultResponse>(this.gitThing, 'Rebase', { UpstreamBranch: this.selectedBranch });
+      this.result = readServiceResult(res, 'Rebase completed');
     } catch (e: any) {
       this.result = e.message || 'Rebase failed';
       this.isError = true;
@@ -137,4 +136,4 @@ export class GitMergeRebase extends LitElement {
   }
 }
 
-customElements.define('git-merge-rebase', GitMergeRebase);
+if (!customElements.get('git-merge-rebase')) { customElements.define('git-merge-rebase', GitMergeRebase); };

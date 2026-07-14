@@ -1,4 +1,6 @@
-import { LitElement, html, css } from 'lit';
+import { html, css } from 'lit';
+import { GitElementBase } from '../git-base.js';
+import { themeVars, statusStyles } from '../../lib/git-styles.js';
 import { property, state } from 'lit/decorators.js';
 import { twx } from '../../lib/twx-service.js';
 import type { InfotableResponse } from '../../lib/twx-types.js';
@@ -15,32 +17,26 @@ interface ImportResult {
   Message: string;
 }
 
-export class GitImport extends LitElement {
-  static styles = css`
+export class GitImport extends GitElementBase {
+  static styles = [themeVars, statusStyles, css`
     :host { display: block; padding: 16px; font-family: sans-serif; }
     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
     .header h3 { margin: 0; }
     .form-grid { display: grid; grid-template-columns: 160px 1fr; gap: 10px 16px; align-items: center; margin-bottom: 16px; }
-    .form-grid label { font-size: 13px; color: #555; text-align: right; }
-    .form-grid input, .form-grid select { padding: 7px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; width: 100%; box-sizing: border-box; }
-    .file-list { border: 1px solid #e0e0e0; border-radius: 4px; overflow: hidden; margin-bottom: 16px; }
-    .file-row { display: flex; align-items: center; padding: 8px 12px; border-bottom: 1px solid #f0f0f0; gap: 8px; }
+    .form-grid label { font-size: 13px; color: var(--git-color-label, #555); text-align: right; }
+    .form-grid input, .form-grid select { padding: 7px 10px; border: 1px solid var(--git-color-border-strong, #ccc); border-radius: var(--git-border-radius-sm, 4px); font-size: 13px; width: 100%; box-sizing: border-box; }
+    .file-list { border: 1px solid var(--git-color-border, #e0e0e0); border-radius: var(--git-border-radius-sm, 4px); overflow: hidden; margin-bottom: 16px; }
+    .file-row { display: flex; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--git-color-border-light, #f0f0f0); gap: 8px; }
     .file-row:last-child { border-bottom: none; }
-    .file-row:hover { background: #f5f5f5; }
+    .file-row:hover { background: var(--git-color-bg-hover, #f5f5f5); }
     .file-name { flex: 1; }
     .file-icon { font-size: 16px; width: 20px; text-align: center; }
     .actions { margin-top: 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    .result { margin-top: 12px; padding: 12px; border-radius: 4px; font-size: 13px; }
-    .result.success { background: #e8f5e9; color: #2e7d32; }
-    .result.error { background: #ffebee; color: #c62828; }
-    .result.info { background: #e3f2fd; color: #1565c0; }
-    .empty-state { text-align: center; padding: 24px; color: #999; }
-    .loading { opacity: 0.6; pointer-events: none; }
-    .card { border: 1px solid #e0e0e0; border-radius: 6px; padding: 16px; margin-bottom: 16px; }
-    .section-title { font-size: 14px; font-weight: 600; color: #333; margin: 0 0 8px; }
+    .card { border: 1px solid var(--git-color-border, #e0e0e0); border-radius: var(--git-border-radius-md, 6px); padding: 16px; margin-bottom: 16px; }
+    .section-title { font-size: 14px; font-weight: 600; color: var(--git-color-text, #333); margin: 0 0 8px; }
     .bulk-row { display: flex; gap: 8px; align-items: center; }
     .bulk-row input { flex: 1; }
-  `;
+  `];
 
   @property({ type: String }) gitThing = '';
   @state() private repoPath = '';
@@ -62,6 +58,7 @@ export class GitImport extends LitElement {
   async loadRepoConfig() {
     if (!this.gitThing) return;
     this.loading = true;
+    this.clearLoadError();
     try {
       const res = await twx.invokeService<InfotableResponse<{ FileRepository: string; FileRepoPath: string }>>('GIT.Utility.Thing', 'GetRepoConfiguration', { GitThingName: this.gitThing });
       const row = res.rows?.[0];
@@ -71,7 +68,7 @@ export class GitImport extends LitElement {
         this.bulkPath = row.FileRepoPath || '';
       }
       this.loadFiles();
-    } catch { }
+    } catch (error) { this.reportLoadError('Unable to load repository configuration', error); }
     finally { this.loading = false; }
   }
 
@@ -138,6 +135,7 @@ export class GitImport extends LitElement {
     const busy = this.loading || this.importing;
     return html`
       <div class=${busy ? 'loading' : ''}>
+        ${this.renderLoadError()}
         <div class="header">
           <h3>Import Entities</h3>
           <div style="display:flex;gap:8px">
@@ -187,4 +185,4 @@ export class GitImport extends LitElement {
   }
 }
 
-customElements.define('git-import', GitImport);
+if (!customElements.get('git-import')) { customElements.define('git-import', GitImport); };

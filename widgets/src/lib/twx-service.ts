@@ -1,3 +1,13 @@
+declare const TW: { XSRF?: { token: string } } | undefined;
+
+function resolveXsrfToken(): string {
+  if (typeof TW !== 'undefined' && TW.XSRF?.token) return TW.XSRF.token;
+  const meta = document.querySelector<HTMLMetaElement>('meta[name="x-xsrf-token"]');
+  if (meta) return meta.content;
+  if (typeof TW !== 'undefined') console.warn('TwxService: TW.XSRF.token is not available; CSRF requests may fail');
+  return '';
+}
+
 export interface TwxServiceOptions {
   baseUrl?: string;
   xsrfToken?: string;
@@ -5,20 +15,40 @@ export interface TwxServiceOptions {
 
 export class TwxService {
   private baseUrl: string;
-  private xsrfToken: string;
+  private xsrfToken?: string;
 
   constructor(options: TwxServiceOptions = {}) {
     this.baseUrl = options.baseUrl || '/Thingworx';
-    this.xsrfToken = options.xsrfToken || 'TWX-XSRF-TOKEN-VALUE';
+    this.xsrfToken = options.xsrfToken;
   }
 
   private getHeaders(): Record<string, string> {
-    return {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      'X-XSRF-TOKEN': this.xsrfToken,
       'X-Requested-By': 'ThingWorx',
     };
+    const token = this.xsrfToken ?? resolveXsrfToken();
+    if (token) headers['X-XSRF-TOKEN'] = token;
+    return headers;
+  }
+
+  private async request<T>(path: string, init: RequestInit): Promise<T> {
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      ...init,
+      headers: this.getHeaders(),
+    });
+    const contentType = response.headers.get('content-type') || '';
+    const body = response.status === 204
+      ? undefined
+      : contentType.includes('application/json')
+        ? await response.json()
+        : await response.text();
+    if (!response.ok) {
+      const detail = typeof body === 'string' ? body : JSON.stringify(body);
+      throw new Error(`ThingWorx request failed (${response.status}): ${detail}`);
+    }
+    return body as T;
   }
 
   async invokeService<T = unknown>(
@@ -26,21 +56,10 @@ export class TwxService {
     serviceName: string,
     params: Record<string, unknown> = {}
   ): Promise<T> {
-    const url = `${this.baseUrl}/Things/${encodeURIComponent(thingName)}/Services/${encodeURIComponent(serviceName)}`;
-    const resp = await fetch(url, {
+    return this.request<T>(`/Things/${encodeURIComponent(thingName)}/Services/${encodeURIComponent(serviceName)}`, {
       method: 'POST',
-      headers: this.getHeaders(),
       body: JSON.stringify(params),
     });
-    if (!resp.ok) {
-      const text = await resp.text();
-      throw new Error(`Service call failed: ${resp.status} - ${text}`);
-    }
-    const ct = resp.headers.get('content-type') || '';
-    if (ct.includes('application/json')) {
-      return resp.json() as Promise<T>;
-    }
-    return resp.text() as unknown as Promise<T>;
   }
 
   async invokeServiceOnThing<T = unknown>(
@@ -55,13 +74,9 @@ export class TwxService {
     thingName: string,
     propertyName: string
   ): Promise<T> {
-    const url = `${this.baseUrl}/Things/${encodeURIComponent(thingName)}/Properties/${encodeURIComponent(propertyName)}`;
-    const resp = await fetch(url, {
+    return this.request<T>(`/Things/${encodeURIComponent(thingName)}/Properties/${encodeURIComponent(propertyName)}`, {
       method: 'GET',
-      headers: this.getHeaders(),
     });
-    if (!resp.ok) throw new Error(`Property get failed: ${resp.status}`);
-    return resp.json() as Promise<T>;
   }
 
   async setProperty(
@@ -69,13 +84,10 @@ export class TwxService {
     propertyName: string,
     value: unknown
   ): Promise<void> {
-    const url = `${this.baseUrl}/Things/${encodeURIComponent(thingName)}/Properties/${encodeURIComponent(propertyName)}`;
-    const resp = await fetch(url, {
+    await this.request<void>(`/Things/${encodeURIComponent(thingName)}/Properties/${encodeURIComponent(propertyName)}`, {
       method: 'PUT',
-      headers: this.getHeaders(),
       body: JSON.stringify(value),
     });
-    if (!resp.ok) throw new Error(`Property set failed: ${resp.status}`);
   }
 
   async queryEntities<T = unknown>(

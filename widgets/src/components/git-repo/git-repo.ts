@@ -1,4 +1,6 @@
-import { LitElement, html, css } from 'lit';
+import { html, css } from 'lit';
+import { GitElementBase } from '../git-base.js';
+import { themeVars } from '../../lib/git-styles.js';
 import { property, state } from 'lit/decorators.js';
 import '../git-push/git-push.js';
 import '../git-pull/git-pull.js';
@@ -8,14 +10,14 @@ import '../git-delete/git-delete.js';
 import '../git-repo-settings/git-repo-settings.js';
 import '../git-log/git-log.js';
 
-export class GitRepo extends LitElement {
-  static styles = css`
+export class GitRepo extends GitElementBase {
+  static styles = [themeVars, css`
     :host { display: block; padding: 16px; font-family: sans-serif; }
-    .tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 2px solid #e0e0e0; padding-bottom: 0; flex-wrap: wrap; }
-    .tab { padding: 8px 18px; cursor: pointer; border: 1px solid transparent; border-bottom: none; border-radius: 4px 4px 0 0; font-size: 14px; font-weight: 500; color: #666; background: transparent; transition: all 0.15s; }
-    .tab:hover { background: #f5f5f5; color: #333; }
-    .tab.active { background: #fff; border-color: #e0e0e0; color: #1565c0; border-bottom: 2px solid #1565c0; margin-bottom: -2px; }
-  `;
+    .tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 2px solid var(--git-color-border, #e0e0e0); padding-bottom: 0; flex-wrap: wrap; }
+    .tab { padding: 8px 18px; cursor: pointer; border: 1px solid transparent; border-bottom: none; border-radius: 4px 4px 0 0; font-size: 14px; font-weight: 500; color: var(--git-color-text-secondary, #666); background: transparent; }
+    .tab:hover { background: var(--git-color-bg-hover, #f5f5f5); color: var(--git-color-text, #333); }
+    .tab.active { background: var(--git-color-bg, #fff); border-color: var(--git-color-border, #e0e0e0); color: var(--git-color-accent, #1565c0); border-bottom: 2px solid var(--git-color-accent, #1565c0); margin-bottom: -2px; }
+  `];
 
   @property({ type: String }) gitThing = '';
   @property({ type: String }) defaultTab = 'push';
@@ -68,4 +70,4 @@ export class GitRepo extends LitElement {
   }
 }
 
-customElements.define('git-repo', GitRepo);
+if (!customElements.get('git-repo')) { customElements.define('git-repo', GitRepo); };

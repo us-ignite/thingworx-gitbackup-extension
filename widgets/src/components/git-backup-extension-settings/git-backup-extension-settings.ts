@@ -1,4 +1,6 @@
-import { LitElement, html, css } from 'lit';
+import { html, css } from 'lit';
+import { GitElementBase } from '../git-base.js';
+import { themeVars, statusStyles } from '../../lib/git-styles.js';
 import { state } from 'lit/decorators.js';
 import { twx } from '../../lib/twx-service.js';
 import type { InfotableResponse } from '../../lib/twx-types.js';
@@ -17,35 +19,31 @@ interface GpgKeyEntry {
   GpgKeyFingerprint: string;
 }
 
-export class GitBackupExtensionSettings extends LitElement {
-  static styles = css`
+export class GitBackupExtensionSettings extends GitElementBase {
+  static styles = [themeVars, statusStyles, css`
     :host { display: block; padding: 16px; font-family: sans-serif; }
-    .section-title { font-size: 16px; font-weight: 600; color: #333; margin: 0 0 12px; border-bottom: 1px solid #e0e0e0; padding-bottom: 6px; }
+    .section-title { font-size: 16px; font-weight: 600; color: var(--git-color-text, #333); margin: 0 0 12px; border-bottom: 1px solid var(--git-color-border, #e0e0e0); padding-bottom: 6px; }
     .section-title:not(:first-of-type) { margin-top: 24px; }
     .form-grid { display: grid; grid-template-columns: 180px 1fr; gap: 10px 16px; align-items: center; }
-    .form-grid label { font-size: 13px; color: #555; text-align: right; }
-    .form-grid input, .form-grid select, .form-grid textarea { padding: 7px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; width: 100%; box-sizing: border-box; }
+    .form-grid label { font-size: 13px; color: var(--git-color-label, #555); text-align: right; }
+    .form-grid input, .form-grid select, .form-grid textarea { padding: 7px 10px; border: 1px solid var(--git-color-border-strong, #ccc); border-radius: var(--git-border-radius-sm, 4px); font-size: 13px; width: 100%; box-sizing: border-box; }
     .form-grid textarea { min-height: 80px; font-family: monospace; font-size: 12px; }
     .form-grid input[type="checkbox"] { width: auto; }
     .checkbox-row { display: flex; align-items: center; gap: 8px; }
     .actions { margin-top: 16px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    .result { margin-top: 12px; padding: 12px; border-radius: 4px; font-size: 13px; }
-    .result.success { background: #e8f5e9; color: #2e7d32; }
-    .result.error { background: #ffebee; color: #c62828; }
-    .loading { opacity: 0.6; pointer-events: none; }
-    .card { border: 1px solid #e0e0e0; border-radius: 6px; padding: 16px; margin-bottom: 16px; }
-    .hint { font-size: 11px; color: #999; grid-column: 2; margin-top: -4px; }
-    .key-list { border: 1px solid #e0e0e0; border-radius: 6px; overflow: hidden; }
-    .key-row { display: flex; align-items: center; padding: 10px 14px; border-bottom: 1px solid #f0f0f0; gap: 12px; }
+    .card { border: 1px solid var(--git-color-border, #e0e0e0); border-radius: var(--git-border-radius-md, 6px); padding: 16px; margin-bottom: 16px; }
+    .hint { font-size: 11px; color: var(--git-color-text-muted, #999); grid-column: 2; margin-top: -4px; }
+    .key-list { border: 1px solid var(--git-color-border, #e0e0e0); border-radius: var(--git-border-radius-md, 6px); overflow: hidden; }
+    .key-row { display: flex; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--git-color-border-light, #f0f0f0); gap: 12px; }
     .key-row:last-child { border-bottom: none; }
-    .key-row:hover { background: #fafafa; }
+    .key-row:hover { background: var(--git-color-bg-stripe, #fafafa); }
     .key-thing { font-weight: 600; flex: 1; }
-    .key-fingerprint { font-family: monospace; font-size: 12px; color: #1565c0; }
-    .key-sign { font-size: 12px; padding: 2px 8px; border-radius: 4px; }
-    .key-sign.on { background: #e8f5e9; color: #2e7d32; }
-    .key-sign.off { background: #f5f5f5; color: #999; }
-    .empty-state { text-align: center; padding: 24px; color: #999; }
-  `;
+    .key-fingerprint { font-family: monospace; font-size: 12px; color: var(--git-color-accent, #1565c0); }
+    .key-sign { font-size: 12px; padding: 2px 8px; border-radius: var(--git-border-radius-sm, 4px); }
+    .key-sign.on { background: var(--git-color-bg-success, #e8f5e9); color: var(--git-color-success, #2e7d32); }
+    .key-sign.off { background: var(--git-color-bg-hover, #f5f5f5); color: var(--git-color-text-muted, #999); }
+    .empty-state { text-align: center; padding: 24px; color: var(--git-color-text-muted, #999); }
+  `];
 
   @state() private userProps: UserProps = { GitCommitterName: '', GitCommitterEmail: '', UseGitCommitUserValues: true };
   @state() private keys: GpgKeyEntry[] = [];
@@ -64,6 +62,7 @@ export class GitBackupExtensionSettings extends LitElement {
   async loadAll() {
     this.loading = true;
     this.message = '';
+    this.clearLoadError();
     try {
       const [userRes, gpgRes] = await Promise.all([
         twx.invokeService<InfotableResponse<UserProps>>('GIT.Utility.Thing', 'GetGitUserExtensionsProperties', {}),
@@ -72,7 +71,7 @@ export class GitBackupExtensionSettings extends LitElement {
       const row = userRes.rows?.[0];
       if (row) this.userProps = { ...row };
       this.keys = gpgRes.rows || [];
-    } catch { }
+    } catch (error) { this.reportLoadError('Unable to load extension settings', error); }
     finally { this.loading = false; }
   }
 
@@ -137,14 +136,22 @@ export class GitBackupExtensionSettings extends LitElement {
 
   async verifyGpgKey() {
     if (!this.form.GpgPrivateKey) return;
+    if (!this.form.GitThing) {
+      this.verifyResult = 'Verification failed: choose a repository Thing first';
+      return;
+    }
     this.saving = true;
     this.verifyResult = '';
     try {
-      const res = await twx.invokeService<InfotableResponse<{ fingerprint: string }>>('GIT.Utility.Thing', 'VerifyGpgKey', {
-        GpgPrivateKey: this.form.GpgPrivateKey,
+      // VerifyGpgKey is implemented by GitBackupTemplate, so invoke it on the
+      // repository Thing rather than the utility singleton.
+      const res = await twx.invokeService<InfotableResponse<{ GpgKeyFingerprint: string }>>(this.form.GitThing, 'VerifyGpgKey', {
+        // ThingWorx's request parser can reject raw multiline armor. The Java
+        // service intentionally accepts Base64 at this JSON boundary.
+        GpgPrivateKey: btoa(this.form.GpgPrivateKey),
         GpgKeyPassphrase: this.form.GpgKeyPassphrase,
       });
-      const fp = res.rows?.[0]?.fingerprint || '';
+      const fp = res.rows?.[0]?.GpgKeyFingerprint || '';
       this.verifyResult = fp ? `Fingerprint: ${fp}` : 'Key is valid';
       if (fp) this.form = { ...this.form, GpgKeyFingerprint: fp };
     } catch (e: any) {
@@ -163,6 +170,7 @@ export class GitBackupExtensionSettings extends LitElement {
     const keysWithFingerprints = this.keys.filter(k => k.GpgKeyFingerprint);
     return html`
       <div class=${busy ? 'loading' : ''}>
+        ${this.renderLoadError()}
         <div class="card">
           <form @submit=${(e: SubmitEvent) => { e.preventDefault(); this.saveUserProps(); }}>
           <div class="section-title">User Settings</div>
@@ -231,4 +239,4 @@ export class GitBackupExtensionSettings extends LitElement {
   }
 }
 
-customElements.define('git-backup-extension-settings', GitBackupExtensionSettings);
+if (!customElements.get('git-backup-extension-settings')) { customElements.define('git-backup-extension-settings', GitBackupExtensionSettings); };
