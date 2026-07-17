@@ -157,7 +157,7 @@ public class GitBackupTemplate extends Thing {
 
 	@Override
 	protected void stopThing(ContextType ctx) throws Exception {
-
+		gitObject = null;
 		super.stopThing(null);
 	}
 
