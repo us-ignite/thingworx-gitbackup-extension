@@ -25,7 +25,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v5
 
       - name: Build extension
-        run: ./gradlew packageExtension --no-daemon
+        run: ./gradlew packageExtension packagePack --no-daemon
 
       - name: Upload extension ZIP
         uses: actions/upload-artifact@v7
