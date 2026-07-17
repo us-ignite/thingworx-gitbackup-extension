@@ -50,6 +50,7 @@ import com.thingworx.types.TagCollection;
 import com.thingworx.types.collections.ValueCollection;
 import com.thingworx.types.primitives.BooleanPrimitive;
 import com.thingworx.types.primitives.DatetimePrimitive;
+import com.thingworx.types.primitives.GUIDPrimitive;
 import com.thingworx.types.primitives.IPrimitiveType;
 import com.thingworx.types.primitives.InfoTablePrimitive;
 import com.thingworx.types.primitives.IntegerPrimitive;
@@ -108,7 +109,7 @@ public class GitUtilityThing extends Thing {
 			throws Exception {
 		InfoTable values = InfoTableInstanceFactory.createInfoTableFromDataShape("GitBackup.Log");
 		ValueCollection entry = new ValueCollection();
-		entry.put("ID", new StringPrimitive(java.util.UUID.randomUUID().toString()));
+		entry.put("ID", new GUIDPrimitive(java.util.UUID.randomUUID().toString()));
 		entry.put("timestamp", new DatetimePrimitive(timestamp));
 		entry.put("User", new StringPrimitive(User));
 		entry.put("ServiceName", new StringPrimitive(ServiceName));
@@ -157,7 +158,7 @@ public class GitUtilityThing extends Thing {
 		configRow.put("BranchName", new StringPrimitive(InitialBranch));
 		configRow.put("UseProxy", new BooleanPrimitive(isTrue(UseProxy)));
 		configRow.put("ProxyURL", new StringPrimitive(ProxyURL));
-		configRow.put("ProxyPort", new StringPrimitive(ProxyPort != null ? ProxyPort.toString() : "0"));
+		configRow.put("ProxyPort", new IntegerPrimitive(ProxyPort != null ? ProxyPort : 0));
 		configRow.put("LocalizationTokensPrefix", new StringPrimitive(LocalizationTokensPrefix));
 		if (hasText(ProjectName)) {
 			configRow.put("ProjectName", new StringPrimitive(ProjectName));
@@ -178,9 +179,9 @@ public class GitUtilityThing extends Thing {
 		}
 	}
 
-	@ThingworxServiceDefinition(name = "DeteleGitThing", description = "Deletes a GitBackup Thing involves two operations: 1. Deleting the Thing itself and 2. Deleting the FileRepository subfolder that stored that Git repository.", category = "", isAllowOverride = false, aspects = { "isAsync:false" })
+	@ThingworxServiceDefinition(name = "DeleteGitThing", description = "Deletes a GitBackup Thing involves two operations: 1. Deleting the Thing itself and 2. Deleting the FileRepository subfolder that stored that Git repository.", category = "", isAllowOverride = false, aspects = { "isAsync:false" })
 	@ThingworxServiceResult(name = "result", description = "", baseType = "NOTHING", aspects = {})
-	public void DeteleGitThing(
+	public void DeleteGitThing(
 			@ThingworxServiceParameter(name = "RepoName", description = "", baseType = "STRING") String RepoName)
 			throws Exception {
 		Thing repoThing = (Thing) EntityUtilities.findEntity(RepoName, ThingworxRelationshipTypes.Thing);
@@ -294,17 +295,38 @@ public class GitUtilityThing extends Thing {
 	public InfoTable GetGitUserExtensionsProperties() throws Exception {
 		User currentUser = UserUtilities.findUser(GetCurrentUser());
 		InfoTable result = InfoTableInstanceFactory.createInfoTableFromDataShape("GitBackup.UserExtensionProperties");
+		ValueCollection entry = new ValueCollection();
 		try {
 			IPrimitiveType propVal = currentUser.getPropertyValue("GitCommitterName");
 			if (propVal != null && propVal.getValue() != null) {
-				ValueCollection entry = new ValueCollection();
 				entry.put("GitCommitterName", currentUser.getPropertyValue("GitCommitterName"));
-				entry.put("GitCommitterEmail", currentUser.getPropertyValue("GitCommitterEmail"));
-				entry.put("UseGitCommitUserValues", currentUser.getPropertyValue("UseGitCommitUserValues"));
-				result.addRow(entry);
+			} else {
+				entry.put("GitCommitterName", new StringPrimitive(""));
 			}
 		} catch (Exception e) {
+			entry.put("GitCommitterName", new StringPrimitive(""));
 		}
+		try {
+			IPrimitiveType propVal = currentUser.getPropertyValue("GitCommitterEmail");
+			if (propVal != null && propVal.getValue() != null) {
+				entry.put("GitCommitterEmail", currentUser.getPropertyValue("GitCommitterEmail"));
+			} else {
+				entry.put("GitCommitterEmail", new StringPrimitive(""));
+			}
+		} catch (Exception e) {
+			entry.put("GitCommitterEmail", new StringPrimitive(""));
+		}
+		try {
+			IPrimitiveType propVal = currentUser.getPropertyValue("UseGitCommitUserValues");
+			if (propVal != null && propVal.getValue() != null) {
+				entry.put("UseGitCommitUserValues", currentUser.getPropertyValue("UseGitCommitUserValues"));
+			} else {
+				entry.put("UseGitCommitUserValues", new BooleanPrimitive(false));
+			}
+		} catch (Exception e) {
+			entry.put("UseGitCommitUserValues", new BooleanPrimitive(false));
+		}
+		result.addRow(entry);
 		return result;
 	}
 
@@ -393,7 +415,22 @@ public class GitUtilityThing extends Thing {
 		_logger.warn("Started single entity import.");
 		String ignoreDeps = isTrue(ignoreDependencies) ? "&ignoreDependencies=true" : "";
 
-		String urlStr = "http://localhost:8080/Thingworx/Importer?IgnoreBadValueStreamData=false&WithSubsystems=false"
+		Thing importTargets = (Thing) EntityUtilities.findEntity("ExtensionImportTargets",
+				ThingworxRelationshipTypes.Thing);
+		if (importTargets == null)
+			throw new Exception("ExtensionImportTargets not configured. Run InitExtensionImportTargets first.");
+
+		InfoTable targetsTable = null;
+		if (importTargets.hasProperty("importTargets")) {
+			targetsTable = ((InfoTablePrimitive) importTargets.getPropertyValue("importTargets")).getValue();
+		}
+		if (targetsTable == null || targetsTable.getRowCount() == 0)
+			throw new Exception("ExtensionImportTargets not configured. Run InitExtensionImportTargets first.");
+
+		String baseURL = targetsTable.getRow(0).getPrimitive("baseURL").getValue().toString();
+		String appKey = targetsTable.getRow(0).getPrimitive("appKey").getValue().toString();
+
+		String urlStr = baseURL + "/Importer?IgnoreBadValueStreamData=false&WithSubsystems=false"
 				+ "&overwritePropertyValues=true&purpose=import&usedefaultdataprovider=true" + ignoreDeps;
 
 		FileRepositoryThing fileRepo = (FileRepositoryThing) EntityUtilities.findEntity(FileRepositoryName,
@@ -416,9 +453,7 @@ public class GitUtilityThing extends Thing {
 		HttpURLConnection conn = (HttpURLConnection) new URI(urlStr).toURL().openConnection();
 		conn.setRequestMethod("POST");
 		conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
-		conn.setRequestProperty("Authorization", "Basic " + Base64.getEncoder().encodeToString(
-				"Administrator:TwxAdm1nP@ssw0rd!".getBytes(StandardCharsets.UTF_8)));
-		conn.setRequestProperty("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE");
+		conn.setRequestProperty("Authorization", "Bearer " + appKey);
 		conn.setDoOutput(true);
 		conn.setConnectTimeout(30000);
 		conn.setReadTimeout(30000);
@@ -469,6 +504,7 @@ public class GitUtilityThing extends Thing {
 			throw new Exception("ExtensionImportTargets not configured. Run InitExtensionImportTargets first.");
 
 		String baseURL = targetsTable.getRow(0).getPrimitive("baseURL").getValue().toString();
+		String appKey = targetsTable.getRow(0).getPrimitive("appKey").getValue().toString();
 		String ignoreDeps = isTrue(ignoreDependencies) ? "&ignoreDependencies=true" : "";
 
 		Thing fileRepo = (Thing) EntityUtilities.findEntity(str_FileRepositoryName,
@@ -515,9 +551,7 @@ public class GitUtilityThing extends Thing {
 				HttpURLConnection conn = (HttpURLConnection) new URI(urlStr).toURL().openConnection();
 				conn.setRequestMethod("POST");
 				conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
-				conn.setRequestProperty("Authorization", "Basic " + Base64.getEncoder().encodeToString(
-						"Administrator:TwxAdm1nP@ssw0rd!".getBytes(StandardCharsets.UTF_8)));
-				conn.setRequestProperty("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE");
+				conn.setRequestProperty("Authorization", "Bearer " + appKey);
 				conn.setDoOutput(true);
 				conn.setConnectTimeout(30000);
 				conn.setReadTimeout(30000);
@@ -877,7 +911,7 @@ public class GitUtilityThing extends Thing {
 			@ThingworxServiceParameter(name = "delay", description = "delay in seconds", baseType = "NUMBER") Double delay)
 			throws Exception {
 		if (delay != null) {
-			Thread.sleep((long) (delay * 100));
+			Thread.sleep((long) (delay * 1000));
 		}
 	}
 
@@ -938,7 +972,7 @@ public class GitUtilityThing extends Thing {
 		if (hasText(InitialBranch)) row.put("BranchName", new StringPrimitive(InitialBranch));
 		if (UseProxy != null) row.put("UseProxy", new BooleanPrimitive(UseProxy));
 		if (ProxyURL != null) row.put("ProxyURL", new StringPrimitive(ProxyURL));
-		if (ProxyPort != null) row.put("ProxyPort", new StringPrimitive(ProxyPort.toString()));
+		if (ProxyPort != null) row.put("ProxyPort", new IntegerPrimitive(ProxyPort));
 		if (LocalizationTokensPrefix != null) row.put("LocalizationTokensPrefix", new StringPrimitive(LocalizationTokensPrefix));
 		if (ProjectName != null) row.put("ProjectName", new StringPrimitive(ProjectName));
 
@@ -1337,9 +1371,30 @@ public class GitUtilityThing extends Thing {
 
 	@ThingworxServiceDefinition(name = "GetConfiguration", description = "This service wrapper allows getting the GitBackup Thing configuration without passing the Configuration table name.", category = "", isAllowOverride = false, aspects = { "isAsync:false" })
 	@ThingworxServiceResult(name = "result", description = "", baseType = "INFOTABLE", aspects = { "isEntityDataShape:true", "dataShape:GitBackup.Configuration" })
-	public InfoTable GetConfiguration() throws Exception {
-		_logger.warn("GetConfiguration not yet implemented in Java. Falling back to script if available.");
-		return InfoTableInstanceFactory.createInfoTableFromDataShape("GitBackup.Configuration");
+	public InfoTable GetConfiguration(
+			@ThingworxServiceParameter(name = "GitThingName", description = "GitBackup Thing name", baseType = "STRING") String GitThingName)
+			throws Exception {
+		if (isBlank(GitThingName)) {
+			_logger.warn("GetConfiguration: GitThingName is required.");
+			return InfoTableInstanceFactory.createInfoTableFromDataShape("GitBackup.Configuration");
+		}
+		Thing repoThing = (Thing) EntityUtilities.findEntity(GitThingName, ThingworxRelationshipTypes.Thing);
+		ValueCollection getConfigParams = new ValueCollection();
+		getConfigParams.put("tableName", new StringPrimitive("Configuration"));
+		InfoTable cfgTable = (InfoTable) repoThing.processServiceRequest("GetConfigurationTable", getConfigParams);
+		ValueCollection cfgRow = cfgTable.getRow(0);
+		InfoTable result = InfoTableInstanceFactory.createInfoTableFromDataShape("GitBackup.Configuration");
+		ValueCollection row = new ValueCollection();
+		row.put("FileRepository", cfgRow.getPrimitive("FileRepository"));
+		row.put("FileRepoPath", cfgRow.getPrimitive("RepoPathName"));
+		row.put("GitRepoURL", cfgRow.getPrimitive("GitRepoURL"));
+		row.put("InitialBranch", cfgRow.getPrimitive("BranchName"));
+		row.put("UseProxy", cfgRow.getPrimitive("UseProxy") != null ? cfgRow.getPrimitive("UseProxy") : new BooleanPrimitive(false));
+		row.put("ProxyURL", cfgRow.getPrimitive("ProxyURL"));
+		row.put("ProxyPort", cfgRow.getPrimitive("ProxyPort"));
+		row.put("LocalizationTokensPrefix", cfgRow.getPrimitive("LocalizationTokensPrefix"));
+		result.addRow(row);
+		return result;
 	}
 
 	@ThingworxServiceDefinition(name = "GetRepoConfiguration", description = "Returns the FileRepository and RepoPath for a given GitThing.", category = "", isAllowOverride = false, aspects = { "isAsync:false" })
@@ -1408,38 +1463,110 @@ public class GitUtilityThing extends Thing {
 
 	@ThingworxServiceDefinition(name = "GetLocalBranches", description = "overload of GetBranchList", category = "", isAllowOverride = false, aspects = { "isAsync:false" })
 	@ThingworxServiceResult(name = "result", description = "", baseType = "INFOTABLE", aspects = { "isEntityDataShape:true", "dataShape:Git.BranchList" })
-	public InfoTable GetLocalBranches() throws Exception {
-		_logger.warn("GetLocalBranches not yet implemented in Java. Falling back to script if available.");
-		return InfoTableInstanceFactory.createInfoTableFromDataShape("Git.BranchList");
+	public InfoTable GetLocalBranches(
+			@ThingworxServiceParameter(name = "GitThingName", description = "GitBackup Thing name", baseType = "STRING") String GitThingName)
+			throws Exception {
+		if (isBlank(GitThingName)) {
+			_logger.warn("GetLocalBranches: GitThingName is required.");
+			return InfoTableInstanceFactory.createInfoTableFromDataShape("Git.BranchList");
+		}
+		Thing repoThing = (Thing) EntityUtilities.findEntity(GitThingName, ThingworxRelationshipTypes.Thing);
+		InfoTable allBranches = (InfoTable) repoThing.processServiceRequest("GetBranchList", new ValueCollection());
+		InfoTable result = InfoTableInstanceFactory.createInfoTableFromDataShape("Git.BranchList");
+		for (int i = 0; i < allBranches.getRowCount(); i++) {
+			ValueCollection row = allBranches.getRow(i);
+			String branchType = primitiveString(row, "BranchType");
+			if ("LOCAL".equals(branchType)) {
+				result.addRow(row);
+			}
+		}
+		return result;
 	}
 
 	@ThingworxServiceDefinition(name = "CreateBranch", description = "Creates a new local branch from an optional start point (commit, branch, or tag) without switching to it.", category = "", isAllowOverride = false, aspects = { "isAsync:false" })
 	@ThingworxServiceResult(name = "result", description = "", baseType = "STRING", aspects = {})
 	public String CreateBranch(
+			@ThingworxServiceParameter(name = "GitThingName", description = "GitBackup Thing name", baseType = "STRING") String GitThingName,
 			@ThingworxServiceParameter(name = "BranchName", description = "Name of the new branch", baseType = "STRING") String BranchName,
 			@ThingworxServiceParameter(name = "StartPoint", description = "Optional: commit hash, branch name, or tag to branch from (defaults to HEAD)", baseType = "STRING") String StartPoint)
 			throws Exception {
-		_logger.warn("CreateBranch not yet implemented in Java. Falling back to script if available.");
-		return "";
+		if (isBlank(GitThingName)) {
+			_logger.warn("CreateBranch: GitThingName is required.");
+			return "";
+		}
+		Thing repoThing = (Thing) EntityUtilities.findEntity(GitThingName, ThingworxRelationshipTypes.Thing);
+		ValueCollection params = new ValueCollection();
+		params.put("BranchName", new StringPrimitive(BranchName));
+		if (hasText(StartPoint)) {
+			params.put("StartPoint", new StringPrimitive(StartPoint));
+		}
+		InfoTable resultTable = (InfoTable) repoThing.processServiceRequest("CreateBranch", params);
+		String result = resultTable.getRow(0).getPrimitive("result").getValue().toString();
+		_logger.info("CreateBranch: Created branch " + BranchName + " on " + GitThingName + ": " + result);
+		return result;
 	}
 
 	@ThingworxServiceDefinition(name = "QueryDiffFileList", description = "", category = "", isAllowOverride = false, aspects = { "isAsync:false" })
 	@ThingworxServiceResult(name = "result", description = "", baseType = "INFOTABLE", aspects = { "isEntityDataShape:true", "dataShape:GitBackup.CommitChangedFiles" })
 	public InfoTable QueryDiffFileList(
+			@ThingworxServiceParameter(name = "GitThingName", description = "GitBackup Thing name", baseType = "STRING") String GitThingName,
 			@ThingworxServiceParameter(name = "CommitID", description = "", baseType = "STRING") String CommitID,
 			@ThingworxServiceParameter(name = "FileName", description = "", baseType = "STRING") String FileName)
 			throws Exception {
-		_logger.warn("QueryDiffFileList not yet implemented in Java. Falling back to script if available.");
+		if (isBlank(GitThingName) || isBlank(CommitID)) {
+			_logger.warn("QueryDiffFileList: GitThingName and CommitID are required.");
+			return InfoTableInstanceFactory.createInfoTableFromDataShape("GitBackup.CommitChangedFiles");
+		}
+		Thing repoThing = (Thing) EntityUtilities.findEntity(GitThingName, ThingworxRelationshipTypes.Thing);
+		ValueCollection params = new ValueCollection();
+		params.put("CommitID", new StringPrimitive(CommitID));
+		InfoTable commitInfo = (InfoTable) repoThing.processServiceRequest("GetCommitInfo", params);
+		if (commitInfo.getRowCount() > 0) {
+			IPrimitiveType changedFilesPrimitive = commitInfo.getRow(0).getPrimitive("ChangedFiles");
+			if (changedFilesPrimitive instanceof InfoTablePrimitive) {
+				InfoTable changedFiles = ((InfoTablePrimitive) changedFilesPrimitive).getValue();
+				if (hasText(FileName)) {
+					InfoTable filtered = InfoTableInstanceFactory.createInfoTableFromDataShape("GitBackup.CommitChangedFiles");
+					for (int i = 0; i < changedFiles.getRowCount(); i++) {
+						String fname = primitiveString(changedFiles.getRow(i), "FileName");
+						if (fname != null && fname.contains(FileName)) {
+							filtered.addRow(changedFiles.getRow(i));
+						}
+					}
+					return filtered;
+				}
+				return changedFiles;
+			}
+		}
 		return InfoTableInstanceFactory.createInfoTableFromDataShape("GitBackup.CommitChangedFiles");
 	}
 
 	@ThingworxServiceDefinition(name = "QueryStatus", description = "Filters through the result of the Status Git command. Search is implemented in ThingWorx for flexibility.", category = "", isAllowOverride = false, aspects = { "isAsync:false" })
 	@ThingworxServiceResult(name = "result", description = "", baseType = "INFOTABLE", aspects = { "isEntityDataShape:true", "dataShape:Git.Status" })
 	public InfoTable QueryStatus(
+			@ThingworxServiceParameter(name = "GitThingName", description = "GitBackup Thing name", baseType = "STRING") String GitThingName,
 			@ThingworxServiceParameter(name = "SearchTerm", description = "", baseType = "STRING") String SearchTerm)
 			throws Exception {
-		_logger.warn("QueryStatus not yet implemented in Java. Falling back to script if available.");
-		return InfoTableInstanceFactory.createInfoTableFromDataShape("Git.Status");
+		if (isBlank(GitThingName)) {
+			_logger.warn("QueryStatus: GitThingName is required.");
+			return InfoTableInstanceFactory.createInfoTableFromDataShape("Git.Status");
+		}
+		Thing repoThing = (Thing) EntityUtilities.findEntity(GitThingName, ThingworxRelationshipTypes.Thing);
+		InfoTable status = (InfoTable) repoThing.processServiceRequest("Status", new ValueCollection());
+		if (hasText(SearchTerm)) {
+			InfoTable filtered = InfoTableInstanceFactory.createInfoTableFromDataShape("Git.Status");
+			for (int i = 0; i < status.getRowCount(); i++) {
+				ValueCollection row = status.getRow(i);
+				String file = primitiveString(row, "File");
+				String stat = primitiveString(row, "Status");
+				if ((file != null && file.toLowerCase().contains(SearchTerm.toLowerCase()))
+						|| (stat != null && stat.toLowerCase().contains(SearchTerm.toLowerCase()))) {
+					filtered.addRow(row);
+				}
+			}
+			return filtered;
+		}
+		return status;
 	}
 
 	@ThingworxServiceDefinition(name = "RemoveConfigurationTableDefinitions", description = "Removes the ConfigurationTableDefinitions to allow compatibility with 8.2. This service should be used only if you're doing crossplatform development between 8.5 and 8.2/8.3. Enable or disable in the ExportProjectEntities services", category = "", isAllowOverride = false, aspects = { "isAsync:false" })

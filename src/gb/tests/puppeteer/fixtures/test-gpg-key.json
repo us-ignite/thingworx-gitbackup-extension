@@ -1,7 +1,0 @@
-{
-  "identity": "GitBackup Signing Test <gitbackup-test@example.invalid>",
-  "fingerprint": "6507D45942E51F7B8EEE529ADD3A6ECB85A387D5",
-  "passphrase": "gitbackup-test-passphrase",
-  "expires": "2026-07-21",
-  "warning": "Disposable automated-test key. Never use outside the local test stack."
-}
