@@ -117,10 +117,10 @@ LS_PASSWORD=your-license-server-password
 
 ### Output Artifacts
 
-Both produced in `build/distributions/`:
+Produced in `build/distributions/`:
 
 - **`GitBackupExtension.zip`** — The extension package (JAR + entities + metadata)
-- **`GitBackupExtensionPack.zip`** — Extension bundled with third-party extension dependencies
+- **`GitBackupExtensionPack.zip`** — Extension plus third-party dependencies
 
 ### Gradle Tasks
 
@@ -175,16 +175,7 @@ JUnit 5 tests that spin up real containers, install the extension, and run Git o
 | `GpgKeyVisibilityTest` | GPG key persistence, isolation, DataShape access |
 | `ThingWorxIntegrationTest` | DB init, platform health, extension installation |
 
-### UI Tests (Puppeteer)
 
-19 Jest spec files in `tests/puppeteer/` covering all mashup flows:
-
-```
-01-setup → main → status → push → pull → commit history →
-branch manager → checkout → merge/rebase → export → import →
-log → push settings → GPG settings → extension status →
-modify repo → entity picker → confirm delete → teardown
-```
 
 ## CI/CD — GitHub Actions
 

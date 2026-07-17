@@ -8,8 +8,6 @@ build/
 .settings/
 bin/
 twx-lib/*
-*/twx-wc-sdk/*
-widgets/dist/
 
 # IDE
 *.iml
@@ -30,6 +28,8 @@ graalvm-jdk-21*
 # Cached downloads
 .cache/
 
-# Node.js / Puppeteer tests
+# Handoff docs
+handoff/
+
+# Node.js
 node_modules/
-tests/puppeteer/node_modules/

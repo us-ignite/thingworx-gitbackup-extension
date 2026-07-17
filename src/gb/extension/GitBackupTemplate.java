@@ -643,12 +643,12 @@ public class GitBackupTemplate extends Thing {
 
 				String str_LongBranchName = ref.getName();
 				String str_ShortBranchName, str_BranchType;
-				str_ShortBranchName = (str_LongBranchName != "HEAD")
-						? str_LongBranchName.replace("refs/heads/", "").replace("refs/remotes/origin/", "")
-						: "HEAD";
-				str_BranchType = (str_LongBranchName != "HEAD")
-						? (str_LongBranchName.indexOf("refs/heads/") >= 0 ? "LOCAL" : "REMOTE")
-						: "HEAD";
+				str_ShortBranchName = ("HEAD".equals(str_LongBranchName))
+						? "HEAD"
+						: str_LongBranchName.replace("refs/heads/", "").replace("refs/remotes/origin/", "");
+				str_BranchType = ("HEAD".equals(str_LongBranchName))
+						? "HEAD"
+						: (str_LongBranchName.indexOf("refs/heads/") >= 0 ? "LOCAL" : "REMOTE");
 				vc.put("BranchName", new StringPrimitive(str_LongBranchName));
 				vc.put("ShortBranchName", new StringPrimitive(str_ShortBranchName));
 				vc.put("BranchType", new StringPrimitive(str_BranchType));
@@ -1299,17 +1299,22 @@ public class GitBackupTemplate extends Thing {
 				}
 				vc.put("CommitID", new StringPrimitive(commitId != null ? commitId.name() : ""));
 				String message = "";
+				DateTime tagDate = new DateTime(0);
 				if (tagRef.getPeeledObjectId() != null) {
 					try (RevWalk walk = new RevWalk(repo)) {
 						RevObject obj = walk.parseAny(tagRef.getObjectId());
 						if (obj instanceof RevTag) {
-							message = ((RevTag) obj).getShortMessage();
+							RevTag revTag = (RevTag) obj;
+							message = revTag.getShortMessage();
+						long epochSeconds = revTag.getTaggerIdent() != null
+								? revTag.getTaggerIdent().getWhen().toInstant().getEpochSecond()
+								: 0L;
+							tagDate = epochSeconds > 0 ? new DateTime((long) epochSeconds * 1000) : new DateTime(0);
 						}
-						walk.dispose();
 					}
 				}
 				vc.put("Message", new StringPrimitive(message));
-				vc.put("Date", new DatetimePrimitive(new DateTime(0)));
+				vc.put("Date", new DatetimePrimitive(tagDate));
 				iftbl_TagList.addRow(vc);
 			}
 			_logger.trace("Exiting Service: GetTagList");

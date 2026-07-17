@@ -1,8 +1,0 @@
-{
-  "elementName": "git-about",
-  "name": "Git About",
-  "description": "Display extension version information",
-  "category": ["GitBackup"],
-  "flags": { "supportsAutoResize": true },
-  "properties": {}
-}
