@@ -24,18 +24,8 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v5
 
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: widgets/package-lock.json
-
-      - name: Install widget dependencies
-        run: npm ci
-        working-directory: widgets
-
-      - name: Build extension and pack
-        run: ./gradlew packagePack --no-daemon
+      - name: Build extension
+        run: ./gradlew packageExtension --no-daemon
 
       - name: Upload extension ZIP
         uses: actions/upload-artifact@v7

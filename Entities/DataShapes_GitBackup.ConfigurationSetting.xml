@@ -36,12 +36,11 @@
                  name="BranchName"
                  ordinal="7"></FieldDefinition>
                 <FieldDefinition
-                 aspect.friendlyName="File Repository"
-                 aspect.thingTemplate="FileRepository"
-                 baseType="THINGNAME"
-                 description=""
-                 name="FileRepository"
-                 ordinal="5"></FieldDefinition>
+                  aspect.friendlyName="File Repository"
+                  baseType="STRING"
+                  description=""
+                  name="FileRepository"
+                  ordinal="5"></FieldDefinition>
                 <FieldDefinition
                  aspect.friendlyName="Project Name"
                  baseType="STRING"
