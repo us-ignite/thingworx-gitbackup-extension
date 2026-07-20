@@ -5,9 +5,10 @@
          dependsOn=""
          description="This extension provides various GIT capabilities that allow storing ThingWorx applications in a third party Git server. This version is designed ONLY for ThingWorx versions &gt;= 9.3"
          haCompatible="true"
+         migratorClass="gb.extension.ExtMigrator"
          minimumThingWorxVersion="9.3.0"
          name="GitBackupExtension"
-         packageVersion="5.9.3"
+         packageVersion="5.9.4"
          vendor="Open Source / Vladimir Rosu">
             <JarResources>
                 <FileResource
