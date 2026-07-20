@@ -167,9 +167,10 @@ public class GitUtilityThing extends Thing {
 
 		ValueCollection setConfigParams = new ValueCollection();
 		setConfigParams.put("configurationTable", new InfoTablePrimitive(configTable));
-		setConfigParams.put("persistent", new BooleanPrimitive(true));
+		setConfigParams.put("persistent", new BooleanPrimitive(false));
 		setConfigParams.put("tableName", new StringPrimitive("Configuration"));
 		repoThing.processServiceRequest("SetConfigurationTable", setConfigParams);
+		repoThing.processServiceRequest("SaveConfigurationTables", new ValueCollection());
 		repoThing.processServiceRequest("RestartThing", new ValueCollection());
 
 		try {
