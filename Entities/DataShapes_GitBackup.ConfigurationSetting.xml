@@ -37,7 +37,7 @@
                  ordinal="7"></FieldDefinition>
                 <FieldDefinition
                   aspect.friendlyName="File Repository"
-                  baseType="STRING"
+                  baseType="THINGNAME"
                   description=""
                   name="FileRepository"
                   ordinal="5"></FieldDefinition>

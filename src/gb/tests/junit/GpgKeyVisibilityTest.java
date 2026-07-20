@@ -151,7 +151,7 @@ public class GpgKeyVisibilityTest {
         assertTrue(fields.has("SignCommits"), "Missing SignCommits field");
         assertTrue(fields.has("GpgKeyFingerprint"), "Missing GpgKeyFingerprint field");
 
-        assertEquals("THINGNAME", fields.getAsJsonObject("GitThing").get("baseType").getAsString());
+        assertEquals("STRING", fields.getAsJsonObject("GitThing").get("baseType").getAsString());
         assertEquals("PASSWORD", fields.getAsJsonObject("GpgPrivateKey").get("baseType").getAsString());
         assertEquals("PASSWORD", fields.getAsJsonObject("GpgKeyPassphrase").get("baseType").getAsString());
         assertEquals("BOOLEAN", fields.getAsJsonObject("SignCommits").get("baseType").getAsString());

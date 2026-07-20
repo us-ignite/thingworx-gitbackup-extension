@@ -19,9 +19,6 @@ public class ThingWorxVersion {
 
     public static Stream<ThingWorxVersion> thingworxVersionsTestMatrix() {
         return Stream.of(
-            new ThingWorxVersion("9.5.0",
-                    "devopscadit/postgresql-init-twx:platform9.5.0",
-                    "devopscadit/platform-postgres:platform9.5.0"),
             new ThingWorxVersion("9.6.3",
                     "devopscadit/postgresql-init-twx:platform9.6.3",
                     "devopscadit/platform-postgres:platform9.6.3"),
