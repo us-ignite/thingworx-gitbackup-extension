@@ -57,6 +57,14 @@ sourceSets {
     }
 }
 
+// Tell Eclipse/Buildship which source set is test code. The main source set is
+// inferred by the Java plugin; `testSourceSets` is the supported Eclipse DSL.
+eclipse {
+    classpath {
+        testSourceSets = [project.sourceSets.test]
+    }
+}
+
 configurations {
     packageDependencies
     implementation.extendsFrom packageDependencies

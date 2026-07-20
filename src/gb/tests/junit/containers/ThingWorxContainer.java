@@ -43,13 +43,23 @@ public class ThingWorxContainer extends GenericContainer<ThingWorxContainer> {
                     .filter(line -> line.contains("="))
                     .collect(Collectors.toMap(
                         line -> line.split("=")[0].trim(),
-                        line -> line.substring(line.indexOf("=") + 1).trim()
+                        line -> parseEnvValue(line.substring(line.indexOf("=") + 1))
                     ));
             }
         } catch (IOException e) {
             System.err.println("Warning: Could not load .env file: " + e.getMessage());
         }
         return Map.of();
+    }
+
+    private static String parseEnvValue(String rawValue) {
+        var value = rawValue.trim();
+        if (value.length() >= 2
+                && ((value.startsWith("\"") && value.endsWith("\""))
+                    || (value.startsWith("'") && value.endsWith("'")))) {
+            return value.substring(1, value.length() - 1);
+        }
+        return value;
     }
 
     private static final Map<String, String> ENV = loadEnvFile();

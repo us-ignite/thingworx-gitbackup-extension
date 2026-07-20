@@ -149,6 +149,7 @@ public class GitUtilityThing extends Thing {
 		Thing repoThing = (Thing) EntityUtilities.findEntity(RepoName, ThingworxRelationshipTypes.Thing);
 		repoThing.processServiceRequest("EnableThing", new ValueCollection());
 		repoThing.processServiceRequest("RestartThing", new ValueCollection());
+		repoThing = (Thing) EntityUtilities.findEntity(RepoName, ThingworxRelationshipTypes.Thing);
 
 		InfoTable configTable = InfoTableInstanceFactory.createInfoTableFromDataShape("GitBackup.ConfigurationSetting");
 		ValueCollection configRow = new ValueCollection();

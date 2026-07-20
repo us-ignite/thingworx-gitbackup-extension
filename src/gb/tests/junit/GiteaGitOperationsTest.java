@@ -138,7 +138,7 @@ public class GiteaGitOperationsTest {
     }
 
     @Test
-    @Order(2)
+    @Order(3)
     void testPush() throws Exception {
         editFileInRepoViaThingworxAPI("GitRepository", GIT_THING_PATH + "/" + TEST_FILE,
                 "Hello from ThingWorx GitBackup integration test!");
@@ -155,7 +155,7 @@ public class GiteaGitOperationsTest {
     }
 
     @Test
-    @Order(3)
+    @Order(4)
     void testStatus() throws Exception {
         var statusReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "Status", null).build();
         var statusRes = stack.httpClient.send(statusReq, HttpResponse.BodyHandlers.ofString());
@@ -166,7 +166,7 @@ public class GiteaGitOperationsTest {
     }
 
     @Test
-    @Order(4)
+    @Order(2)
     void testPull() throws Exception {
         JsonObject body = new JsonObject();
         body.addProperty("Force", false);
