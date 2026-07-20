@@ -123,6 +123,13 @@ public class GiteaGitOperationsTest {
                 "AddNewRepo failed: " + createRes.statusCode() + " " + createRes.body());
 
         Thread.sleep(5000);
+        JsonObject configurationRequest = new JsonObject();
+        configurationRequest.addProperty("GitThingName", GIT_THING_NAME);
+        var configurationRes = stack.httpClient.send(
+                stack.thingworx.serviceRequest("GIT.Utility.Thing", "GetConfiguration", configurationRequest.toString()).build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertTrue(configurationRes.body().contains(giteaRepoUrl),
+                "Git repository URL was not persisted: " + configurationRes.body());
         var verifyReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "GetCurrentBranch", null).build();
         var verifyRes = stack.httpClient.send(verifyReq, HttpResponse.BodyHandlers.ofString());
         assertTrue(verifyRes.statusCode() == 200 || verifyRes.statusCode() == 201,
