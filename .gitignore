@@ -12,6 +12,8 @@ twx-lib/*
 # IDE
 *.iml
 .idea/
+.vscode/
+.opencode/
 *.swp
 *.swo
 
