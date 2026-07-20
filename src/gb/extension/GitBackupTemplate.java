@@ -1307,7 +1307,7 @@ public class GitBackupTemplate extends Thing {
 							RevTag revTag = (RevTag) obj;
 							message = revTag.getShortMessage();
 						long epochSeconds = revTag.getTaggerIdent() != null
-								? revTag.getTaggerIdent().getWhen().toInstant().getEpochSecond()
+								? revTag.getTaggerIdent().getWhenAsInstant().getEpochSecond()
 								: 0L;
 							tagDate = epochSeconds > 0 ? new DateTime((long) epochSeconds * 1000) : new DateTime(0);
 						}
