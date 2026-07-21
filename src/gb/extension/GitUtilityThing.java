@@ -1118,19 +1118,31 @@ public class GitUtilityThing extends Thing {
             baseType = "NOTHING",
             aspects = {})
     public void InitUserExtensionProperties() throws Exception {
-        String str_CurrentUser = GetCurrentUser();
-        User user = UserUtilities.findUser(str_CurrentUser);
         ThingShape userExtensions =
                 (ThingShape)
                         EntityUtilities.findEntity(
                                 "UserExtensions", ThingworxRelationshipTypes.ThingShape);
 
-        Object gitCreds = null;
+        User user = null;
+        String str_CurrentUser = null;
         try {
-            gitCreds = user.getPropertyValue("GitCredentials");
+            str_CurrentUser = GetCurrentUser();
+            user = UserUtilities.findUser(str_CurrentUser);
         } catch (Exception e) {
+            _logger.warn(
+                    "InitUserExtensionProperties: no user context ("
+                            + e.getMessage()
+                            + "); updating ThingShape definitions only");
         }
-        if (gitCreds == null) {
+
+        boolean hasGitCredentials = false;
+        if (user != null) {
+            try {
+                hasGitCredentials = user.getPropertyValue("GitCredentials") != null;
+            } catch (Exception e) {
+            }
+        }
+        if (!hasGitCredentials) {
             ValueCollection addPropParams = new ValueCollection();
             addPropParams.put("defaultValue", new StringPrimitive(""));
             addPropParams.put(
@@ -1143,42 +1155,42 @@ public class GitUtilityThing extends Thing {
             userExtensions.processServiceRequest("AddPropertyDefinition", addPropParams);
             new EntityServices().RestartDependenciesForThingShape("UserExtensions");
         }
-        // Ensure the property value is initialized on the current user.
-        // After AddPropertyDefinition + RestartDependenciesForThingShape, the user
-        // entity may not yet have the property available for setPropertyValue.
-        // Initialize it with an empty InfoTable so subsequent reads/writes work.
-        try {
-            Object val = user.getPropertyValue("GitCredentials");
-            if (val == null) {
-                InfoTable empty =
-                        InfoTableInstanceFactory.createInfoTableFromDataShape(
-                                "GitBackup.GitCredentials");
-                user.setPropertyValue("GitCredentials", new InfoTablePrimitive(empty));
-            }
-        } catch (Exception e) {
-            _logger.warn(
-                    "Could not initialize GitCredentials property value for user "
-                            + str_CurrentUser
-                            + ": "
-                            + e.getMessage());
-        }
 
-        String[] oldProps = {
-            "UseGitCommitUserValues",
-            "GitCommitterEmail",
-            "GitCommitterPassword",
-            "GitCommitterName"
-        };
-        for (String prop : oldProps) {
+        if (user != null) {
             try {
-                Object val = user.getPropertyValue(prop);
-                if (val != null) {
-                    ValueCollection removeParams = new ValueCollection();
-                    removeParams.put("name", new StringPrimitive(prop));
-                    userExtensions.processServiceRequest("RemovePropertyDefinition", removeParams);
-                    new EntityServices().RestartDependenciesForThingShape("UserExtensions");
+                Object val = user.getPropertyValue("GitCredentials");
+                if (val == null) {
+                    InfoTable empty =
+                            InfoTableInstanceFactory.createInfoTableFromDataShape(
+                                    "GitBackup.GitCredentials");
+                    user.setPropertyValue("GitCredentials", new InfoTablePrimitive(empty));
                 }
             } catch (Exception e) {
+                _logger.warn(
+                        "Could not initialize GitCredentials property value for user "
+                                + str_CurrentUser
+                                + ": "
+                                + e.getMessage());
+            }
+
+            String[] oldProps = {
+                "UseGitCommitUserValues",
+                "GitCommitterEmail",
+                "GitCommitterPassword",
+                "GitCommitterName"
+            };
+            for (String prop : oldProps) {
+                try {
+                    Object val = user.getPropertyValue(prop);
+                    if (val != null) {
+                        ValueCollection removeParams = new ValueCollection();
+                        removeParams.put("name", new StringPrimitive(prop));
+                        userExtensions.processServiceRequest(
+                                "RemovePropertyDefinition", removeParams);
+                        new EntityServices().RestartDependenciesForThingShape("UserExtensions");
+                    }
+                } catch (Exception e) {
+                }
             }
         }
     }
@@ -1195,19 +1207,29 @@ public class GitUtilityThing extends Thing {
             baseType = "NOTHING",
             aspects = {})
     public void InitUserExtensionGpgKeysProperty() throws Exception {
-        String str_CurrentUser = GetCurrentUser();
-        User user = UserUtilities.findUser(str_CurrentUser);
         ThingShape userExtensions =
                 (ThingShape)
                         EntityUtilities.findEntity(
                                 "UserExtensions", ThingworxRelationshipTypes.ThingShape);
 
-        Object gpgKeys = null;
+        User user = null;
         try {
-            gpgKeys = user.getPropertyValue("GpgKeys");
+            user = UserUtilities.findUser(GetCurrentUser());
         } catch (Exception e) {
+            _logger.warn(
+                    "InitUserExtensionGpgKeysProperty: no user context ("
+                            + e.getMessage()
+                            + "); updating ThingShape definitions only");
         }
-        if (gpgKeys == null) {
+
+        boolean hasGpgKeys = false;
+        if (user != null) {
+            try {
+                hasGpgKeys = user.getPropertyValue("GpgKeys") != null;
+            } catch (Exception e) {
+            }
+        }
+        if (!hasGpgKeys) {
             ValueCollection addPropParams = new ValueCollection();
             addPropParams.put("defaultValue", new StringPrimitive(""));
             addPropParams.put(

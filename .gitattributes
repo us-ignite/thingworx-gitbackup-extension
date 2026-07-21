@@ -1,0 +1,2 @@
+configfiles/metadata.xml filter=version
+gradle.properties        filter=version
