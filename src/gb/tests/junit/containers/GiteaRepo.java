@@ -1,4 +1,6 @@
 package gb.tests.junit.containers;
+
+import gb.tests.junit.util.TestingCredentials;
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.time.Duration;
@@ -6,8 +8,6 @@ import java.util.Base64;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.wait.strategy.Wait;
-
-import gb.tests.junit.util.TestingCredentials;
 
 public class GiteaRepo extends GenericContainer<GiteaRepo> {
     TestingCredentials credentials;
@@ -26,16 +26,30 @@ public class GiteaRepo extends GenericContainer<GiteaRepo> {
         waitingFor(Wait.forHttp("/").forStatusCode(200).withStartupTimeout(Duration.ofMinutes(3)));
     }
 
-    public void setupAdminAndRepo(String giteaUser, String giteaPass, String repoName) throws Exception {
-        execInContainer("gitea", "admin", "user", "create",
-                "--username", giteaUser,
-                "--password", giteaPass,
-                "--email", "admin@example.com",
+    public void setupAdminAndRepo(String giteaUser, String giteaPass, String repoName)
+            throws Exception {
+        execInContainer(
+                "gitea",
+                "admin",
+                "user",
+                "create",
+                "--username",
+                giteaUser,
+                "--password",
+                giteaPass,
+                "--email",
+                "admin@example.com",
                 "--admin",
                 "--must-change-password=false");
-        execInContainer("gitea", "admin", "repo", "create",
-                "--name", repoName,
-                "--owner", giteaUser,
+        execInContainer(
+                "gitea",
+                "admin",
+                "repo",
+                "create",
+                "--name",
+                repoName,
+                "--owner",
+                giteaUser,
                 "--auto-init=false",
                 "--private=false");
     }
@@ -44,6 +58,14 @@ public class GiteaRepo extends GenericContainer<GiteaRepo> {
         return HttpRequest.newBuilder()
                 .uri(URI.create("http://gitea:3000" + path))
                 .header("Content-Type", "application/json")
-                .header("Authorization", "Basic " + Base64.getEncoder().encodeToString((credentials.giteaUser + ":" + credentials.giteaPass).getBytes()));
+                .header(
+                        "Authorization",
+                        "Basic "
+                                + Base64.getEncoder()
+                                        .encodeToString(
+                                                (credentials.giteaUser
+                                                                + ":"
+                                                                + credentials.giteaPass)
+                                                        .getBytes()));
     }
 }

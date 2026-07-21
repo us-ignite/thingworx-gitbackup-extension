@@ -1,8 +1,9 @@
 package gb.tests.junit.containers;
+
+import gb.tests.junit.util.TestingCredentials;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.wait.strategy.Wait;
-import gb.tests.junit.util.TestingCredentials;
 
 public class Postgres extends GenericContainer<Postgres> {
     public Postgres(Network network, TestingCredentials credentials) {

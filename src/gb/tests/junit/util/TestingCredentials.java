@@ -29,6 +29,5 @@ public class TestingCredentials {
         repoName = overrides.getOrDefault("repoName", repoName);
     }
 
-    public TestingCredentials() {
-    }
+    public TestingCredentials() {}
 }

@@ -5,6 +5,13 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.google.gson.JsonObject;
+import gb.tests.junit.containers.DBInit;
+import gb.tests.junit.containers.GiteaRepo;
+import gb.tests.junit.containers.Postgres;
+import gb.tests.junit.containers.ThingWorxContainer;
+import gb.tests.junit.util.TestingCredentials;
+import gb.tests.junit.util.ThingWorxVersion;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -13,37 +20,29 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Base64;
-
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestMethodOrder;
-import org.junit.jupiter.api.MethodOrderer;
 import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.startupcheck.OneShotStartupCheckStrategy;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import com.google.gson.JsonObject;
-
-import gb.tests.junit.containers.DBInit;
-import gb.tests.junit.containers.GiteaRepo;
-import gb.tests.junit.containers.Postgres;
-import gb.tests.junit.containers.ThingWorxContainer;
-import gb.tests.junit.util.TestingCredentials;
-import gb.tests.junit.util.ThingWorxVersion;
-
 @Testcontainers
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class CrossThingworxExportImportTest {
 
-    private static final ThingWorxVersion VERSION = new ThingWorxVersion("9.7.5",
-            "devopscadit/postgresql-init-twx:platform9.7.5",
-            "devopscadit/platform-postgres:platform9.7.5");
+    private static final ThingWorxVersion VERSION =
+            new ThingWorxVersion(
+                    "9.7.5",
+                    "devopscadit/postgresql-init-twx:platform9.7.5",
+                    "devopscadit/platform-postgres:platform9.7.5");
 
     private static final String GIT_THING_A = "CrossTwxSourceThing";
     private static final String GIT_THING_B = "CrossTwxTargetThing";
@@ -68,7 +67,8 @@ public class CrossThingworxExportImportTest {
     @BeforeAll
     void setup() throws Exception {
         credentials = new TestingCredentials();
-        giteaRepoUrl = "http://gitea:3000/" + credentials.giteaUser + "/" + credentials.repoName + ".git";
+        giteaRepoUrl =
+                "http://gitea:3000/" + credentials.giteaUser + "/" + credentials.repoName + ".git";
 
         gitea = new GiteaRepo(network, credentials);
         gitea.start();
@@ -78,7 +78,15 @@ public class CrossThingworxExportImportTest {
         postgresA.start();
         dbInitA = new DBInit(VERSION.dbInitImage, postgresA, network, credentials, "postgresql-a");
         dbInitA.start();
-        twxA = new ThingWorxContainer(VERSION.platformImage, dbInitA, postgresA, network, credentials, "postgresql-a", "thingworx-a");
+        twxA =
+                new ThingWorxContainer(
+                        VERSION.platformImage,
+                        dbInitA,
+                        postgresA,
+                        network,
+                        credentials,
+                        "postgresql-a",
+                        "thingworx-a");
         twxA.start();
         installExtension(twxA, "thingworx-a");
 
@@ -86,7 +94,15 @@ public class CrossThingworxExportImportTest {
         postgresB.start();
         dbInitB = new DBInit(VERSION.dbInitImage, postgresB, network, credentials, "postgresql-b");
         dbInitB.start();
-        twxB = new ThingWorxContainer(VERSION.platformImage, dbInitB, postgresB, network, credentials, "postgresql-b", "thingworx-b");
+        twxB =
+                new ThingWorxContainer(
+                        VERSION.platformImage,
+                        dbInitB,
+                        postgresB,
+                        network,
+                        credentials,
+                        "postgresql-b",
+                        "thingworx-b");
         twxB.start();
         installExtension(twxB, "thingworx-b");
 
@@ -99,34 +115,56 @@ public class CrossThingworxExportImportTest {
         Path extZip = Path.of("build/distributions/GitBackupExtension.zip");
         assertTrue(Files.exists(extZip), "Extension ZIP must exist at " + extZip.toAbsolutePath());
 
-        var installer = new GenericContainer<>("curlimages/curl:7.85.0")
-                .withNetwork(network)
-                .dependsOn(twx)
-                .withFileSystemBind(extZip.toAbsolutePath().toString(), "/tmp/extension.zip", BindMode.READ_ONLY)
-                .withStartupCheckStrategy(new OneShotStartupCheckStrategy().withTimeout(Duration.ofMinutes(10)))
-                .withCreateContainerCmdModifier(cmd -> cmd.withEntrypoint("sh", "-c",
-                        "UPLOAD_STATUS=$(curl -s -o /dev/null -w '%{http_code}' -X POST \\\n" +
-                        "  -H 'X-XSRF-TOKEN: TWX-XSRF-TOKEN-VALUE' \\\n" +
-                        "  -H 'X-Requested-By: ThingWorx' \\\n" +
-                        "  -H 'Accept: application/json' \\\n" +
-                        "  -u '" + credentials.thingworxAdminUser + ":" + credentials.thingworxAdminPass + "' \\\n" +
-                        "  -F 'file=@/tmp/extension.zip' \\\n" +
-                        "  --connect-timeout 30 --max-time 300 \\\n" +
-                        "  'http://" + hostname + ":8080/Thingworx/ExtensionPackageUploader?purpose=import')\n" +
-                        "echo \"Upload status: $UPLOAD_STATUS\"\n" +
-                        "if [ \"$UPLOAD_STATUS\" != \"200\" ] && [ \"$UPLOAD_STATUS\" != \"201\" ]; then\n" +
-                        "  exit 1\n" +
-                        "fi\n" +
-                        "VERIFY_STATUS=$(curl -s -o /dev/null -w '%{http_code}' \\\n" +
-                        "  -H 'Accept: application/json' \\\n" +
-                        "  -u '" + credentials.thingworxAdminUser + ":" + credentials.thingworxAdminPass + "' \\\n" +
-                        "  --connect-timeout 30 --max-time 30 \\\n" +
-                        "  'http://" + hostname + ":8080/Thingworx/Things/GIT.Utility.Thing')\n" +
-                        "echo \"Verify status: $VERIFY_STATUS\"\n" +
-                        "if [ \"$VERIFY_STATUS\" != \"200\" ] && [ \"$VERIFY_STATUS\" != \"401\" ]; then\n" +
-                        "  exit 1\n" +
-                        "fi\n" +
-                        "echo 'ALL_DONE'\n"));
+        var installer =
+                new GenericContainer<>("curlimages/curl:7.85.0")
+                        .withNetwork(network)
+                        .dependsOn(twx)
+                        .withFileSystemBind(
+                                extZip.toAbsolutePath().toString(),
+                                "/tmp/extension.zip",
+                                BindMode.READ_ONLY)
+                        .withStartupCheckStrategy(
+                                new OneShotStartupCheckStrategy()
+                                        .withTimeout(Duration.ofMinutes(10)))
+                        .withCreateContainerCmdModifier(
+                                cmd ->
+                                        cmd.withEntrypoint(
+                                                "sh",
+                                                "-c",
+                                                "UPLOAD_STATUS=$(curl -s -o /dev/null -w '%{http_code}' -X POST \\\n"
+                                                        + "  -H 'X-XSRF-TOKEN: TWX-XSRF-TOKEN-VALUE' \\\n"
+                                                        + "  -H 'X-Requested-By: ThingWorx' \\\n"
+                                                        + "  -H 'Accept: application/json' \\\n"
+                                                        + "  -u '"
+                                                        + credentials.thingworxAdminUser
+                                                        + ":"
+                                                        + credentials.thingworxAdminPass
+                                                        + "' \\\n"
+                                                        + "  -F 'file=@/tmp/extension.zip' \\\n"
+                                                        + "  --connect-timeout 30 --max-time 300 \\\n"
+                                                        + "  'http://"
+                                                        + hostname
+                                                        + ":8080/Thingworx/ExtensionPackageUploader?purpose=import')\n"
+                                                        + "echo \"Upload status: $UPLOAD_STATUS\"\n"
+                                                        + "if [ \"$UPLOAD_STATUS\" != \"200\" ] && [ \"$UPLOAD_STATUS\" != \"201\" ]; then\n"
+                                                        + "  exit 1\n"
+                                                        + "fi\n"
+                                                        + "VERIFY_STATUS=$(curl -s -o /dev/null -w '%{http_code}' \\\n"
+                                                        + "  -H 'Accept: application/json' \\\n"
+                                                        + "  -u '"
+                                                        + credentials.thingworxAdminUser
+                                                        + ":"
+                                                        + credentials.thingworxAdminPass
+                                                        + "' \\\n"
+                                                        + "  --connect-timeout 30 --max-time 30 \\\n"
+                                                        + "  'http://"
+                                                        + hostname
+                                                        + ":8080/Thingworx/Things/GIT.Utility.Thing')\n"
+                                                        + "echo \"Verify status: $VERIFY_STATUS\"\n"
+                                                        + "if [ \"$VERIFY_STATUS\" != \"200\" ] && [ \"$VERIFY_STATUS\" != \"401\" ]; then\n"
+                                                        + "  exit 1\n"
+                                                        + "fi\n"
+                                                        + "echo 'ALL_DONE'\n"));
         installer.start();
         System.out.println("Extension installed on " + hostname);
     }
@@ -138,10 +176,15 @@ public class CrossThingworxExportImportTest {
 
         for (int i = 0; i < 10; i++) {
             try {
-                var userResult = gitea.execInContainer("sh", "-c",
-                        "su git -c '/usr/local/bin/gitea admin user create --username " + giteaUser
-                        + " --password " + giteaPass
-                        + " --email admin@example.com --admin --must-change-password=false'");
+                var userResult =
+                        gitea.execInContainer(
+                                "sh",
+                                "-c",
+                                "su git -c '/usr/local/bin/gitea admin user create --username "
+                                        + giteaUser
+                                        + " --password "
+                                        + giteaPass
+                                        + " --email admin@example.com --admin --must-change-password=false'");
                 if (userResult.getExitCode() == 0) break;
             } catch (Exception e) {
                 System.out.println("Gitea user creation attempt " + i + ": " + e.getMessage());
@@ -152,18 +195,31 @@ public class CrossThingworxExportImportTest {
         var repoBody = new java.util.HashMap<String, Object>();
         repoBody.put("name", repoName);
         repoBody.put("private", false);
-        repoBody.put("auto_init", true);
+        repoBody.put("auto_init", false);
         repoBody.put("default_branch", "main");
         for (int i = 0; i < 30; i++) {
             try {
-                var request = HttpRequest.newBuilder()
-                        .uri(URI.create("http://" + gitea.getHost() + ":" + gitea.getMappedPort(3000) + "/api/v1/user/repos"))
-                        .header("Content-Type", "application/json")
-                        .header("Authorization", "Basic " + Base64.getEncoder().encodeToString(
-                                (giteaUser + ":" + giteaPass).getBytes()))
-                        .POST(HttpRequest.BodyPublishers.ofString(
-                                new com.google.gson.Gson().toJson(repoBody)))
-                        .build();
+                var request =
+                        HttpRequest.newBuilder()
+                                .uri(
+                                        URI.create(
+                                                "http://"
+                                                        + gitea.getHost()
+                                                        + ":"
+                                                        + gitea.getMappedPort(3000)
+                                                        + "/api/v1/user/repos"))
+                                .header("Content-Type", "application/json")
+                                .header(
+                                        "Authorization",
+                                        "Basic "
+                                                + Base64.getEncoder()
+                                                        .encodeToString(
+                                                                (giteaUser + ":" + giteaPass)
+                                                                        .getBytes()))
+                                .POST(
+                                        HttpRequest.BodyPublishers.ofString(
+                                                new com.google.gson.Gson().toJson(repoBody)))
+                                .build();
                 var repoRes = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
                 if (repoRes.statusCode() == 201 || repoRes.statusCode() == 200) break;
             } catch (Exception e) {
@@ -174,10 +230,12 @@ public class CrossThingworxExportImportTest {
     }
 
     private void initUserExtensions(ThingWorxContainer twx) throws Exception {
-        var req1 = twx.serviceRequest("GIT.Utility.Thing", "InitUserExtensionProperties", null)
-                .build();
-        var req2 = twx.serviceRequest("GIT.Utility.Thing", "InitUserExtensionGpgKeysProperty", null)
-                .build();
+        var req1 =
+                twx.serviceRequest("GIT.Utility.Thing", "InitUserExtensionProperties", null)
+                        .build();
+        var req2 =
+                twx.serviceRequest("GIT.Utility.Thing", "InitUserExtensionGpgKeysProperty", null)
+                        .build();
         httpClient.send(req1, HttpResponse.BodyHandlers.ofString());
         httpClient.send(req2, HttpResponse.BodyHandlers.ofString());
     }
@@ -212,19 +270,23 @@ public class CrossThingworxExportImportTest {
         body.addProperty("UseProxy", false);
         body.addProperty("LocalizationTokensPrefix", "");
 
-        var createReq = twxA.serviceRequest("GIT.Utility.Thing", "AddNewRepo", body.toString())
-                .timeout(Duration.ofSeconds(30))
-                .build();
+        var createReq =
+                twxA.serviceRequest("GIT.Utility.Thing", "AddNewRepo", body.toString())
+                        .timeout(Duration.ofSeconds(30))
+                        .build();
         var createRes = httpClient.send(createReq, HttpResponse.BodyHandlers.ofString());
-        assertTrue(createRes.statusCode() == 200 || createRes.statusCode() == 201,
+        assertTrue(
+                createRes.statusCode() == 200 || createRes.statusCode() == 201,
                 "AddNewRepo on source failed: " + createRes.statusCode() + " " + createRes.body());
 
         Thread.sleep(5000);
-        var verifyReq = twxA.serviceRequest(GIT_THING_A, "GetCurrentBranch", null)
-                .timeout(Duration.ofSeconds(10))
-                .build();
+        var verifyReq =
+                twxA.serviceRequest(GIT_THING_A, "GetCurrentBranch", null)
+                        .timeout(Duration.ofSeconds(10))
+                        .build();
         var verifyRes = httpClient.send(verifyReq, HttpResponse.BodyHandlers.ofString());
-        assertTrue(verifyRes.statusCode() == 200 || verifyRes.statusCode() == 201,
+        assertTrue(
+                verifyRes.statusCode() == 200 || verifyRes.statusCode() == 201,
                 "GitThing A was not created: " + verifyRes.statusCode() + " " + verifyRes.body());
     }
 
@@ -234,18 +296,21 @@ public class CrossThingworxExportImportTest {
         var json = new JsonObject();
         json.addProperty("path", "/" + GIT_THING_A + "/" + TEST_FILE);
         json.addProperty("content", TEST_CONTENT);
-        var saveReq = twxA.serviceRequest("GitRepository", "SaveText", json.toString())
-                .timeout(Duration.ofSeconds(10))
-                .build();
+        var saveReq =
+                twxA.serviceRequest("GitRepository", "SaveText", json.toString())
+                        .timeout(Duration.ofSeconds(10))
+                        .build();
         var saveRes = httpClient.send(saveReq, HttpResponse.BodyHandlers.ofString());
-        assertTrue(saveRes.statusCode() == 200 || saveRes.statusCode() == 201,
+        assertTrue(
+                saveRes.statusCode() == 200 || saveRes.statusCode() == 201,
                 "SaveText failed: " + saveRes.statusCode() + " " + saveRes.body());
 
         JsonObject pushBody = new JsonObject();
         pushBody.addProperty("Message", "Cross-instance test push from TWX-A");
-        var pushReq = twxA.serviceRequest(GIT_THING_A, "Push", pushBody.toString())
-                .timeout(Duration.ofSeconds(30))
-                .build();
+        var pushReq =
+                twxA.serviceRequest(GIT_THING_A, "Push", pushBody.toString())
+                        .timeout(Duration.ofSeconds(30))
+                        .build();
         var pushRes = httpClient.send(pushReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, pushRes.statusCode(), "Push on source failed: " + pushRes.body());
         assertFalse(pushRes.body().contains("Error"), "Push returned error: " + pushRes.body());
@@ -269,19 +334,23 @@ public class CrossThingworxExportImportTest {
         body.addProperty("UseProxy", false);
         body.addProperty("LocalizationTokensPrefix", "");
 
-        var createReq = twxB.serviceRequest("GIT.Utility.Thing", "AddNewRepo", body.toString())
-                .timeout(Duration.ofSeconds(30))
-                .build();
+        var createReq =
+                twxB.serviceRequest("GIT.Utility.Thing", "AddNewRepo", body.toString())
+                        .timeout(Duration.ofSeconds(30))
+                        .build();
         var createRes = httpClient.send(createReq, HttpResponse.BodyHandlers.ofString());
-        assertTrue(createRes.statusCode() == 200 || createRes.statusCode() == 201,
+        assertTrue(
+                createRes.statusCode() == 200 || createRes.statusCode() == 201,
                 "AddNewRepo on target failed: " + createRes.statusCode() + " " + createRes.body());
 
         Thread.sleep(5000);
-        var verifyReq = twxB.serviceRequest(GIT_THING_B, "GetCurrentBranch", null)
-                .timeout(Duration.ofSeconds(10))
-                .build();
+        var verifyReq =
+                twxB.serviceRequest(GIT_THING_B, "GetCurrentBranch", null)
+                        .timeout(Duration.ofSeconds(10))
+                        .build();
         var verifyRes = httpClient.send(verifyReq, HttpResponse.BodyHandlers.ofString());
-        assertTrue(verifyRes.statusCode() == 200 || verifyRes.statusCode() == 201,
+        assertTrue(
+                verifyRes.statusCode() == 200 || verifyRes.statusCode() == 201,
                 "GitThing B was not created: " + verifyRes.statusCode() + " " + verifyRes.body());
     }
 
@@ -290,9 +359,10 @@ public class CrossThingworxExportImportTest {
     void pullEntitiesOnTargetInstance() throws Exception {
         JsonObject pullBody = new JsonObject();
         pullBody.addProperty("Force", true);
-        var pullReq = twxB.serviceRequest(GIT_THING_B, "Pull", pullBody.toString())
-                .timeout(Duration.ofSeconds(60))
-                .build();
+        var pullReq =
+                twxB.serviceRequest(GIT_THING_B, "Pull", pullBody.toString())
+                        .timeout(Duration.ofSeconds(60))
+                        .build();
         var pullRes = httpClient.send(pullReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, pullRes.statusCode(), "Pull on target failed: " + pullRes.body());
         assertFalse(pullRes.body().contains("Error"), "Pull returned error: " + pullRes.body());
@@ -301,28 +371,29 @@ public class CrossThingworxExportImportTest {
     @Test
     @Order(5)
     void verifyEntitiesExistOnTarget() throws Exception {
-        var statusReq = twxB.serviceRequest(GIT_THING_B, "Status", null)
-                .timeout(Duration.ofSeconds(10))
-                .build();
+        var statusReq =
+                twxB.serviceRequest(GIT_THING_B, "Status", null)
+                        .timeout(Duration.ofSeconds(10))
+                        .build();
         var statusRes = httpClient.send(statusReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, statusRes.statusCode(), "Status on target failed: " + statusRes.body());
         String body = statusRes.body();
         assertNotNull(body);
-        assertTrue(body.contains("rows"),
-                "Status should return infotable JSON: " + body);
+        assertTrue(body.contains("rows"), "Status should return infotable JSON: " + body);
     }
 
     @Test
     @Order(6)
     void verifyCommitHistoryOnTarget() throws Exception {
-        var commitReq = twxB.serviceRequest(GIT_THING_B, "GetCommitList", null)
-                .timeout(Duration.ofSeconds(10))
-                .build();
+        var commitReq =
+                twxB.serviceRequest(GIT_THING_B, "GetCommitList", null)
+                        .timeout(Duration.ofSeconds(10))
+                        .build();
         var commitRes = httpClient.send(commitReq, HttpResponse.BodyHandlers.ofString());
-        assertEquals(200, commitRes.statusCode(), "GetCommitList on target failed: " + commitRes.body());
+        assertEquals(
+                200, commitRes.statusCode(), "GetCommitList on target failed: " + commitRes.body());
         String body = commitRes.body();
-        assertTrue(body.contains("rows"),
-                "Commit list should have rows: " + body);
+        assertTrue(body.contains("rows"), "Commit list should have rows: " + body);
     }
 
     @Test
@@ -331,34 +402,43 @@ public class CrossThingworxExportImportTest {
         var json = new JsonObject();
         json.addProperty("path", "/" + GIT_THING_B + "/returned-data.txt");
         json.addProperty("content", "Round-trip from TWX-B");
-        var saveReq = twxB.serviceRequest("GitRepository", "SaveText", json.toString())
-                .timeout(Duration.ofSeconds(10))
-                .build();
+        var saveReq =
+                twxB.serviceRequest("GitRepository", "SaveText", json.toString())
+                        .timeout(Duration.ofSeconds(10))
+                        .build();
         var saveRes = httpClient.send(saveReq, HttpResponse.BodyHandlers.ofString());
-        assertTrue(saveRes.statusCode() == 200 || saveRes.statusCode() == 201,
+        assertTrue(
+                saveRes.statusCode() == 200 || saveRes.statusCode() == 201,
                 "SaveText on target failed: " + saveRes.statusCode());
 
         JsonObject pushBody = new JsonObject();
         pushBody.addProperty("Message", "Cross-instance return push from TWX-B");
-        var pushReq = twxB.serviceRequest(GIT_THING_B, "Push", pushBody.toString())
-                .timeout(Duration.ofSeconds(30))
-                .build();
+        var pushReq =
+                twxB.serviceRequest(GIT_THING_B, "Push", pushBody.toString())
+                        .timeout(Duration.ofSeconds(30))
+                        .build();
         var pushRes = httpClient.send(pushReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, pushRes.statusCode(), "Push on target failed: " + pushRes.body());
 
         var pullBody = new JsonObject();
         pullBody.addProperty("Force", false);
-        var pullReq = twxA.serviceRequest(GIT_THING_A, "Pull", pullBody.toString())
-                .timeout(Duration.ofSeconds(60))
-                .build();
+        var pullReq =
+                twxA.serviceRequest(GIT_THING_A, "Pull", pullBody.toString())
+                        .timeout(Duration.ofSeconds(60))
+                        .build();
         var pullRes = httpClient.send(pullReq, HttpResponse.BodyHandlers.ofString());
-        assertEquals(200, pullRes.statusCode(), "Pull on source after round-trip failed: " + pullRes.body());
+        assertEquals(
+                200,
+                pullRes.statusCode(),
+                "Pull on source after round-trip failed: " + pullRes.body());
 
-        var commitReq = twxA.serviceRequest(GIT_THING_A, "GetCommitList", null)
-                .timeout(Duration.ofSeconds(10))
-                .build();
+        var commitReq =
+                twxA.serviceRequest(GIT_THING_A, "GetCommitList", null)
+                        .timeout(Duration.ofSeconds(10))
+                        .build();
         var commitRes = httpClient.send(commitReq, HttpResponse.BodyHandlers.ofString());
-        assertTrue(commitRes.body().contains("Cross-instance return push"),
+        assertTrue(
+                commitRes.body().contains("Cross-instance return push"),
                 "Source should see the return commit: " + commitRes.body());
     }
 }
