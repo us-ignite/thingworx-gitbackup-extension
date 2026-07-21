@@ -20,7 +20,7 @@ ext {
     thirdPartyDir = file('3rdPartyExtensions')
     zipDir = file("${buildDir}/distributions")
     packageName = 'GitBackupExtension'
-    packageVersion = '5.9.5'
+    packageVersion = file('.version').text.trim()
     packageVendor = 'Open Source / Vladimir Rosu'
 }
 
@@ -484,16 +484,14 @@ task bumpVersion {
     description = 'Bump semver: -Pbump=major|minor|patch  or  -PnewVersion=X.Y.Z'
     group = 'publishing'
     doLast {
-        // Parse current version from build.gradle
-        def buildFile = file('build.gradle')
-        def buildText = buildFile.text
-        def curr = (buildText =~ /packageVersion = '(\d+)\.(\d+)\.(\d+)'/)
-        if (!curr.find()) throw new GradleException('Could not find current version in build.gradle')
+        def versionFile = file('.version')
+        def curText = versionFile.text.trim()
+        def curr = (curText =~ /(\d+)\.(\d+)\.(\d+)/)
+        if (!curr.find()) throw new GradleException('Could not find current version in .version')
         def major = curr[0][1].toInteger()
         def minor = curr[0][2].toInteger()
         def patch = curr[0][3].toInteger()
 
-        // Determine new version
         String ver
         if (project.hasProperty('newVersion')) {
             ver = project.property('newVersion')
@@ -512,19 +510,12 @@ task bumpVersion {
 
         logger.lifecycle("Bumping version ${major}.${minor}.${patch} -> $ver")
 
-        // Write build.gradle
-        buildFile.text = buildText.replaceFirst(
-            /packageVersion = '\d+\.\d+\.\d+'/,
-            "packageVersion = '$ver'")
+        versionFile.text = "$ver\n"
 
-        // Write metadata.xml
-        def metadataFile = file('configfiles/metadata.xml')
-        metadataFile.text = metadataFile.text.replaceFirst(
-            /packageVersion="\d+\.\d+\.\d+"/,
-            "packageVersion=\"$ver\"")
+        def filteredFiles = ['build.gradle', 'configfiles/metadata.xml', 'gradle.properties']
+        exec { commandLine 'git', 'checkout', 'HEAD', '--', *filteredFiles }
 
-        // Commit and tag
-        exec { commandLine 'git', 'add', 'build.gradle', 'configfiles/metadata.xml' }
+        exec { commandLine 'git', 'add', '.version', *filteredFiles }
         exec { commandLine 'git', 'commit', '-m', "Bump version to $ver" }
         exec { commandLine 'git', 'tag', "v$ver" }
 

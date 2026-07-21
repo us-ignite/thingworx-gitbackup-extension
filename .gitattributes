@@ -1,2 +1,4 @@
+configfiles/metadata.xml filter=version
+gradle.properties        filter=version
 vendor/twx-resources.tar.gz.gpg filter=lfs diff=lfs merge=lfs -text
 extensions/jgit/vendor/twx-resources.tar.gz.gpg filter=lfs diff=lfs merge=lfs -text

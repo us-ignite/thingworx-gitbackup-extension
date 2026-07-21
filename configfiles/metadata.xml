@@ -8,7 +8,7 @@
          migratorClass="gb.extension.ExtMigrator"
          minimumThingWorxVersion="9.3.0"
          name="GitBackupExtension"
-         packageVersion="5.9.4"
+         packageVersion="@PACKAGE_VERSION@"
          vendor="Open Source / Vladimir Rosu">
             <JarResources>
                 <FileResource

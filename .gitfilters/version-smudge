@@ -1,0 +1,3 @@
+#!/bin/bash
+VERSION=$(cat .version 2>/dev/null || echo "0.0.0")
+sed "s/@PACKAGE_VERSION@/$VERSION/g"
