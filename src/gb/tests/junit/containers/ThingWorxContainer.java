@@ -1,23 +1,20 @@
 package gb.tests.junit.containers;
 
+import gb.tests.junit.util.TestingCredentials;
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.Builder;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Base64;
-
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.wait.strategy.Wait;
-
-import gb.tests.junit.util.TestingCredentials;
-
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 public class ThingWorxContainer extends GenericContainer<ThingWorxContainer> {
 
@@ -32,7 +29,7 @@ public class ThingWorxContainer extends GenericContainer<ThingWorxContainer> {
             return cacheDir;
         }
         throw new RuntimeException(
-            "JDK 21 not found at .cache/jdk21. Run 'gradle fetchJdk21' first.");
+                "JDK 21 not found at .cache/jdk21. Run 'gradle fetchJdk21' first.");
     }
 
     private static Map<String, String> loadEnvFile() {
@@ -40,11 +37,13 @@ public class ThingWorxContainer extends GenericContainer<ThingWorxContainer> {
             var envPath = Path.of(System.getProperty("user.dir"), ".env");
             if (Files.exists(envPath)) {
                 return Files.lines(envPath)
-                    .filter(line -> line.contains("="))
-                    .collect(Collectors.toMap(
-                        line -> line.split("=")[0].trim(),
-                        line -> parseEnvValue(line.substring(line.indexOf("=") + 1))
-                    ));
+                        .filter(line -> line.contains("="))
+                        .collect(
+                                Collectors.toMap(
+                                        line -> line.split("=")[0].trim(),
+                                        line ->
+                                                parseEnvValue(
+                                                        line.substring(line.indexOf("=") + 1))));
             }
         } catch (IOException e) {
             System.err.println("Warning: Could not load .env file: " + e.getMessage());
@@ -56,7 +55,7 @@ public class ThingWorxContainer extends GenericContainer<ThingWorxContainer> {
         var value = rawValue.trim();
         if (value.length() >= 2
                 && ((value.startsWith("\"") && value.endsWith("\""))
-                    || (value.startsWith("'") && value.endsWith("'")))) {
+                        || (value.startsWith("'") && value.endsWith("'")))) {
             return value.substring(1, value.length() - 1);
         }
         return value;
@@ -66,14 +65,23 @@ public class ThingWorxContainer extends GenericContainer<ThingWorxContainer> {
 
     private String authHeader;
 
-    public ThingWorxContainer(String platformImage,
-                GenericContainer<?> dbInit, GenericContainer<?> postgres, Network network, TestingCredentials credentials) {
+    public ThingWorxContainer(
+            String platformImage,
+            GenericContainer<?> dbInit,
+            GenericContainer<?> postgres,
+            Network network,
+            TestingCredentials credentials) {
         this(platformImage, dbInit, postgres, network, credentials, "postgresql", "thingworx");
     }
 
-    public ThingWorxContainer(String platformImage,
-                GenericContainer<?> dbInit, GenericContainer<?> postgres, Network network, TestingCredentials credentials,
-                String dbHostAlias, String thingworxAlias) {
+    public ThingWorxContainer(
+            String platformImage,
+            GenericContainer<?> dbInit,
+            GenericContainer<?> postgres,
+            Network network,
+            TestingCredentials credentials,
+            String dbHostAlias,
+            String thingworxAlias) {
         super(platformImage);
         withNetwork(network);
         withNetworkAliases(thingworxAlias);
@@ -108,18 +116,30 @@ public class ThingWorxContainer extends GenericContainer<ThingWorxContainer> {
         withEnv("LS_USERNAME", ENV.getOrDefault("LS_USERNAME", ""));
         withEnv("LS_PASSWORD", ENV.getOrDefault("LS_PASSWORD", ""));
         if (JDK21_DIR != null) {
-            withFileSystemBind(JDK21_DIR.toAbsolutePath().toString(), "/mnt/jdk21", BindMode.READ_ONLY);
-            withCreateContainerCmdModifier(cmd -> cmd.withEntrypoint("sh", "-c",
-                "rm -rf /opt/jdk && ln -sf /mnt/jdk21 /opt/jdk && exec /docker-entrypoint.sh run"));
+            withFileSystemBind(
+                    JDK21_DIR.toAbsolutePath().toString(), "/mnt/jdk21", BindMode.READ_ONLY);
+            withCreateContainerCmdModifier(
+                    cmd ->
+                            cmd.withEntrypoint(
+                                    "sh",
+                                    "-c",
+                                    "rm -rf /opt/jdk && ln -sf /mnt/jdk21 /opt/jdk && exec /docker-entrypoint.sh run"));
         }
 
         withExposedPorts(8080);
-        waitingFor(Wait.forHttp("/Thingworx/health")
-                .forStatusCode(200)
-                .withStartupTimeout(Duration.ofMinutes(15)));
+        waitingFor(
+                Wait.forHttp("/Thingworx/health")
+                        .forStatusCode(200)
+                        .withStartupTimeout(Duration.ofMinutes(15)));
 
-        authHeader = "Basic " + Base64.getEncoder().encodeToString(
-                (credentials.thingworxAdminUser + ":" + credentials.thingworxAdminPass).getBytes());
+        authHeader =
+                "Basic "
+                        + Base64.getEncoder()
+                                .encodeToString(
+                                        (credentials.thingworxAdminUser
+                                                        + ":"
+                                                        + credentials.thingworxAdminPass)
+                                                .getBytes());
     }
 
     @Override
@@ -127,7 +147,10 @@ public class ThingWorxContainer extends GenericContainer<ThingWorxContainer> {
         super.start();
         String host = getHost();
         int port = getMappedPort(8080);
-        if (host.equals("localhost") || host.equals("127.0.0.1") || host.contains("docker.internal") || host.contains("desktop")) {
+        if (host.equals("localhost")
+                || host.equals("127.0.0.1")
+                || host.contains("docker.internal")
+                || host.contains("desktop")) {
             externalUrl = "http://" + host + ":" + port;
         } else {
             externalUrl = "http://localhost:" + port;
@@ -141,10 +164,8 @@ public class ThingWorxContainer extends GenericContainer<ThingWorxContainer> {
 
     public Builder serviceRequest(String thingName, String serviceName, String body) {
         var baseUrl = externalUrl != null ? externalUrl : "http://thingworx:8080";
-        var uri = URI.create(baseUrl + "/Thingworx/Things/"
-                + thingName
-                + "/Services/"
-                + serviceName);
+        var uri =
+                URI.create(baseUrl + "/Thingworx/Things/" + thingName + "/Services/" + serviceName);
         return HttpRequest.newBuilder()
                 .uri(uri)
                 .header("Content-Type", "application/json;charset=UTF-8")

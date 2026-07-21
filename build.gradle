@@ -1,6 +1,7 @@
 plugins {
     id 'java'
     id 'eclipse'
+    id 'com.diffplug.spotless' version '7.0.2'
 }
 
 defaultTasks 'clean', 'packageExtension'
@@ -62,6 +63,16 @@ sourceSets {
 eclipse {
     classpath {
         testSourceSets = [project.sourceSets.test]
+    }
+}
+
+spotless {
+    java {
+        target 'src/**/*.java'
+        googleJavaFormat().aosp()
+        removeUnusedImports()
+        trimTrailingWhitespace()
+        endWithNewline()
     }
 }
 

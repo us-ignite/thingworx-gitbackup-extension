@@ -1,18 +1,24 @@
 package gb.tests.junit.containers;
+
+import gb.tests.junit.util.TestingCredentials;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.wait.strategy.Wait;
 
-import gb.tests.junit.util.TestingCredentials;
-
 public class DBInit extends GenericContainer<DBInit> {
-    public DBInit(String dbInitImage,
-            GenericContainer<?> postgres, Network network, TestingCredentials credentials) {
+    public DBInit(
+            String dbInitImage,
+            GenericContainer<?> postgres,
+            Network network,
+            TestingCredentials credentials) {
         this(dbInitImage, postgres, network, credentials, "postgresql");
     }
 
-    public DBInit(String dbInitImage,
-            GenericContainer<?> postgres, Network network, TestingCredentials credentials,
+    public DBInit(
+            String dbInitImage,
+            GenericContainer<?> postgres,
+            Network network,
+            TestingCredentials credentials,
             String dbHostAlias) {
         super(dbInitImage);
         withNetwork(network);
@@ -26,8 +32,12 @@ public class DBInit extends GenericContainer<DBInit> {
         withEnv("TWX_DATABASE_SCHEMA", credentials.twxDatabaseSchema);
         withEnv("TWX_DATABASE_PASSWORD", credentials.twxDatabasePass);
         withEnv("TABLESPACE_LOCATION", "/var/lib/postgresql/data");
-        withCreateContainerCmdModifier(cmd -> cmd.withEntrypoint("bash", "-c",
-                "/usr/local/bin/db-setup.sh && echo 'DB_INIT_DONE' && sleep infinity"));
+        withCreateContainerCmdModifier(
+                cmd ->
+                        cmd.withEntrypoint(
+                                "bash",
+                                "-c",
+                                "/usr/local/bin/db-setup.sh && echo 'DB_INIT_DONE' && sleep infinity"));
         waitingFor(Wait.forLogMessage(".*DB_INIT_DONE.*", 1));
     }
 }

@@ -1,4 +1,5 @@
 package gb.tests.junit.util;
+
 import java.util.stream.Stream;
 
 public class ThingWorxVersion {
@@ -19,14 +20,17 @@ public class ThingWorxVersion {
 
     public static Stream<ThingWorxVersion> thingworxVersionsTestMatrix() {
         return Stream.of(
-            new ThingWorxVersion("9.6.3",
-                    "devopscadit/postgresql-init-twx:platform9.6.3",
-                    "devopscadit/platform-postgres:platform9.6.3"),
-            new ThingWorxVersion("9.7.5",
-                    "devopscadit/postgresql-init-twx:platform9.7.5",
-                    "devopscadit/platform-postgres:platform9.7.5"),
-            new ThingWorxVersion("10.1.0",
-                    "devopscadit/postgresql-init-twx:platform10.1.0",
-                    "devopscadit/platform-postgres:platform10.1.0"));
+                new ThingWorxVersion(
+                        "9.6.3",
+                        "devopscadit/postgresql-init-twx:platform9.6.3",
+                        "devopscadit/platform-postgres:platform9.6.3"),
+                new ThingWorxVersion(
+                        "9.7.5",
+                        "devopscadit/postgresql-init-twx:platform9.7.5",
+                        "devopscadit/platform-postgres:platform9.7.5"),
+                new ThingWorxVersion(
+                        "10.1.0",
+                        "devopscadit/postgresql-init-twx:platform10.1.0",
+                        "devopscadit/platform-postgres:platform10.1.0"));
     }
 }

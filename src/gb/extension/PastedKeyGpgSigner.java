@@ -9,7 +9,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.Security;
 import java.util.Arrays;
 import java.util.Iterator;
-
 import org.bouncycastle.bcpg.ArmoredOutputStream;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.openpgp.PGPException;
@@ -49,9 +48,14 @@ public class PastedKeyGpgSigner implements Signer {
     }
 
     @Override
-    public GpgSignature sign(Repository repository, GpgConfig config, byte[] data,
-                             PersonIdent committer, String signingKey,
-                             CredentialsProvider credentialsProvider) throws CanceledException {
+    public GpgSignature sign(
+            Repository repository,
+            GpgConfig config,
+            byte[] data,
+            PersonIdent committer,
+            String signingKey,
+            CredentialsProvider credentialsProvider)
+            throws CanceledException {
         try {
             if (Security.getProvider("BC") == null) {
                 Security.addProvider(new BouncyCastleProvider());
@@ -59,19 +63,22 @@ public class PastedKeyGpgSigner implements Signer {
 
             PGPSecretKey secretKey = findSecretKey(privateKeyData, signingKey);
             if (secretKey == null) {
-                throw new RuntimeException("No suitable PGP secret key found in the provided key data");
+                throw new RuntimeException(
+                        "No suitable PGP secret key found in the provided key data");
             }
 
-            PGPPrivateKey privateKey = secretKey.extractPrivateKey(
-                    new JcePBESecretKeyDecryptorBuilder()
-                            .setProvider("BC")
-                            .build(passphrase));
+            PGPPrivateKey privateKey =
+                    secretKey.extractPrivateKey(
+                            new JcePBESecretKeyDecryptorBuilder()
+                                    .setProvider("BC")
+                                    .build(passphrase));
 
             int algorithm = secretKey.getPublicKey().getAlgorithm();
 
-            PGPSignatureGenerator sigGen = new PGPSignatureGenerator(
-                    new JcaPGPContentSignerBuilder(algorithm, PGPUtil.SHA256)
-                            .setProvider("BC"));
+            PGPSignatureGenerator sigGen =
+                    new PGPSignatureGenerator(
+                            new JcaPGPContentSignerBuilder(algorithm, PGPUtil.SHA256)
+                                    .setProvider("BC"));
 
             sigGen.init(PGPSignature.BINARY_DOCUMENT, privateKey);
 
@@ -97,9 +104,13 @@ public class PastedKeyGpgSigner implements Signer {
     }
 
     @Override
-    public boolean canLocateSigningKey(Repository repository, GpgConfig config,
-                                       PersonIdent committer, String signingKey,
-                                       CredentialsProvider credentialsProvider) throws CanceledException {
+    public boolean canLocateSigningKey(
+            Repository repository,
+            GpgConfig config,
+            PersonIdent committer,
+            String signingKey,
+            CredentialsProvider credentialsProvider)
+            throws CanceledException {
         try {
             if (Security.getProvider("BC") == null) {
                 Security.addProvider(new BouncyCastleProvider());
@@ -123,9 +134,11 @@ public class PastedKeyGpgSigner implements Signer {
         return Hex.toHexString(fp);
     }
 
-    private PGPSecretKey findSecretKey(byte[] keyData, String signingKey) throws IOException, PGPException {
+    private PGPSecretKey findSecretKey(byte[] keyData, String signingKey)
+            throws IOException, PGPException {
         try (InputStream in = PGPUtil.getDecoderStream(new ByteArrayInputStream(keyData))) {
-            PGPSecretKeyRingCollection keyRings = new PGPSecretKeyRingCollection(in, new JcaKeyFingerprintCalculator());
+            PGPSecretKeyRingCollection keyRings =
+                    new PGPSecretKeyRingCollection(in, new JcaKeyFingerprintCalculator());
 
             Iterator<PGPSecretKeyRing> ringIter = keyRings.getKeyRings();
             while (ringIter.hasNext()) {
