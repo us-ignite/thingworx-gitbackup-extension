@@ -138,7 +138,7 @@ public class GitUtilityThing extends Thing {
             @ThingworxServiceParameter(name = "User", description = "", baseType = "STRING")
                     String User)
             throws Exception {
-        InfoTable values = InfoTableInstanceFactory.createInfoTableFromDataShape("GitBackup.Log");
+        InfoTable values = InfoTableInstanceFactory.createInfoTableFromDataShape("GitBackup.Log.DataShape");
         ValueCollection entry = new ValueCollection();
         entry.put("ID", new GUIDPrimitive(java.util.UUID.randomUUID().toString()));
         entry.put("timestamp", new DatetimePrimitive(timestamp));
