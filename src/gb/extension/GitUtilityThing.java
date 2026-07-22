@@ -221,6 +221,7 @@ public class GitUtilityThing extends Thing {
                 RepoName,
                 "GitRepository created by user " + GetCurrentUser() + " at " + new java.util.Date(),
                 new TagCollection(),
+                ProjectName,
                 "GitBackupTemplate");
         Thing repoThing =
                 (Thing) EntityUtilities.findEntity(RepoName, ThingworxRelationshipTypes.Thing);
@@ -1062,6 +1063,7 @@ public class GitUtilityThing extends Thing {
                     "ExtensionImportTargets",
                     "GitBackup extension import targets; auto-created by InitExtensionImportTargets",
                     new TagCollection(),
+                    "GitBackup",
                     "GitBackupTemplate");
             importTargets =
                     (Thing)

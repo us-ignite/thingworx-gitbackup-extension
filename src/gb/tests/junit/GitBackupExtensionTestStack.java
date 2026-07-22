@@ -6,11 +6,11 @@ import gb.tests.junit.containers.GiteaRepo;
 import gb.tests.junit.containers.Postgres;
 import gb.tests.junit.containers.ThingWorxContainer;
 import gb.tests.junit.util.TestingCredentials;
-import gb.tests.junit.util.ThingWorxVersion;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Base64;
 import org.testcontainers.containers.Network;
@@ -26,37 +26,31 @@ public class GitBackupExtensionTestStack implements AutoCloseable {
     private final TestingCredentials credentials;
 
     public GitBackupExtensionTestStack(
-            ThingWorxVersion thingworxVersion, TestingCredentials credentials, boolean enableGitea)
+            String dbInitImage, String platformImage, TestingCredentials credentials, boolean enableGitea)
             throws Exception {
+        this.credentials = credentials;
         network = Network.newNetwork();
         postgres = new Postgres(network, credentials);
-        dbInit = new DBInit(thingworxVersion.dbInitImage, postgres, network, credentials);
+        dbInit = new DBInit(dbInitImage, postgres, network, credentials);
         gitea = enableGitea ? new GiteaRepo(network, credentials) : null;
         thingworx =
                 new ThingWorxContainer(
-                        thingworxVersion.platformImage, dbInit, postgres, network, credentials);
+                        platformImage, dbInit, postgres, network, credentials);
+        var zipPath = System.getProperty("test.extensionZip",
+                "build/distributions/GitBackupExtension.zip");
         installer =
                 new GitBackupExtensionInstaller(
-                        Paths.get("build/distributions/GitBackupExtension.zip"),
+                        Paths.get(zipPath),
                         thingworx,
                         network,
                         credentials);
-        this.credentials = credentials;
         this.start();
     }
 
-    public GitBackupExtensionTestStack(ThingWorxVersion thingworxVersion) throws Exception {
-        this(thingworxVersion, new TestingCredentials(), true);
-    }
-
-    public GitBackupExtensionTestStack(ThingWorxVersion thingworxVersion, boolean enableGitea)
-            throws Exception {
-        this(thingworxVersion, new TestingCredentials(), enableGitea);
-    }
-
     public GitBackupExtensionTestStack(
-            ThingWorxVersion thingworxVersion, TestingCredentials credentials) throws Exception {
-        this(thingworxVersion, credentials, true);
+            String dbInitImage, String platformImage, TestingCredentials credentials)
+            throws Exception {
+        this(dbInitImage, platformImage, credentials, true);
     }
 
     public void start() throws Exception {
