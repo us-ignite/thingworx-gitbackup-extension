@@ -450,6 +450,95 @@
                           ordinal="1"></FieldDefinition>
                      </ParameterDefinitions>
                  </ServiceDefinition>
+                <ServiceDefinition
+                 aspect.isAsync="false"
+                 category=""
+                 description="Returns all GPG keys configured for the current user across all repositories"
+                 isAllowOverride="false"
+                 isLocalOnly="false"
+                 isOpen="false"
+                 isPrivate="false"
+                 name="GetGpgKeys">
+                    <ResultType
+                     baseType="INFOTABLE"
+                     description=""
+                     name="result"
+                     ordinal="0">
+                        <Aspect>
+                            <Aspect
+                             name="isEntityDataShape"
+                             value="true"></Aspect>
+                            <Aspect
+                             name="dataShape"
+                             value="GitBackup.GpgKey"></Aspect>
+                        </Aspect>
+                    </ResultType>
+                    <ParameterDefinitions></ParameterDefinitions>
+                </ServiceDefinition>
+                <ServiceDefinition
+                 aspect.isAsync="false"
+                 category=""
+                 description="Saves or updates a GPG key for the current user for a specific repository"
+                 isAllowOverride="false"
+                 isLocalOnly="false"
+                 isOpen="false"
+                 isPrivate="false"
+                 name="SetGpgKey">
+                    <ResultType
+                     baseType="NOTHING"
+                     description=""
+                     name="result"
+                     ordinal="0"></ResultType>
+                    <ParameterDefinitions>
+                        <FieldDefinition
+                         baseType="THINGNAME"
+                         description="Git Thing name"
+                         name="GitThing"
+                         ordinal="1"></FieldDefinition>
+                        <FieldDefinition
+                         baseType="STRING"
+                         description="ASCII-armored PGP private key"
+                         name="GpgPrivateKey"
+                         ordinal="2"></FieldDefinition>
+                        <FieldDefinition
+                         baseType="STRING"
+                         description="Passphrase for the PGP private key"
+                         name="GpgKeyPassphrase"
+                         ordinal="3"></FieldDefinition>
+                        <FieldDefinition
+                         baseType="BOOLEAN"
+                         description="Whether to sign commits"
+                         name="SignCommits"
+                         ordinal="4"></FieldDefinition>
+                        <FieldDefinition
+                         baseType="STRING"
+                         description="GPG key fingerprint for display"
+                         name="GpgKeyFingerprint"
+                         ordinal="5"></FieldDefinition>
+                    </ParameterDefinitions>
+                </ServiceDefinition>
+                <ServiceDefinition
+                 aspect.isAsync="false"
+                 category=""
+                 description="Removes a GPG key configuration for the current user for a specific repository"
+                 isAllowOverride="false"
+                 isLocalOnly="false"
+                 isOpen="false"
+                 isPrivate="false"
+                 name="DeleteGpgKey">
+                    <ResultType
+                     baseType="NOTHING"
+                     description=""
+                     name="result"
+                     ordinal="0"></ResultType>
+                    <ParameterDefinitions>
+                        <FieldDefinition
+                         baseType="THINGNAME"
+                         description="Git Thing name"
+                         name="GitThing"
+                         ordinal="1"></FieldDefinition>
+                    </ParameterDefinitions>
+                </ServiceDefinition>
              </ServiceDefinitions>
             <EventDefinitions></EventDefinitions>
             <ServiceMappings></ServiceMappings>
