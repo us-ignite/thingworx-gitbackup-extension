@@ -86,7 +86,7 @@
                             </accumulatedDataShape>
                             <dataShape>
                             <![CDATA[
-                             GitBackup.Log
+                             GitBackup.Log.DataShape
                             ]]>
                             </dataShape>
                         </Row>
