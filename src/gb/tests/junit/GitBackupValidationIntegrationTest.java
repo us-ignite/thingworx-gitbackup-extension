@@ -20,10 +20,10 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Testcontainers
 public class GitBackupValidationIntegrationTest {
 
-    private static final String DB_INIT_IMAGE = System.getProperty("test.dbInitImage",
-            "devopscadit/postgresql-init-twx:platform9.6.3");
-    private static final String PLATFORM_IMAGE = System.getProperty("test.platformImage",
-            "devopscadit/platform-postgres:platform9.6.3");
+    private static final String DB_INIT_IMAGE =
+            System.getProperty("test.dbInitImage", "devopscadit/postgresql-init-twx:platform9.6.3");
+    private static final String PLATFORM_IMAGE =
+            System.getProperty("test.platformImage", "devopscadit/platform-postgres:platform9.6.3");
 
     private TestingCredentials credentials;
     private GitBackupExtensionTestStack stack;
