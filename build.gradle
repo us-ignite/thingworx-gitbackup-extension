@@ -94,11 +94,17 @@ sourceSets {
     }
 }
 
-// Tell Eclipse/Buildship which source set is test code. The main source set is
-// inferred by the Java plugin; `testSourceSets` is the supported Eclipse DSL.
 eclipse {
     classpath {
         testSourceSets = [project.sourceSets.test]
+        file {
+            whenMerged { cp ->
+                cp.entries.removeAll {
+                    it instanceof org.gradle.plugins.ide.eclipse.model.SourceFolder
+                }
+                cp.entries.add(0, new org.gradle.plugins.ide.eclipse.model.SourceFolder('src', null))
+            }
+        }
     }
 }
 

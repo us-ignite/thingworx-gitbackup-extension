@@ -6,7 +6,6 @@ import gb.tests.junit.util.TestingCredentials;
 import java.net.http.HttpClient;
 import java.net.http.HttpResponse;
 import java.time.Duration;
-import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
@@ -15,10 +14,10 @@ public class ThingWorxEntitiesTest {
 
     private static final HttpClient httpClient = HttpClient.newBuilder().build();
 
-    private static final String DB_INIT_IMAGE = System.getProperty("test.dbInitImage",
-            "devopscadit/postgresql-init-twx:platform9.6.3");
-    private static final String PLATFORM_IMAGE = System.getProperty("test.platformImage",
-            "devopscadit/platform-postgres:platform9.6.3");
+    private static final String DB_INIT_IMAGE =
+            System.getProperty("test.dbInitImage", "devopscadit/postgresql-init-twx:platform9.6.3");
+    private static final String PLATFORM_IMAGE =
+            System.getProperty("test.platformImage", "devopscadit/platform-postgres:platform9.6.3");
 
     private TestingCredentials credentials = new TestingCredentials();
 

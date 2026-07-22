@@ -24,10 +24,10 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Testcontainers
 public class EntitySyncTest {
 
-    private static final String DB_INIT_IMAGE = System.getProperty("test.dbInitImage",
-            "devopscadit/postgresql-init-twx:platform9.6.3");
-    private static final String PLATFORM_IMAGE = System.getProperty("test.platformImage",
-            "devopscadit/platform-postgres:platform9.6.3");
+    private static final String DB_INIT_IMAGE =
+            System.getProperty("test.dbInitImage", "devopscadit/postgresql-init-twx:platform9.6.3");
+    private static final String PLATFORM_IMAGE =
+            System.getProperty("test.platformImage", "devopscadit/platform-postgres:platform9.6.3");
 
     private static final String GIT_THING_NAME = "ITEntitySyncThing";
     private static final String TEST_PROJECT = "TestProject";
@@ -121,31 +121,42 @@ public class EntitySyncTest {
         body.addProperty("projectName", TEST_PROJECT);
         var req = resourceRequest("EntityServices", "CreateThing", body.toString()).build();
         var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-        assertTrue(res.statusCode() == 200 || res.statusCode() == 201,
+        assertTrue(
+                res.statusCode() == 200 || res.statusCode() == 201,
                 "CreateThing failed: " + res.statusCode() + " " + res.body());
 
-        var enableReq = HttpRequest.newBuilder()
-                .uri(URI.create(stack.thingworx.getExternalUrl()
-                        + "/Thingworx/Things/" + TEST_THING + "/Services/EnableThing"))
-                .header("Content-Type", "application/json")
-                .header("Accept", "application/json")
-                .header("Authorization", authHeader)
-                .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
-                .header("X-Requested-By", "ThingWorx")
-                .POST(HttpRequest.BodyPublishers.ofString("{}"))
-                .build();
+        var enableReq =
+                HttpRequest.newBuilder()
+                        .uri(
+                                URI.create(
+                                        stack.thingworx.getExternalUrl()
+                                                + "/Thingworx/Things/"
+                                                + TEST_THING
+                                                + "/Services/EnableThing"))
+                        .header("Content-Type", "application/json")
+                        .header("Accept", "application/json")
+                        .header("Authorization", authHeader)
+                        .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
+                        .header("X-Requested-By", "ThingWorx")
+                        .POST(HttpRequest.BodyPublishers.ofString("{}"))
+                        .build();
         stack.httpClient.send(enableReq, HttpResponse.BodyHandlers.ofString());
 
-        var restartReq = HttpRequest.newBuilder()
-                .uri(URI.create(stack.thingworx.getExternalUrl()
-                        + "/Thingworx/Things/" + TEST_THING + "/Services/RestartThing"))
-                .header("Content-Type", "application/json")
-                .header("Accept", "application/json")
-                .header("Authorization", authHeader)
-                .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
-                .header("X-Requested-By", "ThingWorx")
-                .POST(HttpRequest.BodyPublishers.ofString("{}"))
-                .build();
+        var restartReq =
+                HttpRequest.newBuilder()
+                        .uri(
+                                URI.create(
+                                        stack.thingworx.getExternalUrl()
+                                                + "/Thingworx/Things/"
+                                                + TEST_THING
+                                                + "/Services/RestartThing"))
+                        .header("Content-Type", "application/json")
+                        .header("Accept", "application/json")
+                        .header("Authorization", authHeader)
+                        .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
+                        .header("X-Requested-By", "ThingWorx")
+                        .POST(HttpRequest.BodyPublishers.ofString("{}"))
+                        .build();
         stack.httpClient.send(restartReq, HttpResponse.BodyHandlers.ofString());
 
         Thread.sleep(2000);
@@ -314,31 +325,42 @@ public class EntitySyncTest {
         body.addProperty("projectName", TEST_PROJECT);
         var req = resourceRequest("EntityServices", "CreateThing", body.toString()).build();
         var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-        assertTrue(res.statusCode() == 200 || res.statusCode() == 201,
+        assertTrue(
+                res.statusCode() == 200 || res.statusCode() == 201,
                 "Create second thing failed: " + res.statusCode() + " " + res.body());
 
-        var enableReq = HttpRequest.newBuilder()
-                .uri(URI.create(stack.thingworx.getExternalUrl()
-                        + "/Thingworx/Things/" + SECOND_THING + "/Services/EnableThing"))
-                .header("Content-Type", "application/json")
-                .header("Accept", "application/json")
-                .header("Authorization", authHeader)
-                .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
-                .header("X-Requested-By", "ThingWorx")
-                .POST(HttpRequest.BodyPublishers.ofString("{}"))
-                .build();
+        var enableReq =
+                HttpRequest.newBuilder()
+                        .uri(
+                                URI.create(
+                                        stack.thingworx.getExternalUrl()
+                                                + "/Thingworx/Things/"
+                                                + SECOND_THING
+                                                + "/Services/EnableThing"))
+                        .header("Content-Type", "application/json")
+                        .header("Accept", "application/json")
+                        .header("Authorization", authHeader)
+                        .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
+                        .header("X-Requested-By", "ThingWorx")
+                        .POST(HttpRequest.BodyPublishers.ofString("{}"))
+                        .build();
         stack.httpClient.send(enableReq, HttpResponse.BodyHandlers.ofString());
 
-        var restartReq = HttpRequest.newBuilder()
-                .uri(URI.create(stack.thingworx.getExternalUrl()
-                        + "/Thingworx/Things/" + SECOND_THING + "/Services/RestartThing"))
-                .header("Content-Type", "application/json")
-                .header("Accept", "application/json")
-                .header("Authorization", authHeader)
-                .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
-                .header("X-Requested-By", "ThingWorx")
-                .POST(HttpRequest.BodyPublishers.ofString("{}"))
-                .build();
+        var restartReq =
+                HttpRequest.newBuilder()
+                        .uri(
+                                URI.create(
+                                        stack.thingworx.getExternalUrl()
+                                                + "/Thingworx/Things/"
+                                                + SECOND_THING
+                                                + "/Services/RestartThing"))
+                        .header("Content-Type", "application/json")
+                        .header("Accept", "application/json")
+                        .header("Authorization", authHeader)
+                        .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
+                        .header("X-Requested-By", "ThingWorx")
+                        .POST(HttpRequest.BodyPublishers.ofString("{}"))
+                        .build();
         stack.httpClient.send(restartReq, HttpResponse.BodyHandlers.ofString());
         Thread.sleep(2000);
     }
@@ -357,8 +379,7 @@ public class EntitySyncTest {
         var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, res.statusCode(), "Export second entity failed: " + res.body());
         assertFalse(
-                res.body().contains("Error"),
-                "Export second entity returned error: " + res.body());
+                res.body().contains("Error"), "Export second entity returned error: " + res.body());
     }
 
     @Test
@@ -375,9 +396,13 @@ public class EntitySyncTest {
         assertEquals(
                 200,
                 diffRes.statusCode(),
-                "GetDiffPerFile for new entity failed: " + diffRes.statusCode() + " " + diffRes.body());
+                "GetDiffPerFile for new entity failed: "
+                        + diffRes.statusCode()
+                        + " "
+                        + diffRes.body());
         String diff = diffRes.body();
-        assertFalse(diff.isEmpty(),
+        assertFalse(
+                diff.isEmpty(),
                 "GetDiffPerFile should show the new entity file as added. Got: " + diff);
     }
 
@@ -417,9 +442,7 @@ public class EntitySyncTest {
 
         String latestMessage = rows.get(0).getAsJsonObject().get("CommitName").getAsString();
         assertEquals(
-                "Add IT.ESync.SecondThing entity",
-                latestMessage,
-                "Latest commit message mismatch");
+                "Add IT.ESync.SecondThing entity", latestMessage, "Latest commit message mismatch");
 
         String firstCommitId = rows.get(0).getAsJsonObject().get("CommitID").getAsString();
         JsonObject diffBody = new JsonObject();
@@ -440,9 +463,12 @@ public class EntitySyncTest {
                         + " "
                         + diffRes.body());
         String diffContent = diffRes.body();
-        assertFalse(diffContent.isEmpty(),
-                "GetDiffPerFileBetweenCommits should show the new entity was added. Got: " + diffContent);
-        assertTrue(diffContent.contains(SECOND_THING),
+        assertFalse(
+                diffContent.isEmpty(),
+                "GetDiffPerFileBetweenCommits should show the new entity was added. Got: "
+                        + diffContent);
+        assertTrue(
+                diffContent.contains(SECOND_THING),
                 "Diff should reference the new entity. Got: " + diffContent);
     }
 }

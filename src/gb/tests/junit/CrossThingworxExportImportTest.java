@@ -37,10 +37,10 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class CrossThingworxExportImportTest {
 
-    private static final String DB_INIT_IMAGE = System.getProperty("test.dbInitImage",
-            "devopscadit/postgresql-init-twx:platform9.6.3");
-    private static final String PLATFORM_IMAGE = System.getProperty("test.platformImage",
-            "devopscadit/platform-postgres:platform9.6.3");
+    private static final String DB_INIT_IMAGE =
+            System.getProperty("test.dbInitImage", "devopscadit/postgresql-init-twx:platform9.6.3");
+    private static final String PLATFORM_IMAGE =
+            System.getProperty("test.platformImage", "devopscadit/platform-postgres:platform9.6.3");
 
     private static final String GIT_THING_A = "CrossTwxSourceThing";
     private static final String GIT_THING_B = "CrossTwxTargetThing";
@@ -110,8 +110,10 @@ public class CrossThingworxExportImportTest {
     }
 
     private void installExtension(ThingWorxContainer twx, String hostname) throws Exception {
-        Path extZip = Path.of(System.getProperty("test.extensionZip",
-                "build/distributions/GitBackupExtension.zip"));
+        Path extZip =
+                Path.of(
+                        System.getProperty(
+                                "test.extensionZip", "build/distributions/GitBackupExtension.zip"));
         assertTrue(Files.exists(extZip), "Extension ZIP must exist at " + extZip.toAbsolutePath());
 
         var installer =

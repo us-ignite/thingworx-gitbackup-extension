@@ -10,7 +10,6 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Base64;
 import org.testcontainers.containers.Network;
@@ -26,24 +25,23 @@ public class GitBackupExtensionTestStack implements AutoCloseable {
     private final TestingCredentials credentials;
 
     public GitBackupExtensionTestStack(
-            String dbInitImage, String platformImage, TestingCredentials credentials, boolean enableGitea)
+            String dbInitImage,
+            String platformImage,
+            TestingCredentials credentials,
+            boolean enableGitea)
             throws Exception {
         this.credentials = credentials;
         network = Network.newNetwork();
         postgres = new Postgres(network, credentials);
         dbInit = new DBInit(dbInitImage, postgres, network, credentials);
         gitea = enableGitea ? new GiteaRepo(network, credentials) : null;
-        thingworx =
-                new ThingWorxContainer(
-                        platformImage, dbInit, postgres, network, credentials);
-        var zipPath = System.getProperty("test.extensionZip",
-                "build/distributions/GitBackupExtension.zip");
+        thingworx = new ThingWorxContainer(platformImage, dbInit, postgres, network, credentials);
+        var zipPath =
+                System.getProperty(
+                        "test.extensionZip", "build/distributions/GitBackupExtension.zip");
         installer =
                 new GitBackupExtensionInstaller(
-                        Paths.get(zipPath),
-                        thingworx,
-                        network,
-                        credentials);
+                        Paths.get(zipPath), thingworx, network, credentials);
         this.start();
     }
 

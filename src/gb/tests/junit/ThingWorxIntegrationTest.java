@@ -9,7 +9,6 @@ import gb.tests.junit.util.TestingCredentials;
 import java.net.http.HttpClient;
 import java.net.http.HttpResponse;
 import java.time.Duration;
-import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.Network;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -19,10 +18,10 @@ public class ThingWorxIntegrationTest {
 
     public static final HttpClient httpClient = HttpClient.newBuilder().build();
 
-    private static final String DB_INIT_IMAGE = System.getProperty("test.dbInitImage",
-            "devopscadit/postgresql-init-twx:platform9.6.3");
-    private static final String PLATFORM_IMAGE = System.getProperty("test.platformImage",
-            "devopscadit/platform-postgres:platform9.6.3");
+    private static final String DB_INIT_IMAGE =
+            System.getProperty("test.dbInitImage", "devopscadit/postgresql-init-twx:platform9.6.3");
+    private static final String PLATFORM_IMAGE =
+            System.getProperty("test.platformImage", "devopscadit/platform-postgres:platform9.6.3");
 
     private TestingCredentials credentials = new TestingCredentials();
 
@@ -79,8 +78,7 @@ public class ThingWorxIntegrationTest {
         var postgres = new Postgres(network, credentials);
         var dbInit = new DBInit(DB_INIT_IMAGE, postgres, network, credentials);
         var thingworx =
-                new ThingWorxContainer(
-                        PLATFORM_IMAGE, dbInit, postgres, network, credentials);
+                new ThingWorxContainer(PLATFORM_IMAGE, dbInit, postgres, network, credentials);
         thingworx.start();
         assertTrue(thingworx.isRunning(), "Platform container must be running");
         thingworx.close();
@@ -92,8 +90,7 @@ public class ThingWorxIntegrationTest {
         var postgres = new Postgres(network, credentials);
         var dbInit = new DBInit(DB_INIT_IMAGE, postgres, network, credentials);
         var thingworx =
-                new ThingWorxContainer(
-                        PLATFORM_IMAGE, dbInit, postgres, network, credentials);
+                new ThingWorxContainer(PLATFORM_IMAGE, dbInit, postgres, network, credentials);
         thingworx.start();
         var req = thingworx.healthCheckRequest();
         var res = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
@@ -104,7 +101,8 @@ public class ThingWorxIntegrationTest {
 
     @Test
     void installAndVerifyExtension() throws Exception {
-        var stack = new GitBackupExtensionTestStack(DB_INIT_IMAGE, PLATFORM_IMAGE, credentials, false);
+        var stack =
+                new GitBackupExtensionTestStack(DB_INIT_IMAGE, PLATFORM_IMAGE, credentials, false);
         try {
             stack.installer.start();
 
