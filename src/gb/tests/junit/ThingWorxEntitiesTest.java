@@ -3,57 +3,29 @@ package gb.tests.junit;
 import static org.junit.jupiter.api.Assertions.*;
 
 import gb.tests.junit.util.TestingCredentials;
-import gb.tests.junit.util.ThingWorxVersion;
 import java.net.http.HttpClient;
 import java.net.http.HttpResponse;
 import java.time.Duration;
-import java.util.stream.Stream;
-import org.junit.jupiter.api.TestInstance;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
+import java.util.Map;
+import org.junit.jupiter.api.Test;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-/**
- * Invokes the Entity-defined JavaScript tests (GitBackup.Tests.Thing) via the ThingWorx REST API,
- * using the same test container infrastructure as ThingWorxIntegrationTest and
- * GiteaGitOperationsTest.
- *
- * <p>The Entities tests run inside the ThingWorx platform. They are called through the ThingWorx
- * REST API via the Services on GitBackup.Tests.Thing.
- *
- * <p>=== Configuration Required === The {@code CreateTestData} service in {@code
- * Entities/Things_GitBackup.Tests.Thing.xml} has "UPDATE" placeholders for GitHub credentials (URL,
- * user, token, etc.). Before {@link #entitiesTestsForVersion} can pass, edit that file and fill in
- * the actual values:
- *
- * <ul>
- *   <li>GITTestRepoURL - your GitHub test repo URL
- *   <li>GitUser - your GitHub username
- *   <li>GitPassword - a GitHub Personal Access Token
- *   <li>GitCommitterName / GitComitterEmail - commit author info
- *   <li>GITTestRepoURLCommits - the GitHub API commits URL
- * </ul>
- *
- * Alternatively, manually invoke individual test services via REST as shown in {@link
- * GiteaGitOperationsTest}.
- */
 @Testcontainers
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class ThingWorxEntitiesTest {
 
     private static final HttpClient httpClient = HttpClient.newBuilder().build();
 
-    public static Stream<ThingWorxVersion> thingworxVersions() {
-        return ThingWorxVersion.thingworxVersionsTestMatrix();
-    }
+    private static final String DB_INIT_IMAGE = System.getProperty("test.dbInitImage",
+            "devopscadit/postgresql-init-twx:platform9.6.3");
+    private static final String PLATFORM_IMAGE = System.getProperty("test.platformImage",
+            "devopscadit/platform-postgres:platform9.6.3");
 
     private TestingCredentials credentials = new TestingCredentials();
 
-    @ParameterizedTest(name = "entitiesTestsForVersion [{0}]")
-    @MethodSource("thingworxVersions")
-    void entitiesTestsForVersion(ThingWorxVersion version) throws Exception {
+    @Test
+    void entitiesTestsForVersion() throws Exception {
 
-        var stack = new GitBackupExtensionTestStack(version, credentials);
+        var stack = new GitBackupExtensionTestStack(DB_INIT_IMAGE, PLATFORM_IMAGE, credentials);
 
         var createReq =
                 stack.thingworx

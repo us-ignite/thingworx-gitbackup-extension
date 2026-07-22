@@ -6,13 +6,11 @@ import gb.tests.junit.containers.DBInit;
 import gb.tests.junit.containers.Postgres;
 import gb.tests.junit.containers.ThingWorxContainer;
 import gb.tests.junit.util.TestingCredentials;
-import gb.tests.junit.util.ThingWorxVersion;
 import java.net.http.HttpClient;
 import java.net.http.HttpResponse;
 import java.time.Duration;
-import java.util.stream.Stream;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
+import java.util.Map;
+import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.Network;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
@@ -21,36 +19,35 @@ public class ThingWorxIntegrationTest {
 
     public static final HttpClient httpClient = HttpClient.newBuilder().build();
 
+    private static final String DB_INIT_IMAGE = System.getProperty("test.dbInitImage",
+            "devopscadit/postgresql-init-twx:platform9.6.3");
+    private static final String PLATFORM_IMAGE = System.getProperty("test.platformImage",
+            "devopscadit/platform-postgres:platform9.6.3");
+
     private TestingCredentials credentials = new TestingCredentials();
 
-    public static Stream<ThingWorxVersion> thingworxVersions() {
-        return ThingWorxVersion.thingworxVersionsTestMatrix();
-    }
-
-    void postgresIsRunning(ThingWorxVersion version) {
+    void postgresIsRunning() {
         var postgres = new Postgres(null, credentials);
         postgres.start();
         assertTrue(postgres.isRunning(), "PostgreSQL container must be running");
         postgres.close();
     }
 
-    @ParameterizedTest(name = "dbInitCompleted [{0}]")
-    @MethodSource("thingworxVersions")
-    void dbInitCompleted(ThingWorxVersion version) {
+    @Test
+    void dbInitCompleted() {
         var network = Network.newNetwork();
         var postgres = new Postgres(network, credentials);
-        var dbInit = new DBInit(version.dbInitImage, postgres, network, credentials);
+        var dbInit = new DBInit(DB_INIT_IMAGE, postgres, network, credentials);
         dbInit.start();
         assertTrue(dbInit.isRunning(), "DB init container must be running");
         dbInit.close();
     }
 
-    @ParameterizedTest(name = "thingworxTablesExist [{0}]")
-    @MethodSource("thingworxVersions")
-    void thingworxTablesExist(ThingWorxVersion version) throws Exception {
+    @Test
+    void thingworxTablesExist() throws Exception {
         var network = Network.newNetwork();
         var postgres = new Postgres(network, credentials);
-        var dbInit = new DBInit(version.dbInitImage, postgres, network, credentials);
+        var dbInit = new DBInit(DB_INIT_IMAGE, postgres, network, credentials);
         dbInit.start();
 
         var tables =
@@ -76,29 +73,27 @@ public class ThingWorxIntegrationTest {
         dbInit.close();
     }
 
-    @ParameterizedTest(name = "platformIsRunning [{0}]")
-    @MethodSource("thingworxVersions")
-    void platformIsRunning(ThingWorxVersion version) {
+    @Test
+    void platformIsRunning() {
         var network = Network.newNetwork();
         var postgres = new Postgres(network, credentials);
-        var dbInit = new DBInit(version.dbInitImage, postgres, network, credentials);
+        var dbInit = new DBInit(DB_INIT_IMAGE, postgres, network, credentials);
         var thingworx =
                 new ThingWorxContainer(
-                        version.platformImage, dbInit, postgres, network, credentials);
+                        PLATFORM_IMAGE, dbInit, postgres, network, credentials);
         thingworx.start();
         assertTrue(thingworx.isRunning(), "Platform container must be running");
         thingworx.close();
     }
 
-    @ParameterizedTest(name = "thingworxHealthCheck [{0}]")
-    @MethodSource("thingworxVersions")
-    void thingworxHealthCheck(ThingWorxVersion version) throws Exception {
+    @Test
+    void thingworxHealthCheck() throws Exception {
         var network = Network.newNetwork();
         var postgres = new Postgres(network, credentials);
-        var dbInit = new DBInit(version.dbInitImage, postgres, network, credentials);
+        var dbInit = new DBInit(DB_INIT_IMAGE, postgres, network, credentials);
         var thingworx =
                 new ThingWorxContainer(
-                        version.platformImage, dbInit, postgres, network, credentials);
+                        PLATFORM_IMAGE, dbInit, postgres, network, credentials);
         thingworx.start();
         var req = thingworx.healthCheckRequest();
         var res = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
@@ -107,10 +102,9 @@ public class ThingWorxIntegrationTest {
         thingworx.close();
     }
 
-    @ParameterizedTest(name = "installAndVerifyExtension [{0}]")
-    @MethodSource("thingworxVersions")
-    void installAndVerifyExtension(ThingWorxVersion version) throws Exception {
-        var stack = new GitBackupExtensionTestStack(version, credentials, false);
+    @Test
+    void installAndVerifyExtension() throws Exception {
+        var stack = new GitBackupExtensionTestStack(DB_INIT_IMAGE, PLATFORM_IMAGE, credentials, false);
         try {
             stack.installer.start();
 

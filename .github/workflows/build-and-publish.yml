@@ -24,26 +24,60 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v5
 
-      - name: Build extension
-        run: ./gradlew packageExtension packagePack --no-daemon
+      - name: Decrypt SDK zips
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: bash tools/decrypt-sdk.sh
 
-      - name: Upload extension ZIP
+      - name: Build all extension variants
+        run: ./gradlew buildAll --no-daemon
+
+      - name: Upload all artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: GitBackupExtension
-          path: build/distributions/GitBackupExtension.zip
+          name: GitBackupExtension-All
+          path: build/distributions/
           if-no-files-found: error
 
-      - name: Upload extension pack ZIP
-        uses: actions/upload-artifact@v7
+  test:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - twx: 9.6
+            dbInit: devopscadit/postgresql-init-twx:platform9.6.3
+            platform: devopscadit/platform-postgres:platform9.6.3
+          - twx: 9.7
+            dbInit: devopscadit/postgresql-init-twx:platform9.7.5
+            platform: devopscadit/platform-postgres:platform9.7.5
+          - twx: 10.1
+            dbInit: devopscadit/postgresql-init-twx:platform10.1.0
+            platform: devopscadit/platform-postgres:platform10.1.0
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-java@v5
         with:
-          name: GitBackupExtensionPack
-          path: build/distributions/GitBackupExtensionPack.zip
-          if-no-files-found: error
+          distribution: corretto
+          java-version: 21
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v5
+
+      - name: Decrypt SDK zips
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: bash tools/decrypt-sdk.sh
+
+      - name: Run integration tests
+        run: ./gradlew test -PtwxVersion=${{ matrix.twx }} -Dtest.dbInitImage='${{ matrix.dbInit }}' -Dtest.platformImage='${{ matrix.platform }}' --no-daemon
+        timeout-minutes: 45
 
   publish:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
+    needs: [build, test]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -53,20 +87,15 @@ jobs:
 
       - uses: actions/download-artifact@v7
         with:
-          name: GitBackupExtension
-          path: artifacts
-
-      - uses: actions/download-artifact@v7
-        with:
-          name: GitBackupExtensionPack
+          name: GitBackupExtension-All
           path: artifacts
 
       - name: Create GitHub Release
         run: |
+          RELEASE_FILES=$(ls artifacts/*.zip 2>/dev/null | tr '\n' ' ')
           gh release create "${{ github.ref_name }}" \
             --title "${{ github.ref_name }}" \
             --generate-notes \
-            artifacts/GitBackupExtension.zip \
-            artifacts/GitBackupExtensionPack.zip
+            $RELEASE_FILES
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

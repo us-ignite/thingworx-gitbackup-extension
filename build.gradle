@@ -11,17 +11,53 @@ java {
     targetCompatibility = JavaVersion.VERSION_21
 }
 
+def buildDirSuffix = project.findProperty('buildDirSuffix') ?: ''
+if (buildDirSuffix) {
+    buildDir = file("${rootDir}/build-${buildDirSuffix}")
+}
+
 ext {
+    sdkConfigs = [
+        '9.6': [
+            sdkZip: 'twx-lib/MED-61098-CD-096_9-6-0_ThingWorx-Extension-SDK-9-6-0.zip',
+            minTwVersion: '9.6.0',
+            outputSuffix: '9.6.x',
+            dbInitImage: 'devopscadit/postgresql-init-twx:platform9.6.3',
+            platformImage: 'devopscadit/platform-postgres:platform9.6.3'
+        ],
+        '9.7': [
+            sdkZip: 'twx-lib/MED-61098-CD-097_9-7-0_ThingWorx-Extension-SDK-9-7-0.zip',
+            minTwVersion: '9.7.0',
+            outputSuffix: '9.7.x',
+            dbInitImage: 'devopscadit/postgresql-init-twx:platform9.7.0',
+            platformImage: 'devopscadit/platform-postgres:platform9.7.0'
+        ],
+        '10.1': [
+            sdkZip: 'twx-lib/MED-61098-CD-101_10-1-0_ThingWorx-Extension-SDK-10-1-0.zip',
+            minTwVersion: '10.1.0',
+            outputSuffix: '10.1.x',
+            dbInitImage: 'devopscadit/postgresql-init-twx:platform10.1.0',
+            platformImage: 'devopscadit/platform-postgres:platform10.1.0'
+        ]
+    ]
+
+    twxVersion = project.findProperty('twxVersion') ?: '9.6'
+    ext.sdkCfg = sdkConfigs[twxVersion]
+    if (sdkCfg == null) {
+        throw new GradleException("Unknown twxVersion '$twxVersion'. Valid values: ${sdkConfigs.keySet()}")
+    }
+
     extensionJar = 'gitbackupextension.jar'
-    sdkZip = file('twx-lib/MED-61098-CD-096_9-6-0_ThingWorx-Extension-SDK-9-6-0.zip')
-    sdkExtractDir = file("${buildDir}/sdk")
+    sdkZip = file(sdkCfg.sdkZip)
+    sdkExtractDir = file("${buildDir}/sdk-${twxVersion}")
     entitiesDir = file('Entities')
     configDir = file('configfiles')
     thirdPartyDir = file('3rdPartyExtensions')
     zipDir = file("${buildDir}/distributions")
-    packageName = 'GitBackupExtension'
     packageVersion = file('.version').text.trim()
     packageVendor = 'Open Source / Vladimir Rosu'
+    minTwVersion = sdkCfg.minTwVersion
+    packageName = "GitBackupExtension-v${packageVersion}-${sdkCfg.outputSuffix}"
 }
 
 repositories {
@@ -121,19 +157,24 @@ jar {
                    'Build-Date': new Date().format('yyyy-MM-dd HH:mm:ss')
         attributes 'Package-Title': packageName,
                    'Package-Version': packageVersion,
-                   'Package-Vendor': packageVendor
+                   'Package-Vendor': packageVendor,
+                   'ThingWorx-SDK-Version': twxVersion
     }
 }
 
 test {
-    enabled = false // Tests are disabled by default when 'build' is run
+    description = 'Run tests for the current twxVersion (default 9.6)'
+    group = 'verification'
+    enabled = false
 
-    // This block ensures tests *can* still be run by explicitly invoking 'gradle test'
     if (gradle.startParameter.taskNames.contains('test')) {
         enabled = true
     }
-    
+
     dependsOn 'packageExtension', 'fetchJdk21'
+    systemProperty "test.extensionZip", "${buildDir}/distributions/${packageName}.zip"
+    systemProperty "test.dbInitImage", sdkCfg.dbInitImage
+    systemProperty "test.platformImage", sdkCfg.platformImage
     useJUnitPlatform()
     testLogging {
         events 'passed', 'skipped', 'failed'
@@ -161,6 +202,15 @@ task prepPackage(dependsOn: [jar]) {
             include "${entitiesDir.name}/**/*.xml"
             into zipStage
         }
+        // Override metadata.xml with version-specific minimumThingWorxVersion
+        copy {
+            from configDir
+            include 'metadata.xml'
+            into zipStage
+            filter { line ->
+                line.replace('@@MIN_THINGWORX_VERSION@@', minTwVersion)
+            }
+        }
     }
 }
 
@@ -170,11 +220,6 @@ task packageExtension(type: Zip, dependsOn: prepPackage) {
     from file("${buildDir}/zip")
 }
 
-task packagePack(type: Zip, dependsOn: [packageExtension]) {
-    archiveFileName = "${packageName}Pack.zip"
-    destinationDirectory = zipDir
-    from zipDir, { include "${packageName}.zip" }
-}
 
 def jdkCacheDir = file("${projectDir}/.cache/jdk21")
 
@@ -520,6 +565,54 @@ task bumpVersion {
         exec { commandLine 'git', 'tag', "v$ver" }
 
         logger.lifecycle("Committed and tagged v$ver")
+    }
+}
+
+task buildAll {
+    description = 'Build extension packages for all ThingWorx versions (9.6.x, 9.7.x, 10.1.x)'
+    group = 'publishing'
+    doLast {
+        sdkConfigs.each { ver, cfg ->
+            logger.lifecycle("--- Building for ThingWorx ${cfg.outputSuffix} ---")
+            exec {
+                workingDir = projectDir
+                commandLine './gradlew', '-q', 'packageExtension',
+                        "-PtwxVersion=$ver", "-PbuildDirSuffix=$ver", '--no-daemon'
+            }
+        }
+    }
+}
+
+def testProps = System.properties.findAll { k, v -> k.startsWith('test.') }
+        .collect { k, v -> "-D$k=$v" }
+
+sdkConfigs.each { ver, cfg ->
+    def taskName = "test${ver.replace('.', '_')}"
+    tasks.register(taskName) {
+        description = "Run tests for ThingWorx ${cfg.outputSuffix}"
+        group = 'verification'
+        doLast {
+            exec {
+                workingDir = projectDir
+                commandLine './gradlew', '-q', 'test', "-PtwxVersion=$ver",
+                        "-PbuildDirSuffix=$ver", *testProps, '--no-daemon'
+            }
+        }
+    }
+}
+
+task testAll {
+    description = 'Run tests for all ThingWorx versions sequentially'
+    group = 'verification'
+    doLast {
+        sdkConfigs.each { ver, cfg ->
+            logger.lifecycle("--- Running tests for ThingWorx ${cfg.outputSuffix} ---")
+            exec {
+                workingDir = projectDir
+                commandLine './gradlew', '-q', 'test', "-PtwxVersion=$ver",
+                        "-PbuildDirSuffix=$ver", *testProps, '--no-daemon'
+            }
+        }
     }
 }
 

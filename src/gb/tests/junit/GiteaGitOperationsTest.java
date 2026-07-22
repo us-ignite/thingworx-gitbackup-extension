@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonObject;
 import gb.tests.junit.util.TestingCredentials;
-import gb.tests.junit.util.ThingWorxVersion;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import org.junit.jupiter.api.AfterAll;
@@ -30,11 +29,10 @@ public class GiteaGitOperationsTest {
     private TestingCredentials credentials;
     private String giteaRepoUrl;
 
-    private static final ThingWorxVersion TEST_VERSION =
-            new ThingWorxVersion(
-                    "9.7.5",
-                    "devopscadit/postgresql-init-twx:platform9.7.5",
-                    "devopscadit/platform-postgres:platform9.7.5");
+    private static final String DB_INIT_IMAGE = System.getProperty("test.dbInitImage",
+            "devopscadit/postgresql-init-twx:platform9.6.3");
+    private static final String PLATFORM_IMAGE = System.getProperty("test.platformImage",
+            "devopscadit/platform-postgres:platform9.6.3");
 
     private GitBackupExtensionTestStack stack;
 
@@ -105,7 +103,7 @@ public class GiteaGitOperationsTest {
         credentials = new TestingCredentials();
         giteaRepoUrl =
                 "http://gitea:3000/" + credentials.giteaUser + "/" + credentials.repoName + ".git";
-        stack = new GitBackupExtensionTestStack(TEST_VERSION, credentials);
+        stack = new GitBackupExtensionTestStack(DB_INIT_IMAGE, PLATFORM_IMAGE, credentials);
     }
 
     @AfterAll

@@ -11,7 +11,6 @@ import gb.tests.junit.containers.GiteaRepo;
 import gb.tests.junit.containers.Postgres;
 import gb.tests.junit.containers.ThingWorxContainer;
 import gb.tests.junit.util.TestingCredentials;
-import gb.tests.junit.util.ThingWorxVersion;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -38,11 +37,10 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class CrossThingworxExportImportTest {
 
-    private static final ThingWorxVersion VERSION =
-            new ThingWorxVersion(
-                    "9.7.5",
-                    "devopscadit/postgresql-init-twx:platform9.7.5",
-                    "devopscadit/platform-postgres:platform9.7.5");
+    private static final String DB_INIT_IMAGE = System.getProperty("test.dbInitImage",
+            "devopscadit/postgresql-init-twx:platform9.6.3");
+    private static final String PLATFORM_IMAGE = System.getProperty("test.platformImage",
+            "devopscadit/platform-postgres:platform9.6.3");
 
     private static final String GIT_THING_A = "CrossTwxSourceThing";
     private static final String GIT_THING_B = "CrossTwxTargetThing";
@@ -76,11 +74,11 @@ public class CrossThingworxExportImportTest {
 
         postgresA = new Postgres(network, credentials, "postgresql-a");
         postgresA.start();
-        dbInitA = new DBInit(VERSION.dbInitImage, postgresA, network, credentials, "postgresql-a");
+        dbInitA = new DBInit(DB_INIT_IMAGE, postgresA, network, credentials, "postgresql-a");
         dbInitA.start();
         twxA =
                 new ThingWorxContainer(
-                        VERSION.platformImage,
+                        PLATFORM_IMAGE,
                         dbInitA,
                         postgresA,
                         network,
@@ -92,11 +90,11 @@ public class CrossThingworxExportImportTest {
 
         postgresB = new Postgres(network, credentials, "postgresql-b");
         postgresB.start();
-        dbInitB = new DBInit(VERSION.dbInitImage, postgresB, network, credentials, "postgresql-b");
+        dbInitB = new DBInit(DB_INIT_IMAGE, postgresB, network, credentials, "postgresql-b");
         dbInitB.start();
         twxB =
                 new ThingWorxContainer(
-                        VERSION.platformImage,
+                        PLATFORM_IMAGE,
                         dbInitB,
                         postgresB,
                         network,
@@ -112,7 +110,8 @@ public class CrossThingworxExportImportTest {
     }
 
     private void installExtension(ThingWorxContainer twx, String hostname) throws Exception {
-        Path extZip = Path.of("build/distributions/GitBackupExtension.zip");
+        Path extZip = Path.of(System.getProperty("test.extensionZip",
+                "build/distributions/GitBackupExtension.zip"));
         assertTrue(Files.exists(extZip), "Extension ZIP must exist at " + extZip.toAbsolutePath());
 
         var installer =

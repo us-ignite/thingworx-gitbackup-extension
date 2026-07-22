@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.*;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import gb.tests.junit.util.TestingCredentials;
-import gb.tests.junit.util.ThingWorxVersion;
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -25,11 +24,10 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Testcontainers
 public class EntitySyncTest {
 
-    private static final ThingWorxVersion TEST_VERSION =
-            new ThingWorxVersion(
-                    "9.7.5",
-                    "devopscadit/postgresql-init-twx:platform9.7.5",
-                    "devopscadit/platform-postgres:platform9.7.5");
+    private static final String DB_INIT_IMAGE = System.getProperty("test.dbInitImage",
+            "devopscadit/postgresql-init-twx:platform9.6.3");
+    private static final String PLATFORM_IMAGE = System.getProperty("test.platformImage",
+            "devopscadit/platform-postgres:platform9.6.3");
 
     private static final String GIT_THING_NAME = "ITEntitySyncThing";
     private static final String TEST_PROJECT = "TestProject";
@@ -48,7 +46,7 @@ public class EntitySyncTest {
         credentials = new TestingCredentials();
         giteaRepoUrl =
                 "http://gitea:3000/" + credentials.giteaUser + "/" + credentials.repoName + ".git";
-        stack = new GitBackupExtensionTestStack(TEST_VERSION, credentials);
+        stack = new GitBackupExtensionTestStack(DB_INIT_IMAGE, PLATFORM_IMAGE, credentials);
         authHeader =
                 "Basic "
                         + Base64.getEncoder()
