@@ -578,12 +578,18 @@ task buildAll {
     description = 'Build extension packages for all ThingWorx versions (9.6.x, 9.7.x, 10.1.x)'
     group = 'publishing'
     doLast {
+        def distDir = file("${buildDir}/distributions")
         sdkConfigs.each { ver, cfg ->
             logger.lifecycle("--- Building for ThingWorx ${cfg.outputSuffix} ---")
             exec {
                 workingDir = projectDir
                 commandLine './gradlew', '-q', 'packageExtension',
                         "-PtwxVersion=$ver", "-PbuildDirSuffix=$ver", '--no-daemon'
+            }
+            copy {
+                from "${projectDir}/build-${ver}/distributions"
+                into distDir
+                include '*.zip'
             }
         }
     }
