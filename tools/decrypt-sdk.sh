@@ -8,12 +8,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-SDK_DIR="$PROJECT_DIR/twx-lib"
-ENCRYPTED="$SDK_DIR/sdk-archive.tar.gz.gpg"
+RESOURCE_DIR="$PROJECT_DIR/twx-lib"
+ENCRYPTED="$RESOURCE_DIR/twx-resources.tar.gz.gpg"
 ARCHIVE="${ENCRYPTED%.gpg}"
 
 if [ ! -f "$ENCRYPTED" ]; then
-  echo "No encrypted SDK archive found at $ENCRYPTED"
+  echo "No encrypted resources archive found at $ENCRYPTED"
   exit 1
 fi
 
@@ -26,9 +26,9 @@ fi
 echo "Decrypting $ENCRYPTED ..."
 gpg --decrypt --cipher AES256 --batch --passphrase "$GPG_PASSPHRASE" -o "$ARCHIVE" "$ENCRYPTED"
 
-echo "Extracting SDK zips ..."
-tar xzf "$ARCHIVE" -C "$SDK_DIR"
+echo "Extracting resources ..."
+tar xzf "$ARCHIVE" -C "$RESOURCE_DIR"
 rm "$ARCHIVE"
 
-echo "SDK zips restored to $SDK_DIR"
-ls -1 "$SDK_DIR"/*.zip
+echo "Resources restored to $RESOURCE_DIR"
+ls -1 "$RESOURCE_DIR"/*.zip "$RESOURCE_DIR"/license.bin

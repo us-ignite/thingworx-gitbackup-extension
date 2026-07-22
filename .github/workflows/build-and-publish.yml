@@ -16,6 +16,16 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Configure git filters
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          git config filter.version.smudge '.gitfilters/version-smudge'
+          git config filter.version.clean '.gitfilters/version-clean'
+          git config filter.twx-resources.smudge '.gitfilters/twx-resources-smudge'
+          git config filter.twx-resources.clean '.gitfilters/twx-resources-clean'
+          git checkout HEAD -- configfiles/metadata.xml gradle.properties twx-lib/twx-resources.tar.gz.gpg
+
       - uses: actions/setup-java@v5
         with:
           distribution: corretto
@@ -23,11 +33,6 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v5
-
-      - name: Decrypt SDK zips
-        env:
-          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-        run: bash tools/decrypt-sdk.sh
 
       - name: Build all extension variants
         run: ./gradlew buildAll --no-daemon
@@ -58,6 +63,16 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Configure git filters
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          git config filter.version.smudge '.gitfilters/version-smudge'
+          git config filter.version.clean '.gitfilters/version-clean'
+          git config filter.twx-resources.smudge '.gitfilters/twx-resources-smudge'
+          git config filter.twx-resources.clean '.gitfilters/twx-resources-clean'
+          git checkout HEAD -- configfiles/metadata.xml gradle.properties twx-lib/twx-resources.tar.gz.gpg
+
       - uses: actions/setup-java@v5
         with:
           distribution: corretto
@@ -65,11 +80,6 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v5
-
-      - name: Decrypt SDK zips
-        env:
-          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-        run: bash tools/decrypt-sdk.sh
 
       - name: Verify Docker
         run: docker info

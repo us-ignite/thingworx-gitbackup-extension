@@ -8,7 +8,7 @@ build*/
 .settings/
 bin/
 twx-lib/*
-!twx-lib/sdk-archive.tar.gz.gpg
+!twx-lib/twx-resources.tar.gz.gpg
 
 # IDE
 *.iml
