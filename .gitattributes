@@ -1,2 +1,3 @@
-configfiles/metadata.xml filter=version
-gradle.properties        filter=version
+configfiles/metadata.xml           filter=version
+gradle.properties                  filter=version
+twx-lib/twx-resources.tar.gz.gpg   filter=twx-resources

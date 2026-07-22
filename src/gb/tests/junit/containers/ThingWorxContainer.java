@@ -115,6 +115,16 @@ public class ThingWorxContainer extends GenericContainer<ThingWorxContainer> {
         // get from test ENV
         withEnv("LS_USERNAME", ENV.getOrDefault("LS_USERNAME", ""));
         withEnv("LS_PASSWORD", ENV.getOrDefault("LS_PASSWORD", ""));
+        withEnv("USE_TRIAL_LICENSE", "true");
+
+        var licenseFile = Path.of(System.getProperty("user.dir"), "twx-lib", "license.bin");
+        if (Files.exists(licenseFile)) {
+            withFileSystemBind(
+                    licenseFile.toAbsolutePath().toString(),
+                    "/opt/trial.bin",
+                    BindMode.READ_ONLY);
+        }
+
         if (JDK21_DIR != null) {
             withFileSystemBind(
                     JDK21_DIR.toAbsolutePath().toString(), "/mnt/jdk21", BindMode.READ_ONLY);

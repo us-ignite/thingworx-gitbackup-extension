@@ -208,13 +208,14 @@ task prepPackage(dependsOn: [jar]) {
             include "${entitiesDir.name}/**/*.xml"
             into zipStage
         }
-        // Override metadata.xml with version-specific minimumThingWorxVersion
+        // Override metadata.xml with version-specific values
         copy {
             from configDir
             include 'metadata.xml'
             into zipStage
             filter { line ->
-                line.replace('@@MIN_THINGWORX_VERSION@@', minTwVersion)
+                line.replace('@PACKAGE_VERSION@', packageVersion)
+                    .replace('@@MIN_THINGWORX_VERSION@@', minTwVersion)
             }
         }
     }

@@ -1,0 +1,10 @@
+#!/bin/bash
+set -euo pipefail
+
+if [ -n "${GPG_PASSPHRASE:-}" ]; then
+  ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "$(dirname "$0")/..")
+  tar cz -C "$ROOT/twx-lib" --exclude='twx-resources.tar.gz.gpg' . 2>/dev/null \
+    | gpg --symmetric --cipher AES256 --batch --passphrase "$GPG_PASSPHRASE" 2>/dev/null
+else
+  cat
+fi
