@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import gb.extension.PastedKeyGpgSigner;
+import gitbackup.extension.PastedKeyGpgSigner;
 import gb.tests.junit.util.GPGGenerator;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;

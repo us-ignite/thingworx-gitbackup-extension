@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Entities majorVersion="9" minorVersion="3" universal="password">
+    <DataShapes>
+        <DataShape aspect.isEditableExtensionObject="true" aspect.isExtension="true" baseDataShape="" description="" documentationContent="" homeMashup="" name="GITBACKUP.ConfigurationSetting.DataShape" projectName="GitBackup" tags="">
+            <avatar/>
+            <DesignTimePermissions>
+                <Create/>
+                <Read/>
+                <Update/>
+                <Delete/>
+                <Metadata/>
+            </DesignTimePermissions>
+            <RunTimePermissions/>
+            <VisibilityPermissions>
+                <Visibility/>
+            </VisibilityPermissions>
+            <ConfigurationTableDefinitions/>
+            <ConfigurationTables/>
+            <FieldDefinitions>
+                <FieldDefinition aspect.friendlyName="Initial branch" baseType="STRING" description="" name="BranchName" ordinal="7"/>
+                <FieldDefinition aspect.friendlyName="File Repository" baseType="THINGNAME" description="" name="FileRepository" ordinal="5"/>
+                <FieldDefinition aspect.friendlyName="Project Name" baseType="STRING" description="ThingWorx project to sync entities from (leave empty to disable auto-sync)" name="ProjectName" ordinal="13"/>
+                <FieldDefinition aspect.friendlyName="Git Repo URL" baseType="STRING" description="" name="GitRepoURL" ordinal="4"/>
+                <FieldDefinition aspect.isPrimaryKey="false" baseType="STRING" description="prefix used for exporting Localization Tokens" name="LocalizationTokensPrefix" ordinal="12"/>
+                <FieldDefinition baseType="INTEGER" description="" name="ProxyPort" ordinal="10"/>
+                <FieldDefinition baseType="STRING" description="" name="ProxyURL" ordinal="9"/>
+                <FieldDefinition aspect.friendlyName="File Repository Path" baseType="STRING" description="" name="RepoPathName" ordinal="6"/>
+                <FieldDefinition aspect.defaultValue="false" aspect.isPrimaryKey="false" baseType="BOOLEAN" description="" name="UseProxy" ordinal="11"/>
+            </FieldDefinitions>
+        </DataShape>
+    </DataShapes>
+</Entities>

@@ -49,6 +49,11 @@ public class GitBackupExtensionInstaller extends GenericContainer<GitBackupExten
                                 + "      UPLOAD_OK=true\n"
                                 + "      break 2\n"
                                 + "    fi\n"
+                                + "    if [ \"$UPLOAD_STATUS\" = \"406\" ] && grep -q 'queued for installation' \"$UPLOAD_RESP\"; then\n"
+                                + "      echo 'Upload queued for installation; restart required'\n"
+                                + "      UPLOAD_OK=true\n"
+                                + "      break 2\n"
+                                + "    fi\n"
                                 + "    if [ \"$UPLOAD_STATUS\" = \"406\" ] && [ \"$purpose\" = \"import\" ]; then\n"
                                 + "      echo 'Got 406 on import, trying upgrade...'\n"
                                 + "      break\n"
@@ -63,38 +68,13 @@ public class GitBackupExtensionInstaller extends GenericContainer<GitBackupExten
                                 + "fi\n",
                         credentials.thingworxAdminUser, credentials.thingworxAdminPass);
 
-        String verifyScript =
-                String.format(
-                        "VERIFY_OK=false\n"
-                                + "VERIFY_RESP=$(mktemp)\n"
-                                + "for attempt in 1 2 3 4 5; do\n"
-                                + "  VERIFY_STATUS=$(curl -s -o \"$VERIFY_RESP\" -w '%%{http_code}' \\\n"
-                                + "    -H 'Accept: application/json' \\\n"
-                                + "    -u '%s:%s' \\\n"
-                                + "    --connect-timeout 10 --max-time 15 \\\n"
-                                + "    'http://thingworx:8080/Thingworx/Things/GIT.Utility.Thing')\n"
-                                + "  echo \"Attempt $attempt: verify status=$VERIFY_STATUS\"\n"
-                                + "  echo \"Verify response body: $(cat \"$VERIFY_RESP\")\"\n"
-                                + "  if [ \"$VERIFY_STATUS\" = \"200\" ] || [ \"$VERIFY_STATUS\" = \"401\" ]; then\n"
-                                + "    echo 'Verify succeeded'\n"
-                                + "    VERIFY_OK=true\n"
-                                + "    break\n"
-                                + "  fi\n"
-                                + "  sleep 10\n"
-                                + "done\n"
-                                + "if [ \"$VERIFY_OK\" = \"true\" ]; then\n"
-                                + "  echo 'ALL_DONE'\n"
-                                + "else\n"
-                                + "  echo 'VERIFY_FAILED'\n"
-                                + "  exit 1\n"
-                                + "fi\n",
-                        credentials.thingworxAdminUser, credentials.thingworxAdminPass);
+        String completionScript = "echo 'UPLOAD_DONE'\n";
 
         withLogConsumer(
                 outputFrame -> System.out.print("[INSTALLER] " + outputFrame.getUtf8String()));
         withCreateContainerCmdModifier(
-                cmd -> cmd.withEntrypoint("sh", "-c", createScript + verifyScript));
-        waitingFor(Wait.forLogMessage(".*ALL_DONE.*", 1));
+                cmd -> cmd.withEntrypoint("sh", "-c", createScript + completionScript));
+        waitingFor(Wait.forLogMessage(".*UPLOAD_DONE.*", 1));
         withStartupTimeout(java.time.Duration.ofMinutes(10));
     }
 }

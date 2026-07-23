@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Entities build="b441" majorVersion="8" minorVersion="3" modelPersistenceProviderPackage="PostgresPersistenceProviderPackage" revision="1" schemaVersion="1030" universal="">
+    <DataShapes>
+        <DataShape baseDataShape="" description="" documentationContent="" homeMashup="" lastModifiedDate="2018-07-25T20:41:20.716+03:00" name="GITBACKUP.ExtensionVersion.DataShape" projectName="GitBackup" tags="">
+            <avatar/>
+            <DesignTimePermissions>
+                <Create/>
+                <Read/>
+                <Update/>
+                <Delete/>
+                <Metadata/>
+            </DesignTimePermissions>
+            <RunTimePermissions/>
+            <VisibilityPermissions>
+                <Visibility/>
+            </VisibilityPermissions>
+            <ConfigurationTables/>
+            <FieldDefinitions>
+                <FieldDefinition aspect.isPrimaryKey="false" baseType="STRING" description="" name="ExtensionName" ordinal="1"/>
+                <FieldDefinition aspect.isPrimaryKey="false" baseType="STRING" description="" name="ExtensionVersion" ordinal="2"/>
+                <FieldDefinition aspect.isPrimaryKey="false" baseType="BOOLEAN" description="" name="IsInstalled" ordinal="3"/>
+            </FieldDefinitions>
+        </DataShape>
+    </DataShapes>
+</Entities>

@@ -56,6 +56,11 @@ public class GitBackupExtensionTestStack implements AutoCloseable {
         dbInit.start();
         thingworx.start();
         installer.start();
+        // ExtensionPackageUploader queues JAR-backed installations until the platform restarts.
+        // Re-starting the same container applies the queued package. ThingWorxContainer's health
+        // wait strategy runs again during start().
+        thingworx.stop();
+        thingworx.start();
         if (gitea != null) {
             gitea.start();
             // Create admin user via CLI (works fine)
@@ -68,8 +73,8 @@ public class GitBackupExtensionTestStack implements AutoCloseable {
                                     "su git -c '/usr/local/bin/gitea admin user create --username "
                                             + credentials.giteaUser
                                             + " --password "
-                                            + credentials.giteaPass
-                                            + " --email admin@example.com --admin --must-change-password=false'");
+                                    + credentials.giteaPass
+                                    + " --email test@example.com --admin --must-change-password=false'");
                     System.out.println(
                             "GITEA_DEBUG user attempt "
                                     + i
@@ -137,12 +142,12 @@ public class GitBackupExtensionTestStack implements AutoCloseable {
 
         var req1 =
                 thingworx
-                        .serviceRequest("GIT.Utility.Thing", "InitUserExtensionProperties", null)
+                        .serviceRequest("GITBACKUP.Utility.Thing", "InitUserExtensionProperties", null)
                         .build();
         var req2 =
                 thingworx
                         .serviceRequest(
-                                "GIT.Utility.Thing", "InitUserExtensionGpgKeysProperty", null)
+                                "GITBACKUP.Utility.Thing", "InitUserExtensionGpgKeysProperty", null)
                         .build();
 
         httpClient.send(req1, HttpResponse.BodyHandlers.ofString());

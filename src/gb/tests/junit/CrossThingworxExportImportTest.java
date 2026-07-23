@@ -164,7 +164,7 @@ public class CrossThingworxExportImportTest {
                                                         + "  --connect-timeout 30 --max-time 30 \\\n"
                                                         + "  'http://"
                                                         + hostname
-                                                        + ":8080/Thingworx/Things/GIT.Utility.Thing')\n"
+                                                        + ":8080/Thingworx/Things/GITBACKUP.Utility.Thing')\n"
                                                         + "echo \"Verify status: $VERIFY_STATUS\"\n"
                                                         + "echo \"Verify response body: $(cat \"$VERIFY_RESP\")\"\n"
                                                         + "if [ \"$VERIFY_STATUS\" != \"200\" ] && [ \"$VERIFY_STATUS\" != \"401\" ]; then\n"
@@ -238,10 +238,10 @@ public class CrossThingworxExportImportTest {
 
     private void initUserExtensions(ThingWorxContainer twx) throws Exception {
         var req1 =
-                twx.serviceRequest("GIT.Utility.Thing", "InitUserExtensionProperties", null)
+                twx.serviceRequest("GITBACKUP.Utility.Thing", "InitUserExtensionProperties", null)
                         .build();
         var req2 =
-                twx.serviceRequest("GIT.Utility.Thing", "InitUserExtensionGpgKeysProperty", null)
+                twx.serviceRequest("GITBACKUP.Utility.Thing", "InitUserExtensionGpgKeysProperty", null)
                         .build();
         httpClient.send(req1, HttpResponse.BodyHandlers.ofString());
         httpClient.send(req2, HttpResponse.BodyHandlers.ofString());
@@ -278,7 +278,7 @@ public class CrossThingworxExportImportTest {
         body.addProperty("LocalizationTokensPrefix", "");
 
         var createReq =
-                twxA.serviceRequest("GIT.Utility.Thing", "AddNewRepo", body.toString())
+                twxA.serviceRequest("GITBACKUP.Utility.Thing", "AddNewRepo", body.toString())
                         .timeout(Duration.ofSeconds(30))
                         .build();
         var createRes = httpClient.send(createReq, HttpResponse.BodyHandlers.ofString());
@@ -342,7 +342,7 @@ public class CrossThingworxExportImportTest {
         body.addProperty("LocalizationTokensPrefix", "");
 
         var createReq =
-                twxB.serviceRequest("GIT.Utility.Thing", "AddNewRepo", body.toString())
+                twxB.serviceRequest("GITBACKUP.Utility.Thing", "AddNewRepo", body.toString())
                         .timeout(Duration.ofSeconds(30))
                         .build();
         var createRes = httpClient.send(createReq, HttpResponse.BodyHandlers.ofString());

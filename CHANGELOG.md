@@ -20,6 +20,13 @@ v3.0.1 ─ v4.0.0 ─ v4.0.1 ─ v4.1.0 ─ v5.0.0 ─ v5.0.1 ─ v5.1.0 ─┤
 
 First fork release. Extension versioning is now decoupled from the ThingWorx platform version. Supports TW 9.3 through 10.1.0.
 
+### Naming and compatibility cleanup
+
+- Git-native DataShapes now use `GIT.*`; extension-owned structures use `GITBACKUP.*`.
+- Utility and repository entities use `GITBACKUP.Utility.*` and `GIT.Repository.*`.
+- Credentials and GPG keys are now `GIT.GitCredentials.DataShape` and `GIT.GpgKey.DataShape`.
+- Existing repository Things are migrated to the canonical repository template; legacy utility and Java package names remain compatibility surfaces during the transition.
+
 ### Build System & Project Structure
 
 - Refactored Java source from `src/gb/` to `src/gb/extension/` package

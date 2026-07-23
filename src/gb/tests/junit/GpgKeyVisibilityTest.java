@@ -46,7 +46,7 @@ public class GpgKeyVisibilityTest {
                         .uri(
                                 java.net.URI.create(
                                         stack.thingworx.getExternalUrl()
-                                                + "/Thingworx/DataShapes/GitBackup.GpgKey"))
+                                                + "/Thingworx/DataShapes/GIT.GpgKey.DataShape"))
                         .header("Accept", "application/json")
                         .header(
                                 "Authorization",
@@ -79,7 +79,7 @@ public class GpgKeyVisibilityTest {
                         .uri(
                                 java.net.URI.create(
                                         stack.thingworx.getExternalUrl()
-                                                + "/Thingworx/DataShapes/GitBackup.GitCredentials"))
+                                                + "/Thingworx/DataShapes/GIT.GitCredentials.DataShape"))
                         .header("Accept", "application/json")
                         .header(
                                 "Authorization",
@@ -110,7 +110,7 @@ public class GpgKeyVisibilityTest {
         JsonObject getKeysBody = new JsonObject();
         var req =
                 stack.thingworx
-                        .serviceRequest("GIT.Utility.Thing", "GetGpgKeys", getKeysBody.toString())
+                        .serviceRequest("GITBACKUP.Utility.Thing", "GetGpgKeys", getKeysBody.toString())
                         .timeout(Duration.ofSeconds(10))
                         .build();
         var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
@@ -135,7 +135,7 @@ public class GpgKeyVisibilityTest {
         setBody.addProperty("GpgKeyFingerprint", "TEST:FINGER:PRINT:1234");
         var setReq =
                 stack.thingworx
-                        .serviceRequest("GIT.Utility.Thing", "SetGpgKey", setBody.toString())
+                        .serviceRequest("GITBACKUP.Utility.Thing", "SetGpgKey", setBody.toString())
                         .timeout(Duration.ofSeconds(10))
                         .build();
         var setRes = stack.httpClient.send(setReq, HttpResponse.BodyHandlers.ofString());
@@ -145,7 +145,7 @@ public class GpgKeyVisibilityTest {
 
         var getReq =
                 stack.thingworx
-                        .serviceRequest("GIT.Utility.Thing", "GetGpgKeys", "{}")
+                        .serviceRequest("GITBACKUP.Utility.Thing", "GetGpgKeys", "{}")
                         .timeout(Duration.ofSeconds(10))
                         .build();
         var getRes = stack.httpClient.send(getReq, HttpResponse.BodyHandlers.ofString());
@@ -173,7 +173,7 @@ public class GpgKeyVisibilityTest {
         deleteBody.addProperty("GitThing", "NonExistentTestThing");
         var deleteReq =
                 stack.thingworx
-                        .serviceRequest("GIT.Utility.Thing", "DeleteGpgKey", deleteBody.toString())
+                        .serviceRequest("GITBACKUP.Utility.Thing", "DeleteGpgKey", deleteBody.toString())
                         .timeout(Duration.ofSeconds(10))
                         .build();
         stack.httpClient.send(deleteReq, HttpResponse.BodyHandlers.ofString());
@@ -183,7 +183,7 @@ public class GpgKeyVisibilityTest {
     void gpgKeysFieldNamesMatchExpectedSchema() throws Exception {
         var getReq =
                 stack.thingworx
-                        .serviceRequest("GIT.Utility.Thing", "GetGpgKeys", "{}")
+                        .serviceRequest("GITBACKUP.Utility.Thing", "GetGpgKeys", "{}")
                         .timeout(Duration.ofSeconds(10))
                         .build();
         var getRes = stack.httpClient.send(getReq, HttpResponse.BodyHandlers.ofString());
@@ -221,7 +221,7 @@ public class GpgKeyVisibilityTest {
         var initReq =
                 stack.thingworx
                         .serviceRequest(
-                                "GIT.Utility.Thing", "InitUserExtensionGpgKeysProperty", "{}")
+                                "GITBACKUP.Utility.Thing", "InitUserExtensionGpgKeysProperty", "{}")
                         .timeout(Duration.ofSeconds(10))
                         .build();
         var initRes = stack.httpClient.send(initReq, HttpResponse.BodyHandlers.ofString());
@@ -234,7 +234,7 @@ public class GpgKeyVisibilityTest {
 
         var getReq =
                 stack.thingworx
-                        .serviceRequest("GIT.Utility.Thing", "GetGpgKeys", "{}")
+                        .serviceRequest("GITBACKUP.Utility.Thing", "GetGpgKeys", "{}")
                         .timeout(Duration.ofSeconds(10))
                         .build();
         var getRes = stack.httpClient.send(getReq, HttpResponse.BodyHandlers.ofString());
