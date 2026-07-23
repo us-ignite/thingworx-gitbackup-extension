@@ -19,7 +19,7 @@ public final class Const {
     public static final String str_CommitListDataShapeName = "GIT.CommitList.DataShape";
     public static final String str_CommitInfoDataShapeName = "GIT.CommitInfo.DataShape";
     public static final String str_CommitChangedFiles = "GIT.CommitChangedFiles.DataShape";
-    public static final String str_UtilityThingName = "GITBACKUP.Utility.Thing";
+    public static final String str_UtilityThingName = "GIT.Utility.Thing";
     public static final String str_RepositoryThingTemplateName = "GIT.Repository.ThingTemplate";
 
     // Proxy related settings
@@ -33,15 +33,18 @@ public final class Const {
     public static final String str_GitCommitterPassword = "GitCommitterPassword";
     public static final String str_GitCommitterName = "GitCommitterFullName";
     public static final String str_GitCommitterEmail = "GitCommitterEmail";
-    public static final String str_GitCredentials = "GitCredentials";
+    public static final String str_GitCredentials = "UserRepositoryConfiguration";
 
     // GPG Key related constants
-    public static final String str_GpgKeys = "GpgKeys";
+    public static final String str_UserGpgKeys = "UserGpgKeys";
     public static final String str_GpgPrivateKey = "GpgPrivateKey";
     public static final String str_GpgKeyPassphrase = "GpgKeyPassphrase";
     public static final String str_SignCommits = "SignCommits";
     public static final String str_GpgKeyFingerprint = "GpgKeyFingerprint";
-    public static final String str_GpgKeyDataShapeName = "GIT.GpgKey.DataShape";
+    public static final String str_GpgKeyDataShapeName = "GIT.GpgKey.UserExtension.DataShape";
+    public static final String str_GitCredentialsDataShapeName = "GIT.RepositoryConfiguration.UserExtension.DataShape";
+    public static final String str_UserGpgKeyDataShapeName = "GIT.GpgKey.UserExtension.DataShape";
+    public static final String str_GpgKeyVerificationResultDataShapeName = "GIT.GpgKeyVerificationResult.DataShape";
 
     // Error message constants
     public static final String ERR_PREFIX_CONFIG = "[CONFIG] ";

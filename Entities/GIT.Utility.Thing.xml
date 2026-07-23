@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Entities majorVersion="9" minorVersion="3" universal="password">
     <Things>
-        <Thing aspect.isEditableExtensionObject="false" aspect.isExtension="true" description="Contains services required for working with the GitBackup things, but which don't make sense to be present at the Git thing level." documentationContent="" effectiveThingPackage="GITBACKUP.Utility.ThingPackage" enabled="true" homeMashup="" identifier="" inheritedValueStream="" name="GITBACKUP.Utility.Thing" projectName="GitBackup" published="false" tags="" thingTemplate="GenericThing" valueStream="">
+        <Thing aspect.isEditableExtensionObject="false" aspect.isExtension="true" description="Contains services required for working with the GitBackup things, but which don't make sense to be present at the Git thing level." documentationContent="" effectiveThingPackage="GIT.Utility.ThingPackage" enabled="true" homeMashup="" identifier="" inheritedValueStream="" name="GIT.Utility.Thing" projectName="GitBackup" published="false" tags="" thingTemplate="GenericThing" valueStream="">
             <avatar/>
             <DesignTimePermissions>
                 <Create/>
@@ -31,7 +31,7 @@
                 <AlertDefinitions name="tab-menu"/>
             </AlertConfigurations>
             <ImplementedShapes>
-                <ImplementedShape name="GITBACKUP.Utility.ThingShape"/>
+                <ImplementedShape name="GIT.Utility.ThingShape"/>
             </ImplementedShapes>
             <ThingProperties>
                 <tab-menu>

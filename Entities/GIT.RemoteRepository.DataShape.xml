@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Entities build="b349" majorVersion="8" minorVersion="3" modelPersistenceProviderPackage="H2PersistenceProviderPackage" revision="0" schemaVersion="1030" universal="">
     <DataShapes>
-        <DataShape baseDataShape="" description="" documentationContent="" homeMashup="" lastModifiedDate="2018-08-27T18:09:16.089+03:00" name="GITBACKUP.QueryRepository.DataShape" projectName="GitBackup" tags="">
+        <DataShape baseDataShape="" description="" documentationContent="" homeMashup="" lastModifiedDate="2018-08-24T09:57:38.751+03:00" name="GIT.RemoteRepository.DataShape" projectName="GitBackup" tags="">
             <Owner name="Administrator" type="User"/>
             <avatar/>
             <DesignTimePermissions>
@@ -24,8 +24,7 @@
                 <FieldDefinition aspect.isPrimaryKey="false" baseType="STRING" description="" name="Type" ordinal="1"/>
             </FieldDefinitions>
             <ConfigurationChanges>
-                <ConfigurationChange changeAction="CREATE" changeReason="header : name : updated " timestamp="2018-08-27T18:09:01.131+03:00" user="Administrator"/>
-                <ConfigurationChange changeAction="MODIFY" changeReason="header : projectName : updated " timestamp="2018-08-27T18:09:16.089+03:00" user="Administrator"/>
+                <ConfigurationChange changeAction="CREATE" changeReason="header : name : updated fields : Type : added, Owner : added, FullName : added, CloneURL : added " timestamp="2018-08-24T09:57:38.751+03:00" user="Administrator"/>
             </ConfigurationChanges>
         </DataShape>
     </DataShapes>

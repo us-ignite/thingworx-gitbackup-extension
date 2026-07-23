@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Entities majorVersion="9" minorVersion="3" universal="password">
+    <DataShapes>
+        <DataShape aspect.isEditableExtensionObject="true" aspect.isExtension="true" baseDataShape="" description="Result returned when validating a GPG signing key" documentationContent="" homeMashup="" name="GIT.GpgKeyVerificationResult.DataShape" projectName="GitBackup" tags="">
+            <avatar/>
+            <DesignTimePermissions><Create/><Read/><Update/><Delete/><Metadata/></DesignTimePermissions>
+            <RunTimePermissions/>
+            <VisibilityPermissions><Visibility/></VisibilityPermissions>
+            <ConfigurationTableDefinitions/>
+            <ConfigurationTables/>
+            <FieldDefinitions>
+                <FieldDefinition baseType="STRING" description="GitBackup Thing associated with the verification" name="GitThing" ordinal="1"/>
+                <FieldDefinition baseType="BOOLEAN" description="Whether the key can be used for signing" name="SignCommits" ordinal="2"/>
+                <FieldDefinition baseType="STRING" description="OpenPGP key fingerprint or verification error" name="GpgKeyFingerprint" ordinal="3"/>
+            </FieldDefinitions>
+        </DataShape>
+    </DataShapes>
+</Entities>

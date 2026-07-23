@@ -178,7 +178,7 @@ public class GiteaGitOperationsTest {
 
         var createReq =
                 stack.thingworx
-                        .serviceRequest("GITBACKUP.Utility.Thing", "AddNewRepo", body.toString())
+                        .serviceRequest("GIT.Utility.Thing", "AddNewRepo", body.toString())
                         .build();
         var createRes = stack.httpClient.send(createReq, HttpResponse.BodyHandlers.ofString());
         assertTrue(
@@ -519,7 +519,7 @@ public class GiteaGitOperationsTest {
         setKeyBody.addProperty("GpgKeyFingerprint", "");
         var setKeyReq =
                 stack.thingworx
-                        .serviceRequest("GITBACKUP.Utility.Thing", "SetGpgKey", setKeyBody.toString())
+                        .serviceRequest("GIT.Utility.Thing", "SetGpgKey", setKeyBody.toString())
                         .build();
         var setKeyRes = stack.httpClient.send(setKeyReq, HttpResponse.BodyHandlers.ofString());
         assertTrue(
@@ -537,8 +537,8 @@ public class GiteaGitOperationsTest {
                 stack.httpClient.send(verifyKeyReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, verifyKeyRes.statusCode(), "VerifyGpgKey failed: " + verifyKeyRes.body());
         assertTrue(
-                verifyKeyRes.body().contains("\"SignCommits\":true"),
-                "Stored GPG key could not be located for the repository: " + verifyKeyRes.body());
+                verifyKeyRes.body().matches("(?s).*\\\"GpgKeyFingerprint\\\"\\s*:\\s*\\\"[0-9a-fA-F]+\\\".*"),
+                "Stored GPG key fingerprint could not be located: " + verifyKeyRes.body());
 
         editFileInRepoViaThingworxAPI(
                 "GitRepository", GIT_THING_PATH + "/signed-test.txt", "Signed commit test content");

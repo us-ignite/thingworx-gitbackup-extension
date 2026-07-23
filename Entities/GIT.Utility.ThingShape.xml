@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Entities majorVersion="9" minorVersion="3" universal="password">
     <ThingShapes>
-        <ThingShape aspect.isEditableExtensionObject="false" aspect.isExtension="true" className="gitbackup.extension.GitUtilityThingShape" description="This Utility shape is used to add useful functionality to the GitBackup Things, which are built in Java." documentationContent="" homeMashup="" name="GITBACKUP.Utility.ThingShape" projectName="GitBackup" tags="">
+        <ThingShape aspect.isEditableExtensionObject="false" aspect.isExtension="true" className="gitbackup.extension.GitUtilityThingShape" description="This Utility shape is used to add useful functionality to the GitBackup Things, which are built in Java." documentationContent="" homeMashup="" name="GIT.Utility.ThingShape" projectName="GitBackup" tags="">
             <PropertyDefinitions>
                 <PropertyDefinition aspect.cacheTime="0.0" aspect.dataChangeType="VALUE" aspect.defaultValue="500000" aspect.isPersistent="true" baseType="INTEGER" category="" description="Max size of the diff string that will be sent to the client browser. Anything larger than that will not be sent at all." isLocalOnly="false" name="MaxDiffSize" ordinal="2"/>
             </PropertyDefinitions>
@@ -110,22 +110,6 @@
                     <ResultType baseType="INFOTABLE" description="" name="result" ordinal="0"/>
                     <ParameterDefinitions/>
                 </ServiceDefinition>
-                <ServiceDefinition aspect.isAsync="false" category="" description="" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="GetGitExtensionVersion">
-                    <ResultType aspect.dataShape="GITBACKUP.ExtensionVersion.DataShape" baseType="INFOTABLE" description="" name="result" ordinal="0"/>
-                    <ParameterDefinitions/>
-                </ServiceDefinition>
-                <ServiceDefinition aspect.isAsync="false" category="" description="" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="GetGitUserExtensionsProperties">
-                    <ResultType aspect.dataShape="GITBACKUP.UserExtensionProperties.DataShape" baseType="INFOTABLE" description="" name="result" ordinal="0"/>
-                    <ParameterDefinitions/>
-                </ServiceDefinition>
-                <ServiceDefinition aspect.isAsync="false" category="" description="Sets the Git committer name, email, and the UseGitCommitUserValues flag on the current user's extension properties." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="SetGitUserExtensionsProperties">
-                    <ResultType baseType="NOTHING" description="" name="result" ordinal="0"/>
-                    <ParameterDefinitions>
-                        <FieldDefinition baseType="STRING" description="" name="GitCommitterName" ordinal="1"/>
-                        <FieldDefinition baseType="STRING" description="" name="GitCommitterEmail" ordinal="2"/>
-                        <FieldDefinition baseType="BOOLEAN" description="" name="UseGitCommitUserValues" ordinal="3"/>
-                    </ParameterDefinitions>
-                </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="GetProjectEntities">
                     <ResultType aspect.dataShape="SpotlightSearch" baseType="INFOTABLE" description="" name="result" ordinal="0"/>
                     <ParameterDefinitions>
@@ -149,12 +133,12 @@
                     <ResultType baseType="NOTHING" description="" name="result" ordinal="0"/>
                     <ParameterDefinitions/>
                 </ServiceDefinition>
-                <ServiceDefinition aspect.isAsync="false" category="" description="Initializes the GpgKeys UserExtension INFOTABLE property for all users" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="InitUserExtensionGpgKeysProperty">
+                <ServiceDefinition aspect.isAsync="false" category="" description="Initializes the UserGpgKeys UserExtension INFOTABLE property for all users" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="InitUserExtensionGpgKeysProperty">
                     <ResultType baseType="NOTHING" description="" name="result" ordinal="0"/>
                     <ParameterDefinitions/>
                 </ServiceDefinition>
-                <ServiceDefinition aspect.isAsync="false" category="" description="Returns all GPG keys configured for the current user across all repositories" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="GetGpgKeys">
-                    <ResultType aspect.dataShape="GIT.GpgKey.DataShape" baseType="INFOTABLE" description="" name="result" ordinal="0"/>
+                <ServiceDefinition aspect.isAsync="false" category="" description="Returns all GPG keys configured for the current user" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="GetGpgKeys">
+                    <ResultType aspect.dataShape="GIT.GpgKey.UserExtension.DataShape" baseType="INFOTABLE" description="" name="result" ordinal="0"/>
                     <ParameterDefinitions/>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Saves or updates a GPG key for the current user for a specific repository" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="SetGpgKey">

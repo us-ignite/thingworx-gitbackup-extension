@@ -178,7 +178,7 @@ public class EntitySyncTest {
 
         var req =
                 stack.thingworx
-                        .serviceRequest("GITBACKUP.Utility.Thing", "AddNewRepo", body.toString())
+                        .serviceRequest("GIT.Utility.Thing", "AddNewRepo", body.toString())
                         .timeout(Duration.ofSeconds(30))
                         .build();
         var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
@@ -218,7 +218,7 @@ public class EntitySyncTest {
         var req =
                 stack.thingworx
                         .serviceRequest(
-                                "GITBACKUP.Utility.Thing", "SyncProjectToRepository", body.toString())
+                                "GIT.Utility.Thing", "SyncProjectToRepository", body.toString())
                         .timeout(Duration.ofSeconds(60))
                         .build();
         var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
@@ -354,7 +354,7 @@ public class EntitySyncTest {
         var req =
                 stack.thingworx
                         .serviceRequest(
-                                "GITBACKUP.Utility.Thing", "SyncProjectToRepository", body.toString())
+                                "GIT.Utility.Thing", "SyncProjectToRepository", body.toString())
                         .timeout(Duration.ofSeconds(60))
                         .build();
         var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
