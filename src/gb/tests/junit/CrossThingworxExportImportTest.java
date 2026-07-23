@@ -133,7 +133,8 @@ public class CrossThingworxExportImportTest {
                                         cmd.withEntrypoint(
                                                 "sh",
                                                 "-c",
-                                                "UPLOAD_STATUS=$(curl -s -o /dev/null -w '%{http_code}' -X POST \\\n"
+                                                "RESP_FILE=$(mktemp)\n"
+                                                        + "UPLOAD_STATUS=$(curl -s -o \"$RESP_FILE\" -w '%{http_code}' -X POST \\\n"
                                                         + "  -H 'X-XSRF-TOKEN: TWX-XSRF-TOKEN-VALUE' \\\n"
                                                         + "  -H 'X-Requested-By: ThingWorx' \\\n"
                                                         + "  -H 'Accept: application/json' \\\n"
@@ -148,10 +149,12 @@ public class CrossThingworxExportImportTest {
                                                         + hostname
                                                         + ":8080/Thingworx/ExtensionPackageUploader?purpose=import')\n"
                                                         + "echo \"Upload status: $UPLOAD_STATUS\"\n"
+                                                        + "echo \"Response body: $(cat \"$RESP_FILE\")\"\n"
                                                         + "if [ \"$UPLOAD_STATUS\" != \"200\" ] && [ \"$UPLOAD_STATUS\" != \"201\" ]; then\n"
                                                         + "  exit 1\n"
                                                         + "fi\n"
-                                                        + "VERIFY_STATUS=$(curl -s -o /dev/null -w '%{http_code}' \\\n"
+                                                        + "VERIFY_RESP=$(mktemp)\n"
+                                                        + "VERIFY_STATUS=$(curl -s -o \"$VERIFY_RESP\" -w '%{http_code}' \\\n"
                                                         + "  -H 'Accept: application/json' \\\n"
                                                         + "  -u '"
                                                         + credentials.thingworxAdminUser
@@ -163,6 +166,7 @@ public class CrossThingworxExportImportTest {
                                                         + hostname
                                                         + ":8080/Thingworx/Things/GIT.Utility.Thing')\n"
                                                         + "echo \"Verify status: $VERIFY_STATUS\"\n"
+                                                        + "echo \"Verify response body: $(cat \"$VERIFY_RESP\")\"\n"
                                                         + "if [ \"$VERIFY_STATUS\" != \"200\" ] && [ \"$VERIFY_STATUS\" != \"401\" ]; then\n"
                                                         + "  exit 1\n"
                                                         + "fi\n"

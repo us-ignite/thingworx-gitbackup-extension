@@ -78,12 +78,6 @@
                  ordinal="13"></FieldDefinition>
                 <FieldDefinition
                  aspect.isPrimaryKey="false"
-                 baseType="PASSWORD"
-                 description=""
-                 name="Password"
-                 ordinal="7"></FieldDefinition>
-                <FieldDefinition
-                 aspect.isPrimaryKey="false"
                  baseType="INTEGER"
                  description=""
                  name="ProxyPort"
@@ -101,12 +95,6 @@
                  description=""
                  name="UseProxy"
                  ordinal="10"></FieldDefinition>
-                <FieldDefinition
-                 aspect.isPrimaryKey="false"
-                 baseType="STRING"
-                 description=""
-                 name="User"
-                 ordinal="6"></FieldDefinition>
             </FieldDefinitions>
         </DataShape>
     </DataShapes>

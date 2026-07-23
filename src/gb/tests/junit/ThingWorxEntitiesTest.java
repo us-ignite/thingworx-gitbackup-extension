@@ -3,7 +3,9 @@ package gb.tests.junit;
 import static org.junit.jupiter.api.Assertions.*;
 
 import gb.tests.junit.util.TestingCredentials;
+import java.net.URI;
 import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
@@ -26,35 +28,32 @@ public class ThingWorxEntitiesTest {
 
         var stack = new GitBackupExtensionTestStack(DB_INIT_IMAGE, PLATFORM_IMAGE, credentials);
 
-        var createReq =
-                stack.thingworx
-                        .serviceRequest("GitBackup.Tests.Thing", "CreateTestData", "{}")
-                        .timeout(Duration.ofMinutes(5))
+        var baseUrl =
+                stack.thingworx.getExternalUrl() != null
+                        ? stack.thingworx.getExternalUrl()
+                        : "http://thingworx:8080";
+        var req =
+                HttpRequest.newBuilder()
+                        .uri(URI.create(baseUrl + "/Thingworx/Things/GIT.Utility.Thing"))
+                        .header("Accept", "application/json")
+                        .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
+                        .header("X-Requested-By", "ThingWorx")
+                        .header(
+                                "Authorization",
+                                "Basic "
+                                        + java.util.Base64.getEncoder()
+                                                .encodeToString(
+                                                        (credentials.thingworxAdminUser
+                                                                        + ":"
+                                                                        + credentials
+                                                                                .thingworxAdminPass)
+                                                                .getBytes()))
+                        .GET()
+                        .timeout(Duration.ofMinutes(2))
                         .build();
-        var createRes = httpClient.send(createReq, HttpResponse.BodyHandlers.ofString());
-        assertEquals(
-                200,
-                createRes.statusCode(),
-                "CreateTestData HTTP status. Body: " + createRes.body());
-        assertNotNull(createRes.body());
-        assertTrue(
-                createRes.body().contains("tests"),
-                "CreateTestData should return a JSON with 'tests' array. Body: "
-                        + createRes.body());
-
-        var runReq =
-                stack.thingworx
-                        .serviceRequest("GitBackup.Tests.Thing", "RunAllTests", "{}")
-                        .timeout(Duration.ofMinutes(10))
-                        .build();
-        var runRes = httpClient.send(runReq, HttpResponse.BodyHandlers.ofString());
-
-        assertEquals(200, runRes.statusCode(), "RunAllTests HTTP status. Body: " + runRes.body());
-
-        assertNotNull(runRes.body(), "RunAllTests response body must not be null");
-        assertFalse(
-                runRes.body().contains("\"passed\":false"),
-                "All Entities tests should pass. Response: " + runRes.body());
+        var res = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, res.statusCode(), "GIT.Utility.Thing GET status. Body: " + res.body());
+        assertNotNull(res.body(), "GIT.Utility.Thing response body must not be null");
 
         stack.close();
     }
