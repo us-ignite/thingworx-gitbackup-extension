@@ -23,6 +23,24 @@ public class ExtMigrator extends ExtensionMigratorBase {
                         + " to "
                         + getToVersion()
                         + ".");
+        // Remove the pre-5.11 global importer state before the replacement entities are imported.
+        // Existing repositories retain their Git configuration and use current-user
+        // authorization for internal source-control imports.
+        EntityServices entityServices = new EntityServices();
+        try {
+            entityServices.DeleteApplicationKey("GitExtensionAppKey");
+            _logger.warn("Removed legacy GitExtensionAppKey.");
+        } catch (Exception ignored) {
+            // The legacy key is optional on clean installations.
+        }
+        try {
+            if (EntityUtilities.exists("ExtensionImportTargets", ThingworxRelationshipTypes.Thing)) {
+                entityServices.DeleteThing("ExtensionImportTargets");
+                _logger.warn("Removed legacy ExtensionImportTargets Thing.");
+            }
+        } catch (Exception e) {
+            _logger.warn("Could not remove legacy ExtensionImportTargets Thing.", e);
+        }
     }
 
     @Override

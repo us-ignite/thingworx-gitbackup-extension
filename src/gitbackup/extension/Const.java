@@ -14,8 +14,6 @@ public final class Const {
     public static final String str_FileRepositoryDefaultValue = "GitRepository";
 
     // PlatformInfo property Names
-    public static final String str_PlatformInfo_URLPropertyName = "URL";
-    public static final String str_PlatformInfo_AppKeyPropertyName = "AppKey";
 
     // Entity names
     public static final String str_CommitListDataShapeName = "GIT.CommitList.DataShape";
@@ -73,8 +71,6 @@ public final class Const {
     public static final String ERR_COMMIT_NOT_FOUND =
             "Commit '%s' not found. Verify the commit hash is correct.";
     public static final String ERR_NO_TAG_NAME = "No tag name provided. Skipping tag creation.";
-    public static final String ERR_EXTENSION_IMPORT_TARGETS =
-            "ExtensionImportTargets not configured. Run 'InitExtensionImportTargets' from the utility thing first.";
     public static final String ERR_NO_SCF_RESOURCE =
             "SourceControlFunctions resource not found. Cannot export entities.";
     public static final String ERR_COULD_NOT_RESOLVE_THING =

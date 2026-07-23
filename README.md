@@ -150,12 +150,12 @@ The Docker Compose stack provides a complete development setup:
 After `./gradlew devSetup`:
 
 ```
-ThingWorx:  http://localhost:8080/Thingworx  (Administrator / TwxAdm1nP@ssw0rd!)
-Gitea:      http://localhost:3000             (testadmin / testadmin123)
+ThingWorx:  http://localhost:8080/Thingworx  (Administrator / AdminP@ssw0rd!123)
+Gitea:      http://localhost:3000             (giteauser / giteapass123)
 PostgreSQL: localhost:5432                    (postgres / twx_password_123)
 ```
 
-Internal URL for thing config: `http://gitea:3000/testadmin/gitbackup-test.git`
+Internal URL for thing config: `http://gitea:3000/giteauser/gitbackup-test-repo.git`
 
 ## Testing
 
