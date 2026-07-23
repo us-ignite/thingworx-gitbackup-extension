@@ -13,7 +13,7 @@
     </ExtensionPackages>
     <ThingPackages>
         <ThingPackage className="gitbackup.extension.GitBackupTemplate" description="" name="GIT.Repository.ThingPackage"/>
-        <ThingPackage className="gitbackup.extension.GitUtilityThingShape" description="" name="GITBACKUP.Utility.ThingPackage"/>
+        <ThingPackage className="gitbackup.extension.GitUtilityThingShape" description="" name="GIT.Utility.ThingPackage"/>
     </ThingPackages>
     <ThingTemplates>
         <ThingTemplate aspect.isEditableExtensionObject="false" description="" name="GIT.Repository.ThingTemplate" thingPackage="GIT.Repository.ThingPackage"/>

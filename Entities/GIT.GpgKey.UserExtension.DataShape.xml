@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Entities majorVersion="9" minorVersion="3" universal="password">
+    <DataShapes>
+        <DataShape aspect.isEditableExtensionObject="true" aspect.isExtension="true" baseDataShape="" description="Encrypted GPG keys owned by a user and reusable across repositories" documentationContent="" homeMashup="" name="GIT.GpgKey.UserExtension.DataShape" projectName="GitBackup" tags="">
+            <avatar/>
+            <DesignTimePermissions>
+                <Create/>
+                <Read/>
+                <Update/>
+                <Delete/>
+                <Metadata/>
+            </DesignTimePermissions>
+            <RunTimePermissions/>
+            <VisibilityPermissions>
+                <Visibility/>
+            </VisibilityPermissions>
+            <ConfigurationTableDefinitions/>
+            <ConfigurationTables/>
+            <FieldDefinitions>
+                <FieldDefinition aspect.isPrimaryKey="true" baseType="STRING" description="OpenPGP key fingerprint used as the stable Git signing key identifier" name="GpgKeyFingerprint" ordinal="1"/>
+                <FieldDefinition baseType="PASSWORD" description="ASCII-armored PGP private key" name="GpgPrivateKey" ordinal="2"/>
+                <FieldDefinition baseType="PASSWORD" description="PGP private-key passphrase" name="GpgKeyPassphrase" ordinal="3"/>
+            </FieldDefinitions>
+        </DataShape>
+    </DataShapes>
+</Entities>

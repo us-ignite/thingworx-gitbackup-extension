@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Entities build="b103" majorVersion="8" minorVersion="5" modelPersistenceProviderPackage="PostgresPersistenceProviderPackage" revision="5" schemaVersion="1054" universal="password">
     <Things>
-        <Thing description="" documentationContent="" effectiveThingPackage="DataTableThing" enabled="true" homeMashup="DataTableEditor" identifier="" lastModifiedDate="2020-09-17T03:04:23.681-07:00" name="GITBACKUP.Log.DataTable" projectName="GitBackup" published="false" tags="" thingTemplate="DataTable" valueStream="">
+        <Thing description="" documentationContent="" effectiveThingPackage="DataTableThing" enabled="true" homeMashup="DataTableEditor" identifier="" lastModifiedDate="2020-09-17T03:04:23.681-07:00" name="GIT.ExtensionLog.DataTable" projectName="GitBackup" published="false" tags="" thingTemplate="DataTable" valueStream="">
             <avatar/>
             <DesignTimePermissions>
                 <Create/>
@@ -41,7 +41,7 @@
                                 {"fieldDefinitions":{"User":{"name":"User","aspects":{"isPrimaryKey":false},"description":"","baseType":"STRING","ordinal":5},"ServiceName":{"name":"ServiceName","aspects":{"isPrimaryKey":false},"description":"","baseType":"STRING","ordinal":2},"Content":{"name":"Content","aspects":{"isPrimaryKey":false},"description":"","baseType":"STRING","ordinal":0},"ID":{"name":"ID","aspects":{"isPrimaryKey":true},"description":"","baseType":"GUID","ordinal":1},"Source":{"name":"Source","aspects":{"isPrimaryKey":false},"description":"","baseType":"STRING","ordinal":3},"timestamp":{"name":"timestamp","aspects":{"isPrimaryKey":false},"description":"","baseType":"DATETIME","ordinal":4}}}
                                 ]]></json>
                             </accumulatedDataShape>
-                            <dataShape>GITBACKUP.Log.DataShape</dataShape>
+                            <dataShape>GIT.ExtensionLog.DataShape</dataShape>
                         </Row>
                     </Rows>
                 </ConfigurationTable>

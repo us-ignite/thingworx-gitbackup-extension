@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Entities build="b103" majorVersion="8" minorVersion="5" modelPersistenceProviderPackage="PostgresPersistenceProviderPackage" revision="5" schemaVersion="1054" universal="password">
     <DataShapes>
-        <DataShape baseDataShape="" description="" documentationContent="" homeMashup="" lastModifiedDate="2020-09-09T04:12:26.850-07:00" name="GITBACKUP.Log.DataShape" projectName="GitBackup" tags="">
+        <DataShape baseDataShape="" description="" documentationContent="" homeMashup="" lastModifiedDate="2020-09-09T04:12:26.850-07:00" name="GIT.ExtensionLog.DataShape" projectName="GitBackup" tags="">
             <avatar/>
             <DesignTimePermissions>
                 <Create/>

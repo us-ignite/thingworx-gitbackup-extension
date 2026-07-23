@@ -19,7 +19,6 @@ import com.thingworx.relationships.RelationshipTypes.ThingworxRelationshipTypes;
 import com.thingworx.resources.entities.EntityServices;
 import com.thingworx.resources.queries.Searcher;
 import com.thingworx.security.users.User;
-import com.thingworx.system.subsystems.platform.PlatformSubsystem;
 import com.thingworx.things.Thing;
 import com.thingworx.things.repository.FileRepositoryThing;
 import com.thingworx.thingshape.ThingShape;
@@ -29,7 +28,6 @@ import com.thingworx.types.collections.ValueCollection;
 import com.thingworx.types.primitives.BooleanPrimitive;
 import com.thingworx.types.primitives.DatetimePrimitive;
 import com.thingworx.types.primitives.GUIDPrimitive;
-import com.thingworx.types.primitives.IPrimitiveType;
 import com.thingworx.types.primitives.InfoTablePrimitive;
 import com.thingworx.types.primitives.IntegerPrimitive;
 import com.thingworx.types.primitives.PasswordPrimitive;
@@ -132,7 +130,7 @@ public class GitUtilityThingShape extends Thing {
                     String User)
             throws Exception {
         InfoTable values =
-                InfoTableInstanceFactory.createInfoTableFromDataShape("GITBACKUP.Log.DataShape");
+                InfoTableInstanceFactory.createInfoTableFromDataShape("GIT.ExtensionLog.DataShape");
         ValueCollection entry = new ValueCollection();
         entry.put("ID", new GUIDPrimitive(java.util.UUID.randomUUID().toString()));
         entry.put("timestamp", new DatetimePrimitive(timestamp));
@@ -144,7 +142,7 @@ public class GitUtilityThingShape extends Thing {
         Thing dataTable =
                 (Thing)
                         EntityUtilities.findEntity(
-                                "GITBACKUP.Log.DataTable", ThingworxRelationshipTypes.Thing);
+                                "GIT.ExtensionLog.DataTable", ThingworxRelationshipTypes.Thing);
         ValueCollection params = new ValueCollection();
         params.put("values", new InfoTablePrimitive(values));
         params.put("source", new StringPrimitive(Source));
@@ -226,10 +224,12 @@ public class GitUtilityThingShape extends Thing {
         repoThing.processServiceRequest("RestartThing", new ValueCollection());
         repoThing = (Thing) EntityUtilities.findEntity(RepoName, ThingworxRelationshipTypes.Thing);
 
+        ValueCollection getConfigParams = new ValueCollection();
+        getConfigParams.put("tableName", new StringPrimitive("Configuration"));
         InfoTable configTable =
-                InfoTableInstanceFactory.createInfoTableFromDataShape(
-                        "GITBACKUP.ConfigurationSetting.DataShape");
-        ValueCollection configRow = new ValueCollection();
+                (InfoTable) repoThing.processServiceRequest("GetConfigurationTable", getConfigParams);
+        ValueCollection configRow =
+                configTable.getRowCount() > 0 ? configTable.getRow(0) : new ValueCollection();
         configRow.put("FileRepository", new StringPrimitive(orDefault(FileRepo, "GitRepository")));
         configRow.put("GitRepoURL", new StringPrimitive(GitRepoURL));
         configRow.put("RepoPathName", new StringPrimitive(RepoPath));
@@ -241,7 +241,7 @@ public class GitUtilityThingShape extends Thing {
         if (hasText(ProjectName)) {
             configRow.put("ProjectName", new StringPrimitive(ProjectName));
         }
-        configTable.addRow(configRow);
+        if (configTable.getRowCount() == 0) configTable.addRow(configRow);
 
         ValueCollection setConfigParams = new ValueCollection();
         setConfigParams.put("configurationTable", new InfoTablePrimitive(configTable));
@@ -317,7 +317,7 @@ public class GitUtilityThingShape extends Thing {
                 if (creds != null) {
                     InfoTable updatedCreds =
                             InfoTableInstanceFactory.createInfoTableFromDataShape(
-                                    "GIT.GitCredentials.DataShape");
+                                    "GIT.RepositoryConfiguration.UserExtension.DataShape");
                     for (int ci = 0; ci < creds.getRowCount(); ci++) {
                         ValueCollection credRow = creds.getRow(ci);
                         if (!RepoName.equals(
@@ -326,7 +326,7 @@ public class GitUtilityThingShape extends Thing {
                         }
                     }
                     creds = updatedCreds;
-                    user.setPropertyValue("GitCredentials", new InfoTablePrimitive(creds));
+                    user.setPropertyValue("UserRepositoryConfiguration", new InfoTablePrimitive(creds));
                 }
             }
         } catch (Exception ex) {
@@ -353,146 +353,6 @@ public class GitUtilityThingShape extends Thing {
             aspects = {})
     public InfoTable GetEmptyInfotable() throws Exception {
         return InfoTableInstanceFactory.createInfoTableFromDataShape("SpotlightSearch");
-    }
-
-    @ThingworxServiceDefinition(
-            name = "GetGitExtensionVersion",
-            description = "",
-            category = "",
-            isAllowOverride = false,
-            aspects = {"isAsync:false"})
-    @ThingworxServiceResult(
-            name = "result",
-            description = "",
-            baseType = "INFOTABLE",
-            aspects = {"isEntityDataShape:true", "dataShape:GITBACKUP.ExtensionVersion.DataShape"})
-    public InfoTable GetGitExtensionVersion() throws Exception {
-        InfoTable result =
-                InfoTableInstanceFactory.createInfoTableFromDataShape("GITBACKUP.ExtensionVersion.DataShape");
-        PlatformSubsystem platformSubsystem =
-                (PlatformSubsystem)
-                        EntityUtilities.findEntity(
-                                "PlatformSubsystem", ThingworxRelationshipTypes.Subsystem);
-        InfoTable extensionList = platformSubsystem.GetExtensionPackageList();
-
-        String[][] extensions = {
-            {"GitBackupExtension", "GitBackupExtension"},
-            {"GitBackupUI", "GitBackupUI"}
-        };
-
-        for (String[] ext : extensions) {
-            ValueCollection row = new ValueCollection();
-            row.put("ExtensionName", new StringPrimitive(ext[1]));
-            row.put("IsInstalled", new BooleanPrimitive(false));
-            row.put("ExtensionVersion", new StringPrimitive("N/A"));
-            for (int i = 0; i < extensionList.getRowCount(); i++) {
-                String name = extensionList.getRow(i).getPrimitive("name").getValue().toString();
-                if (name.contains(ext[0])) {
-                    row.put("IsInstalled", new BooleanPrimitive(true));
-                    IPrimitiveType<?, ?> pv =
-                            extensionList.getRow(i).getPrimitive("packageVersion");
-                    row.put(
-                            "ExtensionVersion",
-                            new StringPrimitive(pv != null ? pv.getValue().toString() : "N/A"));
-                    break;
-                }
-            }
-            result.addRow(row);
-        }
-        return result;
-    }
-
-    @ThingworxServiceDefinition(
-            name = "GetGitUserExtensionsProperties",
-            description = "",
-            category = "",
-            isAllowOverride = false,
-            aspects = {"isAsync:false"})
-    @ThingworxServiceResult(
-            name = "result",
-            description = "",
-            baseType = "INFOTABLE",
-            aspects = {"isEntityDataShape:true", "dataShape:GITBACKUP.UserExtensionProperties.DataShape"})
-    public InfoTable GetGitUserExtensionsProperties() throws Exception {
-        User currentUser = UserUtilities.findUser(GetCurrentUser());
-        InfoTable result =
-                InfoTableInstanceFactory.createInfoTableFromDataShape(
-                        "GITBACKUP.UserExtensionProperties.DataShape");
-        ValueCollection entry = new ValueCollection();
-        try {
-            IPrimitiveType<?, ?> propVal = currentUser.getPropertyValue("GitCommitterName");
-            if (propVal != null && propVal.getValue() != null) {
-                entry.put("GitCommitterName", currentUser.getPropertyValue("GitCommitterName"));
-            } else {
-                entry.put("GitCommitterName", new StringPrimitive(""));
-            }
-        } catch (Exception e) {
-            entry.put("GitCommitterName", new StringPrimitive(""));
-        }
-        try {
-            IPrimitiveType<?, ?> propVal = currentUser.getPropertyValue("GitCommitterEmail");
-            if (propVal != null && propVal.getValue() != null) {
-                entry.put("GitCommitterEmail", currentUser.getPropertyValue("GitCommitterEmail"));
-            } else {
-                entry.put("GitCommitterEmail", new StringPrimitive(""));
-            }
-        } catch (Exception e) {
-            entry.put("GitCommitterEmail", new StringPrimitive(""));
-        }
-        try {
-            IPrimitiveType<?, ?> propVal = currentUser.getPropertyValue("UseGitCommitUserValues");
-            if (propVal != null && propVal.getValue() != null) {
-                entry.put(
-                        "UseGitCommitUserValues",
-                        currentUser.getPropertyValue("UseGitCommitUserValues"));
-            } else {
-                entry.put("UseGitCommitUserValues", new BooleanPrimitive(false));
-            }
-        } catch (Exception e) {
-            entry.put("UseGitCommitUserValues", new BooleanPrimitive(false));
-        }
-        result.addRow(entry);
-        return result;
-    }
-
-    @ThingworxServiceDefinition(
-            name = "SetGitUserExtensionsProperties",
-            description =
-                    "Sets the Git committer name, email, and the UseGitCommitUserValues flag on the current user's extension properties.",
-            category = "",
-            isAllowOverride = false,
-            aspects = {"isAsync:false"})
-    @ThingworxServiceResult(
-            name = "result",
-            description = "",
-            baseType = "NOTHING",
-            aspects = {})
-    public void SetGitUserExtensionsProperties(
-            @ThingworxServiceParameter(
-                            name = "GitCommitterName",
-                            description = "",
-                            baseType = "STRING")
-                    String GitCommitterName,
-            @ThingworxServiceParameter(
-                            name = "GitCommitterEmail",
-                            description = "",
-                            baseType = "STRING")
-                    String GitCommitterEmail,
-            @ThingworxServiceParameter(
-                            name = "UseGitCommitUserValues",
-                            description = "",
-                            baseType = "BOOLEAN")
-                    Boolean UseGitCommitUserValues)
-            throws Exception {
-        User currentUser = UserUtilities.findUser(GetCurrentUser());
-        ensureUserExtensionProperty(currentUser, "GitCommitterName", "STRING");
-        ensureUserExtensionProperty(currentUser, "GitCommitterEmail", "STRING");
-        ensureUserExtensionProperty(currentUser, "UseGitCommitUserValues", "BOOLEAN");
-
-        currentUser.setPropertyValue("GitCommitterName", new StringPrimitive(GitCommitterName));
-        currentUser.setPropertyValue("GitCommitterEmail", new StringPrimitive(GitCommitterEmail));
-        currentUser.setPropertyValue(
-                "UseGitCommitUserValues", new BooleanPrimitive(UseGitCommitUserValues));
     }
 
     @ThingworxServiceDefinition(
@@ -634,7 +494,7 @@ public class GitUtilityThingShape extends Thing {
             name = "result",
             description = "",
             baseType = "INFOTABLE",
-            aspects = {"isEntityDataShape:true", "dataShape:GITBACKUP.TestResult.DataShape"})
+            aspects = {})
     public InfoTable ImportProjectEntities(
             @ThingworxServiceParameter(
                             name = "GitThingName",
@@ -688,8 +548,7 @@ public class GitUtilityThingShape extends Thing {
         collectXmlFiles(fileRepo, str_RepoPath, allFiles);
         _logger.warn("Found " + allFiles.getRowCount() + " XML files for import.");
 
-        InfoTable result =
-                InfoTableInstanceFactory.createInfoTableFromDataShape("GITBACKUP.TestResult.DataShape");
+        InfoTable result = new InfoTable();
         int int_SuccessCount = 0;
         int int_FailCount = 0;
 
@@ -789,32 +648,6 @@ public class GitUtilityThingShape extends Thing {
         sourceControlFunctions.processServiceRequest("ImportSourceControlledEntities", params);
     }
 
-    private void ensureUserExtensionProperty(User currentUser, String propName, String baseType)
-            throws Exception {
-        Object propVal = null;
-        try {
-            propVal = currentUser.getPropertyValue(propName);
-        } catch (Exception e) {
-            // property doesn't exist, need to add it
-        }
-        if (propVal == null) {
-            ThingShape userExtensions =
-                    (ThingShape)
-                            EntityUtilities.findEntity(
-                                    "UserExtensions", ThingworxRelationshipTypes.ThingShape);
-            ValueCollection addPropParams = new ValueCollection();
-            addPropParams.put("defaultValue", new StringPrimitive(""));
-            addPropParams.put("description", new StringPrimitive(""));
-            addPropParams.put("readOnly", new BooleanPrimitive(false));
-            addPropParams.put("type", new StringPrimitive(baseType));
-            addPropParams.put("name", new StringPrimitive(propName));
-            addPropParams.put("persistent", new BooleanPrimitive(true));
-            userExtensions.processServiceRequest("AddPropertyDefinition", addPropParams);
-            EntityServices es = new EntityServices();
-            es.RestartDependenciesForThingShape("UserExtensions");
-        }
-    }
-
     @ThingworxServiceDefinition(
             name = "InitUserExtensionProperties",
             description = "Adds UserExtension Properties needed by the GitBackupExtension",
@@ -847,7 +680,7 @@ public class GitUtilityThingShape extends Thing {
         boolean hasGitCredentials = false;
         if (user != null) {
             try {
-                hasGitCredentials = user.getPropertyValue("GitCredentials") != null;
+                hasGitCredentials = user.getPropertyValue("UserRepositoryConfiguration") != null;
             } catch (Exception e) {
             }
         }
@@ -858,21 +691,19 @@ public class GitUtilityThingShape extends Thing {
                     "description", new StringPrimitive("User-specific Git credentials store."));
             addPropParams.put("readOnly", new BooleanPrimitive(false));
             addPropParams.put("type", new StringPrimitive("INFOTABLE"));
-            addPropParams.put("name", new StringPrimitive("GitCredentials"));
+            addPropParams.put("name", new StringPrimitive("UserRepositoryConfiguration"));
             addPropParams.put("persistent", new BooleanPrimitive(true));
-            addPropParams.put("dataShape", new StringPrimitive("GIT.GitCredentials.DataShape"));
+            addPropParams.put("dataShape", new StringPrimitive("GIT.RepositoryConfiguration.UserExtension.DataShape"));
             userExtensions.processServiceRequest("AddPropertyDefinition", addPropParams);
             new EntityServices().RestartDependenciesForThingShape("UserExtensions");
         }
 
         if (user != null) {
             try {
-                Object val = user.getPropertyValue("GitCredentials");
+                Object val = user.getPropertyValue("UserRepositoryConfiguration");
                 if (val == null) {
-                    InfoTable empty =
-                            InfoTableInstanceFactory.createInfoTableFromDataShape(
-                                    "GIT.GitCredentials.DataShape");
-                    user.setPropertyValue("GitCredentials", new InfoTablePrimitive(empty));
+                    InfoTable empty = migrateLegacyUserRepositoryConfiguration(user);
+                    user.setPropertyValue("UserRepositoryConfiguration", new InfoTablePrimitive(empty));
                 }
             } catch (Exception e) {
                 _logger.warn(
@@ -902,6 +733,133 @@ public class GitUtilityThingShape extends Thing {
                 }
             }
         }
+
+        boolean hasUserGpgKeys = false;
+        if (user != null) {
+            try {
+                hasUserGpgKeys = user.getPropertyValue(Const.str_UserGpgKeys) != null;
+            } catch (Exception e) {
+            }
+        }
+        if (!hasUserGpgKeys) {
+            ValueCollection addPropParams = new ValueCollection();
+            addPropParams.put("defaultValue", new StringPrimitive(""));
+            addPropParams.put(
+                    "description", new StringPrimitive("User-owned GPG keys reusable across repositories."));
+            addPropParams.put("readOnly", new BooleanPrimitive(false));
+            addPropParams.put("type", new StringPrimitive("INFOTABLE"));
+            addPropParams.put("name", new StringPrimitive(Const.str_UserGpgKeys));
+            addPropParams.put("persistent", new BooleanPrimitive(true));
+            addPropParams.put("dataShape", new StringPrimitive(Const.str_UserGpgKeyDataShapeName));
+            userExtensions.processServiceRequest("AddPropertyDefinition", addPropParams);
+            new EntityServices().RestartDependenciesForThingShape("UserExtensions");
+        }
+        if (user != null && user.getPropertyValue(Const.str_UserGpgKeys) == null) {
+            user.setPropertyValue(
+                    Const.str_UserGpgKeys,
+                    new InfoTablePrimitive(migrateLegacyUserGpgKeys(user)));
+        }
+    }
+
+    private InfoTable migrateLegacyUserGpgKeys(User user) throws Exception {
+        InfoTable keys =
+                InfoTableInstanceFactory.createInfoTableFromDataShape(
+                        Const.str_UserGpgKeyDataShapeName);
+        for (String propertyName : new String[] {"GpgKeys", "UserRepositoryConfiguration"}) {
+            Object value = null;
+            try {
+                value = user.getPropertyValue(propertyName);
+            } catch (Exception e) {
+            }
+            if (!(value instanceof InfoTablePrimitive)) continue;
+            InfoTable source = ((InfoTablePrimitive) value).getValue();
+            if (source == null) continue;
+            for (int i = 0; i < source.getRowCount(); i++) {
+                ValueCollection row = source.getRow(i);
+                String fingerprint = primitiveString(row, Const.str_GpgKeyFingerprint);
+                if (isBlank(fingerprint)) continue;
+                boolean alreadyStored = false;
+                for (int j = 0; j < keys.getRowCount(); j++) {
+                    if (fingerprint.equals(
+                            primitiveString(
+                                    keys.getRow(j), Const.str_GpgKeyFingerprint))) {
+                        alreadyStored = true;
+                        break;
+                    }
+                }
+                if (alreadyStored) continue;
+                ValueCollection key = new ValueCollection();
+                key.put(Const.str_GpgKeyFingerprint, new StringPrimitive(fingerprint));
+                if (row.getPrimitive(Const.str_GpgPrivateKey) != null)
+                    key.put(Const.str_GpgPrivateKey, row.getPrimitive(Const.str_GpgPrivateKey));
+                if (row.getPrimitive(Const.str_GpgKeyPassphrase) != null)
+                    key.put(Const.str_GpgKeyPassphrase, row.getPrimitive(Const.str_GpgKeyPassphrase));
+                keys.addRow(key);
+            }
+        }
+        return keys;
+    }
+
+    private InfoTable migrateLegacyUserRepositoryConfiguration(User user) throws Exception {
+        InfoTable merged =
+                InfoTableInstanceFactory.createInfoTableFromDataShape(
+                        Const.str_GitCredentialsDataShapeName);
+        Object credentials = null;
+        Object gpgKeys = null;
+        try {
+            credentials = user.getPropertyValue("GitCredentials");
+        } catch (Exception e) {
+        }
+        try {
+            gpgKeys = user.getPropertyValue("GpgKeys");
+        } catch (Exception e) {
+        }
+        if (credentials instanceof InfoTablePrimitive) {
+            InfoTable table = ((InfoTablePrimitive) credentials).getValue();
+            if (table != null) {
+                for (int i = 0; i < table.getRowCount(); i++) merged.addRow(table.getRow(i));
+            }
+        }
+        if (gpgKeys instanceof InfoTablePrimitive) {
+            InfoTable table = ((InfoTablePrimitive) gpgKeys).getValue();
+            if (table != null) {
+                InfoTable keyStore =
+                        InfoTableInstanceFactory.createInfoTableFromDataShape(
+                                Const.str_UserGpgKeyDataShapeName);
+                for (int i = 0; i < table.getRowCount(); i++) {
+                    ValueCollection source = table.getRow(i);
+                    String gitThing = primitiveString(source, "GitThing");
+                    String fingerprint = primitiveString(source, Const.str_GpgKeyFingerprint);
+                    if (!isBlank(fingerprint)) {
+                        ValueCollection key = new ValueCollection();
+                        key.put(Const.str_GpgKeyFingerprint, new StringPrimitive(fingerprint));
+                        if (source.getPrimitive(Const.str_GpgPrivateKey) != null)
+                            key.put(Const.str_GpgPrivateKey, source.getPrimitive(Const.str_GpgPrivateKey));
+                        if (source.getPrimitive(Const.str_GpgKeyPassphrase) != null)
+                            key.put(Const.str_GpgKeyPassphrase, source.getPrimitive(Const.str_GpgKeyPassphrase));
+                        keyStore.addRow(key);
+                    }
+                    ValueCollection target = null;
+                    for (int j = 0; j < merged.getRowCount(); j++) {
+                        if (gitThing.equals(primitiveString(merged.getRow(j), "GitThing"))) {
+                            target = merged.getRow(j);
+                            break;
+                        }
+                    }
+                    if (target == null) {
+                        target = new ValueCollection();
+                        target.put("GitThing", source.getPrimitive("GitThing"));
+                        merged.addRow(target);
+                    }
+                    if (source.getPrimitive(Const.str_SignCommits) != null)
+                        target.put(Const.str_SignCommits, source.getPrimitive(Const.str_SignCommits));
+                    if (!isBlank(fingerprint))
+                        target.put(Const.str_GpgKeyFingerprint, new StringPrimitive(fingerprint));
+                }
+                user.setPropertyValue(Const.str_UserGpgKeys, new InfoTablePrimitive(keyStore));
+            }
+        }
+        return merged;
     }
 
     @ThingworxServiceDefinition(
@@ -916,47 +874,13 @@ public class GitUtilityThingShape extends Thing {
             baseType = "NOTHING",
             aspects = {})
     public void InitUserExtensionGpgKeysProperty() throws Exception {
-        ThingShape userExtensions =
-                (ThingShape)
-                        EntityUtilities.findEntity(
-                                "UserExtensions", ThingworxRelationshipTypes.ThingShape);
-
-        User user = null;
-        try {
-            user = UserUtilities.findUser(GetCurrentUser());
-        } catch (Exception e) {
-            _logger.warn(
-                    "InitUserExtensionGpgKeysProperty: no user context ("
-                            + e.getMessage()
-                            + "); updating ThingShape definitions only");
-        }
-
-        boolean hasGpgKeys = false;
-        if (user != null) {
-            try {
-                hasGpgKeys = user.getPropertyValue("GpgKeys") != null;
-            } catch (Exception e) {
-            }
-        }
-        if (!hasGpgKeys) {
-            ValueCollection addPropParams = new ValueCollection();
-            addPropParams.put("defaultValue", new StringPrimitive(""));
-            addPropParams.put(
-                    "description", new StringPrimitive("User-specific GPG signing keys store."));
-            addPropParams.put("readOnly", new BooleanPrimitive(false));
-            addPropParams.put("type", new StringPrimitive("INFOTABLE"));
-            addPropParams.put("name", new StringPrimitive("GpgKeys"));
-            addPropParams.put("persistent", new BooleanPrimitive(true));
-            addPropParams.put("dataShape", new StringPrimitive("GIT.GpgKey.DataShape"));
-            userExtensions.processServiceRequest("AddPropertyDefinition", addPropParams);
-            new EntityServices().RestartDependenciesForThingShape("UserExtensions");
-        }
+        InitUserExtensionProperties();
     }
 
     private InfoTable getGpgKeysTable(User user) throws Exception {
         Object propVal = null;
         try {
-            propVal = user.getPropertyValue("GpgKeys");
+            propVal = user.getPropertyValue(Const.str_UserGpgKeys);
         } catch (Exception e) {
         }
         if (propVal == null) return null;
@@ -974,12 +898,12 @@ public class GitUtilityThingShape extends Thing {
             name = "result",
             description = "",
             baseType = "INFOTABLE",
-            aspects = {"isEntityDataShape:true", "dataShape:GIT.GpgKey.DataShape"})
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.GpgKey.UserExtension.DataShape"})
     public InfoTable GetGpgKeys() throws Exception {
         User currentUser = requireCurrentUser();
         InfoTable gpgKeys = getGpgKeysTable(currentUser);
         if (gpgKeys != null) return gpgKeys;
-        return InfoTableInstanceFactory.createInfoTableFromDataShape("GIT.GpgKey.DataShape");
+        return InfoTableInstanceFactory.createInfoTableFromDataShape(Const.str_UserGpgKeyDataShapeName);
     }
 
     @ThingworxServiceDefinition(
@@ -1025,54 +949,59 @@ public class GitUtilityThingShape extends Thing {
         if (GitThing == null || GitThing.trim().isEmpty()) {
             throw new IllegalArgumentException("GitThing is required when storing a GPG key.");
         }
-        ThingShape userExtensions =
-                (ThingShape)
-                        EntityUtilities.findEntity(
-                                "UserExtensions", ThingworxRelationshipTypes.ThingShape);
-
-        Object existingProp = null;
-        try {
-            existingProp = currentUser.getPropertyValue("GpgKeys");
-        } catch (Exception e) {
+        if (isBlank(GpgKeyFingerprint)) {
+            if (isBlank(GpgPrivateKey))
+                throw new IllegalArgumentException(
+                        "GpgPrivateKey or GpgKeyFingerprint is required.");
+            PastedKeyGpgSigner signer =
+                    new PastedKeyGpgSigner(GpgPrivateKey, GpgKeyPassphrase);
+            try {
+                GpgKeyFingerprint = signer.getFingerprint();
+            } finally {
+                signer.clearSensitiveData();
+            }
+            if (isBlank(GpgKeyFingerprint))
+                throw new IllegalArgumentException("Could not derive the GPG key fingerprint.");
         }
-        if (existingProp == null) {
-            ValueCollection addPropParams = new ValueCollection();
-            addPropParams.put("defaultValue", new StringPrimitive(""));
-            addPropParams.put(
-                    "description", new StringPrimitive("User-specific GPG signing keys store."));
-            addPropParams.put("readOnly", new BooleanPrimitive(false));
-            addPropParams.put("type", new StringPrimitive("INFOTABLE"));
-            addPropParams.put("name", new StringPrimitive("GpgKeys"));
-            addPropParams.put("persistent", new BooleanPrimitive(true));
-            addPropParams.put("dataShape", new StringPrimitive("GIT.GpgKey.DataShape"));
-            userExtensions.processServiceRequest("AddPropertyDefinition", addPropParams);
-            new EntityServices().RestartDependenciesForThingShape("UserExtensions");
-        }
-
+        InitUserExtensionProperties();
         InfoTable gpgKeys = getGpgKeysTable(currentUser);
-        if (gpgKeys == null) {
-            gpgKeys = InfoTableInstanceFactory.createInfoTableFromDataShape("GIT.GpgKey.DataShape");
-        } else {
+        if (gpgKeys == null)
+            gpgKeys = InfoTableInstanceFactory.createInfoTableFromDataShape(Const.str_UserGpgKeyDataShapeName);
+        else {
             InfoTable cloned =
-                    InfoTableInstanceFactory.createInfoTableFromDataShape("GIT.GpgKey.DataShape");
+                    InfoTableInstanceFactory.createInfoTableFromDataShape(Const.str_UserGpgKeyDataShapeName);
             for (int i = 0; i < gpgKeys.getRowCount(); i++) {
                 ValueCollection row = gpgKeys.getRow(i);
-                if (!row.getPrimitive("GitThing").getValue().toString().equals(GitThing)) {
+                if (!GpgKeyFingerprint.equals(primitiveString(row, Const.str_GpgKeyFingerprint)))
                     cloned.addRow(row);
-                }
             }
             gpgKeys = cloned;
         }
-        ValueCollection entry = new ValueCollection();
-        entry.put("GitThing", new StringPrimitive(GitThing));
-        // UserExtension properties are schema-level definitions, but their values belong to the
-        // authenticated User. Never write these secrets to the utility Thing or to a shared store.
-        entry.put("GpgPrivateKey", new PasswordPrimitive(GpgPrivateKey));
-        entry.put("GpgKeyPassphrase", new PasswordPrimitive(GpgKeyPassphrase));
-        entry.put("SignCommits", new BooleanPrimitive(SignCommits));
-        entry.put("GpgKeyFingerprint", new StringPrimitive(GpgKeyFingerprint));
-        gpgKeys.addRow(entry);
-        currentUser.setPropertyValue("GpgKeys", new InfoTablePrimitive(gpgKeys));
+        ValueCollection key = new ValueCollection();
+        key.put(Const.str_GpgKeyFingerprint, new StringPrimitive(GpgKeyFingerprint));
+        key.put(Const.str_GpgPrivateKey, new PasswordPrimitive(GpgPrivateKey));
+        key.put(Const.str_GpgKeyPassphrase, new PasswordPrimitive(GpgKeyPassphrase));
+        gpgKeys.addRow(key);
+        currentUser.setPropertyValue(Const.str_UserGpgKeys, new InfoTablePrimitive(gpgKeys));
+
+        InfoTable configurations = getGitCredentials(currentUser);
+        if (configurations == null)
+            configurations = InfoTableInstanceFactory.createInfoTableFromDataShape(Const.str_GitCredentialsDataShapeName);
+        ValueCollection configuration = null;
+        for (int i = 0; i < configurations.getRowCount(); i++) {
+            if (GitThing.equals(primitiveString(configurations.getRow(i), "GitThing"))) {
+                configuration = configurations.getRow(i);
+                break;
+            }
+        }
+        if (configuration == null) {
+            configuration = new ValueCollection();
+            configuration.put("GitThing", new StringPrimitive(GitThing));
+            configurations.addRow(configuration);
+        }
+        configuration.put(Const.str_SignCommits, new BooleanPrimitive(SignCommits));
+        configuration.put(Const.str_GpgKeyFingerprint, new StringPrimitive(GpgKeyFingerprint));
+        currentUser.setPropertyValue(Const.str_GitCredentials, new InfoTablePrimitive(configurations));
     }
 
     @ThingworxServiceDefinition(
@@ -1095,17 +1024,19 @@ public class GitUtilityThingShape extends Thing {
                     String GitThing)
             throws Exception {
         User currentUser = requireCurrentUser();
-        InfoTable gpgKeys = getGpgKeysTable(currentUser);
-        if (gpgKeys != null) {
+        InfoTable configurations = getGitCredentials(currentUser);
+        if (configurations != null) {
             InfoTable cloned =
-                    InfoTableInstanceFactory.createInfoTableFromDataShape("GIT.GpgKey.DataShape");
-            for (int i = 0; i < gpgKeys.getRowCount(); i++) {
-                ValueCollection row = gpgKeys.getRow(i);
-                if (!row.getPrimitive("GitThing").getValue().toString().equals(GitThing)) {
-                    cloned.addRow(row);
+                    InfoTableInstanceFactory.createInfoTableFromDataShape(Const.str_GitCredentialsDataShapeName);
+            for (int i = 0; i < configurations.getRowCount(); i++) {
+                ValueCollection row = configurations.getRow(i);
+                if (GitThing.equals(primitiveString(row, "GitThing"))) {
+                    row.put(Const.str_SignCommits, new BooleanPrimitive(false));
+                    row.put(Const.str_GpgKeyFingerprint, new StringPrimitive(""));
                 }
+                cloned.addRow(row);
             }
-            currentUser.setPropertyValue("GpgKeys", new InfoTablePrimitive(cloned));
+            currentUser.setPropertyValue(Const.str_GitCredentials, new InfoTablePrimitive(cloned));
         }
     }
 
@@ -1252,12 +1183,8 @@ public class GitUtilityThingShape extends Thing {
             row.put("LocalizationTokensPrefix", new StringPrimitive(LocalizationTokensPrefix));
         if (ProjectName != null) row.put("ProjectName", new StringPrimitive(ProjectName));
 
-        InfoTable newCfg =
-                InfoTableInstanceFactory.createInfoTableFromDataShape(
-                        "GITBACKUP.ConfigurationSetting.DataShape");
-        newCfg.addRow(row);
         ValueCollection setConfigParams = new ValueCollection();
-        setConfigParams.put("configurationTable", new InfoTablePrimitive(newCfg));
+        setConfigParams.put("configurationTable", new InfoTablePrimitive(cfgTable));
         setConfigParams.put("persistent", new BooleanPrimitive(false));
         setConfigParams.put("tableName", new StringPrimitive("Configuration"));
         repoThing.processServiceRequest("SetConfigurationTable", setConfigParams);
@@ -1378,11 +1305,11 @@ public class GitUtilityThingShape extends Thing {
         if (creds == null) {
             creds =
                     InfoTableInstanceFactory.createInfoTableFromDataShape(
-                            "GIT.GitCredentials.DataShape");
+                            "GIT.RepositoryConfiguration.UserExtension.DataShape");
         } else {
             InfoTable cloned =
                     InfoTableInstanceFactory.createInfoTableFromDataShape(
-                            "GIT.GitCredentials.DataShape");
+                            "GIT.RepositoryConfiguration.UserExtension.DataShape");
             for (int i = 0; i < creds.getRowCount(); i++) {
                 ValueCollection row = creds.getRow(i);
                 if (!row.getPrimitive("GitThing").getValue().toString().equals(GitThing)) {
@@ -1399,7 +1326,7 @@ public class GitUtilityThingShape extends Thing {
         entry.put("GitThing", new StringPrimitive(GitThing));
         creds.addRow(entry);
         try {
-            currentUser.setPropertyValue("GitCredentials", new InfoTablePrimitive(creds));
+            currentUser.setPropertyValue("UserRepositoryConfiguration", new InfoTablePrimitive(creds));
         } catch (Exception e) {
             _logger.error(
                     "Failed to save GitCredentials for user "
@@ -1410,7 +1337,7 @@ public class GitUtilityThingShape extends Thing {
         }
     }
 
-    // ---- Services now defined directly on GITBACKUP.Utility.Thing ----
+    // ---- Services now defined directly on GIT.Utility.Thing ----
 
     @ThingworxServiceDefinition(
             name = "ExportLocalizationToken",
@@ -1832,12 +1759,8 @@ public class GitUtilityThingShape extends Thing {
                         repoThing.processServiceRequest("GetConfigurationTable", getConfigParams);
         ValueCollection row = cfgTable.getRow(0);
         row.put("ProjectName", new StringPrimitive(orDefault(ProjectName, "")));
-        InfoTable newCfg =
-                InfoTableInstanceFactory.createInfoTableFromDataShape(
-                        "GITBACKUP.ConfigurationSetting.DataShape");
-        newCfg.addRow(row);
         ValueCollection setConfigParams = new ValueCollection();
-        setConfigParams.put("configurationTable", new InfoTablePrimitive(newCfg));
+        setConfigParams.put("configurationTable", new InfoTablePrimitive(cfgTable));
         setConfigParams.put("persistent", new BooleanPrimitive(false));
         setConfigParams.put("tableName", new StringPrimitive("Configuration"));
         repoThing.processServiceRequest("SetConfigurationTable", setConfigParams);
@@ -2192,7 +2115,7 @@ public class GitUtilityThingShape extends Thing {
     private InfoTable getGitCredentials(User user) throws Exception {
         Object propVal = null;
         try {
-            propVal = user.getPropertyValue("GitCredentials");
+            propVal = user.getPropertyValue("UserRepositoryConfiguration");
         } catch (Exception e) {
         }
         if (propVal == null) return null;

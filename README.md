@@ -24,7 +24,7 @@
 │  Import, Log, ExtensionStatus, ...          │
 ├─────────────────────────────────────────────┤
 │  Things / ThingShapes / DataShapes (55 XML) │
-│  GITBACKUP.Utility.Thing (utility services)       │
+│  GIT.Utility.Thing (utility services)       │
 │  GIT.Repository entities                         │
 ├─────────────────────────────────────────────┤
 │  Java Backend (src/gitbackup/extension/)     │
@@ -45,7 +45,7 @@
 ### Java Backend (`src/gitbackup/extension/`)
 
 - **`GitRepositoryShape.java`** (1331 lines) — `GitRepositoryShape` ThingShape implementation. Provides all Git services backed by JGit 7.6.0.
-- **`GitUtilityThingShape.java`** — `GITBACKUP.Utility.ThingShape` implementation. Manages repos, credentials, GPG keys, project export/sync, and user-level config.
+- **`GitUtilityThingShape.java`** — `GIT.Utility.ThingShape` implementation. Manages repos, credentials, GPG keys, project export/sync, and user-level config.
 - **`PastedKeyGpgSigner.java`** (156 lines) — Implements JGit's `Signer` interface using BouncyCastle. Accepts ASCII-armored PGP keys, produces GPG signatures for commits.
 - **`ExtMigrator.java`** — Runs on extension upgrade. Initializes UserExtension properties and GpgKeys.
 - **`GitBackupValidation.java`** — Resource with configuration validation service.
@@ -57,11 +57,11 @@
 
 | Type | Count | Examples |
 |---|---|---|
-| DataShapes | 18 | `GIT.BranchList.DataShape`, `GIT.GpgKey.DataShape`, `GITBACKUP.UserExtensionProperties.DataShape` |
+| DataShapes | 14 | `GIT.BranchList.DataShape`, `GIT.GpgKeyVerificationResult.DataShape`, `GIT.RepositoryConfiguration.UserExtension.DataShape` |
 | Mashups | 22 | BranchManager, CommitHistory, MergeRebase, GpgKeySettings, Push, Pull, Status, Export, Import, Log, ExtensionStatus |
-| Things | 3 | `GITBACKUP.Utility.Thing`, `GITBACKUP.Log.DataTable` |
-| ThingShapes | 2 | `GITBACKUP.Utility.ThingShape`, `GIT.Repository.ThingShape` |
-| StateDefinitions | 4 | File status states, install state, menu state, repo URL state |
+| Things | 3 | `GIT.Utility.Thing`, `GIT.ExtensionLog.DataTable` |
+| ThingShapes | 2 | `GIT.Utility.ThingShape`, `GIT.Repository.ThingShape` |
+| StateDefinitions | 0 | None currently exported |
 | Other | 7 | Media, Projects, StyleThemes |
 
 ### Thing Configuration

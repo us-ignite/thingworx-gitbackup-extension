@@ -142,12 +142,12 @@ public class GitBackupExtensionTestStack implements AutoCloseable {
 
         var req1 =
                 thingworx
-                        .serviceRequest("GITBACKUP.Utility.Thing", "InitUserExtensionProperties", null)
+                        .serviceRequest("GIT.Utility.Thing", "InitUserExtensionProperties", null)
                         .build();
         var req2 =
                 thingworx
                         .serviceRequest(
-                                "GITBACKUP.Utility.Thing", "InitUserExtensionGpgKeysProperty", null)
+                                "GIT.Utility.Thing", "InitUserExtensionGpgKeysProperty", null)
                         .build();
 
         httpClient.send(req1, HttpResponse.BodyHandlers.ofString());

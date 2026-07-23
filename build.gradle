@@ -432,7 +432,7 @@ task devSetup {
         }
 
         // 4. Verify extension installed
-        def verifyUrl = new URL("http://localhost:8080/Thingworx/Things/GITBACKUP.Utility.Thing")
+        def verifyUrl = new URL("http://localhost:8080/Thingworx/Things/GIT.Utility.Thing")
         def verifyConn = (HttpURLConnection) verifyUrl.openConnection()
         verifyConn.setRequestProperty("Authorization", "Basic ${auth}")
         verifyConn.setRequestProperty("Accept", "application/json")
@@ -442,14 +442,14 @@ task devSetup {
         if (verifyStatus != 200 && verifyStatus != 401) {
             logger.warn("Extension verification returned unexpected status: ${verifyStatus}")
         } else {
-            logger.lifecycle("Extension verified (GITBACKUP.Utility.Thing accessible)!")
+            logger.lifecycle("Extension verified (GIT.Utility.Thing accessible)!")
         }
 
         // 4a. Initialize UserExtension properties
         logger.lifecycle("Initializing UserExtension properties for Administrator...")
         def services = ['InitUserExtensionProperties', 'InitUserExtensionGpgKeysProperty']
         services.each { serviceName ->
-            def serviceUrl = new URL("http://localhost:8080/Thingworx/Things/GITBACKUP.Utility.Thing/Services/${serviceName}")
+            def serviceUrl = new URL("http://localhost:8080/Thingworx/Things/GIT.Utility.Thing/Services/${serviceName}")
             def serviceConn = (HttpURLConnection) serviceUrl.openConnection()
             serviceConn.setRequestMethod("POST")
             serviceConn.setRequestProperty("Authorization", "Basic ${auth}")

@@ -393,27 +393,18 @@ public class GitRepositoryShape extends Thing {
             String str_GpgPrivateKey = null;
             String str_GpgPassphrase = null;
             try {
-                InfoTable iftbl_GpgKeys =
-                        ((InfoTablePrimitive) us_currentUser.getPropertyValue(Const.str_GpgKeys))
-                                .getValue();
-                if (iftbl_GpgKeys != null) {
-                    ValueCollection vc_GpgFilter = new ValueCollection();
-                    vc_GpgFilter.put("GitThing", new StringPrimitive(repositoryThingName()));
-                    ValueCollection vc_GpgKey = iftbl_GpgKeys.find(vc_GpgFilter);
-                    if (vc_GpgKey != null
-                            && vc_GpgKey.getPrimitive(Const.str_SignCommits) != null) {
-                        str_GpgPrivateKey =
-                                ((PasswordPrimitive)
-                                                vc_GpgKey.getPrimitive(Const.str_GpgPrivateKey))
-                                        .getValue();
-                        str_GpgPassphrase =
-                                ((PasswordPrimitive)
-                                                vc_GpgKey.getPrimitive(Const.str_GpgKeyPassphrase))
-                                        .getValue();
-                        bool_SignCommits =
-                                ((BooleanPrimitive) vc_GpgKey.getPrimitive(Const.str_SignCommits))
-                                        .getValue();
-                    }
+                ValueCollection vc_GpgKey = getUserGpgKey(us_currentUser);
+                if (vc_GpgKey != null && vc_GpgKey.getPrimitive(Const.str_SignCommits) != null) {
+                    str_GpgPrivateKey =
+                            ((PasswordPrimitive) vc_GpgKey.getPrimitive(Const.str_GpgPrivateKey))
+                                    .getValue();
+                    str_GpgPassphrase =
+                            ((PasswordPrimitive)
+                                            vc_GpgKey.getPrimitive(Const.str_GpgKeyPassphrase))
+                                    .getValue();
+                    bool_SignCommits =
+                            ((BooleanPrimitive) vc_GpgKey.getPrimitive(Const.str_SignCommits))
+                                    .getValue();
                 }
             } catch (Exception e) {
                 _logger.warn(Const.WARN_NO_GPG_KEYS);
@@ -523,27 +514,18 @@ public class GitRepositoryShape extends Thing {
             String str_GpgPrivateKey = null;
             String str_GpgPassphrase = null;
             try {
-                InfoTable iftbl_GpgKeys =
-                        ((InfoTablePrimitive) us_currentUser.getPropertyValue(Const.str_GpgKeys))
-                                .getValue();
-                if (iftbl_GpgKeys != null) {
-                    ValueCollection vc_GpgFilter = new ValueCollection();
-                    vc_GpgFilter.put("GitThing", new StringPrimitive(repositoryThingName()));
-                    ValueCollection vc_GpgKey = iftbl_GpgKeys.find(vc_GpgFilter);
-                    if (vc_GpgKey != null
-                            && vc_GpgKey.getPrimitive(Const.str_SignCommits) != null) {
-                        str_GpgPrivateKey =
-                                ((PasswordPrimitive)
-                                                vc_GpgKey.getPrimitive(Const.str_GpgPrivateKey))
-                                        .getValue();
-                        str_GpgPassphrase =
-                                ((PasswordPrimitive)
-                                                vc_GpgKey.getPrimitive(Const.str_GpgKeyPassphrase))
-                                        .getValue();
-                        bool_SignCommits =
-                                ((BooleanPrimitive) vc_GpgKey.getPrimitive(Const.str_SignCommits))
-                                        .getValue();
-                    }
+                ValueCollection vc_GpgKey = getUserGpgKey(us_currentUser);
+                if (vc_GpgKey != null && vc_GpgKey.getPrimitive(Const.str_SignCommits) != null) {
+                    str_GpgPrivateKey =
+                            ((PasswordPrimitive) vc_GpgKey.getPrimitive(Const.str_GpgPrivateKey))
+                                    .getValue();
+                    str_GpgPassphrase =
+                            ((PasswordPrimitive)
+                                            vc_GpgKey.getPrimitive(Const.str_GpgKeyPassphrase))
+                                    .getValue();
+                    bool_SignCommits =
+                            ((BooleanPrimitive) vc_GpgKey.getPrimitive(Const.str_SignCommits))
+                                    .getValue();
                 }
             } catch (Exception e) {
                 _logger.warn(Const.WARN_NO_GPG_KEYS);
@@ -665,7 +647,7 @@ public class GitRepositoryShape extends Thing {
             name = "Result",
             description = "",
             baseType = "INFOTABLE",
-            aspects = {"isEntityDataShape:true", "dataShape:GIT.GpgKey.DataShape"})
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.GpgKeyVerificationResult.DataShape"})
     public InfoTable VerifyGpgKey(
             @ThingworxServiceParameter(
                             name = "GpgPrivateKey",
@@ -681,7 +663,7 @@ public class GitRepositoryShape extends Thing {
         String str_CurrentMethodName = "VerifyGpgKey";
         InfoTable iftbl_Result =
                 InfoTableInstanceFactory.createInfoTableFromDataShape(
-                        Const.str_GpgKeyDataShapeName);
+                        Const.str_GpgKeyVerificationResultDataShapeName);
         try {
             // if no key was passed, try to read from stored GpgKeys property
             String resolvedKey = GpgPrivateKey;
@@ -689,26 +671,16 @@ public class GitRepositoryShape extends Thing {
             if (GpgPrivateKey == null || GpgPrivateKey.trim().isEmpty()) {
                 try {
                     User us_currentUser = UserUtilities.findUser(UserUtilities.getCurrentUser());
-                    InfoTable iftbl_GpgKeys =
-                            ((InfoTablePrimitive)
-                                            us_currentUser.getPropertyValue(Const.str_GpgKeys))
-                                    .getValue();
-                    if (iftbl_GpgKeys != null) {
-                        ValueCollection vc_GpgFilter = new ValueCollection();
-                        vc_GpgFilter.put("GitThing", new StringPrimitive(repositoryThingName()));
-                        ValueCollection vc_GpgKey = iftbl_GpgKeys.find(vc_GpgFilter);
-                        if (vc_GpgKey != null
-                                && vc_GpgKey.getPrimitive(Const.str_SignCommits) != null) {
-                            resolvedKey =
-                                    ((PasswordPrimitive)
-                                                    vc_GpgKey.getPrimitive(Const.str_GpgPrivateKey))
-                                            .getValue();
-                            resolvedPassphrase =
-                                    ((PasswordPrimitive)
-                                                    vc_GpgKey.getPrimitive(
-                                                            Const.str_GpgKeyPassphrase))
-                                            .getValue();
-                        }
+                    ValueCollection vc_GpgKey = getUserGpgKey(us_currentUser);
+                    if (vc_GpgKey != null) {
+                        resolvedKey =
+                                ((PasswordPrimitive)
+                                                vc_GpgKey.getPrimitive(Const.str_GpgPrivateKey))
+                                        .getValue();
+                        resolvedPassphrase =
+                                ((PasswordPrimitive)
+                                                vc_GpgKey.getPrimitive(Const.str_GpgKeyPassphrase))
+                                        .getValue();
                     }
                 } catch (Exception e) {
                     _logger.warn("No stored GpgKeys found; proceeding with provided key if any.");
@@ -2274,6 +2246,26 @@ public class GitRepositoryShape extends Thing {
                             + " failed with an unknown error. Check logs for details.";
         }
         return serviceName + " Error: " + userFriendly;
+    }
+
+    private ValueCollection getUserGpgKey(User user) throws Exception {
+        if (user == null) return null;
+        ValueCollection repositoryConfig = getGitRepoRemoteCredential(user);
+        String fingerprint = primitiveString(repositoryConfig, Const.str_GpgKeyFingerprint);
+        if (isBlank(fingerprint)) return null;
+        Object property = user.getPropertyValue(Const.str_UserGpgKeys);
+        if (!(property instanceof InfoTablePrimitive)) return null;
+        InfoTable keys = ((InfoTablePrimitive) property).getValue();
+        if (keys == null) return null;
+        for (int i = 0; i < keys.getRowCount(); i++) {
+            ValueCollection key = keys.getRow(i);
+            if (fingerprint.equals(primitiveString(key, Const.str_GpgKeyFingerprint))) {
+                if (repositoryConfig.getPrimitive(Const.str_SignCommits) != null)
+                    key.put(Const.str_SignCommits, repositoryConfig.getPrimitive(Const.str_SignCommits));
+                return key;
+            }
+        }
+        return null;
     }
 
     private ValueCollection getGitRepoRemoteCredential(User us_currentUser) throws Exception {

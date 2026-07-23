@@ -34,7 +34,7 @@ public class ThingWorxEntitiesTest {
                         : "http://thingworx:8080";
         var req =
                 HttpRequest.newBuilder()
-                        .uri(URI.create(baseUrl + "/Thingworx/Things/GITBACKUP.Utility.Thing"))
+                        .uri(URI.create(baseUrl + "/Thingworx/Things/GIT.Utility.Thing"))
                         .header("Accept", "application/json")
                         .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
                         .header("X-Requested-By", "ThingWorx")
@@ -52,8 +52,8 @@ public class ThingWorxEntitiesTest {
                         .timeout(Duration.ofMinutes(2))
                         .build();
         var res = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-        assertEquals(200, res.statusCode(), "GITBACKUP.Utility.Thing GET status. Body: " + res.body());
-        assertNotNull(res.body(), "GITBACKUP.Utility.Thing response body must not be null");
+        assertEquals(200, res.statusCode(), "GIT.Utility.Thing GET status. Body: " + res.body());
+        assertNotNull(res.body(), "GIT.Utility.Thing response body must not be null");
 
         stack.close();
     }

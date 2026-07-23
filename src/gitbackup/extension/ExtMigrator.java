@@ -50,9 +50,9 @@ public class ExtMigrator extends ExtensionMigratorBase {
         Thing thing =
                 (Thing)
                         EntityUtilities.findEntity(
-                                "GITBACKUP.Utility.Thing", ThingworxRelationshipTypes.Thing);
+                                "GIT.Utility.Thing", ThingworxRelationshipTypes.Thing);
         if (thing == null) {
-            throw new IllegalStateException("ExtMigrator: GITBACKUP.Utility.Thing was not imported.");
+            throw new IllegalStateException("ExtMigrator: GIT.Utility.Thing was not imported.");
         }
         thing.processServiceRequest("InitUserExtensionProperties", null);
         _logger.warn("Performed one-time migration to 2.3.0.");
@@ -65,10 +65,10 @@ public class ExtMigrator extends ExtensionMigratorBase {
         migrateTemplate("GitBackupTemplate");
         migrateTemplate("GitRepositoryTemplate");
 
-        if (EntityUtilities.exists("GIT.Utility.Thing", ThingworxRelationshipTypes.Thing)) {
+        if (EntityUtilities.exists("GITBACKUP.Utility.Thing", ThingworxRelationshipTypes.Thing)) {
             _logger.warn(
-                    "Legacy utility Thing GIT.Utility.Thing retained for compatibility; "
-                            + "new code uses GITBACKUP.Utility.Thing.");
+                    "Legacy utility Thing GITBACKUP.Utility.Thing retained for compatibility; "
+                            + "new code uses GIT.Utility.Thing.");
         }
     }
 

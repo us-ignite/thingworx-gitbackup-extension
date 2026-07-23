@@ -17,7 +17,7 @@
                     </ParameterDefinitions>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Verifies a pasted PGP private key can be loaded and used for signing. Returns the key fingerprint on success." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="VerifyGpgKey">
-                    <ResultType aspect.dataShape="GIT.GpgKey.DataShape" baseType="INFOTABLE" description="" name="Result" ordinal="0"/>
+                    <ResultType aspect.dataShape="GIT.GpgKeyVerificationResult.DataShape" baseType="INFOTABLE" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions>
                         <FieldDefinition baseType="STRING" description="ASCII-armored PGP private key" name="GpgPrivateKey" ordinal="1"/>
                         <FieldDefinition baseType="STRING" description="Passphrase for the PGP private key" name="GpgKeyPassphrase" ordinal="2"/>

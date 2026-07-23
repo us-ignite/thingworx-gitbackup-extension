@@ -169,7 +169,7 @@ public class GitBackupValidationIntegrationTest {
                 "UserExtensions ThingShape should be accessible: " + getInfoRes.statusCode());
         String body = getInfoRes.body();
         assertTrue(
-                body.contains("GitCredentials") || body.contains("GpgKeys"),
-                "UserExtensions should have GitCredentials or GpgKeys property: " + body);
+                body.contains("UserRepositoryConfiguration"),
+                "UserExtensions should have UserRepositoryConfiguration property: " + body);
     }
 }
