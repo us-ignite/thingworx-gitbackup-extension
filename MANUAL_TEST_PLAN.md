@@ -25,7 +25,7 @@
 
 | # | Test Case | Steps | Expected Result |
 |---|---|---|---|
-| 2.1 | Create GitBackup Thing manually | Create a new Thing from the `GitBackupTemplate` template | Thing is created; the `Git.Utility.ThingShape` is automatically attached; Configuration table is initialized with defaults |
+| 2.1 | Create GitBackup Thing manually | Create a new Thing from the `GitRepositoryTemplate` template | Thing is created; Configuration table is initialized with defaults |
 | 2.2 | Create via `AddNewRepo` service | On `GIT.Utility.Thing`, invoke `AddNewRepo` with: GitRepoURL, FileRepository, RepoPathName, BranchName, User, Password, CommitEmail, CommitUser, Proxy params | A new GitBackup Thing is created and configured |
 | 2.3 | Configure repo properties | On the created Thing, edit the Configuration table: set `GitRepoURL`, `FileRepository`, `RepoPathName`, `InitialBranch`, proxy settings | Values are saved |
 | 2.4 | Delete GitBackup Thing | Delete the Thing via Composer | Thing is removed; no residual entities remain |

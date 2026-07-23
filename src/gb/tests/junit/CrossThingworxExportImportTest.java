@@ -116,6 +116,7 @@ public class CrossThingworxExportImportTest {
                                 "test.extensionZip", "build/distributions/GitBackupExtension.zip"));
         assertTrue(Files.exists(extZip), "Extension ZIP must exist at " + extZip.toAbsolutePath());
 
+        @SuppressWarnings("resource")
         var installer =
                 new GenericContainer<>("curlimages/curl:7.85.0")
                         .withNetwork(network)
@@ -168,6 +169,7 @@ public class CrossThingworxExportImportTest {
                                                         + "echo 'ALL_DONE'\n"));
         installer.start();
         System.out.println("Extension installed on " + hostname);
+        installer.close();
     }
 
     private void setupGiteaRepo() throws Exception {

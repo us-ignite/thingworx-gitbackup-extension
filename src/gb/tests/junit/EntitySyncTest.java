@@ -34,8 +34,6 @@ public class EntitySyncTest {
     private static final String TEST_THING = "IT.ESync.TestThing";
     private static final String TEST_THING_SHAPE = "IT.ESync.TestShape";
     private static final String ORIGINAL_DESC = "Original description for entity sync test";
-    private static final String MODIFIED_DESC = "MODIFIED by EntitySyncTest";
-
     private TestingCredentials credentials;
     private String giteaRepoUrl;
     private GitBackupExtensionTestStack stack;
@@ -79,23 +77,6 @@ public class EntitySyncTest {
                 .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
                 .header("X-Requested-By", "ThingWorx")
                 .POST(HttpRequest.BodyPublishers.ofString(body == null ? "{}" : body));
-    }
-
-    private HttpRequest.Builder entityGetRequest(String collectionPath, String entityName) {
-        var uri =
-                URI.create(
-                        stack.thingworx.getExternalUrl()
-                                + "/Thingworx/"
-                                + collectionPath
-                                + "/"
-                                + entityName);
-        return HttpRequest.newBuilder()
-                .uri(uri)
-                .header("Accept", "application/json")
-                .header("Authorization", authHeader)
-                .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
-                .header("X-Requested-By", "ThingWorx")
-                .GET();
     }
 
     @Test

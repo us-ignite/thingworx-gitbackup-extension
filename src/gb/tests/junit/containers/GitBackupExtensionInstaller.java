@@ -8,7 +8,6 @@ import java.nio.file.Path;
 import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
-import org.testcontainers.containers.output.OutputFrame;
 import org.testcontainers.containers.wait.strategy.Wait;
 
 public class GitBackupExtensionInstaller extends GenericContainer<GitBackupExtensionInstaller> {
@@ -91,7 +90,8 @@ public class GitBackupExtensionInstaller extends GenericContainer<GitBackupExten
                                 + "fi\n",
                         credentials.thingworxAdminUser, credentials.thingworxAdminPass);
 
-        withLogConsumer(outputFrame -> System.out.print("[INSTALLER] " + outputFrame.getUtf8String()));
+        withLogConsumer(
+                outputFrame -> System.out.print("[INSTALLER] " + outputFrame.getUtf8String()));
         withCreateContainerCmdModifier(
                 cmd -> cmd.withEntrypoint("sh", "-c", createScript + verifyScript));
         waitingFor(Wait.forLogMessage(".*ALL_DONE.*", 1));
