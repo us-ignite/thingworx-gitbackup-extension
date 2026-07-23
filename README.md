@@ -25,10 +25,10 @@
 ├─────────────────────────────────────────────┤
 │  Things / ThingShapes / DataShapes (55 XML) │
 │  GIT.Utility.Thing (utility services)       │
-│  GitRepositoryTemplate (your repo's Thing)      │
+│  GitRepositoryShape / GitRepositoryTemplate     │
 ├─────────────────────────────────────────────┤
 │  Java Backend (src/gb/extension/)           │
-│  GitRepositoryTemplate   — JGit-backed services │
+│  GitRepositoryShape      — JGit-backed services │
 │  PastedKeyGpgSigner  — BouncyCastle GPG     │
 │  ExtMigrator         — upgrade migrations   │
 │  GitBackupValidation — config validation    │
@@ -44,7 +44,8 @@
 
 ### Java Backend (`src/gb/extension/`)
 
-- **`GitRepositoryTemplate.java`** (1331 lines) — Core Thing extending the ThingWorx SDK base class. Provides all Git services backed by JGit 7.6.0.
+- **`GitRepositoryShape.java`** (1331 lines) — `GitRepositoryShape` ThingShape implementation. Provides all Git services backed by JGit 7.6.0.
+- **`GitUtilityThingShape.java`** — `Git.Utility.ThingShape` implementation. Manages repos, credentials, GPG keys, project export/sync, and user-level config.
 - **`PastedKeyGpgSigner.java`** (156 lines) — Implements JGit's `Signer` interface using BouncyCastle. Accepts ASCII-armored PGP keys, produces GPG signatures for commits.
 - **`ExtMigrator.java`** — Runs on extension upgrade. Initializes UserExtension properties and GpgKeys.
 - **`GitBackupValidation.java`** — Resource with configuration validation service.
@@ -59,7 +60,7 @@
 | DataShapes | 17 | `Git.BranchList`, `GitBackup.GpgKey`, `GitBackup.UserExtensionProperties` |
 | Mashups | 22 | BranchManager, CommitHistory, MergeRebase, GpgKeySettings, Push, Pull, Status, Export, Import, Log, ExtensionStatus |
 | Things | 3 | `GIT.Utility.Thing`, `GitBackup.Log.DataTable` |
-| ThingShapes | 0 | |
+| ThingShapes | 2 | `Git.Utility.ThingShape`, `GitRepositoryShape` |
 | StateDefinitions | 4 | File status states, install state, menu state, repo URL state |
 | Other | 7 | Media, Projects, StyleThemes |
 

@@ -152,13 +152,13 @@ public class GiteaGitOperationsTest {
 
         Thread.sleep(5000);
         JsonObject configurationRequest = new JsonObject();
-        configurationRequest.addProperty("GitThingName", GIT_THING_NAME);
+        configurationRequest.addProperty("tableName", "Configuration");
         var configurationRes =
                 stack.httpClient.send(
                         stack.thingworx
                                 .serviceRequest(
-                                        "GIT.Utility.Thing",
-                                        "GetConfiguration",
+                                        GIT_THING_NAME,
+                                        "GetConfigurationTable",
                                         configurationRequest.toString())
                                 .build(),
                         HttpResponse.BodyHandlers.ofString());
@@ -553,8 +553,7 @@ public class GiteaGitOperationsTest {
         var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, res.statusCode(), "CreateTag failed: " + res.body());
         assertTrue(
-                res.body().contains("created"),
-                "CreateTag should confirm creation: " + res.body());
+                res.body().contains("created"), "CreateTag should confirm creation: " + res.body());
     }
 
     @Test

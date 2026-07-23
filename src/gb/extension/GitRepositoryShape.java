@@ -184,7 +184,7 @@ import org.slf4j.Logger;
 
                                     }))
         })
-public class GitRepositoryTemplate extends Thing {
+public class GitRepositoryShape extends Thing {
     /** */
     // set background file system resolution to false and enable debugging
     static {
@@ -206,9 +206,9 @@ public class GitRepositoryTemplate extends Thing {
     private Git gitObject;
 
     private static Logger _logger =
-            LogUtilities.getInstance().getApplicationLogger(GitRepositoryTemplate.class);
+            LogUtilities.getInstance().getApplicationLogger(GitRepositoryShape.class);
 
-    public GitRepositoryTemplate() {}
+    public GitRepositoryShape() {}
 
     @Override
     protected void stopThing(ContextType ctx) throws Exception {
@@ -360,6 +360,7 @@ public class GitRepositoryTemplate extends Thing {
                     String Message)
             throws Exception, GitAPIException {
         _logger.trace("Entering Service: Commit");
+        refreshConfiguration();
         syncFromThingworx();
         String str_CurrentMethodName = "Commit";
         boolean bool_SignCommits = false;
@@ -464,6 +465,7 @@ public class GitRepositoryTemplate extends Thing {
                     String Message)
             throws Exception, GitAPIException {
         _logger.trace("Entering Service: Push");
+        refreshConfiguration();
         syncFromThingworx();
         String str_CurrentMethodName = "Push";
         boolean bool_SignCommits = false;
@@ -780,6 +782,7 @@ public class GitRepositoryTemplate extends Thing {
                     Boolean Force) {
         String str_CurrentMethodName = "Pull";
         try {
+            refreshConfiguration();
             syncFromThingworx();
             _logger.warn("Starting Pull for GitBackup Thing: " + this.getName());
             Thread.sleep(500);
@@ -1031,10 +1034,14 @@ public class GitRepositoryTemplate extends Thing {
             InfoTable iftbl_CurrentBranchStatus =
                     InfoTableInstanceFactory.createInfoTableFromDataShape(
                             "Git.CurrentBranchStatus");
+            Repository repository = getGitObject("GetCurrentBranch").getRepository();
+            String fullBranch = repository.getFullBranch();
+            boolean detached = fullBranch == null || !fullBranch.startsWith("refs/heads/");
+            String currentBranch = detached ? fullBranch : repository.getBranch();
             ValueCollection vc = new ValueCollection();
 
-            vc.put("BranchName", new StringPrimitive(str_CurrentBranchOrCommit));
-            vc.put("DetachedHEAD", new BooleanPrimitive(bool_isDetachedHead));
+            vc.put("BranchName", new StringPrimitive(currentBranch));
+            vc.put("DetachedHEAD", new BooleanPrimitive(detached));
             iftbl_CurrentBranchStatus.addRow(vc);
             _logger.trace("Exiting Service: GetCurrentBranch");
             return iftbl_CurrentBranchStatus;
@@ -1399,7 +1406,14 @@ public class GitRepositoryTemplate extends Thing {
             walk.close();
             _logger.trace("Exiting Service: GetDiffPerFileBetweenCommits");
             String str_DiffResult = dif.toString("UTF-8");
-            int maxSize = this.GetIntegerPropertyValue(Const.str_MaxDiffSize);
+            Thing utilityThing =
+                    (Thing)
+                            EntityUtilities.findEntity(
+                                    Const.str_UtilityThingName, ThingworxRelationshipTypes.Thing);
+            int maxSize =
+                    utilityThing != null
+                            ? utilityThing.GetIntegerPropertyValue(Const.str_MaxDiffSize)
+                            : 500000;
             return str_DiffResult.length() > maxSize
                     ? String.format(Const.ERR_DIFF_TOO_LARGE, maxSize)
                     : str_DiffResult;
@@ -1567,6 +1581,92 @@ public class GitRepositoryTemplate extends Thing {
             _logger.error(
                     String.format(Const.WARN_SYNC_FAILED, this.getName() + ": " + e.getMessage()));
         }
+    }
+
+    /** Re-read configuration written immediately before a service invocation. */
+    private void refreshConfiguration() {
+        try {
+            Thing targetThing = resolveTargetThing();
+            if (targetThing != null) {
+                ValueCollection params = new ValueCollection();
+                params.put("tableName", new StringPrimitive(Const.str_ConfTableName));
+                Object rawTable = targetThing.processServiceRequest("GetConfigurationTable", params);
+                InfoTable table =
+                        rawTable instanceof InfoTable
+                                ? (InfoTable) rawTable
+                                : rawTable instanceof InfoTablePrimitive
+                                        ? ((InfoTablePrimitive) rawTable).getValue()
+                                        : null;
+                if (table != null && table.getRowCount() > 0) {
+                    ValueCollection row = table.getRow(0);
+                    this.str_GitRepoURL = primitiveString(row, Const.str_GitRepoURL);
+                    this.str_FileRepository =
+                            orDefault(
+                                    primitiveString(row, Const.str_FileRepository),
+                                    Const.str_FileRepositoryDefaultValue);
+                    this.str_FileRepoPath = primitiveString(row, Const.str_RepoPathName);
+                    this.str_CurrentBranchOrCommit = primitiveString(row, Const.str_InitialBranch);
+                    this.bool_UseProxy = isTrue((Boolean) valueOf(row, Const.str_UseProxy));
+                    this.str_ProxyURL = primitiveString(row, Const.str_ProxyURL);
+                    this.int_ProxyPort = (Integer) valueOf(row, Const.str_ProxyPort);
+                    this.str_ProjectName = primitiveString(row, Const.str_ProjectName);
+                    return;
+                }
+            }
+        } catch (Exception e) {
+            _logger.warn("Could not refresh Configuration table for repository service", e);
+        }
+
+        this.str_GitRepoURL =
+                (String) getConfigurationSetting(Const.str_ConfTableName, Const.str_GitRepoURL);
+        this.str_FileRepository =
+                orDefault(
+                        (String)
+                                getConfigurationSetting(
+                                        Const.str_ConfTableName, Const.str_FileRepository),
+                        Const.str_FileRepositoryDefaultValue);
+        this.str_FileRepoPath =
+                (String)
+                        getConfigurationSetting(Const.str_ConfTableName, Const.str_RepoPathName);
+        this.str_CurrentBranchOrCommit =
+                (String)
+                        getConfigurationSetting(Const.str_ConfTableName, Const.str_InitialBranch);
+        this.bool_UseProxy =
+                isTrue(
+                        (Boolean)
+                                getConfigurationSetting(
+                                        Const.str_ConfTableName, Const.str_UseProxy));
+        this.str_ProxyURL =
+                (String) getConfigurationSetting(Const.str_ConfTableName, Const.str_ProxyURL);
+        this.int_ProxyPort =
+                (Integer) getConfigurationSetting(Const.str_ConfTableName, Const.str_ProxyPort);
+        this.str_ProjectName =
+                (String) getConfigurationSetting(Const.str_ConfTableName, Const.str_ProjectName);
+    }
+
+    private Thing resolveTargetThing() {
+        try {
+            Object meContext = ThreadLocalContext.getMeContext();
+            if (meContext instanceof Thing) return (Thing) meContext;
+            if (meContext instanceof String && hasText((String) meContext)) {
+                return (Thing)
+                        EntityUtilities.findEntity(
+                                (String) meContext, ThingworxRelationshipTypes.Thing);
+            }
+        } catch (Exception e) {
+            _logger.trace("Could not resolve repository service target: " + e.getMessage());
+        }
+        return null;
+    }
+
+    private String repositoryThingName() {
+        Thing targetThing = resolveTargetThing();
+        if (targetThing != null && hasText(targetThing.getName())) return targetThing.getName();
+        return this.getName();
+    }
+
+    private Object valueOf(ValueCollection row, String fieldName) {
+        return row.getPrimitive(fieldName) == null ? null : row.getPrimitive(fieldName).getValue();
     }
 
     private void syncFromRepository() {
@@ -1764,6 +1864,7 @@ public class GitRepositoryTemplate extends Thing {
                     IllegalAccessException,
                     IllegalArgumentException,
                     InvocationTargetException {
+        refreshConfiguration();
         // modified so that it will store the Git repository object (from JGIT) in an
         // internal private field, not requiring reopen each time.
         _logger.warn(
@@ -2184,7 +2285,7 @@ public class GitRepositoryTemplate extends Thing {
         if (iftbl_CredentialStore == null) return new ValueCollection();
         for (int i = 0; i < iftbl_CredentialStore.getRowCount(); i++) {
             ValueCollection row = iftbl_CredentialStore.getRow(i);
-            if (this.getName().equals(primitiveString(row, "GitThing"))) return row;
+            if (repositoryThingName().equals(primitiveString(row, "GitThing"))) return row;
         }
         return new ValueCollection();
     }

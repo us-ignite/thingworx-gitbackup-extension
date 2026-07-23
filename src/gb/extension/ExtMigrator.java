@@ -5,8 +5,9 @@ import com.thingworx.entities.utils.EntityUtilities;
 import com.thingworx.logging.LogUtilities;
 import com.thingworx.migration.ExtensionMigratorBase;
 import com.thingworx.relationships.RelationshipTypes.ThingworxRelationshipTypes;
-import com.thingworx.thingtemplates.ThingTemplate;
+import com.thingworx.resources.entities.EntityServices;
 import com.thingworx.things.Thing;
+import com.thingworx.thingtemplates.ThingTemplate;
 import org.slf4j.Logger;
 
 public class ExtMigrator extends ExtensionMigratorBase {
@@ -49,11 +50,22 @@ public class ExtMigrator extends ExtensionMigratorBase {
                         EntityUtilities.findEntity(
                                 "GitBackupTemplate", ThingworxRelationshipTypes.ThingTemplate);
         if (oldTemplate != null) {
-            _logger.warn(
-                    "Migrating Things from GitBackupTemplate to GitRepositoryTemplate...");
-            oldTemplate.setName("GitRepositoryTemplate");
-            oldTemplate.setClassName("gb.extension.GitRepositoryTemplate");
-            _logger.warn("GitBackupTemplate ThingTemplate renamed to GitRepositoryTemplate.");
+            _logger.warn("Migrating Things from GitBackupTemplate to GitRepositoryTemplate...");
+            var implementingThings =
+                    oldTemplate.QueryImplementingThingsV2(null, null, null, null, null);
+            for (int i = 0; i < implementingThings.getRowCount(); i++) {
+                String thingName =
+                        implementingThings.getRow(i).getPrimitive("name").getValue().toString();
+                Thing gitThing =
+                        (Thing)
+                                EntityUtilities.findEntity(
+                                        thingName, ThingworxRelationshipTypes.Thing);
+                if (gitThing != null) {
+                    gitThing.setThingTemplateName("GitRepositoryTemplate");
+                }
+            }
+            new EntityServices().DeleteThingTemplate("GitBackupTemplate");
+            _logger.warn("GitBackupTemplate migrated to GitRepositoryTemplate and removed.");
         }
     }
 }
