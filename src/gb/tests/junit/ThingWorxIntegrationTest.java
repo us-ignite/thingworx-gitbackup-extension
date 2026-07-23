@@ -2,17 +2,17 @@ package gb.tests.junit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import gb.tests.junit.containers.DBInit;
-import gb.tests.junit.containers.Postgres;
-import gb.tests.junit.containers.ThingWorxContainer;
 import gb.tests.junit.util.TestingCredentials;
 import java.net.http.HttpClient;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.testcontainers.containers.Network;
+import org.junit.jupiter.api.TestInstance;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @Testcontainers
 public class ThingWorxIntegrationTest {
 
@@ -23,34 +23,34 @@ public class ThingWorxIntegrationTest {
     private static final String PLATFORM_IMAGE =
             System.getProperty("test.platformImage", "devopscadit/platform-postgres:platform9.6.3");
 
-    private TestingCredentials credentials = new TestingCredentials();
+    private TestingCredentials credentials;
+    private GitBackupExtensionTestStack stack;
 
+    @BeforeAll
+    public void beforeAll() throws Exception {
+        credentials = new TestingCredentials();
+        stack = new GitBackupExtensionTestStack(DB_INIT_IMAGE, PLATFORM_IMAGE, credentials, false);
+    }
+
+    @AfterAll
+    public void afterAll() {
+        if (stack != null) stack.close();
+    }
+
+    @Test
     void postgresIsRunning() {
-        var postgres = new Postgres(null, credentials);
-        postgres.start();
-        assertTrue(postgres.isRunning(), "PostgreSQL container must be running");
-        postgres.close();
+        assertTrue(stack.postgres.isRunning(), "PostgreSQL container must be running");
     }
 
     @Test
     void dbInitCompleted() {
-        var network = Network.newNetwork();
-        var postgres = new Postgres(network, credentials);
-        var dbInit = new DBInit(DB_INIT_IMAGE, postgres, network, credentials);
-        dbInit.start();
-        assertTrue(dbInit.isRunning(), "DB init container must be running");
-        dbInit.close();
+        assertTrue(stack.dbInit.isRunning(), "DB init container must be running");
     }
 
     @Test
     void thingworxTablesExist() throws Exception {
-        var network = Network.newNetwork();
-        var postgres = new Postgres(network, credentials);
-        var dbInit = new DBInit(DB_INIT_IMAGE, postgres, network, credentials);
-        dbInit.start();
-
         var tables =
-                postgres.execInContainer(
+                stack.postgres.execInContainer(
                         "psql",
                         "-U",
                         "postgres",
@@ -68,58 +68,30 @@ public class ThingWorxIntegrationTest {
                         + credentials.twxDatabaseSchema
                         + " database. Got:\n"
                         + tables.getStdout());
-
-        dbInit.close();
     }
 
     @Test
     void platformIsRunning() {
-        var network = Network.newNetwork();
-        var postgres = new Postgres(network, credentials);
-        var dbInit = new DBInit(DB_INIT_IMAGE, postgres, network, credentials);
-        var thingworx =
-                new ThingWorxContainer(PLATFORM_IMAGE, dbInit, postgres, network, credentials);
-        thingworx.start();
-        assertTrue(thingworx.isRunning(), "Platform container must be running");
-        thingworx.close();
+        assertTrue(stack.thingworx.isRunning(), "Platform container must be running");
     }
 
     @Test
     void thingworxHealthCheck() throws Exception {
-        var network = Network.newNetwork();
-        var postgres = new Postgres(network, credentials);
-        var dbInit = new DBInit(DB_INIT_IMAGE, postgres, network, credentials);
-        var thingworx =
-                new ThingWorxContainer(PLATFORM_IMAGE, dbInit, postgres, network, credentials);
-        thingworx.start();
-        var req = thingworx.healthCheckRequest();
+        var req = stack.thingworx.healthCheckRequest();
         var res = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, res.statusCode(), "Health endpoint must return 200");
-
-        thingworx.close();
     }
 
     @Test
     void installAndVerifyExtension() throws Exception {
-        var stack =
-                new GitBackupExtensionTestStack(DB_INIT_IMAGE, PLATFORM_IMAGE, credentials, false);
-        try {
-            stack.installer.start();
-
-            var req =
-                    stack.thingworx
-                            .serviceRequest("GitBackup.Tests.Thing", "IsExtensionInstalled", "{}")
-                            .timeout(Duration.ofMinutes(2))
-                            .build();
-            var res = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-
-            assertEquals(
-                    200, res.statusCode(), "IsExtensionInstalled HTTP status. Body: " + res.body());
-            assertNotNull(res.body(), "IsExtensionInstalled response body must not be null");
-        } finally {
-            if (stack != null) {
-                stack.close();
-            }
-        }
+        var req =
+                stack.thingworx
+                        .serviceRequest("GitBackup.Tests.Thing", "IsExtensionInstalled", "{}")
+                        .timeout(Duration.ofMinutes(2))
+                        .build();
+        var res = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+        assertEquals(
+                200, res.statusCode(), "IsExtensionInstalled HTTP status. Body: " + res.body());
+        assertNotNull(res.body(), "IsExtensionInstalled response body must not be null");
     }
 }
