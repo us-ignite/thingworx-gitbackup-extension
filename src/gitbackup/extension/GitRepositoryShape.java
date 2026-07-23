@@ -68,6 +68,8 @@ import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.Ref;
+import org.eclipse.jgit.lib.CheckoutEntry;
+import org.eclipse.jgit.lib.ReflogEntry;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.RepositoryCache;
 import org.eclipse.jgit.lib.Signers;
@@ -1203,6 +1205,156 @@ public class GitRepositoryShape extends Thing {
             _logger.error("GetCommitList failed: " + errors.toString());
             return new InfoTable();
         }
+    }
+
+    @ThingworxServiceDefinition(
+            name = "GetLog",
+            description =
+                    "Returns commit history, newest first. Ref is optional and defaults to the current branch, or the configured branch when HEAD is detached. MaxEntries of zero or omitted means no limit.",
+            category = "",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "Result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.CommitLog.DataShape"})
+    public InfoTable GetLog(
+            @ThingworxServiceParameter(
+                            name = "Ref",
+                            description = "Optional branch, tag, commit, or ref name",
+                            baseType = "STRING")
+                    String Ref,
+            @ThingworxServiceParameter(
+                            name = "MaxEntries",
+                            description = "Maximum number of entries; zero or omitted means no limit",
+                            baseType = "INTEGER")
+                    Integer MaxEntries) throws Exception {
+        _logger.trace("Entering Service: GetLog");
+        InfoTable result = InfoTableInstanceFactory.createInfoTableFromDataShape(
+                Const.str_CommitLogDataShapeName);
+        try {
+            Repository repository = getGitObject("GetLog").getRepository();
+            ObjectId objectId = resolveHistoryRef(repository, Ref, false);
+            if (objectId == null) {
+                _logger.warn("GetLog could not resolve ref: " + Ref);
+                return result;
+            }
+            Iterable<RevCommit> commits = getGitObject("GetLog").log().add(objectId).call();
+            int count = 0;
+            for (RevCommit commit : commits) {
+                if (MaxEntries != null && MaxEntries > 0 && count >= MaxEntries) break;
+                ValueCollection row = new ValueCollection();
+                row.put("CommitID", new StringPrimitive(commit.getId().name()));
+                row.put("CommitName", new StringPrimitive(commit.getShortMessage()));
+                row.put("CommitTime", new DatetimePrimitive(new DateTime((long) commit.getCommitTime() * 1000)));
+                putPerson(row, "AuthorName", "AuthorEmail", commit.getAuthorIdent());
+                putPerson(row, "CommitterName", "CommitterEmail", commit.getCommitterIdent());
+                row.put("ParentCommitIDs", new StringPrimitive(parentIds(commit)));
+                result.addRow(row);
+                count++;
+            }
+            return result;
+        } catch (Exception ex) {
+            _logger.error("GetLog failed: " + ex.getMessage(), ex);
+            return result;
+        }
+    }
+
+    @ThingworxServiceDefinition(
+            name = "GetReflog",
+            description =
+                    "Returns local reflog entries, newest first. Reflogs are local to this repository clone and are not remote history. Ref defaults to HEAD; MaxEntries of zero or omitted means no limit.",
+            category = "",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "Result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.ReflogEntry.DataShape"})
+    public InfoTable GetReflog(
+            @ThingworxServiceParameter(
+                            name = "Ref",
+                            description = "Optional ref name; defaults to HEAD",
+                            baseType = "STRING")
+                    String Ref,
+            @ThingworxServiceParameter(
+                            name = "MaxEntries",
+                            description = "Maximum number of entries; zero or omitted means no limit",
+                            baseType = "INTEGER")
+                    Integer MaxEntries) throws Exception {
+        _logger.trace("Entering Service: GetReflog");
+        InfoTable result = InfoTableInstanceFactory.createInfoTableFromDataShape(
+                Const.str_ReflogEntryDataShapeName);
+        try {
+            Git git = getGitObject("GetReflog");
+            String ref = isBlank(Ref) ? "HEAD" : Ref;
+            if (!ref.startsWith("refs/") && !"HEAD".equals(ref)) {
+                ref = "refs/heads/" + ref;
+            }
+            int count = 0;
+            for (ReflogEntry entry : git.reflog().setRef(ref).call()) {
+                if (MaxEntries != null && MaxEntries > 0 && count >= MaxEntries) break;
+                ValueCollection row = new ValueCollection();
+                row.put("RefName", new StringPrimitive(ref));
+                row.put("OldObjectID", new StringPrimitive(objectIdName(entry.getOldId())));
+                row.put("NewObjectID", new StringPrimitive(objectIdName(entry.getNewId())));
+                putPerson(row, "ActorName", "ActorEmail", entry.getWho());
+                PersonIdent who = entry.getWho();
+                row.put("EventTime", new DatetimePrimitive(new DateTime(who == null ? 0 : who.getWhenAsInstant().toEpochMilli())));
+                row.put("Comment", new StringPrimitive(orEmpty(entry.getComment())));
+                CheckoutEntry checkout = entry.parseCheckout();
+                row.put("CheckoutSource", new StringPrimitive(checkout == null ? "" : orEmpty(checkout.getFromBranch())));
+                row.put("CheckoutTarget", new StringPrimitive(checkout == null ? "" : orEmpty(checkout.getToBranch())));
+                result.addRow(row);
+                count++;
+            }
+            return result;
+        } catch (Exception ex) {
+            _logger.error("GetReflog failed: " + ex.getMessage(), ex);
+            return result;
+        }
+    }
+
+    private ObjectId resolveHistoryRef(Repository repository, String requestedRef, boolean defaultHead)
+            throws IOException {
+        String ref = requestedRef;
+        if (isBlank(ref)) {
+            if (defaultHead) return repository.resolve("HEAD");
+            String fullBranch = repository.getFullBranch();
+            String current = fullBranch != null && fullBranch.startsWith("refs/heads/")
+                    ? fullBranch.substring("refs/heads/".length()) : null;
+            ref = isBlank(current) ? str_CurrentBranchOrCommit : current;
+            if (isBlank(ref)) {
+                ref = (String) getConfigurationSetting(Const.str_ConfTableName, Const.str_InitialBranch);
+            }
+        }
+        ObjectId resolved = repository.resolve(ref);
+        if (resolved == null && !ref.startsWith("refs/")) resolved = repository.resolve("refs/heads/" + ref);
+        return resolved;
+    }
+
+    private static void putPerson(ValueCollection row, String nameField, String emailField, PersonIdent person) {
+        row.put(nameField, new StringPrimitive(person == null ? "" : orEmpty(person.getName())));
+        row.put(emailField, new StringPrimitive(person == null ? "" : orEmpty(person.getEmailAddress())));
+    }
+
+    private static String parentIds(RevCommit commit) {
+        StringBuilder ids = new StringBuilder();
+        for (RevCommit parent : commit.getParents()) {
+            if (ids.length() > 0) ids.append(",");
+            ids.append(parent.getId().name());
+        }
+        return ids.toString();
+    }
+
+    private static String objectIdName(ObjectId id) {
+        return id == null ? "" : id.name();
+    }
+
+    private static String orEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     @ThingworxServiceDefinition(

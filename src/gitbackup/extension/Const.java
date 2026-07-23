@@ -17,6 +17,8 @@ public final class Const {
 
     // Entity names
     public static final String str_CommitListDataShapeName = "GIT.CommitList.DataShape";
+    public static final String str_CommitLogDataShapeName = "GIT.CommitLog.DataShape";
+    public static final String str_ReflogEntryDataShapeName = "GIT.ReflogEntry.DataShape";
     public static final String str_CommitInfoDataShapeName = "GIT.CommitInfo.DataShape";
     public static final String str_CommitChangedFiles = "GIT.CommitChangedFiles.DataShape";
     public static final String str_UtilityThingName = "GIT.Utility.Thing";
