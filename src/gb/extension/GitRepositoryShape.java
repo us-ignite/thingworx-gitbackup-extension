@@ -1036,12 +1036,11 @@ public class GitRepositoryShape extends Thing {
                             "Git.CurrentBranchStatus");
             Repository repository = getGitObject("GetCurrentBranch").getRepository();
             String fullBranch = repository.getFullBranch();
-            boolean detached = fullBranch == null || !fullBranch.startsWith("refs/heads/");
-            String currentBranch = detached ? fullBranch : repository.getBranch();
+            String currentBranch = bool_isDetachedHead ? fullBranch : repository.getBranch();
             ValueCollection vc = new ValueCollection();
 
             vc.put("BranchName", new StringPrimitive(currentBranch));
-            vc.put("DetachedHEAD", new BooleanPrimitive(detached));
+            vc.put("DetachedHEAD", new BooleanPrimitive(bool_isDetachedHead));
             iftbl_CurrentBranchStatus.addRow(vc);
             _logger.trace("Exiting Service: GetCurrentBranch");
             return iftbl_CurrentBranchStatus;
