@@ -139,15 +139,10 @@
                 <ServiceDefinition aspect.isAsync="false" category="" description="This will import an entity in the system." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="ImportEntity">
                     <ResultType baseType="NOTHING" description="" name="result" ordinal="0"/>
                     <ParameterDefinitions>
-                        <FieldDefinition baseType="STRING" description="relative to the repository" name="entityPath" ordinal="1"/>
-                        <FieldDefinition baseType="STRING" description="" name="FileRepositoryName" ordinal="2"/>
-                        <FieldDefinition baseType="BOOLEAN" description="If true, strips dependency validation during import" name="ignoreDependencies" ordinal="3"/>
-                    </ParameterDefinitions>
-                </ServiceDefinition>
-                <ServiceDefinition aspect.isAsync="false" category="" description="" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="InitExtensionImportTargets">
-                    <ResultType baseType="NOTHING" description="" name="result" ordinal="0"/>
-                    <ParameterDefinitions>
-                        <FieldDefinition baseType="STRING" description="" name="address" ordinal="1"/>
+                        <FieldDefinition baseType="STRING" description="GitBackup Thing used for the import" name="GitThingName" ordinal="1"/>
+                        <FieldDefinition baseType="STRING" description="relative to the repository" name="entityPath" ordinal="2"/>
+                        <FieldDefinition baseType="STRING" description="" name="FileRepositoryName" ordinal="3"/>
+                        <FieldDefinition baseType="BOOLEAN" description="If true, strips dependency validation during import" name="ignoreDependencies" ordinal="4"/>
                     </ParameterDefinitions>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Adds UserExtension Properties needed by the GitBackupExtension" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="InitUserExtensionProperties">

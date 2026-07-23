@@ -18,7 +18,6 @@ import com.thingworx.metadata.annotations.ThingworxServiceResult;
 import com.thingworx.relationships.RelationshipTypes.ThingworxRelationshipTypes;
 import com.thingworx.resources.entities.EntityServices;
 import com.thingworx.resources.queries.Searcher;
-import com.thingworx.security.applicationkeys.ApplicationKey;
 import com.thingworx.security.users.User;
 import com.thingworx.system.subsystems.platform.PlatformSubsystem;
 import com.thingworx.things.Thing;
@@ -40,8 +39,6 @@ import com.thingworx.webservices.context.ThreadLocalContext;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -600,6 +597,11 @@ public class GitUtilityThingShape extends Thing {
             aspects = {})
     public void ImportEntity(
             @ThingworxServiceParameter(
+                            name = "GitThingName",
+                            description = "GitBackup Thing used for the import",
+                            baseType = "STRING")
+                    String GitThingName,
+            @ThingworxServiceParameter(
                             name = "entityPath",
                             description = "relative to the repository",
                             baseType = "STRING")
@@ -617,70 +619,10 @@ public class GitUtilityThingShape extends Thing {
                     Boolean ignoreDependencies)
             throws Exception {
         _logger.warn("Started single entity import.");
-        String ignoreDeps = isTrue(ignoreDependencies) ? "&ignoreDependencies=true" : "";
-
-        Thing importTargets =
-                (Thing)
-                        EntityUtilities.findEntity(
-                                "ExtensionImportTargets", ThingworxRelationshipTypes.Thing);
-        if (importTargets == null)
-            throw new Exception(Const.ERR_PREFIX_CONFIG + Const.ERR_EXTENSION_IMPORT_TARGETS);
-
-        InfoTable targetsTable = null;
-        if (importTargets.hasProperty("importTargets")) {
-            targetsTable =
-                    ((InfoTablePrimitive) importTargets.getPropertyValue("importTargets"))
-                            .getValue();
-        }
-        if (targetsTable == null || targetsTable.getRowCount() == 0)
-            throw new Exception(Const.ERR_PREFIX_CONFIG + Const.ERR_EXTENSION_IMPORT_TARGETS);
-
-        String baseURL = targetsTable.getRow(0).getPrimitive("baseURL").getValue().toString();
-        String appKey = targetsTable.getRow(0).getPrimitive("appKey").getValue().toString();
-
-        String urlStr =
-                baseURL
-                        + "/Importer?IgnoreBadValueStreamData=false&WithSubsystems=false"
-                        + "&overwritePropertyValues=true&purpose=import&usedefaultdataprovider=true"
-                        + ignoreDeps;
-
-        FileRepositoryThing fileRepo =
-                (FileRepositoryThing)
-                        EntityUtilities.findEntity(
-                                FileRepositoryName, ThingworxRelationshipTypes.Thing);
-        String fullPath = new File(fileRepo.getRootPath(), entityPath).getPath();
-        byte[] fileBytes = Files.readAllBytes(new File(fullPath).toPath());
-        _logger.warn("Read file from: " + fullPath + " (" + fileBytes.length + " bytes)");
-
-        String boundary = "----WebKitFormBoundary" + System.currentTimeMillis();
-        String header =
-                "--"
-                        + boundary
-                        + "\r\n"
-                        + "Content-Disposition: form-data; name=\"file\"; filename=\"import.xml\"\r\n"
-                        + "Content-Type: text/xml\r\n\r\n";
-        String footer = "\r\n--" + boundary + "--\r\n";
-
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        baos.write(header.getBytes(StandardCharsets.UTF_8));
-        baos.write(fileBytes);
-        baos.write(footer.getBytes(StandardCharsets.UTF_8));
-
-        HttpURLConnection conn = (HttpURLConnection) new URI(urlStr).toURL().openConnection();
-        conn.setRequestMethod("POST");
-        conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
-        conn.setRequestProperty("Authorization", "Bearer " + appKey);
-        conn.setDoOutput(true);
-        conn.setConnectTimeout(30000);
-        conn.setReadTimeout(30000);
-        conn.getOutputStream().write(baos.toByteArray());
-        int responseCode = conn.getResponseCode();
-        String responseBody =
-                responseCode >= 200 && responseCode < 300
-                        ? new String(conn.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
-                        : new String(conn.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
-        conn.disconnect();
-        _logger.warn("ImportEntity response: " + responseCode + " " + responseBody);
+        if (isBlank(GitThingName))
+            throw new Exception(Const.ERR_PREFIX_CONFIG + Const.ERR_GIT_THING_NAME_REQUIRED);
+        repositoryThing(GitThingName);
+        importSourceControlledEntities(FileRepositoryName, entityPath);
     }
 
     @ThingworxServiceDefinition(
@@ -737,26 +679,6 @@ public class GitUtilityThingShape extends Thing {
         while (str_RepoPath.endsWith("/"))
             str_RepoPath = str_RepoPath.substring(0, str_RepoPath.length() - 1);
 
-        Thing importTargets =
-                (Thing)
-                        EntityUtilities.findEntity(
-                                "ExtensionImportTargets", ThingworxRelationshipTypes.Thing);
-        if (importTargets == null)
-            throw new Exception(Const.ERR_PREFIX_CONFIG + Const.ERR_EXTENSION_IMPORT_TARGETS);
-
-        InfoTable targetsTable = null;
-        if (importTargets.hasProperty("importTargets")) {
-            targetsTable =
-                    ((InfoTablePrimitive) importTargets.getPropertyValue("importTargets"))
-                            .getValue();
-        }
-        if (targetsTable == null || targetsTable.getRowCount() == 0)
-            throw new Exception(Const.ERR_PREFIX_CONFIG + Const.ERR_EXTENSION_IMPORT_TARGETS);
-
-        String baseURL = targetsTable.getRow(0).getPrimitive("baseURL").getValue().toString();
-        String appKey = targetsTable.getRow(0).getPrimitive("appKey").getValue().toString();
-        String ignoreDeps = isTrue(ignoreDependencies) ? "&ignoreDependencies=true" : "";
-
         Thing fileRepo =
                 (Thing)
                         EntityUtilities.findEntity(
@@ -785,72 +707,11 @@ public class GitUtilityThingShape extends Thing {
                     "startTimestamp",
                     new DatetimePrimitive(new DateTime(System.currentTimeMillis())));
             try {
-                String urlStr =
-                        baseURL
-                                + "/Importer?IgnoreBadValueStreamData=false&WithSubsystems=false"
-                                + "&overwritePropertyValues=true&purpose=import&usedefaultdataprovider=true"
-                                + ignoreDeps;
-
-                // Read file directly from disk
-                FileRepositoryThing frThing =
-                        (FileRepositoryThing)
-                                EntityUtilities.findEntity(
-                                        str_FileRepositoryName, ThingworxRelationshipTypes.Thing);
-                String fullPath = new File(frThing.getRootPath(), cleanPath).getPath();
-                byte[] fileBytes = Files.readAllBytes(new File(fullPath).toPath());
-
-                String boundary = "----WebKitFormBoundary" + System.currentTimeMillis();
-                String header =
-                        "--"
-                                + boundary
-                                + "\r\n"
-                                + "Content-Disposition: form-data; name=\"file\"; filename=\"import.xml\"\r\n"
-                                + "Content-Type: text/xml\r\n\r\n";
-                String footer = "\r\n--" + boundary + "--\r\n";
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                baos.write(header.getBytes(StandardCharsets.UTF_8));
-                baos.write(fileBytes);
-                baos.write(footer.getBytes(StandardCharsets.UTF_8));
-
-                HttpURLConnection conn =
-                        (HttpURLConnection) new URI(urlStr).toURL().openConnection();
-                conn.setRequestMethod("POST");
-                conn.setRequestProperty(
-                        "Content-Type", "multipart/form-data; boundary=" + boundary);
-                conn.setRequestProperty("Authorization", "Bearer " + appKey);
-                conn.setDoOutput(true);
-                conn.setConnectTimeout(30000);
-                conn.setReadTimeout(30000);
-                conn.getOutputStream().write(baos.toByteArray());
-                int responseCode = conn.getResponseCode();
-                String responseBody =
-                        responseCode >= 200 && responseCode < 300
-                                ? new String(
-                                        conn.getInputStream().readAllBytes(),
-                                        StandardCharsets.UTF_8)
-                                : new String(
-                                        conn.getErrorStream().readAllBytes(),
-                                        StandardCharsets.UTF_8);
-                conn.disconnect();
-
-                entry.put(
-                        "passed", new BooleanPrimitive(responseCode >= 200 && responseCode < 300));
-                entry.put(
-                        "comments",
-                        new StringPrimitive("HTTP " + responseCode + ": " + responseBody));
-                if (responseCode >= 200 && responseCode < 300) {
-                    int_SuccessCount++;
-                    _logger.warn("Successfully imported: " + cleanPath);
-                } else {
-                    int_FailCount++;
-                    _logger.error(
-                            "Failed to import: "
-                                    + cleanPath
-                                    + "; HTTP "
-                                    + responseCode
-                                    + ": "
-                                    + responseBody);
-                }
+                importSourceControlledEntities(str_FileRepositoryName, cleanPath);
+                entry.put("passed", new BooleanPrimitive(true));
+                entry.put("comments", new StringPrimitive("Import completed."));
+                int_SuccessCount++;
+                _logger.warn("Successfully imported: " + cleanPath);
             } catch (Exception ex) {
                 entry.put("passed", new BooleanPrimitive(false));
                 entry.put("comments", new StringPrimitive("Import failed: " + ex.getMessage()));
@@ -905,6 +766,31 @@ public class GitUtilityThingShape extends Thing {
         }
     }
 
+    private Thing repositoryThing(String thingName) throws Exception {
+        Thing repoThing =
+                (Thing) EntityUtilities.findEntity(thingName, ThingworxRelationshipTypes.Thing);
+        if (repoThing == null)
+            throw new Exception(Const.ERR_PREFIX_CONFIG + "GitBackup Thing not found: " + thingName);
+        return repoThing;
+    }
+
+    private void importSourceControlledEntities(String repositoryName, String path)
+            throws Exception {
+        Object resource =
+                EntityUtilities.findEntity(
+                        "SourceControlFunctions", ThingworxRelationshipTypes.Resource);
+        if (resource == null)
+            throw new Exception(Const.ERR_PREFIX_SYSTEM + Const.ERR_NO_SCF_RESOURCE);
+        IServiceProvider sourceControlFunctions = (IServiceProvider) resource;
+        ValueCollection params = new ValueCollection();
+        params.put("repositoryName", new StringPrimitive(repositoryName));
+        params.put("path", new StringPrimitive(path));
+        params.put("useDefaultDataProvider", new BooleanPrimitive(true));
+        params.put("withSubsystems", new BooleanPrimitive(false));
+        params.put("overwritePropertyValues", new BooleanPrimitive(true));
+        sourceControlFunctions.processServiceRequest("ImportSourceControlledEntities", params);
+    }
+
     private void ensureUserExtensionProperty(User currentUser, String propName, String baseType)
             throws Exception {
         Object propVal = null;
@@ -929,93 +815,6 @@ public class GitUtilityThingShape extends Thing {
             EntityServices es = new EntityServices();
             es.RestartDependenciesForThingShape("UserExtensions");
         }
-    }
-
-    @ThingworxServiceDefinition(
-            name = "InitExtensionImportTargets",
-            description = "",
-            category = "",
-            isAllowOverride = false,
-            aspects = {"isAsync:false"})
-    @ThingworxServiceResult(
-            name = "result",
-            description = "",
-            baseType = "NOTHING",
-            aspects = {})
-    public void InitExtensionImportTargets(
-            @ThingworxServiceParameter(name = "address", description = "", baseType = "STRING")
-                    String address)
-            throws Exception {
-        String str_CurrentUser = GetCurrentUser();
-        EntityServices es = new EntityServices();
-        try {
-            es.DeleteApplicationKey("GitExtensionAppKey");
-        } catch (Exception e) {
-            // may not exist
-        }
-        es.CreateApplicationKey(
-                "GitExtensionAppKey",
-                "Appkey generated by the Git Extension; do not remove or reuse in any script or code;"
-                        + " it's automatically refreshed each time the GITBACKUP.Main.Mashup is opened.",
-                str_CurrentUser,
-                new TagCollection(),
-                "Bearer",
-                "*",
-                "GitBackup",
-                new DateTime(System.currentTimeMillis() + 365L * 24 * 60 * 60 * 1000));
-
-        Thing importTargets =
-                (Thing)
-                        EntityUtilities.findEntity(
-                                "ExtensionImportTargets", ThingworxRelationshipTypes.Thing);
-        if (importTargets == null) {
-            es.CreateThing(
-                    "ExtensionImportTargets",
-                    "GitBackup extension import targets; auto-created by InitExtensionImportTargets",
-                    new TagCollection(),
-                    "GitBackup",
-                    "GIT.Repository.ThingTemplate");
-            importTargets =
-                    (Thing)
-                            EntityUtilities.findEntity(
-                                    "ExtensionImportTargets", ThingworxRelationshipTypes.Thing);
-            importTargets.processServiceRequest("EnableThing", new ValueCollection());
-            importTargets.processServiceRequest("RestartThing", new ValueCollection());
-        }
-        InfoTable currentTargets = null;
-        if (importTargets.hasProperty("importTargets")) {
-            currentTargets =
-                    ((InfoTablePrimitive) importTargets.getPropertyValue("importTargets"))
-                            .getValue();
-        }
-        if (currentTargets != null) {
-            InfoTable updatedTargets =
-                    InfoTableInstanceFactory.createInfoTableFromDataShape(
-                            "GITBACKUP.ExtensionImportTarget.DataShape");
-            for (int ci = 0; ci < currentTargets.getRowCount(); ci++) {
-                ValueCollection row = currentTargets.getRow(ci);
-                if (!"localhost".equals(row.getPrimitive("name").getValue().toString())) {
-                    updatedTargets.addRow(row);
-                }
-            }
-            currentTargets = updatedTargets;
-        }
-        ApplicationKey appKeyThing =
-                (ApplicationKey)
-                        EntityUtilities.findEntity(
-                                "GitExtensionAppKey", ThingworxRelationshipTypes.ApplicationKey);
-        String keyId = appKeyThing.GetKeyID();
-        ValueCollection entry = new ValueCollection();
-        entry.put("baseURL", new StringPrimitive(address + "/Thingworx"));
-        entry.put("name", new StringPrimitive("localhost"));
-        entry.put("appKey", new PasswordPrimitive(keyId));
-        if (currentTargets == null) {
-            currentTargets =
-                    InfoTableInstanceFactory.createInfoTableFromDataShape(
-                        "GITBACKUP.ExtensionImportTarget.DataShape");
-        }
-        currentTargets.addRow(entry);
-        importTargets.setPropertyValue("importTargets", new InfoTablePrimitive(currentTargets));
     }
 
     @ThingworxServiceDefinition(
