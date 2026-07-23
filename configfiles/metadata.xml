@@ -1,253 +1,147 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Entities>
     <ExtensionPackages>
-        <ExtensionPackage
-         dependsOn=""
-         description="This extension provides various GIT capabilities that allow storing ThingWorx applications in a third party Git server. This version is designed ONLY for ThingWorx versions &gt;= 9.3"
-         haCompatible="true"
-         migratorClass="gb.extension.ExtMigrator"
-         minimumThingWorxVersion="9.3.0"
-         name="GitBackupExtension"
-         packageVersion="@PACKAGE_VERSION@"
-         vendor="Open Source / Vladimir Rosu">
+        <ExtensionPackage dependsOn="" description="This extension provides various GIT capabilities that allow storing ThingWorx applications in a third party Git server. This version is designed ONLY for ThingWorx versions &gt;= 9.3" haCompatible="true" migratorClass="gitbackup.extension.ExtMigrator" minimumThingWorxVersion="9.3.0" name="GitBackupExtension" packageVersion="@PACKAGE_VERSION@" vendor="Open Source / Vladimir Rosu">
             <JarResources>
-                <FileResource
-                 description=""
-                 file="gitbackupextension.jar"
-                 type="JAR"></FileResource>
-                <FileResource
-                 description=""
-                 file="jsch-0.1.55.jar"
-                 type="JAR"></FileResource>
-                <FileResource
-                 description=""
-                 file="bcpg-jdk18on-1.72.jar"
-                 type="JAR"></FileResource>
-                <FileResource
-                 description=""
-                 file="JavaEWAH-1.2.3.jar"
-                 type="JAR"></FileResource>
-                <FileResource
-                 description=""
-                 file="org.eclipse.jgit-7.6.0.202603022253-r.jar"
-                 type="JAR"></FileResource>
-             </JarResources>
+                <FileResource description="" file="gitbackupextension.jar" type="JAR"/>
+                <FileResource description="" file="jsch-0.1.55.jar" type="JAR"/>
+                <FileResource description="" file="bcpg-jdk18on-1.72.jar" type="JAR"/>
+                <FileResource description="" file="JavaEWAH-1.2.3.jar" type="JAR"/>
+                <FileResource description="" file="org.eclipse.jgit-7.6.0.202603022253-r.jar" type="JAR"/>
+            </JarResources>
         </ExtensionPackage>
     </ExtensionPackages>
     <ThingPackages>
-        <ThingPackage
-         className="gb.extension.GitBackupTemplate"
-         description=""
-         name="GitExtensionPackage"></ThingPackage>
-        <ThingPackage
-         className="gb.extension.GitUtilityThing"
-         description=""
-         name="GitUtilityThingPackage"></ThingPackage>
+        <ThingPackage className="gitbackup.extension.GitBackupTemplate" description="" name="GIT.Repository.ThingPackage"/>
+        <ThingPackage className="gitbackup.extension.GitUtilityThingShape" description="" name="GITBACKUP.Utility.ThingPackage"/>
     </ThingPackages>
     <ThingTemplates>
-        <ThingTemplate
-         aspect.isEditableExtensionObject="false"
-         description=""
-         name="GitBackupTemplate"
-         thingPackage="GitExtensionPackage"></ThingTemplate>
+        <ThingTemplate aspect.isEditableExtensionObject="false" description="" name="GIT.Repository.ThingTemplate" thingPackage="GIT.Repository.ThingPackage"/>
     </ThingTemplates>
     <LocalizationTables>
-        <LocalizationTable
-         description="Default localization table"
-         documentationContent=""
-         homeMashup=""
-         languageCommon="English"
-         languageNative="English"
-         lastModifiedDate="2017-11-03T18:18:21.412+02:00"
-         name="Default"
-         projectName=""
-         tags="">
-            <avatar></avatar>
+        <LocalizationTable description="Default localization table" documentationContent="" homeMashup="" languageCommon="English" languageNative="English" lastModifiedDate="2017-11-03T18:18:21.412+02:00" name="Default" projectName="" tags="">
+            <avatar/>
             <DesignTimePermissions>
-                <Create></Create>
-                <Read></Read>
-                <Update></Update>
-                <Delete></Delete>
-                <Metadata></Metadata>
+                <Create/>
+                <Read/>
+                <Update/>
+                <Delete/>
+                <Metadata/>
             </DesignTimePermissions>
-            <RunTimePermissions></RunTimePermissions>
+            <RunTimePermissions/>
             <VisibilityPermissions>
-                <Visibility></Visibility>
+                <Visibility/>
             </VisibilityPermissions>
             <ConfigurationTables>
-                <ConfigurationTable
-                 description="Localization tokens and usage"
-                 isMultiRow="true"
-                 name="LocalizationTokens"
-                 ordinal="0">
+                <ConfigurationTable description="Localization tokens and usage" isMultiRow="true" name="LocalizationTokens" ordinal="0">
                     <DataShape>
                         <FieldDefinitions>
-                            <FieldDefinition
-                             aspect.friendlyName="Translation context"
-                             baseType="STRING"
-                             description="Translation context"
-                             name="context"
-                             ordinal="3"></FieldDefinition>
-                            <FieldDefinition
-                             aspect.friendlyName="Token name"
-                             baseType="STRING"
-                             description="Token name"
-                             name="name"
-                             ordinal="0"></FieldDefinition>
-                            <FieldDefinition
-                             aspect.friendlyName="Token usage"
-                             baseType="STRING"
-                             description="Token usage"
-                             name="usage"
-                             ordinal="2"></FieldDefinition>
-                            <FieldDefinition
-                             aspect.friendlyName="Localized value"
-                             baseType="STRING"
-                             description="Localized value"
-                             name="value"
-                             ordinal="1"></FieldDefinition>
+                            <FieldDefinition aspect.friendlyName="Translation context" baseType="STRING" description="Translation context" name="context" ordinal="3"/>
+                            <FieldDefinition aspect.friendlyName="Token name" baseType="STRING" description="Token name" name="name" ordinal="0"/>
+                            <FieldDefinition aspect.friendlyName="Token usage" baseType="STRING" description="Token usage" name="usage" ordinal="2"/>
+                            <FieldDefinition aspect.friendlyName="Localized value" baseType="STRING" description="Localized value" name="value" ordinal="1"/>
                         </FieldDefinitions>
                     </DataShape>
                     <Rows>
                         <Row>
-                            <context></context>
-                            <name>
-                            <![CDATA[
+                            <context/>
+                            <name><![CDATA[
                             Commit Name
-                            ]]>
-                            </name>
-                            <usage></usage>
-                            <value>
-                            <![CDATA[
+                            ]]></name>
+                            <usage/>
+                            <value><![CDATA[
                             Commit Username
-                            ]]>
-                            </value>
+                            ]]></value>
                         </Row>
                         <Row>
-                            <context></context>
-                            <name>
-                            <![CDATA[
+                            <context/>
+                            <name><![CDATA[
                             Commit Email
-                            ]]>
-                            </name>
-                            <usage></usage>
-                            <value>
-                            <![CDATA[
+                            ]]></name>
+                            <usage/>
+                            <value><![CDATA[
                             Commit Email
-                            ]]>
-                            </value>
+                            ]]></value>
                         </Row>
                         <Row>
-                            <context></context>
-                            <name>
-                            <![CDATA[
+                            <context/>
+                            <name><![CDATA[
                             Git Repo URL
-                            ]]>
-                            </name>
-                            <usage></usage>
-                            <value>
-                            <![CDATA[
+                            ]]></name>
+                            <usage/>
+                            <value><![CDATA[
                             Git Repo URL
-                            ]]>
-                            </value>
+                            ]]></value>
                         </Row>
                         <Row>
-                            <context></context>
-                            <name>
-                            <![CDATA[
+                            <context/>
+                            <name><![CDATA[
                             File Repository Path
-                            ]]>
-                            </name>
-                            <usage></usage>
-                            <value>
-                            <![CDATA[
+                            ]]></name>
+                            <usage/>
+                            <value><![CDATA[
                             File Repository Path
-                            ]]>
-                            </value>
+                            ]]></value>
                         </Row>
                         <Row>
-                            <context></context>
-                            <name>
-                            <![CDATA[
+                            <context/>
+                            <name><![CDATA[
                             Configuration
-                            ]]>
-                            </name>
-                            <usage></usage>
-                            <value>
-                            <![CDATA[
+                            ]]></name>
+                            <usage/>
+                            <value><![CDATA[
                             Configuration
-                            ]]>
-                            </value>
+                            ]]></value>
                         </Row>
                         <Row>
-                            <context></context>
-                            <name>
-                            <![CDATA[
+                            <context/>
+                            <name><![CDATA[
                             Initial branch
-                            ]]>
-                            </name>
-                            <usage></usage>
-                            <value>
-                            <![CDATA[
+                            ]]></name>
+                            <usage/>
+                            <value><![CDATA[
                             Initial branch
-                            ]]>
-                            </value>
+                            ]]></value>
                         </Row>
                         <Row>
-                            <context></context>
-                            <name>
-                            <![CDATA[
+                            <context/>
+                            <name><![CDATA[
                             Use Proxy?
-                            ]]>
-                            </name>
-                            <usage></usage>
-                            <value>
-                            <![CDATA[
+                            ]]></name>
+                            <usage/>
+                            <value><![CDATA[
                             Use Proxy?
-                            ]]>
-                            </value>
+                            ]]></value>
                         </Row>
                         <Row>
-                            <context></context>
-                            <name>
-                            <![CDATA[
+                            <context/>
+                            <name><![CDATA[
                             Proxy URL
-                            ]]>
-                            </name>
-                            <usage></usage>
-                            <value>
-                            <![CDATA[
+                            ]]></name>
+                            <usage/>
+                            <value><![CDATA[
                             Proxy URL
-                            ]]>
-                            </value>
+                            ]]></value>
                         </Row>
                         <Row>
-                            <context></context>
-                            <name>
-                            <![CDATA[
+                            <context/>
+                            <name><![CDATA[
                             Proxy Port
-                            ]]>
-                            </name>
-                            <usage></usage>
-                            <value>
-                            <![CDATA[
+                            ]]></name>
+                            <usage/>
+                            <value><![CDATA[
                             Proxy Port
-                            ]]>
-                            </value>
+                            ]]></value>
                         </Row>
                         <Row>
-                            <context></context>
-                            <name>
-                            <![CDATA[
+                            <context/>
+                            <name><![CDATA[
                             Localization Tokens Prefix
-                            ]]>
-                            </name>
-                            <usage></usage>
-                            <value>
-                            <![CDATA[
+                            ]]></name>
+                            <usage/>
+                            <value><![CDATA[
                             Localization Tokens Prefix
-                            ]]>
-                            </value>
+                            ]]></value>
                         </Row>
                     </Rows>
                 </ConfigurationTable>
@@ -255,11 +149,6 @@
         </LocalizationTable>
     </LocalizationTables>
     <Resources>
-        <Resource
-         aspect.isCreatable="false"
-         aspect.isEditableExtensionObject="false"
-         className="gb.extension.GitBackupValidation"
-         description=""
-         name="GitBackupValidation"></Resource>
+        <Resource aspect.isCreatable="false" aspect.isEditableExtensionObject="false" className="gitbackup.extension.GitBackupValidation" description="" name="GitBackupValidation"/>
     </Resources>
 </Entities>

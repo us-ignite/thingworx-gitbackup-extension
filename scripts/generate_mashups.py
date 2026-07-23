@@ -600,14 +600,14 @@ def main():
             "DataServices": [
                 {
                     "name": "GetGitUserExtensionProperties",
-                    "entityName": "GIT.Utility.Thing",
+                    "entityName": "GITBACKUP.Utility.Thing",
                     "serviceName": "GetGitUserExtensionsProperties",
                     "autoRefresh": True,
                     "refreshInterval": 0,
                 },
                 {
                     "name": "GetGpgKeys",
-                    "entityName": "GIT.Utility.Thing",
+                    "entityName": "GITBACKUP.Utility.Thing",
                     "serviceName": "GetGpgKeys",
                     "autoRefresh": True,
                     "refreshInterval": 0,

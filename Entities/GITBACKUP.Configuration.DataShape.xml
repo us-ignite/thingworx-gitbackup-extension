@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Entities build="b103" majorVersion="8" minorVersion="5" modelPersistenceProviderPackage="PostgresPersistenceProviderPackage" revision="5" schemaVersion="1054" universal="password">
+    <DataShapes>
+        <DataShape aspect.isEditableExtensionObject="true" aspect.isExtension="true" baseDataShape="" description="" documentationContent="" homeMashup="" lastModifiedDate="2020-08-28T06:23:46.159-07:00" name="GITBACKUP.Configuration.DataShape" projectName="GitBackup" tags="">
+            <avatar/>
+            <DesignTimePermissions>
+                <Create/>
+                <Read/>
+                <Update/>
+                <Delete/>
+                <Metadata/>
+            </DesignTimePermissions>
+            <RunTimePermissions/>
+            <VisibilityPermissions>
+                <Visibility/>
+            </VisibilityPermissions>
+            <ConfigurationTableDefinitions/>
+            <ConfigurationTables/>
+            <FieldDefinitions>
+                <FieldDefinition aspect.isPrimaryKey="false" baseType="STRING" description="" name="CommitEmail" ordinal="4"/>
+                <FieldDefinition aspect.isPrimaryKey="false" baseType="STRING" description="" name="CommitUser" ordinal="3"/>
+                <FieldDefinition aspect.isPrimaryKey="false" baseType="STRING" description="" name="FileRepoPath" ordinal="2"/>
+                <FieldDefinition aspect.isPrimaryKey="false" baseType="STRING" description="" name="FileRepository" ordinal="9"/>
+                <FieldDefinition aspect.isPrimaryKey="false" baseType="STRING" description="" name="GitRepoURL" ordinal="5"/>
+                <FieldDefinition aspect.isPrimaryKey="false" baseType="STRING" description="" name="InitialBranch" ordinal="8"/>
+                <FieldDefinition aspect.isPrimaryKey="false" baseType="STRING" description="" name="LocalizationTokensPrefix" ordinal="13"/>
+                <FieldDefinition aspect.isPrimaryKey="false" baseType="INTEGER" description="" name="ProxyPort" ordinal="12"/>
+                <FieldDefinition aspect.isPrimaryKey="false" baseType="STRING" description="" name="ProxyURL" ordinal="11"/>
+                <FieldDefinition aspect.defaultValue="false" aspect.isPrimaryKey="false" baseType="BOOLEAN" description="" name="UseProxy" ordinal="10"/>
+            </FieldDefinitions>
+        </DataShape>
+    </DataShapes>
+</Entities>

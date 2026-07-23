@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Entities build="b349" majorVersion="8" minorVersion="3" modelPersistenceProviderPackage="H2PersistenceProviderPackage" revision="0" schemaVersion="1030" universal="">
+    <DataShapes>
+        <DataShape aspect.isEditableExtensionObject="true" aspect.isExtension="true" baseDataShape="" description="" documentationContent="" homeMashup="" lastModifiedDate="2024-01-01T00:00:00.000+00:00" name="GIT.TagList.DataShape" projectName="GitBackup" tags="">
+            <Owner name="Administrator" type="User"/>
+            <avatar/>
+            <DesignTimePermissions>
+                <Create/>
+                <Read/>
+                <Update/>
+                <Delete/>
+                <Metadata/>
+            </DesignTimePermissions>
+            <RunTimePermissions/>
+            <VisibilityPermissions>
+                <Visibility/>
+            </VisibilityPermissions>
+            <FieldDefinitions>
+                <FieldDefinition baseType="STRING" description="" name="TagName" ordinal="1"/>
+                <FieldDefinition baseType="STRING" description="" name="CommitID" ordinal="2"/>
+                <FieldDefinition baseType="STRING" description="" name="Message" ordinal="3"/>
+                <FieldDefinition baseType="DATETIME" description="" name="Date" ordinal="4"/>
+            </FieldDefinitions>
+            <ConfigurationChanges>
+                <ConfigurationChange changeAction="CREATE" changeReason="Importing Extension Package Metadata" timestamp="2024-01-01T00:00:00.000+00:00" user="SuperUser"/>
+            </ConfigurationChanges>
+        </DataShape>
+    </DataShapes>
+</Entities>

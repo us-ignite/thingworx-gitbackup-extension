@@ -6,7 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import gb.tests.junit.util.TestingCredentials;
+import gb.tests.junit.util.GPGGenerator;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import org.junit.jupiter.api.AfterAll;
@@ -123,6 +125,39 @@ public class GiteaGitOperationsTest {
                 "SaveText failed: " + res.statusCode() + " " + res.body());
     }
 
+    private String giteaExternalBaseUrl() {
+        return "http://"
+                + stack.gitea.getHost()
+                + ":"
+                + stack.gitea.getMappedPort(3000);
+    }
+
+    private void registerGpgKeyWithGitea(String privateKey) throws Exception {
+        JsonObject keyBody = new JsonObject();
+        keyBody.addProperty("armored_public_key", GPGGenerator.publicKeyFromPrivateKey(privateKey));
+        var request =
+                java.net.http.HttpRequest.newBuilder()
+                        .uri(java.net.URI.create(giteaExternalBaseUrl() + "/api/v1/user/gpg_keys"))
+                        .header("Content-Type", "application/json")
+                        .header(
+                                "Authorization",
+                                "Basic "
+                                        + java.util.Base64.getEncoder()
+                                                .encodeToString(
+                                                        (credentials.giteaUser + ":" + credentials.giteaPass)
+                                                                .getBytes()))
+                        .POST(java.net.http.HttpRequest.BodyPublishers.ofString(keyBody.toString()))
+                        .build();
+        var response = stack.httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        assertEquals(
+                201,
+                response.statusCode(),
+                "Registering GPG key with Gitea failed: "
+                        + response.statusCode()
+                        + " "
+                        + response.body());
+    }
+
     @Test
     @Order(1)
     void testCreateGitThing() throws Exception {
@@ -143,7 +178,7 @@ public class GiteaGitOperationsTest {
 
         var createReq =
                 stack.thingworx
-                        .serviceRequest("GIT.Utility.Thing", "AddNewRepo", body.toString())
+                        .serviceRequest("GITBACKUP.Utility.Thing", "AddNewRepo", body.toString())
                         .build();
         var createRes = stack.httpClient.send(createReq, HttpResponse.BodyHandlers.ofString());
         assertTrue(
@@ -470,75 +505,107 @@ public class GiteaGitOperationsTest {
                 pullRes.body().contains("Error"), "Force pull returned error: " + pullRes.body());
     }
 
-    //     @Test
-    //     @Order(15)
-    //     void testVerifyGpgKey() throws Exception {
-    //         String testKey = GPGGenerator.generateTestGpgPrivateKey();
-    //         JsonObject setKeyBody = new JsonObject();
-    //         setKeyBody.addProperty("GitThing", GIT_THING_NAME);
-    //         setKeyBody.addProperty("GpgPrivateKey", testKey);
-    //         setKeyBody.addProperty("SignCommits", false);
-    //         setKeyBody.addProperty("GpgKeyFingerprint", "");
-    //         var setKeyReq = stack.thingworx.serviceRequest("GIT.Utility.Thing", "SetGpgKey",
-    // setKeyBody.toString()).build();
-    //         var setKeyRes = stack.httpClient.send(setKeyReq,
-    // HttpResponse.BodyHandlers.ofString());
-    //         assertTrue(setKeyRes.statusCode() == 200 || setKeyRes.statusCode() == 201,
-    //                 "SetGpgKey failed: " + setKeyRes.statusCode() + " " + setKeyRes.body());
-    //
-    //         Thread.sleep(2000);
-    //
-    //         JsonObject verifyBody = new JsonObject();
-    //         verifyBody.addProperty("GpgPrivateKey", "");
-    //         verifyBody.addProperty("GpgKeyPassphrase", "");
-    //         var verifyReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "VerifyGpgKey",
-    // verifyBody.toString()).build();
-    //         var verifyRes = stack.httpClient.send(verifyReq,
-    // HttpResponse.BodyHandlers.ofString());
-    //         assertEquals(200, verifyRes.statusCode(), "VerifyGpgKey failed: " +
-    // verifyRes.body());
-    //         assertTrue(verifyRes.body().contains("GpgKeyFingerprint"),
-    //                 "VerifyGpgKey should return fingerprint: " + verifyRes.body());
-    //     }
-    //
-    //     @Test
-    //     @Order(16)
-    //     void testSignedPush() throws Exception {
-    //         editFileInRepoViaThingworxAPI("GitRepository", GIT_THING_PATH + "/signed-test.txt",
-    //                 "Signed commit test content");
-    //
-    //         var testKey = GPGGenerator.generateTestGpgPrivateKey();
-    //
-    //         var setKeyBody = new JsonObject();
-    //         setKeyBody.addProperty("GitThing", GIT_THING_NAME);
-    //         setKeyBody.addProperty("GpgPrivateKey", testKey);
-    //         setKeyBody.addProperty("SignCommits", true);
-    //         setKeyBody.addProperty("GpgKeyFingerprint", "");
-    //         var setKeyReq = stack.thingworx.serviceRequest("GIT.Utility.Thing", "SetGpgKey",
-    // setKeyBody.toString()).build();
-    //         var setKeyRes = stack.httpClient.send(setKeyReq,
-    // HttpResponse.BodyHandlers.ofString());
-    //         assertTrue(setKeyRes.statusCode() == 200 || setKeyRes.statusCode() == 201,
-    //                 "SetGpgKey failed: " + setKeyRes.statusCode() + " " + setKeyRes.body());
-    //
-    //         Thread.sleep(2000);
-    //
-    //         var pushBody = new JsonObject();
-    //         pushBody.addProperty("Message", "Integration test: signed commit");
-    //         var pushReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "Push",
-    // pushBody.toString()).build();
-    //         var pushRes = stack.httpClient.send(pushReq, HttpResponse.BodyHandlers.ofString());
-    //         assertEquals(200, pushRes.statusCode(), "Signed Push failed: " + pushRes.body());
-    //         var body = pushRes.body();
-    //         assertFalse(body.contains("Error"), "Signed Push returned error: " + body);
-    //         assertFalse(body.contains("Exception"), "Signed Push threw exception: " + body);
-    //         var commitListReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "GetCommitList",
-    // null).build();
-    //         var commitListRes = stack.httpClient.send(commitListReq,
-    // HttpResponse.BodyHandlers.ofString());
-    //         assertTrue(commitListRes.body().contains("rows"),
-    //                 "Commit list should have entries: " + commitListRes.body());
-    //     }
+    @Test
+    @Order(16)
+    void testSignedPush() throws Exception {
+        String testKey = GPGGenerator.generateTestGpgPrivateKey();
+        registerGpgKeyWithGitea(testKey);
+
+        JsonObject setKeyBody = new JsonObject();
+        setKeyBody.addProperty("GitThing", GIT_THING_NAME);
+        setKeyBody.addProperty("GpgPrivateKey", testKey);
+        setKeyBody.addProperty("GpgKeyPassphrase", "");
+        setKeyBody.addProperty("SignCommits", true);
+        setKeyBody.addProperty("GpgKeyFingerprint", "");
+        var setKeyReq =
+                stack.thingworx
+                        .serviceRequest("GITBACKUP.Utility.Thing", "SetGpgKey", setKeyBody.toString())
+                        .build();
+        var setKeyRes = stack.httpClient.send(setKeyReq, HttpResponse.BodyHandlers.ofString());
+        assertTrue(
+                setKeyRes.statusCode() == 200 || setKeyRes.statusCode() == 201,
+                "SetGpgKey failed: " + setKeyRes.statusCode() + " " + setKeyRes.body());
+
+        JsonObject verifyKeyBody = new JsonObject();
+        verifyKeyBody.addProperty("GpgPrivateKey", "");
+        verifyKeyBody.addProperty("GpgKeyPassphrase", "");
+        var verifyKeyReq =
+                stack.thingworx
+                        .serviceRequest(GIT_THING_NAME, "VerifyGpgKey", verifyKeyBody.toString())
+                        .build();
+        var verifyKeyRes =
+                stack.httpClient.send(verifyKeyReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, verifyKeyRes.statusCode(), "VerifyGpgKey failed: " + verifyKeyRes.body());
+        assertTrue(
+                verifyKeyRes.body().contains("\"SignCommits\":true"),
+                "Stored GPG key could not be located for the repository: " + verifyKeyRes.body());
+
+        editFileInRepoViaThingworxAPI(
+                "GitRepository", GIT_THING_PATH + "/signed-test.txt", "Signed commit test content");
+
+        JsonObject pushBody = new JsonObject();
+        pushBody.addProperty("Message", "Integration test: signed commit");
+        var pushReq =
+                stack.thingworx.serviceRequest(GIT_THING_NAME, "Push", pushBody.toString()).build();
+        var pushRes = stack.httpClient.send(pushReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, pushRes.statusCode(), "Signed Push failed: " + pushRes.body());
+        assertFalse(pushRes.body().contains("Error"), "Signed Push returned error: " + pushRes.body());
+        assertFalse(
+                pushRes.body().contains("Exception"), "Signed Push threw exception: " + pushRes.body());
+
+        var commitListReq =
+                stack.thingworx.serviceRequest(GIT_THING_NAME, "GetCommitList", null).build();
+        var commitListRes =
+                stack.httpClient.send(commitListReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, commitListRes.statusCode(), "GetCommitList failed: " + commitListRes.body());
+        String signedCommitId = extractFirstCommitId(commitListRes.body());
+        assertNotNull(signedCommitId, "Signed push did not create a commit: " + commitListRes.body());
+
+        JsonObject commitInfoBody = new JsonObject();
+        commitInfoBody.addProperty("CommitID", signedCommitId);
+        var commitInfoReq =
+                stack.thingworx
+                        .serviceRequest(GIT_THING_NAME, "GetCommitInfo", commitInfoBody.toString())
+                        .build();
+        var commitInfoRes =
+                stack.httpClient.send(commitInfoReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, commitInfoRes.statusCode(), "GetCommitInfo failed: " + commitInfoRes.body());
+
+        var rows = JsonParser.parseString(commitInfoRes.body()).getAsJsonObject().getAsJsonArray("rows");
+        assertNotNull(rows, "Commit info did not return rows: " + commitInfoRes.body());
+        assertEquals(1, rows.size(), "Expected one commit info row: " + commitInfoRes.body());
+        assertEquals(
+                "SIGNED",
+                rows.get(0).getAsJsonObject().get("SignatureVerification").getAsString(),
+                "The pushed commit does not contain a GPG signature: " + commitInfoRes.body());
+
+        String publicKey = GPGGenerator.publicKeyFromPrivateKey(testKey);
+        String publicKeyBase64 =
+                java.util.Base64.getEncoder().encodeToString(publicKey.getBytes("UTF-8"));
+        var giteaVerification =
+                stack.gitea.execInContainer(
+                        "sh",
+                        "-c",
+                        "set -eu; "
+                                + "gnupg_home=$(mktemp -d); chmod 700 \"$gnupg_home\"; "
+                                + "echo '"
+                                + publicKeyBase64
+                                + "' | base64 -d | gpg --batch --homedir \"$gnupg_home\" --import; "
+                                + "repo=$(find /data/git/repositories -type d -name '*.git' | head -n 1); "
+                                + "GNUPGHOME=\"$gnupg_home\" git --git-dir=\"$repo\" verify-commit --raw "
+                                + signedCommitId);
+        assertEquals(
+                0,
+                giteaVerification.getExitCode(),
+                "Gitea git verify-commit failed: "
+                        + giteaVerification.getStdout()
+                        + giteaVerification.getStderr());
+        assertTrue(
+                (giteaVerification.getStdout() + giteaVerification.getStderr()).contains("GOODSIG"),
+                "Gitea did not report a valid signature: "
+                        + giteaVerification.getStdout()
+                        + giteaVerification.getStderr());
+    }
 
     @Test
     @Order(18)

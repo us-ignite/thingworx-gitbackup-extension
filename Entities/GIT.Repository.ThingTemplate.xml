@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Entities majorVersion="9" minorVersion="3" universal="password">
+    <ThingTemplates>
+        <ThingTemplate aspect.isEditableExtensionObject="false" aspect.isExtension="true" description="Base template for GitBackup Things providing core Git operations (commit, push, pull, branch, tag, etc.)." documentationContent="" homeMashup="" name="GIT.Repository.ThingTemplate" projectName="GitBackup" tags="">
+            <avatar/>
+            <DesignTimePermissions>
+                <Create/>
+                <Read/>
+                <Update/>
+                <Delete/>
+                <Metadata/>
+            </DesignTimePermissions>
+            <RunTimePermissions/>
+            <VisibilityPermissions>
+                <Visibility/>
+            </VisibilityPermissions>
+            <ConfigurationTables/>
+            <PropertyBindings/>
+            <RemotePropertyBindings/>
+            <RemoteServiceBindings/>
+            <RemoteEventBindings/>
+            <AlertConfigurations/>
+            <ImplementedShapes>
+                <ImplementedShape name="GIT.Repository.ThingShape"/>
+            </ImplementedShapes>
+            <ThingShape>
+                <PropertyDefinitions/>
+                <ServiceDefinitions/>
+                <EventDefinitions/>
+                <ServiceMappings/>
+                <ServiceImplementations/>
+                <Subscriptions/>
+            </ThingShape>
+            <InstanceRunTimePermissions/>
+        </ThingTemplate>
+    </ThingTemplates>
+</Entities>

@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Entities majorVersion="9" minorVersion="3" universal="password">
+    <Things>
+        <Thing aspect.isEditableExtensionObject="false" aspect.isExtension="true" description="Contains services required for working with the GitBackup things, but which don't make sense to be present at the Git thing level." documentationContent="" effectiveThingPackage="GITBACKUP.Utility.ThingPackage" enabled="true" homeMashup="" identifier="" inheritedValueStream="" name="GITBACKUP.Utility.Thing" projectName="GitBackup" published="false" tags="" thingTemplate="GenericThing" valueStream="">
+            <avatar/>
+            <DesignTimePermissions>
+                <Create/>
+                <Read/>
+                <Update/>
+                <Delete/>
+                <Metadata/>
+            </DesignTimePermissions>
+            <RunTimePermissions/>
+            <VisibilityPermissions>
+                <Visibility/>
+            </VisibilityPermissions>
+            <ConfigurationTableDefinitions/>
+            <ConfigurationTables/>
+            <ThingShape>
+                <PropertyDefinitions>
+                    <PropertyDefinition aspect.cacheTime="0.0" aspect.dataChangeType="VALUE" aspect.dataShape="GIT.Status.DataShape" aspect.defaultValue="{&quot;rows&quot;:[{&quot;Status&quot;:&quot;Settings&quot;},{&quot;Status&quot;:&quot;Delete&quot;}],&quot;dataShape&quot;:{&quot;fieldDefinitions&quot;:{&quot;Status&quot;:{&quot;name&quot;:&quot;Status&quot;,&quot;aspects&quot;:{},&quot;description&quot;:&quot;&quot;,&quot;baseType&quot;:&quot;STRING&quot;,&quot;ordinal&quot;:2},&quot;File&quot;:{&quot;name&quot;:&quot;File&quot;,&quot;aspects&quot;:{},&quot;description&quot;:&quot;&quot;,&quot;baseType&quot;:&quot;STRING&quot;,&quot;ordinal&quot;:1}}}}" aspect.isLogged="false" aspect.isPersistent="true" aspect.isReadOnly="false" baseType="INFOTABLE" category="" description="Menu to modify/delete tab" isLocalOnly="false" name="tab-menu" ordinal="2"/>
+                </PropertyDefinitions>
+                <ServiceDefinitions/>
+                <EventDefinitions/>
+            </ThingShape>
+            <PropertyBindings/>
+            <RemotePropertyBindings/>
+            <RemoteServiceBindings/>
+            <RemoteEventBindings/>
+            <AlertConfigurations>
+                <AlertDefinitions name="tab-menu"/>
+            </AlertConfigurations>
+            <ImplementedShapes>
+                <ImplementedShape name="GITBACKUP.Utility.ThingShape"/>
+            </ImplementedShapes>
+            <ThingProperties>
+                <tab-menu>
+                    <Value>
+                        <infoTable>
+                            <DataShape>
+                                <FieldDefinitions>
+                                    <FieldDefinition baseType="STRING" description="" name="File" ordinal="0"/>
+                                    <FieldDefinition baseType="STRING" description="" name="Status" ordinal="0"/>
+                                </FieldDefinitions>
+                            </DataShape>
+                            <Rows>
+                                <Row>
+                                    <File/>
+                                    <Status><![CDATA[
+                                    Settings
+                                    ]]></Status>
+                                </Row>
+                                <Row>
+                                    <File/>
+                                    <Status><![CDATA[
+                                    Delete
+                                    ]]></Status>
+                                </Row>
+                            </Rows>
+                        </infoTable>
+                    </Value>
+                    <Timestamp>2019-09-18T15:12:13.450Z</Timestamp>
+                    <Quality>GOOD</Quality>
+                </tab-menu>
+            </ThingProperties>
+        </Thing>
+    </Things>
+</Entities>
