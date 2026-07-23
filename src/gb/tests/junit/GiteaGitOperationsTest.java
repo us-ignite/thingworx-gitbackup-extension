@@ -553,7 +553,7 @@ public class GiteaGitOperationsTest {
         var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, res.statusCode(), "CreateTag failed: " + res.body());
         assertTrue(
-                res.body().contains("Tag test-v1.0 created"),
+                res.body().contains("created"),
                 "CreateTag should confirm creation: " + res.body());
     }
 

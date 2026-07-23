@@ -5,6 +5,7 @@ import com.thingworx.entities.utils.EntityUtilities;
 import com.thingworx.logging.LogUtilities;
 import com.thingworx.migration.ExtensionMigratorBase;
 import com.thingworx.relationships.RelationshipTypes.ThingworxRelationshipTypes;
+import com.thingworx.thingtemplates.ThingTemplate;
 import com.thingworx.things.Thing;
 import org.slf4j.Logger;
 
@@ -41,5 +42,18 @@ public class ExtMigrator extends ExtensionMigratorBase {
         thing.processServiceRequest("InitUserExtensionGpgKeysProperty", null);
         _logger.warn(
                 "Performed one-time migration to 5.2.0: GpgKeys UserExtension property initialized.");
+
+        // Migrate to 5.10.5: Renamed GitBackupTemplate to GitRepositoryTemplate
+        ThingTemplate oldTemplate =
+                (ThingTemplate)
+                        EntityUtilities.findEntity(
+                                "GitBackupTemplate", ThingworxRelationshipTypes.ThingTemplate);
+        if (oldTemplate != null) {
+            _logger.warn(
+                    "Migrating Things from GitBackupTemplate to GitRepositoryTemplate...");
+            oldTemplate.setName("GitRepositoryTemplate");
+            oldTemplate.setClassName("gb.extension.GitRepositoryTemplate");
+            _logger.warn("GitBackupTemplate ThingTemplate renamed to GitRepositoryTemplate.");
+        }
     }
 }

@@ -25,7 +25,7 @@ final class Values {
 
     static String primitiveString(ValueCollection row, String field) {
         if (row == null) return null;
-        IPrimitiveType primitive = row.getPrimitive(field);
+        IPrimitiveType<?, ?> primitive = row.getPrimitive(field);
         if (primitive == null || primitive.getValue() == null) return null;
         return primitive.getValue().toString();
     }

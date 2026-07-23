@@ -23,13 +23,12 @@
 │  GpgKeySettings, Push, Pull, Status, Export,│
 │  Import, Log, ExtensionStatus, ...          │
 ├─────────────────────────────────────────────┤
-│  Things / ThingShapes / DataShapes (56 XML) │
+│  Things / ThingShapes / DataShapes (55 XML) │
 │  GIT.Utility.Thing (utility services)       │
-│  Git.Utility.ThingShape (runtime mixin)     │
-│  GitBackupTemplate (your repo's Thing)      │
+│  GitRepositoryTemplate (your repo's Thing)      │
 ├─────────────────────────────────────────────┤
 │  Java Backend (src/gb/extension/)           │
-│  GitBackupTemplate   — JGit-backed services │
+│  GitRepositoryTemplate   — JGit-backed services │
 │  PastedKeyGpgSigner  — BouncyCastle GPG     │
 │  ExtMigrator         — upgrade migrations   │
 │  GitBackupValidation — config validation    │
@@ -45,7 +44,7 @@
 
 ### Java Backend (`src/gb/extension/`)
 
-- **`GitBackupTemplate.java`** (1331 lines) — Core Thing extending the ThingWorx SDK base class. Provides all Git services backed by JGit 7.6.0.
+- **`GitRepositoryTemplate.java`** (1331 lines) — Core Thing extending the ThingWorx SDK base class. Provides all Git services backed by JGit 7.6.0.
 - **`PastedKeyGpgSigner.java`** (156 lines) — Implements JGit's `Signer` interface using BouncyCastle. Accepts ASCII-armored PGP keys, produces GPG signatures for commits.
 - **`ExtMigrator.java`** — Runs on extension upgrade. Initializes UserExtension properties and GpgKeys.
 - **`GitBackupValidation.java`** — Resource with configuration validation service.
@@ -53,14 +52,14 @@
 
 ### ThingWorx Entities (`Entities/`)
 
-56 XML files defining the ThingWorx-side configuration, UI, and JavaScript logic:
+55 XML files defining the ThingWorx-side configuration, UI, and JavaScript logic:
 
 | Type | Count | Examples |
 |---|---|---|
 | DataShapes | 17 | `Git.BranchList`, `GitBackup.GpgKey`, `GitBackup.UserExtensionProperties` |
 | Mashups | 22 | BranchManager, CommitHistory, MergeRebase, GpgKeySettings, Push, Pull, Status, Export, Import, Log, ExtensionStatus |
-| Things | 4 | `GIT.Utility.Thing`, `GitBackup.Log.DataTable`, `GitBackup.Tests.Thing` |
-| ThingShapes | 2 | `Git.Utility.ThingShape`, `TestingTS` |
+| Things | 3 | `GIT.Utility.Thing`, `GitBackup.Log.DataTable` |
+| ThingShapes | 0 | |
 | StateDefinitions | 4 | File status states, install state, menu state, repo URL state |
 | Other | 7 | Media, Projects, StyleThemes |
 

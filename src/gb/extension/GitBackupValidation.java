@@ -20,9 +20,7 @@ public class GitBackupValidation extends Resource {
     private static Logger _logger =
             LogUtilities.getInstance().getApplicationLogger(GitBackupValidation.class);
 
-    public GitBackupValidation() {
-        // TODO Auto-generated constructor stub
-    }
+    public GitBackupValidation() {}
 
     // This service checks if a FileRepository's getRootPath returns an absolute path or not.
     // The extension will not work if that method does not return an absolute path.
@@ -52,12 +50,15 @@ public class GitBackupValidation extends Resource {
                         EntityUtilities.findEntity(
                                 str_FileRepository, ThingworxRelationshipTypes.Thing);
         if (srcRepo == null) {
-            str_Result = "Failed! The configured file repository does not exist.";
+            str_Result =
+                    "[CONFIG] Failed! The configured file repository '"
+                            + str_FileRepository
+                            + "' does not exist. Verify the FileRepository thing name.";
         } else if (!isBlank(srcRepo.getRootPath())) {
             str_Result = "Success! The system has a correctly configured file repository path.";
         } else
             str_Result =
-                    "Failed! The system does not contain a correctly configured file repository path. Make sure you are not using relative paths in the platform-settings.json file.";
+                    "[CONFIG] Failed! The file repository path is empty or invalid. Make sure you are not using relative paths in the platform-settings.json file.";
 
         _logger.trace("Exiting Service: CheckConfiguration");
         return str_Result;

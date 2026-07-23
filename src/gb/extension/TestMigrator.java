@@ -10,8 +10,5 @@ import com.thingworx.migration.ExtensionMigratorBase;
 public class TestMigrator extends ExtensionMigratorBase {
 
     @Override
-    public void migrate(ImportedEntityCollection imports) throws Exception {
-        // TODO Auto-generated method stub
-
-    }
+    public void migrate(ImportedEntityCollection imports) throws Exception {}
 }

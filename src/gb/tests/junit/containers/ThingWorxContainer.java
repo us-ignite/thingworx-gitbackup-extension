@@ -120,9 +120,7 @@ public class ThingWorxContainer extends GenericContainer<ThingWorxContainer> {
         var licenseFile = Path.of(System.getProperty("user.dir"), "twx-lib", "license.bin");
         if (Files.exists(licenseFile)) {
             withFileSystemBind(
-                    licenseFile.toAbsolutePath().toString(),
-                    "/opt/trial.bin",
-                    BindMode.READ_ONLY);
+                    licenseFile.toAbsolutePath().toString(), "/opt/trial.bin", BindMode.READ_ONLY);
         }
 
         if (JDK21_DIR != null) {
