@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Entities>
     <ExtensionPackages>
-        <ExtensionPackage dependsOn="" description="This extension provides various GIT capabilities that allow storing ThingWorx applications in a third party Git server. This version is designed ONLY for ThingWorx versions &gt;= 9.3" haCompatible="true" migratorClass="gitbackup.extension.ExtMigrator" minimumThingWorxVersion="9.3.0" name="GitBackupExtension" packageVersion="@PACKAGE_VERSION@" vendor="Open Source / Vladimir Rosu">
+        <ExtensionPackage dependsOn="" description="This extension provides various GIT capabilities that allow storing ThingWorx applications in a third party Git server. This version is designed ONLY for ThingWorx versions &gt;= 9.3" haCompatible="true" migratorClass="gb.extension.ExtMigrator" minimumThingWorxVersion="9.3.0" name="GitBackupExtension" packageVersion="@PACKAGE_VERSION@" vendor="Open Source / Vladimir Rosu">
             <JarResources>
                 <FileResource description="" file="gitbackupextension.jar" type="JAR"/>
                 <FileResource description="" file="jsch-0.1.55.jar" type="JAR"/>
@@ -12,8 +12,8 @@
         </ExtensionPackage>
     </ExtensionPackages>
     <ThingPackages>
-        <ThingPackage className="gitbackup.extension.GitBackupTemplate" description="" name="GIT.Repository.ThingPackage"/>
-        <ThingPackage className="gitbackup.extension.GitUtilityThingShape" description="" name="GIT.Utility.ThingPackage"/>
+        <ThingPackage className="gb.extension.GitBackupTemplate" description="" name="GIT.Repository.ThingPackage"/>
+        <ThingPackage className="gb.extension.GitUtilityThingShape" description="" name="GIT.Utility.ThingPackage"/>
     </ThingPackages>
     <ThingTemplates>
         <ThingTemplate aspect.isEditableExtensionObject="false" description="" name="GIT.Repository.ThingTemplate" thingPackage="GIT.Repository.ThingPackage"/>
@@ -149,6 +149,6 @@
         </LocalizationTable>
     </LocalizationTables>
     <Resources>
-        <Resource aspect.isCreatable="false" aspect.isEditableExtensionObject="false" className="gitbackup.extension.GitBackupValidation" description="" name="GitBackupValidation"/>
+        <Resource aspect.isCreatable="false" aspect.isEditableExtensionObject="false" className="gb.extension.GitBackupValidation" description="" name="GitBackupValidation"/>
     </Resources>
 </Entities>

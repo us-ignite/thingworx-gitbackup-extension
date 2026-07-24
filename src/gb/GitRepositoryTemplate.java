@@ -8,6 +8,6 @@ import com.thingworx.metadata.annotations.ThingworxBaseTemplateDefinition;
  */
 @Deprecated
 @ThingworxBaseTemplateDefinition(name = "GenericThing")
-public class GitRepositoryTemplate extends gitbackup.extension.GitRepositoryShape {
+public class GitRepositoryTemplate extends gb.extension.GitRepositoryShape {
     private static final long serialVersionUID = -6500080561143490845L;
 }

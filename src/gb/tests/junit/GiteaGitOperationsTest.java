@@ -608,7 +608,7 @@ public class GiteaGitOperationsTest {
     }
 
     @Test
-    @Order(18)
+    @Order(26)
     void testCreateTag() throws Exception {
         JsonObject body = new JsonObject();
         body.addProperty("TagName", "test-v1.0");
@@ -624,7 +624,7 @@ public class GiteaGitOperationsTest {
     }
 
     @Test
-    @Order(19)
+    @Order(27)
     void testGetTagList() throws Exception {
         var req = stack.thingworx.serviceRequest(GIT_THING_NAME, "GetTagList", null).build();
         var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
@@ -635,7 +635,7 @@ public class GiteaGitOperationsTest {
     }
 
     @Test
-    @Order(20)
+    @Order(28)
     void testDeleteTag() throws Exception {
         JsonObject body = new JsonObject();
         body.addProperty("TagName", "test-v1.0");
@@ -654,7 +654,7 @@ public class GiteaGitOperationsTest {
     }
 
     @Test
-    @Order(21)
+    @Order(29)
     void testMerge() throws Exception {
         createBranchOnGiteaViaGiteaAPI("test-merge-branch");
 
@@ -709,7 +709,7 @@ public class GiteaGitOperationsTest {
     }
 
     @Test
-    @Order(22)
+    @Order(30)
     void testRebase() throws Exception {
         createBranchOnGiteaViaGiteaAPI("test-rebase-branch");
 
@@ -750,7 +750,58 @@ public class GiteaGitOperationsTest {
     }
 
     @Test
-    @Order(17)
+    @Order(15)
+    void testGetLog() throws Exception {
+        JsonObject body = new JsonObject();
+        body.addProperty("Ref", "main");
+        body.addProperty("MaxEntries", 10);
+        var req =
+                stack.thingworx
+                        .serviceRequest(GIT_THING_NAME, "GetLog", body.toString())
+                        .build();
+        var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, res.statusCode(), "GetLog failed: " + res.body());
+        assertNotNull(res.body());
+        assertTrue(
+                res.body().contains("rows"),
+                "GetLog should return infotable JSON with rows: " + res.body());
+    }
+
+    @Test
+    @Order(23)
+    void testGetReflog() throws Exception {
+        JsonObject body = new JsonObject();
+        body.addProperty("Ref", "HEAD");
+        body.addProperty("MaxEntries", 10);
+        var req =
+                stack.thingworx
+                        .serviceRequest(GIT_THING_NAME, "GetReflog", body.toString())
+                        .build();
+        var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, res.statusCode(), "GetReflog failed: " + res.body());
+        assertNotNull(res.body());
+        assertTrue(
+                res.body().contains("rows"),
+                "GetReflog should return infotable JSON with rows: " + res.body());
+    }
+
+    @Test
+    @Order(24)
+    void testFetch() throws Exception {
+        JsonObject body = new JsonObject();
+        body.addProperty("Remote", "origin");
+        var req =
+                stack.thingworx
+                        .serviceRequest(GIT_THING_NAME, "Fetch", body.toString())
+                        .build();
+        var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, res.statusCode(), "Fetch failed: " + res.body());
+        assertNotNull(res.body());
+        assertFalse(res.body().contains("Error"), "Fetch returned error: " + res.body());
+    }
+
+    @Test
+    @Order(25)
     void testDeleteLocalRepoContent() throws Exception {
         var statusReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "Status", null).build();
         var statusRes = stack.httpClient.send(statusReq, HttpResponse.BodyHandlers.ofString());

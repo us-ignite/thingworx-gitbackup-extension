@@ -18,6 +18,7 @@
             <FieldDefinitions>
                 <FieldDefinition baseType="STRING" description="" name="File" ordinal="1"/>
                 <FieldDefinition baseType="STRING" description="" name="Status" ordinal="2"/>
+                <FieldDefinition baseType="BOOLEAN" description="Whether the change is currently staged in the Git index" name="Staged" ordinal="3"/>
             </FieldDefinitions>
         </DataShape>
     </DataShapes>

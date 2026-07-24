@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Entities majorVersion="9" minorVersion="3" universal="password">
     <ThingShapes>
-        <ThingShape aspect.isEditableExtensionObject="false" aspect.isExtension="true" className="gitbackup.extension.GitUtilityThingShape" description="This Utility shape is used to add useful functionality to the GitBackup Things, which are built in Java." documentationContent="" homeMashup="" name="GIT.Utility.ThingShape" projectName="GitBackup" tags="">
+        <ThingShape aspect.isEditableExtensionObject="false" aspect.isExtension="true" className="gb.extension.GitUtilityThingShape" description="This Utility shape is used to add useful functionality to the GitBackup Things, which are built in Java." documentationContent="" homeMashup="" name="GIT.Utility.ThingShape" projectName="GitBackup" tags="">
             <PropertyDefinitions>
                 <PropertyDefinition aspect.cacheTime="0.0" aspect.dataChangeType="VALUE" aspect.defaultValue="500000" aspect.isPersistent="true" baseType="INTEGER" category="" description="Max size of the diff string that will be sent to the client browser. Anything larger than that will not be sent at all." isLocalOnly="false" name="MaxDiffSize" ordinal="2"/>
             </PropertyDefinitions>
