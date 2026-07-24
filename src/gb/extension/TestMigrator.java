@@ -1,5 +1,5 @@
 /** */
-package gitbackup.extension;
+package gb.extension;
 
 import com.thingworx.contentmanagement.ImportedEntityCollection;
 import com.thingworx.migration.ExtensionMigratorBase;

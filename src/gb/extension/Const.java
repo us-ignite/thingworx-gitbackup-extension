@@ -1,4 +1,4 @@
-package gitbackup.extension;
+package gb.extension;
 
 public final class Const {
     // GitBackup Configuration names

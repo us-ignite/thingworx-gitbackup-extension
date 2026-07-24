@@ -1,4 +1,4 @@
-package gitbackup.extension;
+package gb.extension;
 
 import com.thingworx.types.collections.ValueCollection;
 import com.thingworx.types.primitives.IPrimitiveType;

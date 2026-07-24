@@ -5,6 +5,6 @@ package gb;
  * gb.extension}.
  */
 @Deprecated
-public class GitBackupValidation extends gitbackup.extension.GitBackupValidation {
+public class GitBackupValidation extends gb.extension.GitBackupValidation {
     private static final long serialVersionUID = 9085129963750550673L;
 }
