@@ -22,6 +22,29 @@
                 </PropertyDefinitions>
                 <ServiceDefinitions/>
                 <EventDefinitions/>
+                <Subscriptions>
+                    <Subscription description="" enabled="true" eventName="ThingStart" name="InitializeUserExtensionsOnStartup" source="" sourceProperty="" sourceType="Thing">
+                        <ServiceImplementation description="" handlerName="Script" name="InitializeUserExtensionsOnStartup">
+                            <ConfigurationTables>
+                                <ConfigurationTable description="" isMultiRow="false" name="Script" ordinal="0">
+                                    <DataShape>
+                                        <FieldDefinitions>
+                                            <FieldDefinition baseType="STRING" description="code" name="code" ordinal="0"/>
+                                        </FieldDefinitions>
+                                    </DataShape>
+                                    <Rows>
+                                        <Row>
+                                            <code><![CDATA[
+try { me.InitUserExtensionProperties(); } catch(e) {}
+try { me.InitUserExtensionGpgKeysProperty(); } catch(e) {}
+                                            ]]></code>
+                                        </Row>
+                                    </Rows>
+                                </ConfigurationTable>
+                            </ConfigurationTables>
+                        </ServiceImplementation>
+                    </Subscription>
+                </Subscriptions>
             </ThingShape>
             <PropertyBindings/>
             <RemotePropertyBindings/>
