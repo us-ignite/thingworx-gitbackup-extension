@@ -14,6 +14,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.us_ignite.thingworx.jgit.tests.containers.JGitExtensionTestStack;
 import org.us_ignite.thingworx.jgit.tests.util.TestingCredentials;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)

@@ -21,17 +21,6 @@ public class ThingWorxContainer extends GenericContainer<ThingWorxContainer> {
     private String externalUrl;
 
     private static final Path JDK21_DIR = prepareCachedJdk21();
-    private static final Path TYX_PLATFORM_DIR = preparePlatformDir();
-
-    private static Path preparePlatformDir() {
-        Path dir = Path.of(System.getProperty("user.dir"), "build", "twx-platform");
-        try {
-            Files.createDirectories(dir);
-        } catch (IOException e) {
-            throw new RuntimeException("Cannot create ThingWorx platform directory: " + dir, e);
-        }
-        return dir;
-    }
 
     private static Path prepareCachedJdk21() {
         Path cacheDir = Path.of(System.getProperty("user.dir"), ".cache", "jdk21");
@@ -144,11 +133,6 @@ public class ThingWorxContainer extends GenericContainer<ThingWorxContainer> {
                                     "-c",
                                     "rm -rf /opt/jdk && ln -sf /mnt/jdk21 /opt/jdk && exec /docker-entrypoint.sh run"));
         }
-
-        withFileSystemBind(
-                TYX_PLATFORM_DIR.toAbsolutePath().toString(),
-                "/ThingworxPlatform",
-                BindMode.READ_WRITE);
 
         withLogConsumer(
                 outputFrame -> System.out.print("[THINGWORX] " + outputFrame.getUtf8String()));

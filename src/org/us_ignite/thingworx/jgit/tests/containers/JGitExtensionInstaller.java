@@ -16,10 +16,21 @@ public class JGitExtensionInstaller extends GenericContainer<JGitExtensionInstal
             ThingWorxContainer platform,
             Network network,
             TestingCredentials credentials) {
+        this(extensionZip, platform, network, credentials, null);
+    }
+
+    public JGitExtensionInstaller(
+            Path extensionZip,
+            ThingWorxContainer platform,
+            Network network,
+            TestingCredentials credentials,
+            String twxUrl) {
         super("curlimages/curl:7.85.0");
         dependsOn(platform);
         withNetwork(network);
-        platform.withNetworkAliases("thingworx");
+        if (twxUrl == null) {
+            platform.withNetworkAliases("thingworx");
+        }
 
         assertTrue(
                 Files.exists(extensionZip),
@@ -35,7 +46,7 @@ public class JGitExtensionInstaller extends GenericContainer<JGitExtensionInstal
         withFileSystemBind(
                 installScript.toString(), "/scripts/install-extension.sh", BindMode.READ_ONLY);
 
-        withEnv("TWX_URL", "http://thingworx:8080");
+        withEnv("TWX_URL", twxUrl != null ? twxUrl : "http://thingworx:8080");
         withEnv("TWX_USERNAME", credentials.thingworxAdminUser);
         withEnv("TWX_PASSWORD", credentials.thingworxAdminPass);
         withEnv("EXTENSION_ZIP", "/tmp/extension.zip");

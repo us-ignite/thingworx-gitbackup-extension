@@ -118,39 +118,23 @@ services:
     image: gitea/gitea:1.20.4
     container_name: twx-gitea-init
     user: "1000:1000"
+    entrypoint: ["/bin/sh", "/scripts/gitea-init.sh"]
+    environment:
+      GITEA_URL: http://gitea:3000
+      GITEA_USERNAME: giteauser
+      GITEA_PASSWORD: giteapass123
+      GITEA_ADMIN_EMAIL: test@example.com
+      GITEA_REPO_NAME: jgit-test-repo
+      GITEA_REPO_AUTO_INIT: "true"
+      GITEA_DEFAULT_BRANCH: main
     depends_on:
       gitea:
         condition: service_healthy
     networks:
       - twx-network
     volumes:
+      - ./scripts/gitea-init.sh:/scripts/gitea-init.sh:ro
       - gitea-data:/data
-    entrypoint: ["sh", "-c"]
-    command:
-      - |
-        set -e
-        echo "[gitea-init] Waiting for Gitea API..."
-        for i in $$(seq 1 30); do
-          if curl -sf http://gitea:3000/api/v1/version > /dev/null 2>&1; then
-            echo "[gitea-init] Gitea API ready."
-            break
-          fi
-          echo "[gitea-init]  Waiting... ($$i/30)"
-          sleep 3
-        done
-
-        echo "[gitea-init] Creating admin user 'giteauser'..."
-        gitea admin user create --username giteauser --password 'giteapass123' --email admin@example.com --admin --must-change-password=false 2>&1 || echo "[gitea-init] User may already exist, continuing."
-
-        echo "[gitea-init] Creating test repo 'jgit-test-repo'..."
-        HTTP_CODE=$$(curl -s -o /dev/null -w "%{http_code}" -X POST \
-          "http://gitea:3000/api/v1/user/repos" \
-          -H "Content-Type: application/json" \
-          -H "Authorization: Basic $$(printf '%s' 'giteauser:giteapass123' | base64)" \
-          -d '{"name":"jgit-test-repo","auto_init":true,"default_branch":"main","private":false}')
-        echo "[gitea-init] Repo creation HTTP status: $$HTTP_CODE"
-
-        echo "[gitea-init] Setup complete."
 
   extension-init:
     image: curlimages/curl:7.85.0
