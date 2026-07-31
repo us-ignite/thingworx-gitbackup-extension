@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Entities build="b103" majorVersion="8" minorVersion="5" modelPersistenceProviderPackage="PostgresPersistenceProviderPackage" revision="5" schemaVersion="1054" universal="password">
+    <DataShapes>
+        <DataShape baseDataShape="" description="" documentationContent="" homeMashup="" lastModifiedDate="2020-09-09T04:12:26.850-07:00" name="GIT.ExtensionLog.DataShape" projectName="GIT" tags="">
+            <avatar/>
+            <DesignTimePermissions>
+                <Create/>
+                <Read/>
+                <Update/>
+                <Delete/>
+                <Metadata/>
+            </DesignTimePermissions>
+            <RunTimePermissions/>
+            <VisibilityPermissions>
+                <Visibility/>
+            </VisibilityPermissions>
+            <ConfigurationTableDefinitions/>
+            <ConfigurationTables/>
+            <FieldDefinitions>
+                <FieldDefinition aspect.isPrimaryKey="false" baseType="STRING" description="" name="Content" ordinal="5"/>
+                <FieldDefinition aspect.isPrimaryKey="true" baseType="GUID" description="" name="ID" ordinal="1"/>
+                <FieldDefinition aspect.isPrimaryKey="false" baseType="STRING" description="" name="ServiceName" ordinal="4"/>
+                <FieldDefinition aspect.isPrimaryKey="false" baseType="STRING" description="" name="Source" ordinal="6"/>
+                <FieldDefinition aspect.isPrimaryKey="false" baseType="DATETIME" description="" name="timestamp" ordinal="2"/>
+                <FieldDefinition aspect.isPrimaryKey="false" baseType="STRING" description="" name="User" ordinal="3"/>
+            </FieldDefinitions>
+        </DataShape>
+    </DataShapes>
+</Entities>

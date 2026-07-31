@@ -81,7 +81,7 @@ services:
       USE_TRIAL_LICENSE: "true"
     volumes:
       - ./.cache/jdk21:/mnt/jdk21:ro
-      - ./twx-lib/license.bin:/opt/trial.bin:ro
+      - ./vendor/license.bin:/opt/trial.bin:ro
     networks:
       twx-network:
         aliases:
@@ -142,15 +142,34 @@ services:
         echo "[gitea-init] Creating admin user 'giteauser'..."
         gitea admin user create --username giteauser --password 'giteapass123' --email admin@example.com --admin --must-change-password=false 2>&1 || echo "[gitea-init] User may already exist, continuing."
 
-        echo "[gitea-init] Creating test repo 'gitbackup-test-repo'..."
+        echo "[gitea-init] Creating test repo 'jgit-test-repo'..."
         HTTP_CODE=$$(curl -s -o /dev/null -w "%{http_code}" -X POST \
           "http://gitea:3000/api/v1/user/repos" \
           -H "Content-Type: application/json" \
           -H "Authorization: Basic $$(printf '%s' 'giteauser:giteapass123' | base64)" \
-          -d '{"name":"gitbackup-test-repo","auto_init":true,"default_branch":"main","private":false}')
+          -d '{"name":"jgit-test-repo","auto_init":true,"default_branch":"main","private":false}')
         echo "[gitea-init] Repo creation HTTP status: $$HTTP_CODE"
 
         echo "[gitea-init] Setup complete."
+
+  extension-init:
+    image: curlimages/curl:7.85.0
+    profiles:
+      - extension-install
+    entrypoint: ["/bin/sh", "/scripts/install-extension.sh"]
+    environment:
+      TWX_URL: http://thingworx:8080
+      TWX_USERNAME: Administrator
+      TWX_PASSWORD: AdminP@ssw0rd!123
+      EXTENSION_ZIP: /distributions
+    depends_on:
+      thingworx:
+        condition: service_started
+    networks:
+      - twx-network
+    volumes:
+      - ./scripts/install-extension.sh:/scripts/install-extension.sh:ro
+      - ./build/distributions:/distributions:ro
 
 networks:
   twx-network:

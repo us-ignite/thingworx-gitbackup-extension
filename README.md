@@ -1,6 +1,6 @@
-# ThingWorx GitBackup Extension
+# ThingWorx JGit Extension
 
-[Unofficial/Not Supported] Fork of the ThingWorx GitBackup Extension. Provides Git integration (push, pull, branch, merge, rebase, tag, diff, GPG signing, bulk import/export) for managing ThingWorx application entities under source control.
+Provides Git integration (push, pull, branch, merge, rebase, tag, diff, GPG signing, bulk import/export) for managing ThingWorx application entities under source control.
 
 ## Features
 
@@ -27,11 +27,11 @@
 │  GIT.Utility.Thing (utility services)       │
 │  GIT.Repository entities                         │
 ├─────────────────────────────────────────────┤
-│  Java Backend (src/gitbackup/extension/)     │
+│  Java Backend (src/.../jgit/extension/)      │
 │  GitRepositoryShape      — JGit-backed services │
 │  PastedKeyGpgSigner  — BouncyCastle GPG     │
 │  ExtMigrator         — upgrade migrations   │
-│  GitBackupValidation — config validation    │
+ │                                         │
 ├─────────────────────────────────────────────┤
 │  Testcontainers (src/gb/tests/)             │
 │  Postgres → DBInit → ThingWorx → Gitea     │
@@ -42,13 +42,13 @@
 └─────────────────────────────────────────────┘
 ```
 
-### Java Backend (`src/gitbackup/extension/`)
+### Java Backend (`src/.../jgit/extension/`)
 
 - **`GitRepositoryShape.java`** (1331 lines) — `GitRepositoryShape` ThingShape implementation. Provides all Git services backed by JGit 7.6.0.
 - **`GitUtilityThingShape.java`** — `GIT.Utility.ThingShape` implementation. Manages repos, credentials, GPG keys, project export/sync, and user-level config.
 - **`PastedKeyGpgSigner.java`** (156 lines) — Implements JGit's `Signer` interface using BouncyCastle. Accepts ASCII-armored PGP keys, produces GPG signatures for commits.
 - **`ExtMigrator.java`** — Runs on extension upgrade. Initializes UserExtension properties and GpgKeys.
-- **`GitBackupValidation.java`** — Resource with configuration validation service.
+
 - **`Const.java`** — Constants for configuration names, entity names, credential/proxy/GPG fields.
 
 ### ThingWorx Entities (`Entities/`)
@@ -66,7 +66,7 @@
 
 ### Thing Configuration
 
-Each GitBackup Thing has a `Configuration` table with these fields:
+Each GIT Repository Thing has a `Configuration` table with these fields:
 
 | Field | Type | Description |
 |---|---|---|
@@ -95,7 +95,7 @@ Stored in UserExtension properties (one set per platform user):
 ## Prerequisites
 
 - **JDK 21** — Corretto recommended. The `fetchJdk21` task can download and cache it automatically.
-- **ThingWorx Extension SDK 9.6.0** — Download from PTC support portal, place at `twx-lib/MED-61098-CD-096_9-6-0_ThingWorx-Extension-SDK-9-6-0.zip` (gitignored).
+- **ThingWorx Extension SDK 9.6.0** — Download from PTC support portal, place at `vendor/MED-61098-CD-096_9-6-0_ThingWorx-Extension-SDK-9-6-0.zip` (gitignored).
 - **Docker** — Required for the development environment and integration tests.
 
 ## Quick Start
@@ -119,8 +119,8 @@ LS_PASSWORD=your-license-server-password
 
 Produced in `build/distributions/`:
 
-- **`GitBackupExtension.zip`** — The extension package (JAR + entities + metadata)
-- **`GitBackupExtensionPack.zip`** — Extension plus third-party dependencies
+- **`JGitExtension.zip`** — The extension package (JAR + entities + metadata)
+- **`JGitExtensionPack.zip`** — Extension plus third-party dependencies
 
 ### Gradle Tasks
 
@@ -155,7 +155,7 @@ Gitea:      http://localhost:3000             (giteauser / giteapass123)
 PostgreSQL: localhost:5432                    (postgres / twx_password_123)
 ```
 
-Internal URL for thing config: `http://gitea:3000/giteauser/gitbackup-test-repo.git`
+Internal URL for thing config: `http://gitea:3000/giteauser/jgit-test-repo.git`
 
 ## Testing
 

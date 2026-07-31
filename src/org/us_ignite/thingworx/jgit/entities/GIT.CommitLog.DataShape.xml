@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Entities build="b349" majorVersion="8" minorVersion="3" modelPersistenceProviderPackage="H2PersistenceProviderPackage" revision="0" schemaVersion="1030" universal="">
+    <DataShapes>
+        <DataShape aspect.isEditableExtensionObject="true" aspect.isExtension="true" baseDataShape="" description="A commit history entry." documentationContent="" homeMashup="" name="GIT.CommitLog.DataShape" projectName="GIT" tags="">
+            <Owner name="Administrator" type="User"/>
+            <avatar/>
+            <DesignTimePermissions><Create/><Read/><Update/><Delete/><Metadata/></DesignTimePermissions>
+            <RunTimePermissions/>
+            <VisibilityPermissions><Visibility/></VisibilityPermissions>
+            <FieldDefinitions>
+                <FieldDefinition baseType="STRING" description="Full commit object ID" name="CommitID" ordinal="1"/>
+                <FieldDefinition baseType="STRING" description="Commit short message" name="CommitName" ordinal="2"/>
+                <FieldDefinition baseType="DATETIME" description="Committer timestamp" name="CommitTime" ordinal="3"/>
+                <FieldDefinition baseType="STRING" description="Author name" name="AuthorName" ordinal="4"/>
+                <FieldDefinition baseType="STRING" description="Author email address" name="AuthorEmail" ordinal="5"/>
+                <FieldDefinition baseType="STRING" description="Committer name" name="CommitterName" ordinal="6"/>
+                <FieldDefinition baseType="STRING" description="Committer email address" name="CommitterEmail" ordinal="7"/>
+                <FieldDefinition baseType="STRING" description="Parent commit IDs, comma-separated" name="ParentCommitIDs" ordinal="8"/>
+            </FieldDefinitions>
+            <ConfigurationChanges/>
+        </DataShape>
+    </DataShapes>
+</Entities>

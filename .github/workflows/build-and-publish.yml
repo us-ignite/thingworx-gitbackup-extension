@@ -24,7 +24,7 @@ jobs:
           git config filter.version.clean '.gitfilters/version-clean'
           git config filter.twx-resources.smudge '.gitfilters/twx-resources-smudge'
           git config filter.twx-resources.clean '.gitfilters/twx-resources-clean'
-          git checkout HEAD -- configfiles/metadata.xml gradle.properties twx-lib/twx-resources.tar.gz.gpg
+          git checkout HEAD -- configfiles/metadata.xml gradle.properties vendor/twx-resources.tar.gz.gpg
 
       - uses: actions/setup-java@v5
         with:
@@ -40,7 +40,7 @@ jobs:
       - name: Upload all artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: GitBackupExtension-All
+          name: JGitExtension-All
           path: build/distributions/
           if-no-files-found: error
 
@@ -71,7 +71,7 @@ jobs:
           git config filter.version.clean '.gitfilters/version-clean'
           git config filter.twx-resources.smudge '.gitfilters/twx-resources-smudge'
           git config filter.twx-resources.clean '.gitfilters/twx-resources-clean'
-          git checkout HEAD -- configfiles/metadata.xml gradle.properties twx-lib/twx-resources.tar.gz.gpg
+          git checkout HEAD -- configfiles/metadata.xml gradle.properties vendor/twx-resources.tar.gz.gpg
 
       - uses: actions/setup-java@v5
         with:
@@ -103,7 +103,7 @@ jobs:
 
       - uses: actions/download-artifact@v7
         with:
-          name: GitBackupExtension-All
+          name: JGitExtension-All
           path: artifacts
 
       - name: Create GitHub Release
