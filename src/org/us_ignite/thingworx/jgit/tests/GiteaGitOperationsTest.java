@@ -7,8 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import org.us_ignite.thingworx.jgit.tests.util.TestingCredentials;
-import org.us_ignite.thingworx.jgit.tests.util.GPGGenerator;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import org.junit.jupiter.api.AfterAll;
@@ -19,6 +17,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.us_ignite.thingworx.jgit.tests.util.GPGGenerator;
+import org.us_ignite.thingworx.jgit.tests.util.TestingCredentials;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -126,10 +126,7 @@ public class GiteaGitOperationsTest {
     }
 
     private String giteaExternalBaseUrl() {
-        return "http://"
-                + stack.gitea.getHost()
-                + ":"
-                + stack.gitea.getMappedPort(3000);
+        return "http://" + stack.gitea.getHost() + ":" + stack.gitea.getMappedPort(3000);
     }
 
     private void registerGpgKeyWithGitea(String privateKey) throws Exception {
@@ -144,7 +141,9 @@ public class GiteaGitOperationsTest {
                                 "Basic "
                                         + java.util.Base64.getEncoder()
                                                 .encodeToString(
-                                                        (credentials.giteaUser + ":" + credentials.giteaPass)
+                                                        (credentials.giteaUser
+                                                                        + ":"
+                                                                        + credentials.giteaPass)
                                                                 .getBytes()))
                         .POST(java.net.http.HttpRequest.BodyPublishers.ofString(keyBody.toString()))
                         .build();
@@ -537,7 +536,9 @@ public class GiteaGitOperationsTest {
                 stack.httpClient.send(verifyKeyReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, verifyKeyRes.statusCode(), "VerifyGpgKey failed: " + verifyKeyRes.body());
         assertTrue(
-                verifyKeyRes.body().matches("(?s).*\\\"GpgKeyFingerprint\\\"\\s*:\\s*\\\"[0-9a-fA-F]+\\\".*"),
+                verifyKeyRes
+                        .body()
+                        .matches("(?s).*\\\"GpgKeyFingerprint\\\"\\s*:\\s*\\\"[0-9a-fA-F]+\\\".*"),
                 "Stored GPG key fingerprint could not be located: " + verifyKeyRes.body());
 
         editFileInRepoViaThingworxAPI(
@@ -549,17 +550,21 @@ public class GiteaGitOperationsTest {
                 stack.thingworx.serviceRequest(GIT_THING_NAME, "Push", pushBody.toString()).build();
         var pushRes = stack.httpClient.send(pushReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, pushRes.statusCode(), "Signed Push failed: " + pushRes.body());
-        assertFalse(pushRes.body().contains("Error"), "Signed Push returned error: " + pushRes.body());
         assertFalse(
-                pushRes.body().contains("Exception"), "Signed Push threw exception: " + pushRes.body());
+                pushRes.body().contains("Error"), "Signed Push returned error: " + pushRes.body());
+        assertFalse(
+                pushRes.body().contains("Exception"),
+                "Signed Push threw exception: " + pushRes.body());
 
         var commitListReq =
                 stack.thingworx.serviceRequest(GIT_THING_NAME, "GetCommitList", null).build();
         var commitListRes =
                 stack.httpClient.send(commitListReq, HttpResponse.BodyHandlers.ofString());
-        assertEquals(200, commitListRes.statusCode(), "GetCommitList failed: " + commitListRes.body());
+        assertEquals(
+                200, commitListRes.statusCode(), "GetCommitList failed: " + commitListRes.body());
         String signedCommitId = extractFirstCommitId(commitListRes.body());
-        assertNotNull(signedCommitId, "Signed push did not create a commit: " + commitListRes.body());
+        assertNotNull(
+                signedCommitId, "Signed push did not create a commit: " + commitListRes.body());
 
         JsonObject commitInfoBody = new JsonObject();
         commitInfoBody.addProperty("CommitID", signedCommitId);
@@ -569,9 +574,13 @@ public class GiteaGitOperationsTest {
                         .build();
         var commitInfoRes =
                 stack.httpClient.send(commitInfoReq, HttpResponse.BodyHandlers.ofString());
-        assertEquals(200, commitInfoRes.statusCode(), "GetCommitInfo failed: " + commitInfoRes.body());
+        assertEquals(
+                200, commitInfoRes.statusCode(), "GetCommitInfo failed: " + commitInfoRes.body());
 
-        var rows = JsonParser.parseString(commitInfoRes.body()).getAsJsonObject().getAsJsonArray("rows");
+        var rows =
+                JsonParser.parseString(commitInfoRes.body())
+                        .getAsJsonObject()
+                        .getAsJsonArray("rows");
         assertNotNull(rows, "Commit info did not return rows: " + commitInfoRes.body());
         assertEquals(1, rows.size(), "Expected one commit info row: " + commitInfoRes.body());
         assertEquals(
@@ -755,10 +764,7 @@ public class GiteaGitOperationsTest {
         JsonObject body = new JsonObject();
         body.addProperty("Ref", "main");
         body.addProperty("MaxEntries", 10);
-        var req =
-                stack.thingworx
-                        .serviceRequest(GIT_THING_NAME, "GetLog", body.toString())
-                        .build();
+        var req = stack.thingworx.serviceRequest(GIT_THING_NAME, "GetLog", body.toString()).build();
         var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, res.statusCode(), "GetLog failed: " + res.body());
         assertNotNull(res.body());
@@ -790,10 +796,7 @@ public class GiteaGitOperationsTest {
     void testFetch() throws Exception {
         JsonObject body = new JsonObject();
         body.addProperty("Remote", "origin");
-        var req =
-                stack.thingworx
-                        .serviceRequest(GIT_THING_NAME, "Fetch", body.toString())
-                        .build();
+        var req = stack.thingworx.serviceRequest(GIT_THING_NAME, "Fetch", body.toString()).build();
         var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, res.statusCode(), "Fetch failed: " + res.body());
         assertNotNull(res.body());

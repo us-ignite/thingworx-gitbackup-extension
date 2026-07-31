@@ -63,16 +63,16 @@ import org.eclipse.jgit.api.errors.RefNotFoundException;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffFormatter;
 import org.eclipse.jgit.internal.storage.file.FileRepository;
+import org.eclipse.jgit.lib.CheckoutEntry;
 import org.eclipse.jgit.lib.GpgConfig;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.Ref;
-import org.eclipse.jgit.lib.CheckoutEntry;
 import org.eclipse.jgit.lib.ReflogEntry;
 import org.eclipse.jgit.lib.Repository;
-import org.eclipse.jgit.lib.RepositoryState;
 import org.eclipse.jgit.lib.RepositoryCache;
+import org.eclipse.jgit.lib.RepositoryState;
 import org.eclipse.jgit.lib.Signers;
 import org.eclipse.jgit.lib.StoredConfig;
 import org.eclipse.jgit.revwalk.RevCommit;
@@ -309,9 +309,9 @@ public class GitRepositoryShape extends Thing {
         wconfig.setPackedGitMMAP(false);
         wconfig.install();
         _logger.warn(
-                    "1. GIT Repository Thing: "
-                            + this.getName()
-                            + " initialize phase 1.1. PackedGitMMAP set false");
+                "1. GIT Repository Thing: "
+                        + this.getName()
+                        + " initialize phase 1.1. PackedGitMMAP set false");
         // prevents creation of disk folder when no repo URL is configured
         if (hasText(str_GitRepoURL)) {
             _logger.warn(
@@ -402,8 +402,7 @@ public class GitRepositoryShape extends Thing {
                             ((PasswordPrimitive) vc_GpgKey.getPrimitive(Const.str_GpgPrivateKey))
                                     .getValue();
                     str_GpgPassphrase =
-                            ((PasswordPrimitive)
-                                            vc_GpgKey.getPrimitive(Const.str_GpgKeyPassphrase))
+                            ((PasswordPrimitive) vc_GpgKey.getPrimitive(Const.str_GpgKeyPassphrase))
                                     .getValue();
                     bool_SignCommits =
                             ((BooleanPrimitive) vc_GpgKey.getPrimitive(Const.str_SignCommits))
@@ -523,8 +522,7 @@ public class GitRepositoryShape extends Thing {
                             ((PasswordPrimitive) vc_GpgKey.getPrimitive(Const.str_GpgPrivateKey))
                                     .getValue();
                     str_GpgPassphrase =
-                            ((PasswordPrimitive)
-                                            vc_GpgKey.getPrimitive(Const.str_GpgKeyPassphrase))
+                            ((PasswordPrimitive) vc_GpgKey.getPrimitive(Const.str_GpgKeyPassphrase))
                                     .getValue();
                     bool_SignCommits =
                             ((BooleanPrimitive) vc_GpgKey.getPrimitive(Const.str_SignCommits))
@@ -650,7 +648,10 @@ public class GitRepositoryShape extends Thing {
             name = "Result",
             description = "",
             baseType = "INFOTABLE",
-            aspects = {"isEntityDataShape:true", "dataShape:GIT.GpgKeyVerificationResult.DataShape"})
+            aspects = {
+                "isEntityDataShape:true",
+                "dataShape:GIT.GpgKeyVerificationResult.DataShape"
+            })
     public InfoTable VerifyGpgKey(
             @ThingworxServiceParameter(
                             name = "GpgPrivateKey",
@@ -854,7 +855,11 @@ public class GitRepositoryShape extends Thing {
             CredentialsProvider credentialsProvider =
                     new UsernamePasswordCredentialsProvider(str_User, str_Password);
             String remote = isBlank(Remote) ? "origin" : Remote;
-            myGitFolder.fetch().setRemote(remote).setCredentialsProvider(credentialsProvider).call();
+            myGitFolder
+                    .fetch()
+                    .setRemote(remote)
+                    .setCredentialsProvider(credentialsProvider)
+                    .call();
             String str_LogResult = "Fetch from '" + remote + "' completed successfully.";
             LogOperationResult(str_LogResult, str_CurrentMethodName);
             _logger.warn("Finished Fetch for GIT Repository Thing: " + this.getName());
@@ -1098,7 +1103,8 @@ public class GitRepositoryShape extends Thing {
 
         try {
             InfoTable iftbl_BranchList =
-                    InfoTableInstanceFactory.createInfoTableFromDataShape("GIT.BranchList.DataShape");
+                    InfoTableInstanceFactory.createInfoTableFromDataShape(
+                            "GIT.BranchList.DataShape");
             Git myGit = getGitObject("GetBranchList");
             List<Ref> branches = myGit.branchList().setListMode(ListMode.ALL).call();
             for (Iterator<Ref> iterator = branches.iterator(); iterator.hasNext(); ) {
@@ -1283,12 +1289,15 @@ public class GitRepositoryShape extends Thing {
                     String Ref,
             @ThingworxServiceParameter(
                             name = "MaxEntries",
-                            description = "Maximum number of entries; zero or omitted means no limit",
+                            description =
+                                    "Maximum number of entries; zero or omitted means no limit",
                             baseType = "INTEGER")
-                    Integer MaxEntries) throws Exception {
+                    Integer MaxEntries)
+            throws Exception {
         _logger.trace("Entering Service: GetLog");
-        InfoTable result = InfoTableInstanceFactory.createInfoTableFromDataShape(
-                Const.str_CommitLogDataShapeName);
+        InfoTable result =
+                InfoTableInstanceFactory.createInfoTableFromDataShape(
+                        Const.str_CommitLogDataShapeName);
         try {
             Repository repository = getGitObject("GetLog").getRepository();
             ObjectId objectId = resolveHistoryRef(repository, Ref, false);
@@ -1303,7 +1312,9 @@ public class GitRepositoryShape extends Thing {
                 ValueCollection row = new ValueCollection();
                 row.put("CommitID", new StringPrimitive(commit.getId().name()));
                 row.put("CommitName", new StringPrimitive(commit.getShortMessage()));
-                row.put("CommitTime", new DatetimePrimitive(new DateTime((long) commit.getCommitTime() * 1000)));
+                row.put(
+                        "CommitTime",
+                        new DatetimePrimitive(new DateTime((long) commit.getCommitTime() * 1000)));
                 putPerson(row, "AuthorName", "AuthorEmail", commit.getAuthorIdent());
                 putPerson(row, "CommitterName", "CommitterEmail", commit.getCommitterIdent());
                 row.put("ParentCommitIDs", new StringPrimitive(parentIds(commit)));
@@ -1337,12 +1348,15 @@ public class GitRepositoryShape extends Thing {
                     String Ref,
             @ThingworxServiceParameter(
                             name = "MaxEntries",
-                            description = "Maximum number of entries; zero or omitted means no limit",
+                            description =
+                                    "Maximum number of entries; zero or omitted means no limit",
                             baseType = "INTEGER")
-                    Integer MaxEntries) throws Exception {
+                    Integer MaxEntries)
+            throws Exception {
         _logger.trace("Entering Service: GetReflog");
-        InfoTable result = InfoTableInstanceFactory.createInfoTableFromDataShape(
-                Const.str_ReflogEntryDataShapeName);
+        InfoTable result =
+                InfoTableInstanceFactory.createInfoTableFromDataShape(
+                        Const.str_ReflogEntryDataShapeName);
         try {
             Git git = getGitObject("GetReflog");
             String ref = isBlank(Ref) ? "HEAD" : Ref;
@@ -1358,11 +1372,21 @@ public class GitRepositoryShape extends Thing {
                 row.put("NewObjectID", new StringPrimitive(objectIdName(entry.getNewId())));
                 putPerson(row, "ActorName", "ActorEmail", entry.getWho());
                 PersonIdent who = entry.getWho();
-                row.put("EventTime", new DatetimePrimitive(new DateTime(who == null ? 0 : who.getWhenAsInstant().toEpochMilli())));
+                row.put(
+                        "EventTime",
+                        new DatetimePrimitive(
+                                new DateTime(
+                                        who == null ? 0 : who.getWhenAsInstant().toEpochMilli())));
                 row.put("Comment", new StringPrimitive(orEmpty(entry.getComment())));
                 CheckoutEntry checkout = entry.parseCheckout();
-                row.put("CheckoutSource", new StringPrimitive(checkout == null ? "" : orEmpty(checkout.getFromBranch())));
-                row.put("CheckoutTarget", new StringPrimitive(checkout == null ? "" : orEmpty(checkout.getToBranch())));
+                row.put(
+                        "CheckoutSource",
+                        new StringPrimitive(
+                                checkout == null ? "" : orEmpty(checkout.getFromBranch())));
+                row.put(
+                        "CheckoutTarget",
+                        new StringPrimitive(
+                                checkout == null ? "" : orEmpty(checkout.getToBranch())));
                 result.addRow(row);
                 count++;
             }
@@ -1373,27 +1397,36 @@ public class GitRepositoryShape extends Thing {
         }
     }
 
-    private ObjectId resolveHistoryRef(Repository repository, String requestedRef, boolean defaultHead)
-            throws IOException {
+    private ObjectId resolveHistoryRef(
+            Repository repository, String requestedRef, boolean defaultHead) throws IOException {
         String ref = requestedRef;
         if (isBlank(ref)) {
             if (defaultHead) return repository.resolve("HEAD");
             String fullBranch = repository.getFullBranch();
-            String current = fullBranch != null && fullBranch.startsWith("refs/heads/")
-                    ? fullBranch.substring("refs/heads/".length()) : null;
+            String current =
+                    fullBranch != null && fullBranch.startsWith("refs/heads/")
+                            ? fullBranch.substring("refs/heads/".length())
+                            : null;
             ref = isBlank(current) ? str_CurrentBranchOrCommit : current;
             if (isBlank(ref)) {
-                ref = (String) getConfigurationSetting(Const.str_ConfTableName, Const.str_InitialBranch);
+                ref =
+                        (String)
+                                getConfigurationSetting(
+                                        Const.str_ConfTableName, Const.str_InitialBranch);
             }
         }
         ObjectId resolved = repository.resolve(ref);
-        if (resolved == null && !ref.startsWith("refs/")) resolved = repository.resolve("refs/heads/" + ref);
+        if (resolved == null && !ref.startsWith("refs/"))
+            resolved = repository.resolve("refs/heads/" + ref);
         return resolved;
     }
 
-    private static void putPerson(ValueCollection row, String nameField, String emailField, PersonIdent person) {
+    private static void putPerson(
+            ValueCollection row, String nameField, String emailField, PersonIdent person) {
         row.put(nameField, new StringPrimitive(person == null ? "" : orEmpty(person.getName())));
-        row.put(emailField, new StringPrimitive(person == null ? "" : orEmpty(person.getEmailAddress())));
+        row.put(
+                emailField,
+                new StringPrimitive(person == null ? "" : orEmpty(person.getEmailAddress())));
     }
 
     private static String parentIds(RevCommit commit) {
@@ -1495,9 +1528,14 @@ public class GitRepositoryShape extends Thing {
             category = "",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
-    @ThingworxServiceResult(name = "Result", description = "", baseType = "INFOTABLE", aspects = {"isEntityDataShape:true", "dataShape:GIT.Status.DataShape"})
+    @ThingworxServiceResult(
+            name = "Result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.Status.DataShape"})
     public InfoTable GetConflictFiles() throws Exception {
-        InfoTable result = InfoTableInstanceFactory.createInfoTableFromDataShape("GIT.Status.DataShape");
+        InfoTable result =
+                InfoTableInstanceFactory.createInfoTableFromDataShape("GIT.Status.DataShape");
         try {
             for (String file : getGitObject("GetConflictFiles").status().call().getConflicting()) {
                 ValueCollection row = new ValueCollection();
@@ -1512,9 +1550,24 @@ public class GitRepositoryShape extends Thing {
         return result;
     }
 
-    @ThingworxServiceDefinition(name = "ReadConflictFile", description = "Reads a conflicted repository file for UI editing.", category = "", isAllowOverride = false, aspects = {"isAsync:false"})
-    @ThingworxServiceResult(name = "Result", description = "", baseType = "STRING", aspects = {})
-    public String ReadConflictFile(@ThingworxServiceParameter(name = "File", description = "Repository-relative file path", baseType = "STRING") String File) throws Exception {
+    @ThingworxServiceDefinition(
+            name = "ReadConflictFile",
+            description = "Reads a conflicted repository file for UI editing.",
+            category = "",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "Result",
+            description = "",
+            baseType = "STRING",
+            aspects = {})
+    public String ReadConflictFile(
+            @ThingworxServiceParameter(
+                            name = "File",
+                            description = "Repository-relative file path",
+                            baseType = "STRING")
+                    String File)
+            throws Exception {
         try {
             return getConfiguredFileRepository().LoadText(repositoryRelativePath(File));
         } catch (Exception e) {
@@ -1522,22 +1575,57 @@ public class GitRepositoryShape extends Thing {
         }
     }
 
-    @ThingworxServiceDefinition(name = "WriteConflictFile", description = "Writes a UI-resolved repository file while a merge or rebase is paused.", category = "", isAllowOverride = false, aspects = {"isAsync:false"})
-    @ThingworxServiceResult(name = "Result", description = "", baseType = "STRING", aspects = {})
+    @ThingworxServiceDefinition(
+            name = "WriteConflictFile",
+            description = "Writes a UI-resolved repository file while a merge or rebase is paused.",
+            category = "",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "Result",
+            description = "",
+            baseType = "STRING",
+            aspects = {})
     public String WriteConflictFile(
-            @ThingworxServiceParameter(name = "File", description = "Repository-relative file path", baseType = "STRING") String File,
-            @ThingworxServiceParameter(name = "Content", description = "Resolved file content", baseType = "STRING") String Content) throws Exception {
+            @ThingworxServiceParameter(
+                            name = "File",
+                            description = "Repository-relative file path",
+                            baseType = "STRING")
+                    String File,
+            @ThingworxServiceParameter(
+                            name = "Content",
+                            description = "Resolved file content",
+                            baseType = "STRING")
+                    String Content)
+            throws Exception {
         try {
-            getConfiguredFileRepository().SaveText(repositoryRelativePath(File), Content == null ? "" : Content);
+            getConfiguredFileRepository()
+                    .SaveText(repositoryRelativePath(File), Content == null ? "" : Content);
             return "Wrote conflict file " + File;
         } catch (Exception e) {
             return "WriteConflictFile Error: " + Const.ERR_PREFIX_GIT + e.getMessage();
         }
     }
 
-    @ThingworxServiceDefinition(name = "StageResolved", description = "Stages manually resolved files without exporting ThingWorx entities over the edits.", category = "", isAllowOverride = false, aspects = {"isAsync:false"})
-    @ThingworxServiceResult(name = "Result", description = "", baseType = "STRING", aspects = {})
-    public String StageResolved(@ThingworxServiceParameter(name = "FilePattern", description = "Optional resolved file pattern; omitted stages all changes", baseType = "STRING") String FilePattern) {
+    @ThingworxServiceDefinition(
+            name = "StageResolved",
+            description =
+                    "Stages manually resolved files without exporting ThingWorx entities over the edits.",
+            category = "",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "Result",
+            description = "",
+            baseType = "STRING",
+            aspects = {})
+    public String StageResolved(
+            @ThingworxServiceParameter(
+                            name = "FilePattern",
+                            description =
+                                    "Optional resolved file pattern; omitted stages all changes",
+                            baseType = "STRING")
+                    String FilePattern) {
         try {
             stageChanges(getGitObject("StageResolved"), FilePattern);
             return "Staged resolved " + (isBlank(FilePattern) ? "files" : FilePattern);
@@ -1546,19 +1634,43 @@ public class GitRepositoryShape extends Thing {
         }
     }
 
-    @ThingworxServiceDefinition(name = "MergeContinue", description = "Completes a paused merge after conflicts are resolved and staged, then synchronizes ThingWorx.", category = "", isAllowOverride = false, aspects = {"isAsync:false"})
-    @ThingworxServiceResult(name = "Result", description = "", baseType = "STRING", aspects = {})
-    public String MergeContinue(@ThingworxServiceParameter(name = "Message", description = "Optional merge commit message", baseType = "STRING") String Message) {
+    @ThingworxServiceDefinition(
+            name = "MergeContinue",
+            description =
+                    "Completes a paused merge after conflicts are resolved and staged, then synchronizes ThingWorx.",
+            category = "",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "Result",
+            description = "",
+            baseType = "STRING",
+            aspects = {})
+    public String MergeContinue(
+            @ThingworxServiceParameter(
+                            name = "Message",
+                            description = "Optional merge commit message",
+                            baseType = "STRING")
+                    String Message) {
         try {
             Git git = getGitObject("MergeContinue");
             Repository repo = git.getRepository();
-            if (repo.getRepositoryState() != RepositoryState.MERGING && repo.getRepositoryState() != RepositoryState.MERGING_RESOLVED) return "MergeContinue Error: no merge is in progress.";
-            ValueCollection identity = getGitRepoRemoteCredential(UserUtilities.findUser(UserUtilities.getCurrentUser()));
+            if (repo.getRepositoryState() != RepositoryState.MERGING
+                    && repo.getRepositoryState() != RepositoryState.MERGING_RESOLVED)
+                return "MergeContinue Error: no merge is in progress.";
+            ValueCollection identity =
+                    getGitRepoRemoteCredential(
+                            UserUtilities.findUser(UserUtilities.getCurrentUser()));
             String name = primitiveString(identity, Const.str_GitCommitterName);
             String email = primitiveString(identity, Const.str_GitCommitterEmail);
-            if (isBlank(name) || isBlank(email)) return "MergeContinue Error: " + Const.ERR_NO_COMMITTER;
+            if (isBlank(name) || isBlank(email))
+                return "MergeContinue Error: " + Const.ERR_NO_COMMITTER;
             String msg = isBlank(Message) ? repo.readMergeCommitMsg() : Message;
-            RevCommit commit = git.commit().setMessage(isBlank(msg) ? "Merge resolved" : msg).setCommitter(name, email).call();
+            RevCommit commit =
+                    git.commit()
+                            .setMessage(isBlank(msg) ? "Merge resolved" : msg)
+                            .setCommitter(name, email)
+                            .call();
             syncFromRepository();
             return "Merge completed: " + commit.getId().name();
         } catch (Exception e) {
@@ -1566,14 +1678,29 @@ public class GitRepositoryShape extends Thing {
         }
     }
 
-    @ThingworxServiceDefinition(name = "MergeAbort", description = "Aborts the current merge and synchronizes the restored state into ThingWorx.", category = "", isAllowOverride = false, aspects = {"isAsync:false"})
-    @ThingworxServiceResult(name = "Result", description = "", baseType = "STRING", aspects = {})
+    @ThingworxServiceDefinition(
+            name = "MergeAbort",
+            description =
+                    "Aborts the current merge and synchronizes the restored state into ThingWorx.",
+            category = "",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "Result",
+            description = "",
+            baseType = "STRING",
+            aspects = {})
     public String MergeAbort() {
         try {
             Git git = getGitObject("MergeAbort");
             Repository repo = git.getRepository();
-            if (repo.getRepositoryState() != RepositoryState.MERGING && repo.getRepositoryState() != RepositoryState.MERGING_RESOLVED) return "MergeAbort Error: no merge is in progress.";
-            git.reset().setMode(ResetType.MERGE).setRef(repo.resolve("ORIG_HEAD") == null ? "HEAD" : "ORIG_HEAD").call();
+            if (repo.getRepositoryState() != RepositoryState.MERGING
+                    && repo.getRepositoryState() != RepositoryState.MERGING_RESOLVED)
+                return "MergeAbort Error: no merge is in progress.";
+            git.reset()
+                    .setMode(ResetType.MERGE)
+                    .setRef(repo.resolve("ORIG_HEAD") == null ? "HEAD" : "ORIG_HEAD")
+                    .call();
             repo.writeMergeCommitMsg(null);
             repo.writeMergeHeads(null);
             syncFromRepository();
@@ -1583,24 +1710,63 @@ public class GitRepositoryShape extends Thing {
         }
     }
 
-    @ThingworxServiceDefinition(name = "RebaseContinue", description = "Continues a paused rebase after conflicts are resolved and staged, then synchronizes ThingWorx.", category = "", isAllowOverride = false, aspects = {"isAsync:false"})
-    @ThingworxServiceResult(name = "Result", description = "", baseType = "STRING", aspects = {})
-    public String RebaseContinue() { return rebaseOperation(org.eclipse.jgit.api.RebaseCommand.Operation.CONTINUE, "RebaseContinue"); }
+    @ThingworxServiceDefinition(
+            name = "RebaseContinue",
+            description =
+                    "Continues a paused rebase after conflicts are resolved and staged, then synchronizes ThingWorx.",
+            category = "",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "Result",
+            description = "",
+            baseType = "STRING",
+            aspects = {})
+    public String RebaseContinue() {
+        return rebaseOperation(
+                org.eclipse.jgit.api.RebaseCommand.Operation.CONTINUE, "RebaseContinue");
+    }
 
-    @ThingworxServiceDefinition(name = "RebaseSkip", description = "Skips the current commit in a paused rebase.", category = "", isAllowOverride = false, aspects = {"isAsync:false"})
-    @ThingworxServiceResult(name = "Result", description = "", baseType = "STRING", aspects = {})
-    public String RebaseSkip() { return rebaseOperation(org.eclipse.jgit.api.RebaseCommand.Operation.SKIP, "RebaseSkip"); }
+    @ThingworxServiceDefinition(
+            name = "RebaseSkip",
+            description = "Skips the current commit in a paused rebase.",
+            category = "",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "Result",
+            description = "",
+            baseType = "STRING",
+            aspects = {})
+    public String RebaseSkip() {
+        return rebaseOperation(org.eclipse.jgit.api.RebaseCommand.Operation.SKIP, "RebaseSkip");
+    }
 
-    @ThingworxServiceDefinition(name = "RebaseAbort", description = "Aborts the current rebase and synchronizes the restored state into ThingWorx.", category = "", isAllowOverride = false, aspects = {"isAsync:false"})
-    @ThingworxServiceResult(name = "Result", description = "", baseType = "STRING", aspects = {})
-    public String RebaseAbort() { return rebaseOperation(org.eclipse.jgit.api.RebaseCommand.Operation.ABORT, "RebaseAbort"); }
+    @ThingworxServiceDefinition(
+            name = "RebaseAbort",
+            description =
+                    "Aborts the current rebase and synchronizes the restored state into ThingWorx.",
+            category = "",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "Result",
+            description = "",
+            baseType = "STRING",
+            aspects = {})
+    public String RebaseAbort() {
+        return rebaseOperation(org.eclipse.jgit.api.RebaseCommand.Operation.ABORT, "RebaseAbort");
+    }
 
-    private String rebaseOperation(org.eclipse.jgit.api.RebaseCommand.Operation operation, String service) {
+    private String rebaseOperation(
+            org.eclipse.jgit.api.RebaseCommand.Operation operation, String service) {
         try {
             Git git = getGitObject(service);
-            if (!git.getRepository().getRepositoryState().isRebasing()) return service + " Error: no rebase is in progress.";
+            if (!git.getRepository().getRepositoryState().isRebasing())
+                return service + " Error: no rebase is in progress.";
             RebaseResult result = git.rebase().setOperation(operation).call();
-            if (result.getStatus() == RebaseResult.Status.OK || result.getStatus() == RebaseResult.Status.ABORTED) syncFromRepository();
+            if (result.getStatus() == RebaseResult.Status.OK
+                    || result.getStatus() == RebaseResult.Status.ABORTED) syncFromRepository();
             return service + ": " + result.getStatus() + ": " + result;
         } catch (Exception e) {
             return service + " Error: " + Const.ERR_PREFIX_GIT + e.getMessage();
@@ -1887,7 +2053,8 @@ public class GitRepositoryShape extends Thing {
             if (targetThing != null) {
                 ValueCollection params = new ValueCollection();
                 params.put("tableName", new StringPrimitive(Const.str_ConfTableName));
-                Object rawTable = targetThing.processServiceRequest("GetConfigurationTable", params);
+                Object rawTable =
+                        targetThing.processServiceRequest("GetConfigurationTable", params);
                 InfoTable table =
                         rawTable instanceof InfoTable
                                 ? (InfoTable) rawTable
@@ -1923,11 +2090,9 @@ public class GitRepositoryShape extends Thing {
                                         Const.str_ConfTableName, Const.str_FileRepository),
                         Const.str_FileRepositoryDefaultValue);
         this.str_FileRepoPath =
-                (String)
-                        getConfigurationSetting(Const.str_ConfTableName, Const.str_RepoPathName);
+                (String) getConfigurationSetting(Const.str_ConfTableName, Const.str_RepoPathName);
         this.str_CurrentBranchOrCommit =
-                (String)
-                        getConfigurationSetting(Const.str_ConfTableName, Const.str_InitialBranch);
+                (String) getConfigurationSetting(Const.str_ConfTableName, Const.str_InitialBranch);
         this.bool_UseProxy =
                 isTrue(
                         (Boolean)
@@ -2207,7 +2372,8 @@ public class GitRepositoryShape extends Thing {
         refreshConfiguration();
         FileRepositoryThing repository =
                 (FileRepositoryThing)
-                        EntityUtilities.findEntity(str_FileRepository, ThingworxRelationshipTypes.Thing);
+                        EntityUtilities.findEntity(
+                                str_FileRepository, ThingworxRelationshipTypes.Thing);
         if (repository == null) throw new IllegalStateException(Const.ERR_FILE_REPO_NOT_FOUND);
         return repository;
     }
@@ -2615,7 +2781,9 @@ public class GitRepositoryShape extends Thing {
             ValueCollection key = keys.getRow(i);
             if (fingerprint.equals(primitiveString(key, Const.str_GpgKeyFingerprint))) {
                 if (repositoryConfig.getPrimitive(Const.str_SignCommits) != null)
-                    key.put(Const.str_SignCommits, repositoryConfig.getPrimitive(Const.str_SignCommits));
+                    key.put(
+                            Const.str_SignCommits,
+                            repositoryConfig.getPrimitive(Const.str_SignCommits));
                 return key;
             }
         }

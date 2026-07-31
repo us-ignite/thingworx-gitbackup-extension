@@ -2,13 +2,13 @@ package org.us_ignite.thingworx.jgit.tests.containers;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import org.us_ignite.thingworx.jgit.tests.util.TestingCredentials;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.wait.strategy.Wait;
+import org.us_ignite.thingworx.jgit.tests.util.TestingCredentials;
 
 public class JGitExtensionInstaller extends GenericContainer<JGitExtensionInstaller> {
     public JGitExtensionInstaller(

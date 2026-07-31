@@ -1,11 +1,5 @@
 package org.us_ignite.thingworx.jgit.tests;
 
-import org.us_ignite.thingworx.jgit.tests.containers.DBInit;
-import org.us_ignite.thingworx.jgit.tests.containers.JGitExtensionInstaller;
-import org.us_ignite.thingworx.jgit.tests.containers.GiteaRepo;
-import org.us_ignite.thingworx.jgit.tests.containers.Postgres;
-import org.us_ignite.thingworx.jgit.tests.containers.ThingWorxContainer;
-import org.us_ignite.thingworx.jgit.tests.util.TestingCredentials;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -13,7 +7,12 @@ import java.net.http.HttpResponse;
 import java.nio.file.Paths;
 import java.util.Base64;
 import org.testcontainers.containers.Network;
-import com.github.dockerjava.api.DockerClient;
+import org.us_ignite.thingworx.jgit.tests.containers.DBInit;
+import org.us_ignite.thingworx.jgit.tests.containers.GiteaRepo;
+import org.us_ignite.thingworx.jgit.tests.containers.JGitExtensionInstaller;
+import org.us_ignite.thingworx.jgit.tests.containers.Postgres;
+import org.us_ignite.thingworx.jgit.tests.containers.ThingWorxContainer;
+import org.us_ignite.thingworx.jgit.tests.util.TestingCredentials;
 
 public class JGitExtensionTestStack implements AutoCloseable {
     public final Network network;
@@ -38,11 +37,8 @@ public class JGitExtensionTestStack implements AutoCloseable {
         gitea = enableGitea ? new GiteaRepo(network, credentials) : null;
         thingworx = new ThingWorxContainer(platformImage, dbInit, postgres, network, credentials);
         var zipPath =
-                System.getProperty(
-                        "test.extensionZip", "build/distributions/JGitExtension.zip");
-        installer =
-                new JGitExtensionInstaller(
-                        Paths.get(zipPath), thingworx, network, credentials);
+                System.getProperty("test.extensionZip", "build/distributions/JGitExtension.zip");
+        installer = new JGitExtensionInstaller(Paths.get(zipPath), thingworx, network, credentials);
         this.start();
     }
 
@@ -58,7 +54,6 @@ public class JGitExtensionTestStack implements AutoCloseable {
         thingworx.start();
         installer.start();
 
-
         // Restart ThingWorx to ensure the extension is loaded and initialized
         // DockerClient dockerClient = thingworx.getDockerClient();
 
@@ -66,8 +61,6 @@ public class JGitExtensionTestStack implements AutoCloseable {
 
         // dockerClient.stopContainerCmd(containerId).exec();
         // dockerClient.startContainerCmd(containerId).exec();
-
-
 
         if (gitea != null) {
             gitea.start();
@@ -81,8 +74,8 @@ public class JGitExtensionTestStack implements AutoCloseable {
                                     "su git -c '/usr/local/bin/gitea admin user create --username "
                                             + credentials.giteaUser
                                             + " --password "
-                                    + credentials.giteaPass
-                                    + " --email test@example.com --admin --must-change-password=false'");
+                                            + credentials.giteaPass
+                                            + " --email test@example.com --admin --must-change-password=false'");
                     System.out.println(
                             "GITEA_DEBUG user attempt "
                                     + i

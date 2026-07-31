@@ -1,9 +1,9 @@
 package org.us_ignite.thingworx.jgit.tests.containers;
 
-import org.us_ignite.thingworx.jgit.tests.util.TestingCredentials;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.wait.strategy.Wait;
+import org.us_ignite.thingworx.jgit.tests.util.TestingCredentials;
 
 public class Postgres extends GenericContainer<Postgres> {
     public Postgres(Network network, TestingCredentials credentials) {

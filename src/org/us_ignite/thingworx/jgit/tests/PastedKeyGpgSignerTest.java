@@ -6,8 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import org.us_ignite.thingworx.jgit.extension.PastedKeyGpgSigner;
-import org.us_ignite.thingworx.jgit.tests.util.GPGGenerator;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import org.bouncycastle.openpgp.PGPSecretKey;
@@ -16,6 +14,8 @@ import org.bouncycastle.openpgp.PGPUtil;
 import org.bouncycastle.openpgp.operator.jcajce.JcaKeyFingerprintCalculator;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.junit.jupiter.api.Test;
+import org.us_ignite.thingworx.jgit.extension.PastedKeyGpgSigner;
+import org.us_ignite.thingworx.jgit.tests.util.GPGGenerator;
 
 class PastedKeyGpgSignerTest {
 

@@ -121,6 +121,9 @@ spotless {
         trimTrailingWhitespace()
         endWithNewline()
     }
+    groovyGradle {
+        target 'build.gradle'
+    }
 }
 
 configurations {
@@ -583,9 +586,6 @@ task buildAll {
     }
 }
 
-def testProps = System.properties.findAll { k, v -> k.startsWith('test.') }
-        .collect { k, v -> "-D$k=$v" }
-
 sdkConfigs.each { ver, cfg ->
     def taskName = "test${ver.replace('.', '_')}"
     tasks.register(taskName) {
@@ -595,7 +595,8 @@ sdkConfigs.each { ver, cfg ->
             execOps.exec {
                 workingDir = projectDir
                 commandLine './gradlew', '-q', 'test', "-PtwxVersion=$ver",
-                        "-PbuildDirSuffix=$ver", *testProps, '--no-daemon'
+                        "-PbuildDirSuffix=$ver", System.properties.findAll { k, v -> k.startsWith('test.') }
+        .collect { k, v -> "-D$k=$v" }, '--no-daemon'
             }
         }
     }
@@ -610,7 +611,8 @@ task testAll {
             execOps.exec {
                 workingDir = projectDir
                 commandLine './gradlew', '-q', 'test', "-PtwxVersion=$ver",
-                        "-PbuildDirSuffix=$ver", *testProps, '--no-daemon'
+                        "-PbuildDirSuffix=$ver", System.properties.findAll { k, v -> k.startsWith('test.') }
+        .collect { k, v -> "-D$k=$v" }, '--no-daemon'
             }
         }
     }
