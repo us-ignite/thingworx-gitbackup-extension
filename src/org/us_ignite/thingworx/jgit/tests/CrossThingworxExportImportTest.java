@@ -199,8 +199,14 @@ public class CrossThingworxExportImportTest {
 
         JsonObject pushBody = new JsonObject();
         pushBody.addProperty("Message", "Cross-instance test push from TWX-A");
+        var commitReq =
+                twxA.serviceRequest(GIT_THING_A, "Commit", pushBody.toString())
+                        .timeout(Duration.ofSeconds(30))
+                        .build();
+        var commitRes = httpClient.send(commitReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, commitRes.statusCode(), "Commit on source failed: " + commitRes.body());
         var pushReq =
-                twxA.serviceRequest(GIT_THING_A, "Push", pushBody.toString())
+                twxA.serviceRequest(GIT_THING_A, "Push", null)
                         .timeout(Duration.ofSeconds(30))
                         .build();
         var pushRes = httpClient.send(pushReq, HttpResponse.BodyHandlers.ofString());
@@ -305,8 +311,14 @@ public class CrossThingworxExportImportTest {
 
         JsonObject pushBody = new JsonObject();
         pushBody.addProperty("Message", "Cross-instance return push from TWX-B");
+        var targetCommitReq =
+                twxB.serviceRequest(GIT_THING_B, "Commit", pushBody.toString())
+                        .timeout(Duration.ofSeconds(30))
+                        .build();
+        var targetCommitRes = httpClient.send(targetCommitReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, targetCommitRes.statusCode(), "Commit on target failed: " + targetCommitRes.body());
         var pushReq =
-                twxB.serviceRequest(GIT_THING_B, "Push", pushBody.toString())
+                twxB.serviceRequest(GIT_THING_B, "Push", null)
                         .timeout(Duration.ofSeconds(30))
                         .build();
         var pushRes = httpClient.send(pushReq, HttpResponse.BodyHandlers.ofString());

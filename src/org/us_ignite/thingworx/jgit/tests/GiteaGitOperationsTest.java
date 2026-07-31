@@ -73,7 +73,7 @@ public class GiteaGitOperationsTest {
         pushBody.addProperty("Message", "Create branch " + branchName + " via test");
         var pushReq =
                 stack.thingworx
-                        .serviceRequest(GIT_THING_NAME, "Push", pushBody.toString())
+                        .serviceRequest(GIT_THING_NAME, "Push", null)
                         .timeout(Duration.ofSeconds(30))
                         .build();
         var pushRes = stack.httpClient.send(pushReq, HttpResponse.BodyHandlers.ofString());
@@ -221,8 +221,12 @@ public class GiteaGitOperationsTest {
 
         JsonObject body = new JsonObject();
         body.addProperty("Message", "Integration test: initial commit");
+        var commitReq =
+                stack.thingworx.serviceRequest(GIT_THING_NAME, "Commit", body.toString()).build();
+        var commitRes = stack.httpClient.send(commitReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, commitRes.statusCode(), "Commit failed: " + commitRes.body());
         var pushReq =
-                stack.thingworx.serviceRequest(GIT_THING_NAME, "Push", body.toString()).build();
+                stack.thingworx.serviceRequest(GIT_THING_NAME, "Push", null).build();
         var pushRes = stack.httpClient.send(pushReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, pushRes.statusCode(), "Push failed: " + pushRes.body());
         assertNotNull(pushRes.body());
@@ -307,10 +311,17 @@ public class GiteaGitOperationsTest {
         editFileInRepoViaThingworxAPI(
                 "GitRepository", GIT_THING_PATH + "/feature-file.txt", "Feature branch content");
 
-        var pushBody = new JsonObject();
-        pushBody.addProperty("Message", "Feature branch commit");
+        var commitBody = new JsonObject();
+        commitBody.addProperty("Message", "Feature branch commit");
+        var commitReq =
+                stack.thingworx
+                        .serviceRequest(GIT_THING_NAME, "Commit", commitBody.toString())
+                        .timeout(Duration.ofSeconds(30))
+                        .build();
+        var commitRes = stack.httpClient.send(commitReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, commitRes.statusCode(), "Commit on feature branch failed: " + commitRes.body());
         var pushReq =
-                stack.thingworx.serviceRequest(GIT_THING_NAME, "Push", pushBody.toString()).build();
+                stack.thingworx.serviceRequest(GIT_THING_NAME, "Push", null).build();
         var pushRes = stack.httpClient.send(pushReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, pushRes.statusCode(), "Push on feature branch failed: " + pushRes.body());
 
@@ -545,10 +556,17 @@ public class GiteaGitOperationsTest {
         editFileInRepoViaThingworxAPI(
                 "GitRepository", GIT_THING_PATH + "/signed-test.txt", "Signed commit test content");
 
-        JsonObject pushBody = new JsonObject();
-        pushBody.addProperty("Message", "Integration test: signed commit");
+        JsonObject commitBody = new JsonObject();
+        commitBody.addProperty("Message", "Integration test: signed commit");
+        var commitReq =
+                stack.thingworx
+                        .serviceRequest(GIT_THING_NAME, "Commit", commitBody.toString())
+                        .timeout(Duration.ofSeconds(30))
+                        .build();
+        var commitRes = stack.httpClient.send(commitReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, commitRes.statusCode(), "Signed commit failed: " + commitRes.body());
         var pushReq =
-                stack.thingworx.serviceRequest(GIT_THING_NAME, "Push", pushBody.toString()).build();
+        stack.thingworx.serviceRequest(GIT_THING_NAME, "Push", null).build();
         var pushRes = stack.httpClient.send(pushReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, pushRes.statusCode(), "Signed Push failed: " + pushRes.body());
         assertFalse(
@@ -687,8 +705,12 @@ public class GiteaGitOperationsTest {
 
         JsonObject pushBody = new JsonObject();
         pushBody.addProperty("Message", "Commit on merge branch");
+        var commitReq =
+                stack.thingworx.serviceRequest(GIT_THING_NAME, "Commit", pushBody.toString()).build();
+        var commitRes = stack.httpClient.send(commitReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, commitRes.statusCode(), "Commit on merge branch failed: " + commitRes.body());
         var pushReq =
-                stack.thingworx.serviceRequest(GIT_THING_NAME, "Push", pushBody.toString()).build();
+                stack.thingworx.serviceRequest(GIT_THING_NAME, "Push", null).build();
         var pushRes = stack.httpClient.send(pushReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, pushRes.statusCode(), "Push on merge branch failed: " + pushRes.body());
 
@@ -729,8 +751,12 @@ public class GiteaGitOperationsTest {
                 "GitRepository", GIT_THING_PATH + "/rebase-main.txt", "Main branch advancement");
         JsonObject pushBody = new JsonObject();
         pushBody.addProperty("Message", "Advance main for rebase test");
+        var commitReq =
+                stack.thingworx.serviceRequest(GIT_THING_NAME, "Commit", pushBody.toString()).build();
+        var commitRes = stack.httpClient.send(commitReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, commitRes.statusCode(), "Commit on main failed: " + commitRes.body());
         var pushReq =
-                stack.thingworx.serviceRequest(GIT_THING_NAME, "Push", pushBody.toString()).build();
+                stack.thingworx.serviceRequest(GIT_THING_NAME, "Push", null).build();
         var pushRes = stack.httpClient.send(pushReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, pushRes.statusCode(), "Push on main failed: " + pushRes.body());
 

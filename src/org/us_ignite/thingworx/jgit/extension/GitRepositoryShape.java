@@ -364,7 +364,9 @@ public class GitRepositoryShape extends Thing {
             throws Exception, GitAPIException {
         _logger.trace("Entering Service: Commit");
         refreshConfiguration();
-        syncFromThingworx();
+        if (!syncFromThingworx()) {
+            return "Commit Error: " + Const.ERR_PREFIX_SYSTEM + "Project synchronization failed.";
+        }
         String str_CurrentMethodName = "Commit";
         boolean bool_SignCommits = false;
         if (isBlank(str_GitRepoURL)) {
@@ -441,7 +443,7 @@ public class GitRepositoryShape extends Thing {
     @ThingworxServiceDefinition(
             name = "Push",
             description =
-                    "This will execute a push of all the files for the specific project. You might need to edit the global gitignore file to include file types you might want in the commit, like log files. This is usually stored in Windows in the the [user]/Documents/gitignore_global.txt ",
+                    "Pushes existing local commits to a remote. This service does not synchronize entities, stage files, or create commits. The remote defaults to origin.",
             category = "",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
@@ -452,22 +454,19 @@ public class GitRepositoryShape extends Thing {
             aspects = {})
     public String Push(
             @ThingworxServiceParameter(
-                            name = "Message",
-                            description = "A message that will appear in the git for this commit",
+                            name = "Remote",
+                            description = "Optional remote name; defaults to origin",
                             baseType = "STRING")
-                    String Message)
+                    String Remote)
             throws Exception, GitAPIException {
         _logger.trace("Entering Service: Push");
         refreshConfiguration();
-        syncFromThingworx();
         String str_CurrentMethodName = "Push";
-        boolean bool_SignCommits = false;
         if (isBlank(str_GitRepoURL)) {
             _logger.warn(Const.ERR_NO_REPO_URL);
             return "Push Error: " + Const.ERR_PREFIX_CONFIG + Const.ERR_NO_REPO_URL_PUSH;
         }
         try {
-            Thread.sleep(1000);
             long startTimePush = System.nanoTime();
             Git myGitObject = getGitObject("Push");
             long endTimeOpenRepository = System.nanoTime();
@@ -481,96 +480,23 @@ public class GitRepositoryShape extends Thing {
             String str_User = primitiveString(vc_RepoCredentials, Const.str_GitCommitterUser);
             String str_Password =
                     primitiveString(vc_RepoCredentials, Const.str_GitCommitterPassword);
-            String str_CommitterName =
-                    primitiveString(vc_RepoCredentials, Const.str_GitCommitterName);
-            String str_CommitterEmail =
-                    primitiveString(vc_RepoCredentials, Const.str_GitCommitterEmail);
-            if (isBlank(str_User)
-                    || isBlank(str_Password)
-                    || isBlank(str_CommitterName)
-                    || isBlank(str_CommitterEmail)) {
+            if (isBlank(str_User) || isBlank(str_Password)) {
                 _logger.warn(Const.ERR_NO_CREDENTIALS);
                 return "Push Error: " + Const.ERR_PREFIX_AUTH + Const.ERR_NO_CREDENTIALS;
             }
-            myGitObject.add().addFilepattern(".").call();
-            long endTimeAddFiles = System.nanoTime();
-            BigDecimal durationTimeAddFiles =
-                    new BigDecimal(
-                                    (double) (endTimeAddFiles - endTimeOpenRepository)
-                                            / (double) 1000000)
-                            .setScale(3, RoundingMode.HALF_DOWN);
-            myGitObject.add().addFilepattern(".").setUpdate(true).call();
-            long endTimeAddAllFilesWithSetUpdate = System.nanoTime();
-            BigDecimal durationTimeAddAllFilesWithSetUpdate =
-                    new BigDecimal(
-                                    (double) (endTimeAddAllFilesWithSetUpdate - endTimeAddFiles)
-                                            / (double) 1000000)
-                            .setScale(3, RoundingMode.HALF_DOWN);
-            var commitCmd =
-                    myGitObject
-                            .commit()
-                            .setAll(true)
-                            .setMessage(Message)
-                            .setCommitter(str_CommitterName, str_CommitterEmail);
-
-            String str_GpgPrivateKey = null;
-            String str_GpgPassphrase = null;
-            try {
-                ValueCollection vc_GpgKey = getUserGpgKey(us_currentUser);
-                if (vc_GpgKey != null && vc_GpgKey.getPrimitive(Const.str_SignCommits) != null) {
-                    str_GpgPrivateKey =
-                            ((PasswordPrimitive) vc_GpgKey.getPrimitive(Const.str_GpgPrivateKey))
-                                    .getValue();
-                    str_GpgPassphrase =
-                            ((PasswordPrimitive) vc_GpgKey.getPrimitive(Const.str_GpgKeyPassphrase))
-                                    .getValue();
-                    bool_SignCommits =
-                            ((BooleanPrimitive) vc_GpgKey.getPrimitive(Const.str_SignCommits))
-                                    .getValue();
-                }
-            } catch (Exception e) {
-                _logger.warn(Const.WARN_NO_GPG_KEYS);
-            }
-
-            PastedKeyGpgSigner gpgSigner = null;
-            if (bool_SignCommits && hasText(str_GpgPrivateKey)) {
-                gpgSigner = new PastedKeyGpgSigner(str_GpgPrivateKey, str_GpgPassphrase);
-                Signers.set(GpgConfig.GpgFormat.OPENPGP, gpgSigner);
-                commitCmd.setSign(true).setSigningKey(null).setSigner(gpgSigner);
-                commitCmd.setCredentialsProvider(
-                        new UsernamePasswordCredentialsProvider(null, str_GpgPassphrase));
-            }
-
-            commitCmd.call();
-
-            if (gpgSigner != null) {
-                gpgSigner.clearSensitiveData();
-            }
-
-            long endTimeCommitToLocalRepository = System.nanoTime();
-            BigDecimal durationTimeCommitToLocalRepository =
-                    new BigDecimal(
-                                    (double)
-                                                    (endTimeCommitToLocalRepository
-                                                            - endTimeAddAllFilesWithSetUpdate)
-                                            / (double) 1000000)
-                            .setScale(3, RoundingMode.HALF_DOWN);
-            if (!bool_SignCommits) {
-                _logger.warn(Const.WARN_NO_SIGN_COMMITS);
-            }
-
+            String remote = isBlank(Remote) ? "origin" : Remote;
             CredentialsProvider credentialsProvider =
                     new UsernamePasswordCredentialsProvider(str_User, str_Password);
             Iterable<PushResult> prList =
                     myGitObject
                             .push()
-                            .setRemote("origin")
+                            .setRemote(remote)
                             .setCredentialsProvider(credentialsProvider)
                             .call();
             long endTimePushFinish = System.nanoTime();
             BigDecimal durationTimePushFinish =
                     new BigDecimal(
-                                    (double) (endTimePushFinish - endTimeCommitToLocalRepository)
+                                    (double) (endTimePushFinish - endTimeOpenRepository)
                                             / (double) 1000000)
                             .setScale(3, RoundingMode.HALF_DOWN);
             String str_LogResult = "";
@@ -587,10 +513,6 @@ public class GitRepositoryShape extends Thing {
                         } else {
                             hint = " Check the remote repository policy and credentials.";
                         }
-                        if (status == RemoteRefUpdate.Status.REJECTED_OTHER_REASON
-                                && !bool_SignCommits) {
-                            hint += Const.ERR_PUSH_SIGNING_REQUIRED;
-                        }
                         pushError =
                                 "Remote rejected "
                                         + update.getRemoteName()
@@ -604,13 +526,7 @@ public class GitRepositoryShape extends Thing {
             str_LogResult +=
                     " Debug Timings (ms): #1.OpenGit: "
                             + durationTimeOpenRepository
-                            + "#2.AddFiles: "
-                            + durationTimeAddFiles
-                            + "#3.AddAllDeletedFiles: "
-                            + durationTimeAddAllFilesWithSetUpdate
-                            + "#4.CommitToLocalRepository: "
-                            + durationTimeCommitToLocalRepository
-                            + "#5.Push: "
+                            + "#2.Push: "
                             + durationTimePushFinish;
             Thread.sleep(2000);
             LogOperationResult(str_LogResult, str_CurrentMethodName);
@@ -623,12 +539,8 @@ public class GitRepositoryShape extends Thing {
             String fullTrace = errors.toString();
             _logger.error(fullTrace);
             if (fullTrace.contains("pre-receive hook declined")
-                    || fullTrace.contains("REJECTED_OTHER_REASON")) {
-                String hint = "";
-                if (!bool_SignCommits) {
-                    hint = Const.ERR_PUSH_SIGNING_REQUIRED;
-                }
-                errMsg = "Push rejected by remote server (pre-receive hook)." + hint;
+                || fullTrace.contains("REJECTED_OTHER_REASON")) {
+                errMsg = "Push rejected by remote server (pre-receive hook).";
             } else {
                 errMsg = buildErrorResult("Push", e);
             }
@@ -2026,23 +1938,25 @@ public class GitRepositoryShape extends Thing {
         return str_Parents;
     }
 
-    private void syncFromThingworx() {
+    private boolean syncFromThingworx() {
         try {
             if (isBlank(str_ProjectName)) {
                 _logger.trace(Const.WARN_NO_PROJECT_SKIP);
-                return;
+                return true;
             }
             Thing utilityThing =
                     (Thing)
                             EntityUtilities.findEntity(
                                     Const.str_UtilityThingName, ThingworxRelationshipTypes.Thing);
-            if (utilityThing == null) return;
+            if (utilityThing == null) return false;
             ValueCollection params = new ValueCollection();
             params.put("GitThingName", new StringPrimitive(this.getName()));
             utilityThing.processServiceRequest("SyncProjectToRepository", params);
+            return true;
         } catch (Exception e) {
             _logger.error(
                     String.format(Const.WARN_SYNC_FAILED, this.getName() + ": " + e.getMessage()));
+            return false;
         }
     }
 
