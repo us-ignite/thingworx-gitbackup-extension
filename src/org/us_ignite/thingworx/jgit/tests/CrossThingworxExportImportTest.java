@@ -6,14 +6,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonObject;
-import java.net.URI;
 import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.Base64;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.MethodOrderer;
@@ -21,13 +17,12 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestMethodOrder;
-import org.testcontainers.containers.BindMode;
-import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
-import org.testcontainers.containers.startupcheck.OneShotStartupCheckStrategy;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.us_ignite.thingworx.jgit.tests.containers.DBInit;
+import org.us_ignite.thingworx.jgit.tests.containers.GiteaInit;
 import org.us_ignite.thingworx.jgit.tests.containers.GiteaRepo;
+import org.us_ignite.thingworx.jgit.tests.containers.JGitExtensionInstaller;
 import org.us_ignite.thingworx.jgit.tests.containers.Postgres;
 import org.us_ignite.thingworx.jgit.tests.containers.ThingWorxContainer;
 import org.us_ignite.thingworx.jgit.tests.util.TestingCredentials;
@@ -52,7 +47,8 @@ public class CrossThingworxExportImportTest {
 
     Network network = Network.newNetwork();
 
-    private GenericContainer<?> gitea;
+    private GiteaRepo gitea;
+    private GiteaInit giteaInit;
     private Postgres postgresA;
     private DBInit dbInitA;
     private ThingWorxContainer twxA;
@@ -70,7 +66,8 @@ public class CrossThingworxExportImportTest {
 
         gitea = new GiteaRepo(network, credentials);
         gitea.start();
-        setupGiteaRepo();
+        giteaInit = new GiteaInit(gitea, network, credentials, false);
+        giteaInit.start();
 
         postgresA = new Postgres(network, credentials, "postgresql-a");
         postgresA.start();
@@ -114,105 +111,13 @@ public class CrossThingworxExportImportTest {
                 Path.of(
                         System.getProperty(
                                 "test.extensionZip", "build/distributions/JGitExtension.zip"));
-        assertTrue(Files.exists(extZip), "Extension ZIP must exist at " + extZip.toAbsolutePath());
-
-        Path installScript = Path.of("scripts", "install-extension.sh").toAbsolutePath();
-        assertTrue(
-                Files.exists(installScript),
-                "Install script must exist at " + installScript.toAbsolutePath());
-
         @SuppressWarnings("resource")
         var installer =
-                new GenericContainer<>("curlimages/curl:7.85.0")
-                        .withNetwork(network)
-                        .dependsOn(twx)
-                        .withFileSystemBind(
-                                extZip.toAbsolutePath().toString(),
-                                "/tmp/extension.zip",
-                                BindMode.READ_ONLY)
-                        .withFileSystemBind(
-                                installScript.toString(),
-                                "/scripts/install-extension.sh",
-                                BindMode.READ_ONLY)
-                        .withEnv("TWX_URL", "http://" + hostname + ":8080")
-                        .withEnv("TWX_USERNAME", credentials.thingworxAdminUser)
-                        .withEnv("TWX_PASSWORD", credentials.thingworxAdminPass)
-                        .withEnv("EXTENSION_ZIP", "/tmp/extension.zip")
-                        .withStartupCheckStrategy(
-                                new OneShotStartupCheckStrategy()
-                                        .withTimeout(Duration.ofMinutes(10)))
-                        .withCreateContainerCmdModifier(
-                                cmd -> cmd.withEntrypoint("sh", "/scripts/install-extension.sh"))
-                        .withLogConsumer(
-                                outputFrame ->
-                                        System.out.print(
-                                                "["
-                                                        + hostname
-                                                        + "-INSTALLER] "
-                                                        + outputFrame.getUtf8String()));
+                new JGitExtensionInstaller(
+                        extZip, twx, network, credentials, "http://" + hostname + ":8080");
         installer.start();
         System.out.println("Extension installed on " + hostname);
         installer.close();
-    }
-
-    private void setupGiteaRepo() throws Exception {
-        var giteaUser = credentials.giteaUser;
-        var giteaPass = credentials.giteaPass;
-        var repoName = credentials.repoName;
-
-        for (int i = 0; i < 10; i++) {
-            try {
-                var userResult =
-                        gitea.execInContainer(
-                                "sh",
-                                "-c",
-                                "su git -c '/usr/local/bin/gitea admin user create --username "
-                                        + giteaUser
-                                        + " --password "
-                                        + giteaPass
-                                        + " --email admin@example.com --admin --must-change-password=false'");
-                if (userResult.getExitCode() == 0) break;
-            } catch (Exception e) {
-                System.out.println("Gitea user creation attempt " + i + ": " + e.getMessage());
-            }
-            Thread.sleep(2000);
-        }
-
-        var repoBody = new java.util.HashMap<String, Object>();
-        repoBody.put("name", repoName);
-        repoBody.put("private", false);
-        repoBody.put("auto_init", false);
-        repoBody.put("default_branch", "main");
-        for (int i = 0; i < 30; i++) {
-            try {
-                var request =
-                        HttpRequest.newBuilder()
-                                .uri(
-                                        URI.create(
-                                                "http://"
-                                                        + gitea.getHost()
-                                                        + ":"
-                                                        + gitea.getMappedPort(3000)
-                                                        + "/api/v1/user/repos"))
-                                .header("Content-Type", "application/json")
-                                .header(
-                                        "Authorization",
-                                        "Basic "
-                                                + Base64.getEncoder()
-                                                        .encodeToString(
-                                                                (giteaUser + ":" + giteaPass)
-                                                                        .getBytes()))
-                                .POST(
-                                        HttpRequest.BodyPublishers.ofString(
-                                                new com.google.gson.Gson().toJson(repoBody)))
-                                .build();
-                var repoRes = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-                if (repoRes.statusCode() == 201 || repoRes.statusCode() == 200) break;
-            } catch (Exception e) {
-                System.out.println("Gitea repo creation attempt " + i + ": " + e.getMessage());
-            }
-            Thread.sleep(2000);
-        }
     }
 
     private void initUserExtensions(ThingWorxContainer twx) throws Exception {
@@ -234,6 +139,7 @@ public class CrossThingworxExportImportTest {
         if (twxA != null) twxA.close();
         if (dbInitA != null) dbInitA.close();
         if (postgresA != null) postgresA.close();
+        if (giteaInit != null) giteaInit.close();
         if (gitea != null) gitea.close();
         if (network != null) network.close();
     }

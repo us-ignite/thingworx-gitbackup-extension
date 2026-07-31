@@ -474,7 +474,7 @@ task devSetup {
             execOps.exec {
                 commandLine 'docker', 'compose', 'exec', '-u', 'git', 'gitea', 'gitea', 'admin', 'user', 'create',
                         '--username', 'giteauser', '--password', 'giteapass123',
-                        '--email', 'admin@example.com', '--admin', '--must-change-password=false'
+                        '--email', 'test@example.com', '--admin', '--must-change-password=false'
                 ignoreExitValue = true
             }
 

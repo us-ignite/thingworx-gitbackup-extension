@@ -9,6 +9,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.us_ignite.thingworx.jgit.tests.containers.JGitExtensionTestStack;
 import org.us_ignite.thingworx.jgit.tests.util.TestingCredentials;
 
 @Testcontainers
