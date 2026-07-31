@@ -44,9 +44,11 @@ public final class Const {
     public static final String str_SignCommits = "SignCommits";
     public static final String str_GpgKeyFingerprint = "GpgKeyFingerprint";
     public static final String str_GpgKeyDataShapeName = "GIT.GpgKey.UserExtension.DataShape";
-    public static final String str_GitCredentialsDataShapeName = "GIT.RepositoryConfiguration.UserExtension.DataShape";
+    public static final String str_GitCredentialsDataShapeName =
+            "GIT.RepositoryConfiguration.UserExtension.DataShape";
     public static final String str_UserGpgKeyDataShapeName = "GIT.GpgKey.UserExtension.DataShape";
-    public static final String str_GpgKeyVerificationResultDataShapeName = "GIT.GpgKeyVerificationResult.DataShape";
+    public static final String str_GpgKeyVerificationResultDataShapeName =
+            "GIT.GpgKeyVerificationResult.DataShape";
 
     // Error message constants
     public static final String ERR_PREFIX_CONFIG = "[CONFIG] ";

@@ -1,6 +1,5 @@
 package org.us_ignite.thingworx.jgit.tests.containers;
 
-import org.us_ignite.thingworx.jgit.tests.util.TestingCredentials;
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.time.Duration;
@@ -8,6 +7,7 @@ import java.util.Base64;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.wait.strategy.Wait;
+import org.us_ignite.thingworx.jgit.tests.util.TestingCredentials;
 
 public class GiteaRepo extends GenericContainer<GiteaRepo> {
     TestingCredentials credentials;

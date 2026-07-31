@@ -1,7 +1,7 @@
 package org.us_ignite.thingworx.jgit.tests.util;
 
-import java.io.ByteArrayOutputStream;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.security.KeyPairGenerator;
 import java.security.Security;
 import org.bouncycastle.bcpg.ArmoredOutputStream;

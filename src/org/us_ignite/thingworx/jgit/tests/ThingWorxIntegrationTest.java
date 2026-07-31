@@ -2,7 +2,6 @@ package org.us_ignite.thingworx.jgit.tests;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import org.us_ignite.thingworx.jgit.tests.util.TestingCredentials;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -13,6 +12,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.us_ignite.thingworx.jgit.tests.util.TestingCredentials;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @Testcontainers

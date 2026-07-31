@@ -6,11 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonObject;
-import org.us_ignite.thingworx.jgit.tests.containers.DBInit;
-import org.us_ignite.thingworx.jgit.tests.containers.GiteaRepo;
-import org.us_ignite.thingworx.jgit.tests.containers.Postgres;
-import org.us_ignite.thingworx.jgit.tests.containers.ThingWorxContainer;
-import org.us_ignite.thingworx.jgit.tests.util.TestingCredentials;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -31,6 +26,11 @@ import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.startupcheck.OneShotStartupCheckStrategy;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.us_ignite.thingworx.jgit.tests.containers.DBInit;
+import org.us_ignite.thingworx.jgit.tests.containers.GiteaRepo;
+import org.us_ignite.thingworx.jgit.tests.containers.Postgres;
+import org.us_ignite.thingworx.jgit.tests.containers.ThingWorxContainer;
+import org.us_ignite.thingworx.jgit.tests.util.TestingCredentials;
 
 @Testcontainers
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -142,9 +142,7 @@ public class CrossThingworxExportImportTest {
                                 new OneShotStartupCheckStrategy()
                                         .withTimeout(Duration.ofMinutes(10)))
                         .withCreateContainerCmdModifier(
-                                cmd ->
-                                        cmd.withEntrypoint(
-                                                "sh", "/scripts/install-extension.sh"))
+                                cmd -> cmd.withEntrypoint("sh", "/scripts/install-extension.sh"))
                         .withLogConsumer(
                                 outputFrame ->
                                         System.out.print(
