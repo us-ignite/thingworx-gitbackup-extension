@@ -90,10 +90,6 @@ sourceSets {
             srcDir 'src'
             include 'org/us_ignite/thingworx/jgit/tests/*.java'
         }
-        resources {
-            srcDir 'src'
-            include 'junit-platform.properties'
-        }
         compileClasspath += sourceSets.main.output
         runtimeClasspath += sourceSets.main.output
     }
@@ -189,6 +185,9 @@ test {
     systemProperty "test.extensionZip", "${buildDir}/distributions/${packageName}.zip"
     systemProperty "test.dbInitImage", sdkCfg.dbInitImage
     systemProperty "test.platformImage", sdkCfg.platformImage
+    def junitProps = new Properties()
+    file('junit.properties').withInputStream { junitProps.load(it) }
+    junitProps.each { k, v -> systemProperty k, v }
     useJUnitPlatform()
     testLogging {
         events 'passed', 'skipped', 'failed'
