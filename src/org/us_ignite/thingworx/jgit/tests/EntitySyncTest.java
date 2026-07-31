@@ -393,9 +393,15 @@ public class EntitySyncTest {
     void pushSecondEntity() throws Exception {
         JsonObject body = new JsonObject();
         body.addProperty("Message", "Add IT.ESync.SecondThing entity");
+        var commitReq =
+                stack.thingworx.serviceRequest(GIT_THING_NAME, "Commit", body.toString())
+                        .timeout(Duration.ofSeconds(30))
+                        .build();
+        var commitRes = stack.httpClient.send(commitReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, commitRes.statusCode(), "Commit failed: " + commitRes.body());
         var req =
                 stack.thingworx
-                        .serviceRequest(GIT_THING_NAME, "Push", body.toString())
+                        .serviceRequest(GIT_THING_NAME, "Push", null)
                         .timeout(Duration.ofSeconds(30))
                         .build();
         var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
