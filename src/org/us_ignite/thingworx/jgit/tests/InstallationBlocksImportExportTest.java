@@ -252,7 +252,6 @@ public class InstallationBlocksImportExportTest {
                         + res.body());
     }
 
-    private String exportedEntityXml;
 
     @Test
     @Order(8)
@@ -283,7 +282,6 @@ public class InstallationBlocksImportExportTest {
                         + res.body());
         assertTrue(
                 res.body().contains("<Thing"), "Response should contain entity XML: " + res.body());
-        exportedEntityXml = res.body();
     }
 
     private static final String TEST_THING_IMPORTED = "IBIET.TestThing.Imported";
