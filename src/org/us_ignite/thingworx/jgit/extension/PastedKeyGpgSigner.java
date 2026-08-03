@@ -32,22 +32,31 @@ import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.Signer;
 import org.eclipse.jgit.transport.CredentialsProvider;
 
+/**
+ * JGit signer that reads an ASCII-armored private key supplied by the ThingWorx user.
+ *
+ * <p>The key is held only in memory and can be explicitly cleared after signing. This class never
+ * writes the private key to the repository or to a file.
+ */
 public class PastedKeyGpgSigner implements Signer {
 
     private final byte[] privateKeyData;
     private final char[] passphrase;
 
+    /** Creates a signer from an armored private key and its passphrase. */
     public PastedKeyGpgSigner(String privateKeyArmored, String passphrase) {
         this.privateKeyData = privateKeyArmored.getBytes(StandardCharsets.UTF_8);
         this.passphrase = passphrase != null ? passphrase.toCharArray() : new char[0];
     }
 
+    /** Overwrites the in-memory key and passphrase buffers. */
     public void clearSensitiveData() {
         Arrays.fill(privateKeyData, (byte) 0);
         Arrays.fill(passphrase, '\0');
     }
 
     @Override
+    /** Signs commit data with the matching signing key and returns an armored GPG signature. */
     public GpgSignature sign(
             Repository repository,
             GpgConfig config,
@@ -104,6 +113,7 @@ public class PastedKeyGpgSigner implements Signer {
     }
 
     @Override
+    /** Reports whether the supplied key material contains the requested signing key. */
     public boolean canLocateSigningKey(
             Repository repository,
             GpgConfig config,
@@ -122,6 +132,7 @@ public class PastedKeyGpgSigner implements Signer {
         }
     }
 
+    /** Returns the fingerprint of the first usable signing key, or {@code null} when none exists. */
     public String getFingerprint() throws IOException, PGPException {
         if (Security.getProvider("BC") == null) {
             Security.addProvider(new BouncyCastleProvider());

@@ -1,0 +1,52 @@
+site_name: ThingWorx JGit Extension
+site_description: Git integration for ThingWorx application entities
+repo_name: ThingWorx JGit Extension
+site_url: https://us-ignite.github.io/thingworx-gitbackup-extension/
+repo_url: https://github.com/us-ignite/thingworx-gitbackup-extension
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - search.highlight
+    - content.code.copy
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - pymdownx.details
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+
+nav:
+  - Home: index.md
+  - User guide:
+      - Installation: installation.md
+      - Configuration: configuration.md
+      - Git operations: operations.md
+      - Import and export: import-export.md
+      - GPG signing: gpg.md
+      - Service reference: service-reference.md
+      - Troubleshooting: troubleshooting.md
+  - Developer guide:
+      - Development: development.md
+      - Java API reference: api/index.md
+
+plugins:
+  - search
