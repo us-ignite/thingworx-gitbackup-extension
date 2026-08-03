@@ -45,6 +45,13 @@ import org.joda.time.DateTime;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 
+/**
+ * Utility services for repository lifecycle, entity synchronization, user configuration, and
+ * extension logging.
+ *
+ * <p>Services on this Thing operate on the calling ThingWorx user where credentials and GPG keys
+ * are involved. Protected user properties must not be exported or logged as plain text.
+ */
 @ThingworxBaseTemplateDefinition(name = "GenericThing")
 public class GitUtilityThingShape extends Thing {
 
@@ -54,6 +61,7 @@ public class GitUtilityThingShape extends Thing {
 
     public GitUtilityThingShape() {}
 
+    /** Adds new entity rows to an export list while preserving existing rows. */
     @ThingworxServiceDefinition(
             name = "AddEntitiesToExportList",
             description = "",
@@ -149,6 +157,7 @@ public class GitUtilityThingShape extends Thing {
         dataTable.processServiceRequest("AddDataTableEntry", params);
     }
 
+    /** Creates and configures a repository Thing for the current user. */
     @ThingworxServiceDefinition(
             name = "AddNewRepo",
             description = "",
@@ -383,6 +392,7 @@ public class GitUtilityThingShape extends Thing {
         return InfoTableInstanceFactory.createInfoTableFromDataShape("SpotlightSearch");
     }
 
+    /** Returns the exportable entities associated with a ThingWorx project. */
     @ThingworxServiceDefinition(
             name = "GetProjectEntities",
             description = "",
@@ -470,6 +480,7 @@ public class GitUtilityThingShape extends Thing {
         return result;
     }
 
+    /** Imports one repository entity into ThingWorx. */
     @ThingworxServiceDefinition(
             name = "ImportEntity",
             description = "This will import an entity in the system.",
@@ -570,6 +581,7 @@ public class GitUtilityThingShape extends Thing {
         sourceControlFunctions.processServiceRequest("ImportSourceControlledEntities", params);
     }
 
+    /** Initializes the per-user extension properties required by utility services. */
     @ThingworxServiceDefinition(
             name = "InitUserExtensionProperties",
             description = "Adds UserExtension Properties needed by the JGitExtension",
@@ -818,6 +830,7 @@ public class GitUtilityThingShape extends Thing {
         return ((InfoTablePrimitive) propVal).getValue();
     }
 
+    /** Returns the current user’s configured GPG key metadata. */
     @ThingworxServiceDefinition(
             name = "GetGpgKeys",
             description =
@@ -838,6 +851,7 @@ public class GitUtilityThingShape extends Thing {
                 Const.str_UserGpgKeyDataShapeName);
     }
 
+    /** Stores or verifies a GPG key for the current user. */
     @ThingworxServiceDefinition(
             name = "SetGpgKey",
             description =
@@ -1199,6 +1213,7 @@ public class GitUtilityThingShape extends Thing {
         return "Success. The provided thing name is valid.";
     }
 
+    /** Stores Git credentials and committer settings for a repository and user. */
     @ThingworxServiceDefinition(
             name = "SetGitCredentials",
             description =

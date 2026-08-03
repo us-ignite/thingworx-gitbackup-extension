@@ -61,9 +61,9 @@ public final class Const {
     public static final String ERR_NO_REPO_URL_PUSH =
             "No Git repository URL configured for this thing. Set 'GitRepoURL' in the Configuration table.";
     public static final String ERR_NO_CREDENTIALS =
-            "Missing Git credentials (username/password). Open the extension settings and configure credentials for this repository.";
+            "Missing Git credentials (username/password). Configure credentials for this repository in the current user's ThingWorx UserExtensions properties.";
     public static final String ERR_NO_COMMITTER =
-            "Missing committer identity (name/email). Configure 'GitCommitterFullName' and 'GitCommitterEmail' in the extension settings.";
+            "Missing committer identity (name/email). Configure 'GitCommitterFullName' and 'GitCommitterEmail' in the current user's ThingWorx UserExtensions properties.";
     public static final String ERR_PROJECT_NOT_FOUND =
             "Project '%s' not found. Verify the project name exists in ThingWorx.";
     public static final String ERR_PROJECT_NAME_REQUIRED =
@@ -96,7 +96,7 @@ public final class Const {
     public static final String ERR_PUSH_NON_FAST_FORWARD =
             "Push rejected: remote has commits you don't have locally. Pull or rebase the remote branch before pushing again.";
     public static final String ERR_PUSH_SIGNING_REQUIRED =
-            " Push rejected. The remote may require GPG-signed commits. Configure a GPG key via 'SetGpgKey' with 'SignCommits=true', then retry.";
+            " Push rejected. The remote may require GPG-signed commits. Configure a GPG key and enable signing in the current user's ThingWorx UserExtensions properties, then retry.";
     public static final String ERR_REBASE_CONFLICT =
             "Rebase conflict detected. Resolve conflicts, then use 'git rebase --continue' or 'Rebase' again after resolving.";
 
@@ -108,7 +108,7 @@ public final class Const {
     public static final String WARN_SYNC_FAILED =
             "Project sync from ThingWorx to repository failed: %s. The git operation will continue but the working tree may be out of date.";
     public static final String WARN_GIT_CREDENTIALS_NOT_FOUND =
-            "No stored GitCredentials found for this repository. Configure credentials in the extension settings.";
+            "No stored GitCredentials found for this repository. Configure credentials in the current user's ThingWorx UserExtensions properties.";
     public static final String WARN_DETACHED_HEAD =
             "Repository is in detached HEAD state. Some operations may behave unexpectedly. Checkout a branch to normalize.";
     public static final String WARN_NO_PROJECT_SKIP =

@@ -96,6 +96,13 @@ import org.eclipse.jgit.util.io.DisabledOutputStream;
 import org.joda.time.DateTime;
 import org.slf4j.Logger;
 
+/**
+ * ThingWorx repository implementation backed by an on-disk JGit repository.
+ *
+ * <p>The repository location is resolved from the configured FileRepository and path. Services on
+ * this class operate on the current repository state and return either a status message or the
+ * InfoTable shape declared by the corresponding ThingWorx service annotation.
+ */
 @ThingworxBaseTemplateDefinition(name = "GenericThing")
 @ThingworxConfigurationTableDefinitions(
         tables = {
@@ -189,7 +196,6 @@ import org.slf4j.Logger;
                                     }))
         })
 public class GitRepositoryShape extends Thing {
-    /** */
     // set background file system resolution to false and enable debugging
     static {
         FileStoreAttributes.setBackground(false);
@@ -344,6 +350,7 @@ public class GitRepositoryShape extends Thing {
         super.initializeThing(null);
     }
 
+    /** Creates a Git commit from the staged repository changes. */
     @ThingworxServiceDefinition(
             name = "Commit",
             description =
@@ -441,6 +448,7 @@ public class GitRepositoryShape extends Thing {
         }
     }
 
+    /** Pushes the current branch to the configured remote repository. */
     @ThingworxServiceDefinition(
             name = "Push",
             description =
@@ -652,6 +660,7 @@ public class GitRepositoryShape extends Thing {
         return iftbl_Result;
     }
 
+    /** Fetches and integrates changes from the configured remote repository. */
     @ThingworxServiceDefinition(
             name = "Pull",
             description = "Pulls the last commit to the File Repository path",
@@ -1365,6 +1374,7 @@ public class GitRepositoryShape extends Thing {
         return value == null ? "" : value;
     }
 
+    /** Returns the working-tree status using the declared GIT.Status data shape. */
     @ThingworxServiceDefinition(
             name = "Status",
             description = "",
@@ -1947,6 +1957,7 @@ public class GitRepositoryShape extends Thing {
         return str_Parents;
     }
 
+    /** Exports the selected ThingWorx project entities into the repository working tree. */
     @ThingworxServiceDefinition(
             name = "ExportProjectEntities",
             description = "Exports the configured ThingWorx project directly to this repository.",
@@ -2005,6 +2016,7 @@ public class GitRepositoryShape extends Thing {
         removeModelPersistenceProviderPackage(fileRepo.getName(), repoPath, ProjectName);
     }
 
+    /** Imports repository XML entities into the selected ThingWorx project. */
     @ThingworxServiceDefinition(
             name = "ImportProjectEntities",
             description = "Imports all XML entities below this repository's configured path.",
@@ -2513,6 +2525,7 @@ public class GitRepositoryShape extends Thing {
         }
     }
 
+    /** Merges the requested branch into the current branch. */
     @ThingworxServiceDefinition(
             name = "Merge",
             description = "Merges the specified branch into the current branch.",
@@ -2570,6 +2583,7 @@ public class GitRepositoryShape extends Thing {
         }
     }
 
+    /** Rebases the current branch onto the requested upstream branch. */
     @ThingworxServiceDefinition(
             name = "Rebase",
             description = "Rebases the current branch onto the specified upstream branch.",
@@ -2629,6 +2643,7 @@ public class GitRepositoryShape extends Thing {
         }
     }
 
+    /** Creates a tag at the requested commit or current repository head. */
     @ThingworxServiceDefinition(
             name = "CreateTag",
             description =
