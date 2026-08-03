@@ -215,6 +215,7 @@ public class GitUtilityThingShape extends Thing {
                         == null) {
             es.CreateProject(
                     ProjectName,
+                    "Component",
                     "Project created for Git repository " + RepoName,
                     "",
                     new TagCollection());
@@ -225,6 +226,7 @@ public class GitUtilityThingShape extends Thing {
                 == null) {
             es.CreateProject(
                     repositoryProject,
+                    "Component",
                     "Repository Things created by the JGit extension",
                     "",
                     new TagCollection());
@@ -507,101 +509,6 @@ public class GitUtilityThingShape extends Thing {
             throw new Exception(Const.ERR_PREFIX_CONFIG + Const.ERR_GIT_THING_NAME_REQUIRED);
         repositoryThing(GitThingName);
         importSourceControlledEntities(FileRepositoryName, entityPath);
-    }
-
-    private InfoTable ImportProjectEntities(
-            @ThingworxServiceParameter(
-                            name = "GitThingName",
-                            description =
-                                    "GIT Repository Thing name whose FileRepository and path to scan",
-                            baseType = "STRING")
-                    String GitThingName,
-            @ThingworxServiceParameter(
-                            name = "entityPath",
-                            description =
-                                    "Relative path within the FileRepository to scan for XML files",
-                            baseType = "STRING")
-                    String entityPath,
-            @ThingworxServiceParameter(
-                            name = "ignoreDependencies",
-                            description = "If true, strips dependency validation during import",
-                            baseType = "BOOLEAN",
-                            aspects = {"defaultValue:false"})
-                    Boolean ignoreDependencies)
-            throws Exception {
-        _logger.warn("Started bulk import for GitThing: " + GitThingName);
-        if (isBlank(GitThingName))
-            throw new Exception(Const.ERR_PREFIX_CONFIG + Const.ERR_GIT_THING_NAME_REQUIRED);
-
-        Thing repoThing =
-                (Thing) EntityUtilities.findEntity(GitThingName, ThingworxRelationshipTypes.Thing);
-        ValueCollection getConfigParams = new ValueCollection();
-        getConfigParams.put("tableName", new StringPrimitive("Configuration"));
-        InfoTable cfgTable =
-                (InfoTable)
-                        repoThing.processServiceRequest("GetConfigurationTable", getConfigParams);
-        String str_FileRepositoryName =
-                cfgTable.getRow(0).getPrimitive("FileRepository").getValue().toString();
-
-        String str_RepoPath = entityPath;
-        if (isBlank(str_RepoPath) || str_RepoPath.equals("*")) {
-            str_RepoPath = cfgTable.getRow(0).getPrimitive("RepoPathName").getValue().toString();
-        }
-        while (str_RepoPath.startsWith("/")) str_RepoPath = str_RepoPath.substring(1);
-        while (str_RepoPath.endsWith("/"))
-            str_RepoPath = str_RepoPath.substring(0, str_RepoPath.length() - 1);
-
-        Thing fileRepo =
-                (Thing)
-                        EntityUtilities.findEntity(
-                                str_FileRepositoryName, ThingworxRelationshipTypes.Thing);
-
-        // Recursively list all XML files
-        InfoTable allFiles =
-                InfoTableInstanceFactory.createInfoTableFromDataShape("FileSystemFile");
-        collectXmlFiles(fileRepo, str_RepoPath, allFiles);
-        _logger.warn("Found " + allFiles.getRowCount() + " XML files for import.");
-
-        InfoTable result = new InfoTable();
-        int int_SuccessCount = 0;
-        int int_FailCount = 0;
-
-        for (int x = 0; x < allFiles.getRowCount(); x++) {
-            ValueCollection fileRow = allFiles.getRow(x);
-            String filePath = fileRow.getPrimitive("path").getValue().toString();
-            fileRow.getPrimitive("name").getValue().toString();
-            // Strip leading slash from path — ListFiles returns paths like "/GIT/..."
-            String cleanPath = filePath.startsWith("/") ? filePath.substring(1) : filePath;
-            ValueCollection entry = new ValueCollection();
-            entry.put("testName", new StringPrimitive(cleanPath));
-            entry.put(
-                    "startTimestamp",
-                    new DatetimePrimitive(new DateTime(System.currentTimeMillis())));
-            try {
-                importSourceControlledEntities(str_FileRepositoryName, cleanPath);
-                entry.put("passed", new BooleanPrimitive(true));
-                entry.put("comments", new StringPrimitive("Import completed."));
-                int_SuccessCount++;
-                _logger.warn("Successfully imported: " + cleanPath);
-            } catch (Exception ex) {
-                entry.put("passed", new BooleanPrimitive(false));
-                entry.put("comments", new StringPrimitive("Import failed: " + ex.getMessage()));
-                int_FailCount++;
-                _logger.error("Failed to import: " + cleanPath + "; Error: " + ex.getMessage());
-            }
-            entry.put(
-                    "endTimestamp",
-                    new DatetimePrimitive(new DateTime(System.currentTimeMillis())));
-            result.addRow(entry);
-        }
-        _logger.warn(
-                "Bulk import completed. Success: "
-                        + int_SuccessCount
-                        + ", Failed: "
-                        + int_FailCount
-                        + ", Total: "
-                        + allFiles.getRowCount());
-        return result;
     }
 
     private void collectXmlFiles(Thing fileRepo, String path, InfoTable allFiles) throws Exception {
@@ -1372,218 +1279,6 @@ public class GitUtilityThingShape extends Thing {
     // ---- Services now defined directly on GIT.Utility.Thing ----
 
     @ThingworxServiceDefinition(
-            name = "ExportLocalizationToken",
-            description = "",
-            category = "",
-            isAllowOverride = false,
-            aspects = {"isAsync:false"})
-    @ThingworxServiceResult(
-            name = "result",
-            description = "",
-            baseType = "NOTHING",
-            aspects = {})
-    public void ExportLocalizationToken(
-            @ThingworxServiceParameter(name = "prefix", description = "", baseType = "STRING")
-                    String prefix)
-            throws Exception {
-        _logger.warn(
-                "ExportLocalizationToken not yet implemented in Java. Falling back to script if available.");
-    }
-
-    @ThingworxServiceDefinition(
-            name = "ExportProjectData",
-            description =
-                    "functionality that allows exporting data from the Project DataTables/Streams/ValueStreams",
-            category = "",
-            isAllowOverride = false,
-            aspects = {"isAsync:false"})
-    @ThingworxServiceResult(
-            name = "result",
-            description = "",
-            baseType = "NOTHING",
-            aspects = {})
-    public void ExportProjectData(
-            @ThingworxServiceParameter(name = "ProjectName", description = "", baseType = "STRING")
-                    String ProjectName)
-            throws Exception {
-        _logger.warn(
-                "ExportProjectData not yet implemented in Java. Falling back to script if available.");
-    }
-
-    private void ExportProjectEntities(
-            @ThingworxServiceParameter(name = "ProjectName", description = "", baseType = "STRING")
-                    String ProjectName,
-            @ThingworxServiceParameter(
-                            name = "includeDependents",
-                            description = "",
-                            baseType = "BOOLEAN")
-                    Boolean includeDependents,
-            @ThingworxServiceParameter(
-                            name = "EntitiesToExport",
-                            description =
-                                    "Optional; if not set all project entities will be exported",
-                            baseType = "INFOTABLE",
-                            aspects = {"dataShape:SpotlightSearch"})
-                    InfoTable EntitiesToExport,
-            @ThingworxServiceParameter(
-                            name = "commitMessage",
-                            description =
-                                    "Optional commit message. If provided, a git commit and push will be performed after export.",
-                            baseType = "STRING")
-                    String commitMessage)
-            throws Exception {
-        _logger.warn("Starting ExportProjectEntities for project: " + ProjectName);
-        if (isBlank(ProjectName)) {
-            throw new Exception(Const.ERR_PREFIX_CONFIG + Const.ERR_PROJECT_NAME_REQUIRED);
-        }
-
-        // 1. Read this GitThing's configuration to get FileRepository and repo path
-        Thing repoThing = resolveCallingThing();
-        ValueCollection getConfigParams = new ValueCollection();
-        getConfigParams.put("tableName", new StringPrimitive("Configuration"));
-        InfoTable cfgTable =
-                (InfoTable)
-                        repoThing.processServiceRequest("GetConfigurationTable", getConfigParams);
-        String str_FileRepoName = primitiveString(cfgTable.getRow(0), "FileRepository");
-        String str_RepoPath = primitiveString(cfgTable.getRow(0), "RepoPathName");
-        _logger.warn(
-                "ExportProjectEntities: FileRepository="
-                        + str_FileRepoName
-                        + ", RepoPath="
-                        + str_RepoPath);
-
-        // 2. Call SourceControlFunctions.ExportSourceControlledEntities
-        Object scfObj =
-                EntityUtilities.findEntity(
-                        "SourceControlFunctions", ThingworxRelationshipTypes.Resource);
-        if (scfObj == null) {
-            throw new Exception(Const.ERR_PREFIX_SYSTEM + Const.ERR_NO_SCF_RESOURCE);
-        }
-        IServiceProvider scf = (IServiceProvider) scfObj;
-
-        boolean bool_IncludeDeps = isTrue(includeDependents);
-
-        if (EntitiesToExport == null || EntitiesToExport.getRowCount() == 0) {
-            // Full project export - export directly to the repo path
-            _logger.warn("Exporting all entities from project: " + ProjectName);
-            ValueCollection params = new ValueCollection();
-            params.put("repositoryName", new StringPrimitive(str_FileRepoName));
-            params.put("path", new StringPrimitive(str_RepoPath));
-            params.put("projectName", new StringPrimitive(ProjectName));
-            params.put("includeDependents", new BooleanPrimitive(bool_IncludeDeps));
-            scf.processServiceRequest("ExportSourceControlledEntities", params);
-        } else {
-            // Selective export: export all to a temp folder, then move only the requested files
-            String str_TempPath = str_RepoPath + "/_temp_export_" + System.currentTimeMillis();
-            _logger.warn(
-                    "Selective export: exporting "
-                            + EntitiesToExport.getRowCount()
-                            + " entities to temp path: "
-                            + str_TempPath);
-            ValueCollection params = new ValueCollection();
-            params.put("repositoryName", new StringPrimitive(str_FileRepoName));
-            params.put("path", new StringPrimitive(str_TempPath));
-            params.put("projectName", new StringPrimitive(ProjectName));
-            params.put("includeDependents", new BooleanPrimitive(bool_IncludeDeps));
-            scf.processServiceRequest("ExportSourceControlledEntities", params);
-
-            // Move each selected entity's XML from temp to actual repo path
-            Thing fileRepoThing =
-                    (Thing)
-                            EntityUtilities.findEntity(
-                                    str_FileRepoName, ThingworxRelationshipTypes.Thing);
-            for (int i = 0; i < EntitiesToExport.getRowCount(); i++) {
-                String str_EntityName = primitiveString(EntitiesToExport.getRow(i), "name");
-                String str_EntityType =
-                        orDefault(primitiveString(EntitiesToExport.getRow(i), "type"), "");
-                String str_TypeFolder = mapEntityTypeToCollectionFolder(str_EntityType);
-                String str_Source =
-                        str_TempPath
-                                + "/"
-                                + ProjectName
-                                + "/"
-                                + str_TypeFolder
-                                + "/"
-                                + str_EntityName
-                                + ".xml";
-                String str_Target =
-                        str_RepoPath
-                                + "/"
-                                + ProjectName
-                                + "/"
-                                + str_TypeFolder
-                                + "/"
-                                + str_EntityName
-                                + ".xml";
-
-                ValueCollection moveParams = new ValueCollection();
-                moveParams.put("sourcePath", new StringPrimitive(str_Source));
-                moveParams.put("targetPath", new StringPrimitive(str_Target));
-                moveParams.put("overwrite", new BooleanPrimitive(true));
-                try {
-                    fileRepoThing.processServiceRequest("MoveFile", moveParams);
-                    _logger.warn("Moved entity file: " + str_EntityName);
-                } catch (Exception e) {
-                    _logger.warn(
-                            "Could not move entity file " + str_Source + ": " + e.getMessage());
-                }
-            }
-
-            // Delete temp folder
-            ValueCollection deleteParams = new ValueCollection();
-            deleteParams.put("path", new StringPrimitive(str_TempPath));
-            try {
-                fileRepoThing.processServiceRequest("DeleteFolder", deleteParams);
-            } catch (Exception e) {
-                _logger.warn("Could not delete temp folder: " + str_TempPath);
-            }
-        }
-
-        // 3. Clean up lastModifiedDate from exported XML files
-        try {
-            removeLastModifiedDate(str_FileRepoName, str_RepoPath, ProjectName);
-        } catch (Exception e) {
-            _logger.warn("RemoveLastModifiedDate failed: " + e.getMessage());
-        }
-
-        // 4. Clean up modelPersistenceProviderPackage from exported XML files
-        try {
-            removeModelPersistenceProviderPackage(str_FileRepoName, str_RepoPath, ProjectName);
-        } catch (Exception e) {
-            _logger.warn("RemoveModelPersistenceProviderPackage failed: " + e.getMessage());
-        }
-
-        // 5. Stage all files in the git repo so they show as "Added" not "Untracked"
-        try {
-            FileRepositoryThing fileRepo =
-                    (FileRepositoryThing)
-                            EntityUtilities.findEntity(
-                                    str_FileRepoName, ThingworxRelationshipTypes.Thing);
-            String repoFullPath = new File(fileRepo.getRootPath(), str_RepoPath).getPath();
-            try (Git git = Git.open(new File(repoFullPath))) {
-                git.add().addFilepattern(".").call();
-                _logger.warn("Staged all files in git repo: " + repoFullPath);
-            }
-        } catch (Exception e) {
-            _logger.warn("Git add failed: " + e.getMessage());
-        }
-
-        // 6. If commitMessage is provided, auto-commit and push
-        if (hasText(commitMessage)) {
-            try {
-                ValueCollection pushParams = new ValueCollection();
-                pushParams.put("Message", new StringPrimitive(commitMessage));
-                repoThing.processServiceRequest("Push", pushParams);
-                _logger.warn("Auto-commit and push completed after export.");
-            } catch (Exception e) {
-                _logger.error("Auto-push after export failed: " + e.getMessage());
-            }
-        }
-
-        _logger.warn("ExportProjectEntities completed for project: " + ProjectName);
-    }
-
-    @ThingworxServiceDefinition(
             name = "SetProjectName",
             description =
                     "Updates the ProjectName field on a GIT Repository Thing's Configuration table.",
@@ -1629,22 +1324,6 @@ public class GitUtilityThingShape extends Thing {
                         + ProjectName
                         + "' for "
                         + GitThingName);
-    }
-
-    @ThingworxServiceDefinition(
-            name = "ExportProjectExtensions",
-            description = "wrapper for Extensions Export / ExportExtensionsToRepository",
-            category = "",
-            isAllowOverride = false,
-            aspects = {"isAsync:false"})
-    @ThingworxServiceResult(
-            name = "result",
-            description = "",
-            baseType = "NOTHING",
-            aspects = {})
-    public void ExportProjectExtensions() throws Exception {
-        _logger.warn(
-                "ExportProjectExtensions not yet implemented in Java. Falling back to script if available.");
     }
 
     @ThingworxServiceDefinition(
@@ -1705,23 +1384,6 @@ public class GitUtilityThingShape extends Thing {
     }
 
     @ThingworxServiceDefinition(
-            name = "RemoveConfigurationTableDefinitions",
-            description =
-                    "Removes the ConfigurationTableDefinitions to allow compatibility with 8.2. This service should be used only if you're doing crossplatform development between 8.5 and 8.2/8.3. Enable or disable in the ExportProjectEntities services",
-            category = "",
-            isAllowOverride = false,
-            aspects = {"isAsync:false"})
-    @ThingworxServiceResult(
-            name = "result",
-            description = "",
-            baseType = "NOTHING",
-            aspects = {})
-    public void RemoveConfigurationTableDefinitions() throws Exception {
-        _logger.warn(
-                "RemoveConfigurationTableDefinitions not yet implemented in Java. Falling back to script if available.");
-    }
-
-    @ThingworxServiceDefinition(
             name = "RemoveLastModifiedDate",
             description =
                     "Removes the lastModifiedDate. Change history is already removed by ExportToSourceControlEntities",
@@ -1745,23 +1407,6 @@ public class GitUtilityThingShape extends Thing {
                 cfgTable.getRow(0).getPrimitive("FileRepository").getValue().toString();
         String str_RepoPath = cfgTable.getRow(0).getPrimitive("RepoPathName").getValue().toString();
         removeLastModifiedDate(str_FileRepoName, str_RepoPath, null);
-    }
-
-    @ThingworxServiceDefinition(
-            name = "RemoveMashupPreviewTag",
-            description =
-                    "Removes the mashup preview tag to allow compatibility with 8.2. This service should be used only if you're doing crossplatform development between 8.5 and 8.2/8.3",
-            category = "",
-            isAllowOverride = false,
-            aspects = {"isAsync:false"})
-    @ThingworxServiceResult(
-            name = "result",
-            description = "",
-            baseType = "NOTHING",
-            aspects = {})
-    public void RemoveMashupPreviewTag() throws Exception {
-        _logger.warn(
-                "RemoveMashupPreviewTag not yet implemented in Java. Falling back to script if available.");
     }
 
     @ThingworxServiceDefinition(
