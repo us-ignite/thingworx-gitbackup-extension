@@ -110,9 +110,6 @@ public class EntitySyncTest {
         // Both ThingWorx instances share this single Gitea container through the
         // common Testcontainers network. Their PostgreSQL and FileRepository
         // storage remain isolated from one another.
-        // Init UserExtension properties on both instances
-        initUserExtensions(twxA);
-        initUserExtensions(twxB);
     }
 
     private void installExtension(ThingWorxContainer twx, String hostname) throws Exception {
@@ -127,17 +124,6 @@ public class EntitySyncTest {
         installer.start();
         System.out.println("Extension installed on " + hostname);
         installer.close();
-    }
-
-    private void initUserExtensions(ThingWorxContainer twx) throws Exception {
-        var req1 =
-                twx.serviceRequest("GIT.Utility.Thing", "InitUserExtensionProperties", null)
-                        .build();
-        var req2 =
-                twx.serviceRequest("GIT.Utility.Thing", "InitUserExtensionGpgKeysProperty", null)
-                        .build();
-        httpClient.send(req1, HttpResponse.BodyHandlers.ofString());
-        httpClient.send(req2, HttpResponse.BodyHandlers.ofString());
     }
 
     @AfterAll

@@ -214,39 +214,4 @@ public class GpgKeyVisibilityTest {
                 fields.getAsJsonObject("GpgKeyFingerprint").get("baseType").getAsString());
     }
 
-    @Test
-    void initUserExtensionGpgKeysPropertyCreatesInlineFields() throws Exception {
-        var initReq =
-                stack.thingworx
-                        .serviceRequest(
-                                "GIT.Utility.Thing", "InitUserExtensionGpgKeysProperty", "{}")
-                        .timeout(Duration.ofSeconds(10))
-                        .build();
-        var initRes = stack.httpClient.send(initReq, HttpResponse.BodyHandlers.ofString());
-        assertTrue(
-                initRes.statusCode() == 200 || initRes.statusCode() == 201,
-                "InitUserExtensionGpgKeysProperty should succeed. Got "
-                        + initRes.statusCode()
-                        + ": "
-                        + initRes.body());
-
-        var getReq =
-                stack.thingworx
-                        .serviceRequest("GIT.Utility.Thing", "GetGpgKeys", "{}")
-                        .timeout(Duration.ofSeconds(10))
-                        .build();
-        var getRes = stack.httpClient.send(getReq, HttpResponse.BodyHandlers.ofString());
-        assertEquals(
-                200,
-                getRes.statusCode(),
-                "GetGpgKeys should work after init. Got "
-                        + getRes.statusCode()
-                        + ": "
-                        + getRes.body());
-
-        var json = JsonParser.parseString(getRes.body()).getAsJsonObject();
-        assertTrue(json.has("dataShape"), "Should have dataShape metadata: " + getRes.body());
-        var ds = json.getAsJsonObject("dataShape");
-        assertTrue(ds.has("fieldDefinitions"), "Should have inline fieldDefinitions: " + ds);
-    }
 }

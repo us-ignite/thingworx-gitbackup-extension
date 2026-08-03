@@ -94,5 +94,31 @@ if [ "${UPLOAD_OK}" != "true" ]; then
     exit 1
 fi
 
+echo "Waiting for GIT.Utility.Thing to become available..."
+THING_AVAILABLE=false
+for i in $(seq 1 60); do
+    THING_STATUS=$(curl -s -o /dev/null -w '%{http_code}' \
+        -H 'Accept: application/json' \
+        -H 'X-XSRF-TOKEN: TWX-XSRF-TOKEN-VALUE' \
+        -H 'X-Requested-By: ThingWorx' \
+        -u "${TWX_USERNAME}:${TWX_PASSWORD}" \
+        --connect-timeout 10 --max-time 30 \
+        "${TWX_URL}/Thingworx/Things/GIT.Utility.Thing") || true
+    case "${THING_STATUS}" in
+        2??)
+            THING_AVAILABLE=true
+            echo "GIT.Utility.Thing is available"
+            break
+            ;;
+    esac
+    echo "  Waiting for GIT.Utility.Thing... (${i}/60, status=${THING_STATUS})"
+    sleep 2
+done
+if [ "${THING_AVAILABLE}" != "true" ]; then
+    echo "ERROR: GIT.Utility.Thing did not become available after upload" >&2
+    echo "UPLOAD_FAILED"
+    exit 1
+fi
+
 echo "UPLOAD_DONE"
 echo "=== Extension install complete ==="
