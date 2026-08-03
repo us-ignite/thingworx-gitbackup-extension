@@ -18,15 +18,6 @@
                         <FieldDefinition baseType="STRING" description="" name="ProjectName" ordinal="1"/>
                     </ParameterDefinitions>
                 </ServiceDefinition>
-                <ServiceDefinition aspect.isAsync="false" category="" description="Wrapper for the ExportToSourceControl service. BE WARNED: this service will clean ALL your project files with the lastModifiedDate and PersistanceProvider. This will happen regardless of what files you actually changed." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="ExportProjectEntities">
-                    <ResultType baseType="NOTHING" description="" name="result" ordinal="0"/>
-                    <ParameterDefinitions>
-                        <FieldDefinition aspect.dataShape="SpotlightSearch" baseType="INFOTABLE" description="Optional; if not set all project entities will be exported" name="EntitiesToExport" ordinal="3"/>
-                        <FieldDefinition baseType="BOOLEAN" description="" name="includeDependents" ordinal="2"/>
-                        <FieldDefinition baseType="STRING" description="" name="ProjectName" ordinal="1"/>
-                        <FieldDefinition baseType="STRING" description="Optional commit message. If provided, a git commit and push will be performed after export." name="commitMessage" ordinal="4"/>
-                    </ParameterDefinitions>
-                </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="wrapper for Extensions Export / ExportExtensionsToRepository" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="ExportProjectExtensions">
                     <ResultType baseType="NOTHING" description="" name="result" ordinal="0"/>
                     <ParameterDefinitions/>
@@ -50,12 +41,6 @@
                 <ServiceDefinition aspect.isAsync="false" category="" description="Removes the modelPersistenceProviderPackage." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="RemoveModelPersistenceProviderPackage">
                     <ResultType baseType="NOTHING" description="" name="result" ordinal="0"/>
                     <ParameterDefinitions/>
-                </ServiceDefinition>
-                <ServiceDefinition aspect.isAsync="false" category="" description="Exports entities from the configured project to the FileRepository. Syncs the Git working tree to reflect live ThingWorx state." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="SyncProjectToRepository">
-                    <ResultType baseType="NOTHING" description="" name="result" ordinal="0"/>
-                    <ParameterDefinitions>
-                        <FieldDefinition aspect.isRequired="true" baseType="STRING" description="GIT Repository Thing name" name="GitThingName" ordinal="0"/>
-                    </ParameterDefinitions>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Updates the ProjectName field on a GIT Repository Thing's Configuration table." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="SetProjectName">
                     <ResultType baseType="NOTHING" description="" name="result" ordinal="0"/>
@@ -87,17 +72,16 @@
                         <FieldDefinition baseType="STRING" description="" name="RepoName" ordinal="1"/>
                         <FieldDefinition baseType="STRING" description="" name="GitRepoURL" ordinal="2"/>
                         <FieldDefinition baseType="STRING" description="" name="RepoPath" ordinal="3"/>
-                        <FieldDefinition baseType="STRING" description="" name="FileRepo" ordinal="4"/>
-                        <FieldDefinition baseType="STRING" description="" name="User" ordinal="5"/>
-                        <FieldDefinition baseType="STRING" description="" name="Password" ordinal="6"/>
-                        <FieldDefinition baseType="STRING" description="" name="CommitUser" ordinal="7"/>
-                        <FieldDefinition baseType="STRING" description="" name="CommitEmail" ordinal="8"/>
-                        <FieldDefinition baseType="STRING" description="" name="InitialBranch" ordinal="9"/>
-                        <FieldDefinition baseType="BOOLEAN" description="" name="UseProxy" ordinal="10"/>
-                        <FieldDefinition baseType="STRING" description="" name="ProxyURL" ordinal="11"/>
-                        <FieldDefinition baseType="INTEGER" description="" name="ProxyPort" ordinal="12"/>
-                        <FieldDefinition baseType="STRING" description="" name="LocalizationTokensPrefix" ordinal="13"/>
-                        <FieldDefinition baseType="STRING" description="" name="ProjectName" ordinal="14"/>
+                        <FieldDefinition baseType="STRING" description="" name="User" ordinal="4"/>
+                        <FieldDefinition baseType="STRING" description="" name="Password" ordinal="5"/>
+                        <FieldDefinition baseType="STRING" description="" name="CommitUser" ordinal="6"/>
+                        <FieldDefinition baseType="STRING" description="" name="CommitEmail" ordinal="7"/>
+                        <FieldDefinition baseType="STRING" description="" name="InitialBranch" ordinal="8"/>
+                        <FieldDefinition baseType="BOOLEAN" description="" name="UseProxy" ordinal="9"/>
+                        <FieldDefinition baseType="STRING" description="" name="ProxyURL" ordinal="10"/>
+                        <FieldDefinition baseType="INTEGER" description="" name="ProxyPort" ordinal="11"/>
+                        <FieldDefinition baseType="STRING" description="" name="LocalizationTokensPrefix" ordinal="12"/>
+                        <FieldDefinition baseType="STRING" description="" name="ProjectName" ordinal="13"/>
                     </ParameterDefinitions>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Deletes a GIT Repository Thing involves two operations: 1. Deleting the Thing itself and 2. Deleting the FileRepository subfolder that stored that Git repository." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="DeleteGitThing">

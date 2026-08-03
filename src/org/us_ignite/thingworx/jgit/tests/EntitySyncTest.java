@@ -1,12 +1,17 @@
 package org.us_ignite.thingworx.jgit.tests;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import java.net.URI;
+import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Base64;
 import org.junit.jupiter.api.AfterAll;
@@ -16,13 +21,19 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestMethodOrder;
+import org.testcontainers.containers.Network;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.us_ignite.thingworx.jgit.tests.containers.JGitExtensionTestStack;
+import org.us_ignite.thingworx.jgit.tests.containers.DBInit;
+import org.us_ignite.thingworx.jgit.tests.containers.GiteaInit;
+import org.us_ignite.thingworx.jgit.tests.containers.GiteaRepo;
+import org.us_ignite.thingworx.jgit.tests.containers.JGitExtensionInstaller;
+import org.us_ignite.thingworx.jgit.tests.containers.Postgres;
+import org.us_ignite.thingworx.jgit.tests.containers.ThingWorxContainer;
 import org.us_ignite.thingworx.jgit.tests.util.TestingCredentials;
 
+@Testcontainers
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-@Testcontainers
 public class EntitySyncTest {
 
     private static final String DB_INIT_IMAGE =
@@ -30,146 +41,129 @@ public class EntitySyncTest {
     private static final String PLATFORM_IMAGE =
             System.getProperty("test.platformImage", "devopscadit/platform-postgres:platform9.6.3");
 
-    private static final String GIT_THING_NAME = "ITEntitySyncThing";
-    private static final String TEST_PROJECT = "TestProject";
-    private static final String TEST_THING = "IT.ESync.TestThing";
-    private static final String TEST_THING_SHAPE = "IT.ESync.TestShape";
-    private static final String ORIGINAL_DESC = "Original description for entity sync test";
+    private static final String GIT_THING_A = "CrossTwxSourceThing";
+    private static final String GIT_THING_B = "CrossTwxTargetThing";
+    private static final String SHARED_REPO_PATH = "/shared";
+    private static final String TEST_PROJECT = "CrossSyncProject";
+    private static final String SOURCE_THING = "CrossSync.SourceThing";
+    private static final String UPDATED_DESCRIPTION = "Updated on ThingWorx B";
+
+    private final HttpClient httpClient = HttpClient.newBuilder().build();
     private TestingCredentials credentials;
+
+    Network network = Network.newNetwork();
+
+    private GiteaRepo gitea;
+    private GiteaInit giteaInit;
+    private Postgres postgresA;
+    private DBInit dbInitA;
+    private ThingWorxContainer twxA;
+    private Postgres postgresB;
+    private DBInit dbInitB;
+    private ThingWorxContainer twxB;
+
     private String giteaRepoUrl;
-    private JGitExtensionTestStack stack;
-    private String authHeader;
 
     @BeforeAll
-    public void beforeAll() throws Exception {
+    void setup() throws Exception {
         credentials = new TestingCredentials();
         giteaRepoUrl =
                 "http://gitea:3000/" + credentials.giteaUser + "/" + credentials.repoName + ".git";
-        stack = new JGitExtensionTestStack(DB_INIT_IMAGE, PLATFORM_IMAGE, credentials);
-        authHeader =
-                "Basic "
-                        + Base64.getEncoder()
-                                .encodeToString(
-                                        (credentials.thingworxAdminUser
-                                                        + ":"
-                                                        + credentials.thingworxAdminPass)
-                                                .getBytes());
+
+        gitea = new GiteaRepo(network, credentials);
+        gitea.start();
+        giteaInit = new GiteaInit(gitea, network, credentials, false);
+        giteaInit.start();
+
+        postgresA = new Postgres(network, credentials, "postgresql-a");
+        postgresA.start();
+        dbInitA = new DBInit(DB_INIT_IMAGE, postgresA, network, credentials, "postgresql-a");
+        dbInitA.start();
+        twxA =
+                new ThingWorxContainer(
+                        PLATFORM_IMAGE,
+                        dbInitA,
+                        postgresA,
+                        network,
+                        credentials,
+                        "postgresql-a",
+                        "thingworx-a");
+        twxA.start();
+        installExtension(twxA, "thingworx-a");
+
+        postgresB = new Postgres(network, credentials, "postgresql-b");
+        postgresB.start();
+        dbInitB = new DBInit(DB_INIT_IMAGE, postgresB, network, credentials, "postgresql-b");
+        dbInitB.start();
+        twxB =
+                new ThingWorxContainer(
+                        PLATFORM_IMAGE,
+                        dbInitB,
+                        postgresB,
+                        network,
+                        credentials,
+                        "postgresql-b",
+                        "thingworx-b");
+        twxB.start();
+        installExtension(twxB, "thingworx-b");
+
+        // Both ThingWorx instances share this single Gitea container through the
+        // common Testcontainers network. Their PostgreSQL and FileRepository
+        // storage remain isolated from one another.
+        // Init UserExtension properties on both instances
+        initUserExtensions(twxA);
+        initUserExtensions(twxB);
+    }
+
+    private void installExtension(ThingWorxContainer twx, String hostname) throws Exception {
+        Path extZip =
+                Path.of(
+                        System.getProperty(
+                                "test.extensionZip", "build/distributions/JGitExtension.zip"));
+        @SuppressWarnings("resource")
+        var installer =
+                new JGitExtensionInstaller(
+                        extZip, twx, network, credentials, "http://" + hostname + ":8080");
+        installer.start();
+        System.out.println("Extension installed on " + hostname);
+        installer.close();
+    }
+
+    private void initUserExtensions(ThingWorxContainer twx) throws Exception {
+        var req1 =
+                twx.serviceRequest("GIT.Utility.Thing", "InitUserExtensionProperties", null)
+                        .build();
+        var req2 =
+                twx.serviceRequest("GIT.Utility.Thing", "InitUserExtensionGpgKeysProperty", null)
+                        .build();
+        httpClient.send(req1, HttpResponse.BodyHandlers.ofString());
+        httpClient.send(req2, HttpResponse.BodyHandlers.ofString());
     }
 
     @AfterAll
-    public void afterAll() {
-        stack.close();
-    }
-
-    private HttpRequest.Builder resourceRequest(
-            String resourceName, String serviceName, String body) {
-        var uri =
-                URI.create(
-                        stack.thingworx.getExternalUrl()
-                                + "/Thingworx/Resources/"
-                                + resourceName
-                                + "/Services/"
-                                + serviceName);
-        return HttpRequest.newBuilder()
-                .uri(uri)
-                .header("Content-Type", "application/json")
-                .header("Accept", "application/json")
-                .header("Authorization", authHeader)
-                .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
-                .header("X-Requested-By", "ThingWorx")
-                .POST(HttpRequest.BodyPublishers.ofString(body == null ? "{}" : body));
+    void tearDown() {
+        if (twxB != null) twxB.close();
+        if (dbInitB != null) dbInitB.close();
+        if (postgresB != null) postgresB.close();
+        if (twxA != null) twxA.close();
+        if (dbInitA != null) dbInitA.close();
+        if (postgresA != null) postgresA.close();
+        if (giteaInit != null) giteaInit.close();
+        if (gitea != null) gitea.close();
+        if (network != null) network.close();
     }
 
     @Test
     @Order(1)
-    void createProject() throws Exception {
+    void createGitThingOnSourceInstance() throws Exception {
         JsonObject body = new JsonObject();
-        body.addProperty("name", TEST_PROJECT);
-        body.addProperty("description", "Entity sync test project");
-        var req = resourceRequest("EntityServices", "CreateProject", body.toString()).build();
-        var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-        assertTrue(
-                res.statusCode() == 200 || res.statusCode() == 201,
-                "CreateProject failed: " + res.statusCode() + " " + res.body());
-    }
-
-    @Test
-    @Order(2)
-    void createTestThing() throws Exception {
-        JsonObject body = new JsonObject();
-        body.addProperty("name", TEST_THING);
-        body.addProperty("description", ORIGINAL_DESC);
-        body.addProperty("thingTemplateName", "GenericThing");
-        body.addProperty("projectName", TEST_PROJECT);
-        var req = resourceRequest("EntityServices", "CreateThing", body.toString()).build();
-        var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-        assertTrue(
-                res.statusCode() == 200 || res.statusCode() == 201,
-                "CreateThing failed: " + res.statusCode() + " " + res.body());
-
-        var enableReq =
-                HttpRequest.newBuilder()
-                        .uri(
-                                URI.create(
-                                        stack.thingworx.getExternalUrl()
-                                                + "/Thingworx/Things/"
-                                                + TEST_THING
-                                                + "/Services/EnableThing"))
-                        .header("Content-Type", "application/json")
-                        .header("Accept", "application/json")
-                        .header("Authorization", authHeader)
-                        .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
-                        .header("X-Requested-By", "ThingWorx")
-                        .POST(HttpRequest.BodyPublishers.ofString("{}"))
-                        .build();
-        stack.httpClient.send(enableReq, HttpResponse.BodyHandlers.ofString());
-
-        var restartReq =
-                HttpRequest.newBuilder()
-                        .uri(
-                                URI.create(
-                                        stack.thingworx.getExternalUrl()
-                                                + "/Thingworx/Things/"
-                                                + TEST_THING
-                                                + "/Services/RestartThing"))
-                        .header("Content-Type", "application/json")
-                        .header("Accept", "application/json")
-                        .header("Authorization", authHeader)
-                        .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
-                        .header("X-Requested-By", "ThingWorx")
-                        .POST(HttpRequest.BodyPublishers.ofString("{}"))
-                        .build();
-        stack.httpClient.send(restartReq, HttpResponse.BodyHandlers.ofString());
-
-        Thread.sleep(2000);
-    }
-
-    @Test
-    @Order(3)
-    void createTestThingShape() throws Exception {
-        JsonObject body = new JsonObject();
-        body.addProperty("name", TEST_THING_SHAPE);
-        body.addProperty("description", "Test thing shape for entity sync round-trip");
-        body.addProperty("projectName", TEST_PROJECT);
-        var req = resourceRequest("EntityServices", "CreateThingShape", body.toString()).build();
-        var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-        assertTrue(
-                res.statusCode() == 200 || res.statusCode() == 201,
-                "CreateThingShape failed: " + res.statusCode() + " " + res.body());
-    }
-
-    @Test
-    @Order(4)
-    void createGitThingWithProject() throws Exception {
-        JsonObject body = new JsonObject();
-        body.addProperty("RepoName", GIT_THING_NAME);
+        body.addProperty("RepoName", GIT_THING_A);
         body.addProperty("GitRepoURL", giteaRepoUrl);
-        body.addProperty("RepoPath", "/" + GIT_THING_NAME);
-        body.addProperty("FileRepo", "GitRepository");
+        body.addProperty("RepoPath", SHARED_REPO_PATH);
         body.addProperty("User", credentials.giteaUser);
         body.addProperty("Password", credentials.giteaPass);
-        body.addProperty("CommitUser", "Entity Sync Test");
-        body.addProperty("CommitEmail", "entity-sync@test.com");
+        body.addProperty("CommitUser", "TWX-A User");
+        body.addProperty("CommitEmail", "twxa@example.com");
         body.addProperty("InitialBranch", "main");
         body.addProperty("ProxyURL", "");
         body.addProperty("ProxyPort", 0);
@@ -177,286 +171,546 @@ public class EntitySyncTest {
         body.addProperty("LocalizationTokensPrefix", "");
         body.addProperty("ProjectName", TEST_PROJECT);
 
-        var req =
-                stack.thingworx
-                        .serviceRequest("GIT.Utility.Thing", "AddNewRepo", body.toString())
+        var createReq =
+                twxA.serviceRequest("GIT.Utility.Thing", "AddNewRepo", body.toString())
                         .timeout(Duration.ofSeconds(30))
                         .build();
-        var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+        var createRes = httpClient.send(createReq, HttpResponse.BodyHandlers.ofString());
         assertTrue(
-                res.statusCode() == 200 || res.statusCode() == 201,
-                "AddNewRepo failed: " + res.statusCode() + " " + res.body());
+                createRes.statusCode() == 200 || createRes.statusCode() == 201,
+                "AddNewRepo on source failed: " + createRes.statusCode() + " " + createRes.body());
 
         Thread.sleep(5000);
         var verifyReq =
-                stack.thingworx.serviceRequest(GIT_THING_NAME, "GetCurrentBranch", null).build();
-        var verifyRes = stack.httpClient.send(verifyReq, HttpResponse.BodyHandlers.ofString());
+                twxA.serviceRequest(GIT_THING_A, "GetCurrentBranch", null)
+                        .timeout(Duration.ofSeconds(10))
+                        .build();
+        var verifyRes = httpClient.send(verifyReq, HttpResponse.BodyHandlers.ofString());
         assertTrue(
                 verifyRes.statusCode() == 200 || verifyRes.statusCode() == 201,
-                "GitThing not created: " + verifyRes.statusCode() + " " + verifyRes.body());
+                "GitThing A was not created: " + verifyRes.statusCode() + " " + verifyRes.body());
+    }
+
+    @Test
+    @Order(2)
+    void pushEntitiesFromSource() throws Exception {
+        JsonObject thingBody = new JsonObject();
+        thingBody.addProperty("name", SOURCE_THING);
+        thingBody.addProperty("description", "Entity created for cross-instance sync");
+        thingBody.addProperty("thingTemplateName", "GenericThing");
+        thingBody.addProperty("projectName", TEST_PROJECT);
+        var thingRes =
+                httpClient.send(
+                        HttpRequest.newBuilder()
+                                .uri(URI.create(twxA.getExternalUrl()
+                                        + "/Thingworx/Resources/EntityServices/Services/CreateThing"))
+                                .header("Content-Type", "application/json")
+                                .header("Accept", "application/json")
+                                .header("Authorization", "Basic " + Base64.getEncoder().encodeToString(
+                                        (credentials.thingworxAdminUser + ":" + credentials.thingworxAdminPass)
+                                                .getBytes(StandardCharsets.UTF_8)))
+                                .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
+                                .header("X-Requested-By", "ThingWorx")
+                                .POST(HttpRequest.BodyPublishers.ofString(thingBody.toString()))
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
+        assertTrue(thingRes.statusCode() == 200 || thingRes.statusCode() == 201,
+                "CreateThing failed: " + thingRes.statusCode() + " " + thingRes.body());
+
+        var thingVerifyRes =
+                httpClient.send(
+                        HttpRequest.newBuilder()
+                                .uri(URI.create(twxA.getExternalUrl() + "/Thingworx/Things/" + SOURCE_THING))
+                                .header("Accept", "application/json")
+                                .header("Authorization", "Basic " + Base64.getEncoder().encodeToString(
+                                        (credentials.thingworxAdminUser + ":" + credentials.thingworxAdminPass)
+                                                .getBytes(StandardCharsets.UTF_8)))
+                                .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
+                                .header("X-Requested-By", "ThingWorx")
+                                .GET().build(),
+                        HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, thingVerifyRes.statusCode(), "Source Thing was not created: " + thingVerifyRes.body());
+
+        JsonObject pushBody = new JsonObject();
+        pushBody.addProperty("Message", "Cross-instance entity push from TWX-A");
+        var commitReq =
+                twxA.serviceRequest(GIT_THING_A, "Commit", pushBody.toString())
+                        .timeout(Duration.ofSeconds(30))
+                        .build();
+        var commitRes = httpClient.send(commitReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, commitRes.statusCode(), "Commit on source failed: " + commitRes.body());
+        var pushReq =
+                twxA.serviceRequest(GIT_THING_A, "Push", null)
+                        .timeout(Duration.ofSeconds(30))
+                        .build();
+        var pushRes = httpClient.send(pushReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, pushRes.statusCode(), "Push on source failed: " + pushRes.body());
+        assertFalse(pushRes.body().contains("Error"), "Push returned error: " + pushRes.body());
+        String sourcePath = "shared/" + TEST_PROJECT + "/Things/" + SOURCE_THING + ".xml";
+        var giteaRes =
+                httpClient.send(
+                        HttpRequest.newBuilder()
+                                .uri(URI.create("http://" + gitea.getHost() + ":" + gitea.getMappedPort(3000)
+                                        + "/api/v1/repos/" + credentials.giteaUser + "/" + credentials.repoName
+                                        + "/contents/" + sourcePath + "?ref=main"))
+                                .header("Authorization", "Basic " + Base64.getEncoder().encodeToString(
+                                        (credentials.giteaUser + ":" + credentials.giteaPass)
+                                                .getBytes(StandardCharsets.UTF_8)))
+                                .header("Accept", "application/json")
+                                .GET().build(),
+                        HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, giteaRes.statusCode(), "Entity was not pushed to Gitea: " + giteaRes.body());
+        assertTrue(giteaRes.body().contains(SOURCE_THING + ".xml"), "Gitea returned the wrong file: " + giteaRes.body());
+    }
+
+    @Test
+    @Order(3)
+    void createGitThingOnTargetInstance() throws Exception {
+        JsonObject body = new JsonObject();
+        body.addProperty("RepoName", GIT_THING_B);
+        body.addProperty("GitRepoURL", giteaRepoUrl);
+        body.addProperty("RepoPath", SHARED_REPO_PATH);
+        body.addProperty("User", credentials.giteaUser);
+        body.addProperty("Password", credentials.giteaPass);
+        body.addProperty("CommitUser", "TWX-B User");
+        body.addProperty("CommitEmail", "twxb@example.com");
+        body.addProperty("InitialBranch", "main");
+        body.addProperty("ProxyURL", "");
+        body.addProperty("ProxyPort", 0);
+        body.addProperty("UseProxy", false);
+        body.addProperty("LocalizationTokensPrefix", "");
+        body.addProperty("ProjectName", TEST_PROJECT);
+
+        var createReq =
+                twxB.serviceRequest("GIT.Utility.Thing", "AddNewRepo", body.toString())
+                        .timeout(Duration.ofSeconds(30))
+                        .build();
+        var createRes = httpClient.send(createReq, HttpResponse.BodyHandlers.ofString());
+        assertTrue(
+                createRes.statusCode() == 200 || createRes.statusCode() == 201,
+                "AddNewRepo on target failed: " + createRes.statusCode() + " " + createRes.body());
+
+        Thread.sleep(5000);
+        var verifyReq =
+                twxB.serviceRequest(GIT_THING_B, "GetCurrentBranch", null)
+                        .timeout(Duration.ofSeconds(10))
+                        .build();
+        var verifyRes = httpClient.send(verifyReq, HttpResponse.BodyHandlers.ofString());
+        assertTrue(
+                verifyRes.statusCode() == 200 || verifyRes.statusCode() == 201,
+                "GitThing B was not created: " + verifyRes.statusCode() + " " + verifyRes.body());
+    }
+
+    @Test
+    @Order(4)
+    void pullEntitiesOnTargetInstance() throws Exception {
+        JsonObject pullBody = new JsonObject();
+        pullBody.addProperty("Force", true);
+        var pullReq =
+                twxB.serviceRequest(GIT_THING_B, "Pull", pullBody.toString())
+                        .timeout(Duration.ofSeconds(60))
+                        .build();
+        var pullRes = httpClient.send(pullReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, pullRes.statusCode(), "Pull on target failed: " + pullRes.body());
+        assertFalse(pullRes.body().contains("Error"), "Pull returned error: " + pullRes.body());
     }
 
     @Test
     @Order(5)
-    void testPullFirst() throws Exception {
-        JsonObject body = new JsonObject();
-        body.addProperty("Force", false);
-        var req =
-                stack.thingworx
-                        .serviceRequest(GIT_THING_NAME, "Pull", body.toString())
-                        .timeout(Duration.ofSeconds(30))
+    void verifyEntitiesExistOnTarget() throws Exception {
+        var thingReq =
+                HttpRequest.newBuilder()
+                        .uri(URI.create(twxB.getExternalUrl() + "/Thingworx/Things/" + SOURCE_THING))
+                        .header("Accept", "application/json")
+                        .header("Authorization", "Basic " + Base64.getEncoder().encodeToString(
+                                (credentials.thingworxAdminUser + ":" + credentials.thingworxAdminPass)
+                                        .getBytes(StandardCharsets.UTF_8)))
+                        .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
+                        .header("X-Requested-By", "ThingWorx")
+                        .GET().build();
+        var thingRes = httpClient.send(thingReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, thingRes.statusCode(), "Target Thing was not loaded: " + thingRes.body());
+
+        var filesReq =
+                twxB.serviceRequest(
+                                GIT_THING_B,
+                                "ListFiles",
+                                "{\"path\":\""
+                                        + SHARED_REPO_PATH
+                                        + "/"
+                                        + TEST_PROJECT
+                                        + "/Things\"}")
+                        .timeout(Duration.ofSeconds(10))
                         .build();
-        var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-        assertEquals(200, res.statusCode(), "Pull failed: " + res.body());
-        assertFalse(res.body().contains("Error"), "Pull returned error: " + res.body());
+        var filesRes = httpClient.send(filesReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(
+                200, filesRes.statusCode(), "FileRepository listing failed: " + filesRes.body());
+        assertTrue(
+                filesRes.body().contains(SOURCE_THING),
+                "Imported entity XML missing: " + filesRes.body());
     }
 
     @Test
     @Order(6)
-    void syncProjectToRepository() throws Exception {
-        JsonObject body = new JsonObject();
-        body.addProperty("GitThingName", GIT_THING_NAME);
-        var req =
-                stack.thingworx
-                        .serviceRequest(
-                                "GIT.Utility.Thing", "SyncProjectToRepository", body.toString())
-                        .timeout(Duration.ofSeconds(60))
+    void verifyCommitHistoryOnTarget() throws Exception {
+        var commitReq =
+                twxB.serviceRequest(GIT_THING_B, "GetCommitList", null)
+                        .timeout(Duration.ofSeconds(10))
                         .build();
-        var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-        assertEquals(200, res.statusCode(), "SyncProjectToRepository failed: " + res.body());
-        assertFalse(res.body().contains("Error"), "Sync returned error: " + res.body());
+        var commitRes = httpClient.send(commitReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(
+                200, commitRes.statusCode(), "GetCommitList on target failed: " + commitRes.body());
+        String body = commitRes.body();
+        assertTrue(body.contains("rows"), "Commit list should have rows: " + body);
     }
 
     @Test
     @Order(7)
-    void verifyExportedFilesExist() throws Exception {
-        JsonObject body = new JsonObject();
-        body.addProperty("path", "/" + GIT_THING_NAME + "/" + TEST_PROJECT + "/Things");
-        var req =
-                stack.thingworx
-                        .serviceRequest("GitRepository", "ListFiles", body.toString())
+    void pushBackAndVerifyOnSource() throws Exception {
+        var updateReq =
+                HttpRequest.newBuilder()
+                        .uri(URI.create(twxB.getExternalUrl() + "/Thingworx/Things/" + SOURCE_THING))
+                        .header("Content-Type", "application/json")
+                        .header("Accept", "application/json")
+                        .header("Authorization", "Basic " + Base64.getEncoder().encodeToString(
+                                (credentials.thingworxAdminUser + ":" + credentials.thingworxAdminPass)
+                                        .getBytes(StandardCharsets.UTF_8)))
+                        .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
+                        .header("X-Requested-By", "ThingWorx")
+                        .PUT(HttpRequest.BodyPublishers.ofString(
+                                "{\"name\":\"" + SOURCE_THING + "\",\"description\":\""
+                                        + UPDATED_DESCRIPTION
+                                        + "\",\"thingTemplate\":\"GenericThing\","
+                                        + "\"projectName\":\"" + TEST_PROJECT + "\"}"))
                         .build();
-        var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+        var updateRes = httpClient.send(updateReq, HttpResponse.BodyHandlers.ofString());
+        assertTrue(updateRes.statusCode() == 200 || updateRes.statusCode() == 201,
+                "Thing update failed: " + updateRes.statusCode() + " " + updateRes.body());
+        var updatedThingRes =
+                httpClient.send(
+                        HttpRequest.newBuilder()
+                                .uri(URI.create(twxB.getExternalUrl() + "/Thingworx/Things/" + SOURCE_THING))
+                                .header("Accept", "application/json")
+                                .header("Authorization", "Basic " + Base64.getEncoder().encodeToString(
+                                        (credentials.thingworxAdminUser + ":" + credentials.thingworxAdminPass)
+                                                .getBytes(StandardCharsets.UTF_8)))
+                                .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
+                                .header("X-Requested-By", "ThingWorx")
+                                .GET().build(),
+                        HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, updatedThingRes.statusCode(), "Updated Thing was not found: " + updatedThingRes.body());
+        assertTrue(updatedThingRes.body().contains(UPDATED_DESCRIPTION), "Thing update was not applied: " + updatedThingRes.body());
+
+        JsonObject pushBody = new JsonObject();
+        pushBody.addProperty("Message", "Cross-instance entity return push from TWX-B");
+        var targetCommitReq =
+                twxB.serviceRequest(GIT_THING_B, "Commit", pushBody.toString())
+                        .timeout(Duration.ofSeconds(30))
+                        .build();
+        var targetCommitRes =
+                httpClient.send(targetCommitReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(
                 200,
-                res.statusCode(),
-                "ListFiles for Things failed: " + res.statusCode() + " " + res.body());
-        assertTrue(
-                res.body().contains(TEST_THING),
-                "Exported Thing file not found in "
-                        + body.get("path").getAsString()
-                        + ": "
-                        + res.body());
-
-        JsonObject shapeBody = new JsonObject();
-        shapeBody.addProperty("path", "/" + GIT_THING_NAME + "/" + TEST_PROJECT + "/ThingShapes");
-        var shapeReq =
-                stack.thingworx
-                        .serviceRequest("GitRepository", "ListFiles", shapeBody.toString())
+                targetCommitRes.statusCode(),
+                "Commit on target failed: " + targetCommitRes.body());
+        var pushReq =
+                twxB.serviceRequest(GIT_THING_B, "Push", null)
+                        .timeout(Duration.ofSeconds(30))
                         .build();
-        var shapeRes = stack.httpClient.send(shapeReq, HttpResponse.BodyHandlers.ofString());
+        var pushRes = httpClient.send(pushReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, pushRes.statusCode(), "Push on target failed: " + pushRes.body());
+        String updatedPath = "shared/" + TEST_PROJECT + "/Things/" + SOURCE_THING + ".xml";
+        var updatedGiteaRes =
+                httpClient.send(
+                        HttpRequest.newBuilder()
+                                .uri(URI.create("http://" + gitea.getHost() + ":" + gitea.getMappedPort(3000)
+                                        + "/api/v1/repos/" + credentials.giteaUser + "/" + credentials.repoName
+                                        + "/contents/" + updatedPath + "?ref=main"))
+                                .header("Authorization", "Basic " + Base64.getEncoder().encodeToString(
+                                        (credentials.giteaUser + ":" + credentials.giteaPass)
+                                                .getBytes(StandardCharsets.UTF_8)))
+                                .header("Accept", "application/json")
+                                .GET().build(),
+                        HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, updatedGiteaRes.statusCode(), "Updated entity was not pushed to Gitea: " + updatedGiteaRes.body());
+        String updatedXml = new String(Base64.getMimeDecoder().decode(
+                JsonParser.parseString(updatedGiteaRes.body()).getAsJsonObject().get("content").getAsString()),
+                StandardCharsets.UTF_8);
+        assertTrue(updatedXml.contains(UPDATED_DESCRIPTION), "Gitea contained stale entity XML: " + updatedXml);
+
+        var pullBody = new JsonObject();
+        pullBody.addProperty("Force", false);
+        var pullReq =
+                twxA.serviceRequest(GIT_THING_A, "Pull", pullBody.toString())
+                        .timeout(Duration.ofSeconds(60))
+                        .build();
+        var pullRes = httpClient.send(pullReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(
-                200, shapeRes.statusCode(), "ListFiles for ThingShapes failed: " + shapeRes.body());
+                200,
+                pullRes.statusCode(),
+                "Pull on source after round-trip failed: " + pullRes.body());
+
+        var commitReq =
+                twxA.serviceRequest(GIT_THING_A, "GetCommitList", null)
+                        .timeout(Duration.ofSeconds(10))
+                        .build();
+        var commitRes = httpClient.send(commitReq, HttpResponse.BodyHandlers.ofString());
         assertTrue(
-                shapeRes.body().contains(TEST_THING_SHAPE),
-                "Exported ThingShape file not found: " + shapeRes.body());
+                commitRes.body().contains("Cross-instance entity return push from TWX-B"),
+                "Source should see the return commit: " + commitRes.body());
+        var sourceThingRes =
+                httpClient.send(
+                        HttpRequest.newBuilder()
+                                .uri(URI.create(twxA.getExternalUrl() + "/Thingworx/Things/" + SOURCE_THING))
+                                .header("Accept", "application/json")
+                                .header("Authorization", "Basic " + Base64.getEncoder().encodeToString(
+                                        (credentials.thingworxAdminUser + ":" + credentials.thingworxAdminPass)
+                                                .getBytes(StandardCharsets.UTF_8)))
+                                .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
+                                .header("X-Requested-By", "ThingWorx")
+                                .GET().build(),
+                        HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, sourceThingRes.statusCode(), "Source Thing was not reloaded: " + sourceThingRes.body());
+        assertTrue(sourceThingRes.body().contains(UPDATED_DESCRIPTION), "Source Thing has stale state: " + sourceThingRes.body());
+        var filesReq =
+                twxA.serviceRequest(
+                                GIT_THING_A,
+                                "ListFiles",
+                                "{\"path\":\""
+                                        + SHARED_REPO_PATH
+                                        + "/"
+                                        + TEST_PROJECT
+                                        + "/Things\"}")
+                        .timeout(Duration.ofSeconds(10))
+                        .build();
+        var filesRes = httpClient.send(filesReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(
+                200,
+                filesRes.statusCode(),
+                "Source FileRepository listing failed: " + filesRes.body());
+        assertTrue(
+                filesRes.body().contains(SOURCE_THING),
+                "Returned entity XML missing: " + filesRes.body());
     }
 
     @Test
     @Order(8)
-    void testCommitService() throws Exception {
-        JsonObject body = new JsonObject();
-        body.addProperty("Message", "Initial export of TestProject entities");
-        var req =
-                stack.thingworx
-                        .serviceRequest(GIT_THING_NAME, "Commit", body.toString())
-                        .timeout(Duration.ofSeconds(30))
-                        .build();
-        var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-        assertEquals(
-                200, res.statusCode(), "Commit failed: " + res.statusCode() + " " + res.body());
-        assertFalse(res.body().contains("Error"), "Commit returned error: " + res.body());
-        assertTrue(
-                res.body().contains("Commit succeeded"),
-                "Commit response should indicate success: " + res.body());
+    void fastForwardMergeLoadsRealThingFromRepository() throws Exception {
+        String thingName = "CrossSync.FastForwardThing";
+        String branchName = "cross-fast-forward";
 
-        var commitListReq =
-                stack.thingworx.serviceRequest(GIT_THING_NAME, "GetCommitList", null).build();
-        var commitListRes =
-                stack.httpClient.send(commitListReq, HttpResponse.BodyHandlers.ofString());
-        assertEquals(200, commitListRes.statusCode());
-        var json = JsonParser.parseString(commitListRes.body()).getAsJsonObject();
-        assertTrue(json.has("rows"), "Commit list should have rows: " + commitListRes.body());
-        var rows = json.getAsJsonArray("rows");
-        assertTrue(rows.size() >= 1, "Should have at least 1 commit: " + commitListRes.body());
-        assertEquals(
-                "Initial export of TestProject entities",
-                rows.get(0).getAsJsonObject().get("CommitName").getAsString(),
-                "Latest commit message mismatch");
+        JsonObject branchBody = new JsonObject();
+        branchBody.addProperty("BranchName", branchName);
+        branchBody.addProperty("StartPoint", "main");
+        var branchRes =
+                httpClient.send(
+                        twxA.serviceRequest(GIT_THING_A, "CreateBranch", branchBody.toString()).build(),
+                        HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, branchRes.statusCode(), "CreateBranch failed: " + branchRes.body());
+
+        JsonObject checkoutBody = new JsonObject();
+        checkoutBody.addProperty("BranchNameOrCommit", branchName);
+        var checkoutRes =
+                httpClient.send(
+                        twxA.serviceRequest(GIT_THING_A, "Checkout", checkoutBody.toString()).build(),
+                        HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, checkoutRes.statusCode(), "Checkout branch failed: " + checkoutRes.body());
+
+        JsonObject thingBody = new JsonObject();
+        thingBody.addProperty("name", thingName);
+        thingBody.addProperty("description", "created on the fast-forward branch");
+        thingBody.addProperty("thingTemplateName", "GenericThing");
+        thingBody.addProperty("projectName", TEST_PROJECT);
+        var thingRes =
+                httpClient.send(
+                        HttpRequest.newBuilder()
+                                .uri(URI.create(twxA.getExternalUrl()
+                                        + "/Thingworx/Resources/EntityServices/Services/CreateThing"))
+                                .header("Content-Type", "application/json")
+                                .header("Accept", "application/json")
+                                .header("Authorization", "Basic " + Base64.getEncoder().encodeToString(
+                                        (credentials.thingworxAdminUser + ":" + credentials.thingworxAdminPass)
+                                                .getBytes(StandardCharsets.UTF_8)))
+                                .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
+                                .header("X-Requested-By", "ThingWorx")
+                                .POST(HttpRequest.BodyPublishers.ofString(thingBody.toString()))
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
+        assertTrue(thingRes.statusCode() == 200 || thingRes.statusCode() == 201,
+                "CreateThing failed: " + thingRes.statusCode() + " " + thingRes.body());
+
+        JsonObject commitBody = new JsonObject();
+        commitBody.addProperty("Message", "Commit fast-forward Thing");
+        var commitRes =
+                httpClient.send(
+                        twxA.serviceRequest(GIT_THING_A, "Commit", commitBody.toString()).build(),
+                        HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, commitRes.statusCode(), "Commit branch Thing failed: " + commitRes.body());
+        var pushRes =
+                httpClient.send(
+                        twxA.serviceRequest(GIT_THING_A, "Push", null).build(),
+                        HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, pushRes.statusCode(), "Push branch Thing failed: " + pushRes.body());
+
+        var checkoutMainRes =
+                httpClient.send(
+                        twxA.serviceRequest(GIT_THING_A, "Checkout",
+                                "{\"BranchNameOrCommit\":\"main\"}").build(),
+                        HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, checkoutMainRes.statusCode(), "Checkout main failed: " + checkoutMainRes.body());
+
+        JsonObject mergeBody = new JsonObject();
+        mergeBody.addProperty("BranchName", branchName);
+        var mergeRes =
+                httpClient.send(
+                        twxA.serviceRequest(GIT_THING_A, "Merge", mergeBody.toString()).build(),
+                        HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, mergeRes.statusCode(), "Fast-forward merge failed: " + mergeRes.body());
+        assertTrue(mergeRes.body().contains("FAST_FORWARD")
+                        || mergeRes.body().contains("Fast-forward")
+                        || mergeRes.body().contains("Already-up-to-date"),
+                "Expected fast-forward merge result: " + mergeRes.body());
+
+        var thingVerifyRes =
+                httpClient.send(
+                        HttpRequest.newBuilder()
+                                .uri(URI.create(twxA.getExternalUrl() + "/Thingworx/Things/" + thingName))
+                                .header("Accept", "application/json")
+                                .header("Authorization", "Basic " + Base64.getEncoder().encodeToString(
+                                        (credentials.thingworxAdminUser + ":" + credentials.thingworxAdminPass)
+                                                .getBytes(StandardCharsets.UTF_8)))
+                                .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
+                                .header("X-Requested-By", "ThingWorx")
+                                .GET().build(),
+                        HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, thingVerifyRes.statusCode(), "Merged Thing was not loaded: " + thingVerifyRes.body());
+        assertTrue(thingVerifyRes.body().contains("created on the fast-forward branch"),
+                "Merged Thing has the wrong state: " + thingVerifyRes.body());
     }
-
-    static final String SECOND_THING = "IT.ESync.SecondThing";
 
     @Test
     @Order(9)
-    void createSecondThing() throws Exception {
-        JsonObject body = new JsonObject();
-        body.addProperty("name", SECOND_THING);
-        body.addProperty("description", "Second thing for entity sync diff test");
-        body.addProperty("thingTemplateName", "GenericThing");
-        body.addProperty("projectName", TEST_PROJECT);
-        var req = resourceRequest("EntityServices", "CreateThing", body.toString()).build();
-        var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-        assertTrue(
-                res.statusCode() == 200 || res.statusCode() == 201,
-                "Create second thing failed: " + res.statusCode() + " " + res.body());
+    void rebaseConflictCanBeAbortedWithRealThingState() throws Exception {
+        String branchName = "cross-rebase-conflict";
 
-        var enableReq =
-                HttpRequest.newBuilder()
-                        .uri(
-                                URI.create(
-                                        stack.thingworx.getExternalUrl()
-                                                + "/Thingworx/Things/"
-                                                + SECOND_THING
-                                                + "/Services/EnableThing"))
-                        .header("Content-Type", "application/json")
-                        .header("Accept", "application/json")
-                        .header("Authorization", authHeader)
-                        .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
-                        .header("X-Requested-By", "ThingWorx")
-                        .POST(HttpRequest.BodyPublishers.ofString("{}"))
-                        .build();
-        stack.httpClient.send(enableReq, HttpResponse.BodyHandlers.ofString());
+        JsonObject branchBody = new JsonObject();
+        branchBody.addProperty("BranchName", branchName);
+        branchBody.addProperty("StartPoint", "main");
+        var branchRes =
+                httpClient.send(
+                        twxA.serviceRequest(GIT_THING_A, "CreateBranch", branchBody.toString()).build(),
+                        HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, branchRes.statusCode(), "CreateBranch failed: " + branchRes.body());
 
-        var restartReq =
-                HttpRequest.newBuilder()
-                        .uri(
-                                URI.create(
-                                        stack.thingworx.getExternalUrl()
-                                                + "/Thingworx/Things/"
-                                                + SECOND_THING
-                                                + "/Services/RestartThing"))
-                        .header("Content-Type", "application/json")
-                        .header("Accept", "application/json")
-                        .header("Authorization", authHeader)
-                        .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
-                        .header("X-Requested-By", "ThingWorx")
-                        .POST(HttpRequest.BodyPublishers.ofString("{}"))
-                        .build();
-        stack.httpClient.send(restartReq, HttpResponse.BodyHandlers.ofString());
-        Thread.sleep(2000);
-    }
+        var checkoutBranchRes =
+                httpClient.send(
+                        twxA.serviceRequest(GIT_THING_A, "Checkout",
+                                "{\"BranchNameOrCommit\":\"" + branchName + "\"}").build(),
+                        HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, checkoutBranchRes.statusCode(), "Checkout branch failed: " + checkoutBranchRes.body());
 
-    @Test
-    @Order(10)
-    void exportSecondEntity() throws Exception {
-        JsonObject body = new JsonObject();
-        body.addProperty("GitThingName", GIT_THING_NAME);
-        var req =
-                stack.thingworx
-                        .serviceRequest(
-                                "GIT.Utility.Thing", "SyncProjectToRepository", body.toString())
-                        .timeout(Duration.ofSeconds(60))
-                        .build();
-        var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-        assertEquals(200, res.statusCode(), "Export second entity failed: " + res.body());
-        assertFalse(
-                res.body().contains("Error"), "Export second entity returned error: " + res.body());
-    }
+        var branchPutRes =
+                httpClient.send(
+                        HttpRequest.newBuilder()
+                                .uri(URI.create(twxA.getExternalUrl() + "/Thingworx/Things/" + SOURCE_THING))
+                                .header("Content-Type", "application/json")
+                                .header("Accept", "application/json")
+                                .header("Authorization", "Basic " + Base64.getEncoder().encodeToString(
+                                        (credentials.thingworxAdminUser + ":" + credentials.thingworxAdminPass)
+                                                .getBytes(StandardCharsets.UTF_8)))
+                                .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
+                                .header("X-Requested-By", "ThingWorx")
+                                .PUT(HttpRequest.BodyPublishers.ofString(
+                                        "{\"name\":\"" + SOURCE_THING
+                                                + "\",\"description\":\"rebase branch state\","
+                                                + "\"thingTemplate\":\"GenericThing\","
+                                                + "\"projectName\":\"" + TEST_PROJECT + "\"}"))
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
+        assertTrue(branchPutRes.statusCode() == 200 || branchPutRes.statusCode() == 201,
+                "Branch PUT failed: " + branchPutRes.body());
+        var branchCommitRes =
+                httpClient.send(
+                        twxA.serviceRequest(GIT_THING_A, "Commit", "{\"Message\":\"Rebase branch state\"}").build(),
+                        HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, branchCommitRes.statusCode(), "Branch commit failed: " + branchCommitRes.body());
+        var branchPushRes =
+                httpClient.send(
+                        twxA.serviceRequest(GIT_THING_A, "Push", null).build(),
+                        HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, branchPushRes.statusCode(), "Branch push failed: " + branchPushRes.body());
 
-    @Test
-    @Order(11)
-    void testGetDiffPerFileShowsNewEntity() throws Exception {
-        JsonObject diffBody = new JsonObject();
-        diffBody.addProperty("File", "TestProject/Things/" + SECOND_THING + ".xml");
-        var diffReq =
-                stack.thingworx
-                        .serviceRequest(GIT_THING_NAME, "GetDiffPerFile", diffBody.toString())
-                        .timeout(Duration.ofSeconds(30))
-                        .build();
-        var diffRes = stack.httpClient.send(diffReq, HttpResponse.BodyHandlers.ofString());
-        assertEquals(
-                200,
-                diffRes.statusCode(),
-                "GetDiffPerFile for new entity failed: "
-                        + diffRes.statusCode()
-                        + " "
-                        + diffRes.body());
-        String diff = diffRes.body();
-        assertFalse(
-                diff.isEmpty(),
-                "GetDiffPerFile should show the new entity file as added. Got: " + diff);
-    }
+        var checkoutMainRes =
+                httpClient.send(
+                        twxA.serviceRequest(GIT_THING_A, "Checkout",
+                                "{\"BranchNameOrCommit\":\"main\"}").build(),
+                        HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, checkoutMainRes.statusCode(), "Checkout main failed: " + checkoutMainRes.body());
+        var mainPutRes =
+                httpClient.send(
+                        HttpRequest.newBuilder()
+                                .uri(URI.create(twxA.getExternalUrl() + "/Thingworx/Things/" + SOURCE_THING))
+                                .header("Content-Type", "application/json")
+                                .header("Accept", "application/json")
+                                .header("Authorization", "Basic " + Base64.getEncoder().encodeToString(
+                                        (credentials.thingworxAdminUser + ":" + credentials.thingworxAdminPass)
+                                                .getBytes(StandardCharsets.UTF_8)))
+                                .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
+                                .header("X-Requested-By", "ThingWorx")
+                                .PUT(HttpRequest.BodyPublishers.ofString(
+                                        "{\"name\":\"" + SOURCE_THING
+                                                + "\",\"description\":\"rebase main state\","
+                                                + "\"thingTemplate\":\"GenericThing\","
+                                                + "\"projectName\":\"" + TEST_PROJECT + "\"}"))
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
+        assertTrue(mainPutRes.statusCode() == 200 || mainPutRes.statusCode() == 201,
+                "Main PUT failed: " + mainPutRes.body());
+        var mainCommitRes =
+                httpClient.send(
+                        twxA.serviceRequest(GIT_THING_A, "Commit", "{\"Message\":\"Rebase main state\"}").build(),
+                        HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, mainCommitRes.statusCode(), "Main commit failed: " + mainCommitRes.body());
+        var mainPushRes =
+                httpClient.send(
+                        twxA.serviceRequest(GIT_THING_A, "Push", null).build(),
+                        HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, mainPushRes.statusCode(), "Main push failed: " + mainPushRes.body());
 
-    @Test
-    @Order(12)
-    void pushSecondEntity() throws Exception {
-        JsonObject body = new JsonObject();
-        body.addProperty("Message", "Add IT.ESync.SecondThing entity");
-        var commitReq =
-                stack.thingworx.serviceRequest(GIT_THING_NAME, "Commit", body.toString())
-                        .timeout(Duration.ofSeconds(30))
-                        .build();
-        var commitRes = stack.httpClient.send(commitReq, HttpResponse.BodyHandlers.ofString());
-        assertEquals(200, commitRes.statusCode(), "Commit failed: " + commitRes.body());
-        var req =
-                stack.thingworx
-                        .serviceRequest(GIT_THING_NAME, "Push", null)
-                        .timeout(Duration.ofSeconds(30))
-                        .build();
-        var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-        assertEquals(200, res.statusCode(), "Push failed: " + res.statusCode() + " " + res.body());
-        assertFalse(res.body().contains("Error"), "Push returned error: " + res.body());
-        assertFalse(res.body().contains("Exception"), "Push threw exception: " + res.body());
-    }
+        var checkoutBranchAgainRes =
+                httpClient.send(
+                        twxA.serviceRequest(GIT_THING_A, "Checkout",
+                                "{\"BranchNameOrCommit\":\"" + branchName + "\"}").build(),
+                        HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, checkoutBranchAgainRes.statusCode(), "Checkout branch again failed: " + checkoutBranchAgainRes.body());
+        var rebaseRes =
+                httpClient.send(
+                        twxA.serviceRequest(GIT_THING_A, "Rebase", "{\"UpstreamBranch\":\"main\"}").build(),
+                        HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, rebaseRes.statusCode(), "Rebase request failed: " + rebaseRes.body());
+        assertTrue(rebaseRes.body().contains("STOPPED") || rebaseRes.body().contains("conflict"),
+                "Expected rebase conflict: " + rebaseRes.body());
 
-    @Test
-    @Order(13)
-    void verifyGitHistoryShowsSecondEntity() throws Exception {
-        var commitListReq =
-                stack.thingworx.serviceRequest(GIT_THING_NAME, "GetCommitList", null).build();
-        var commitListRes =
-                stack.httpClient.send(commitListReq, HttpResponse.BodyHandlers.ofString());
-        assertEquals(
-                200,
-                commitListRes.statusCode(),
-                "GetCommitList failed: " + commitListRes.statusCode() + " " + commitListRes.body());
-        String body = commitListRes.body();
-        assertTrue(body.contains("rows"), "Commit list should have rows: " + body);
+        var abortRes =
+                httpClient.send(
+                        twxA.serviceRequest(GIT_THING_A, "RebaseAbort", null).build(),
+                        HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, abortRes.statusCode(), "RebaseAbort failed: " + abortRes.body());
 
-        var json = JsonParser.parseString(body).getAsJsonObject();
-        var rows = json.getAsJsonArray("rows");
-        assertTrue(rows.size() >= 2, "Should have at least 2 commits: " + body);
-
-        String latestMessage = rows.get(0).getAsJsonObject().get("CommitName").getAsString();
-        assertEquals(
-                "Add IT.ESync.SecondThing entity", latestMessage, "Latest commit message mismatch");
-
-        String firstCommitId = rows.get(0).getAsJsonObject().get("CommitID").getAsString();
-        JsonObject diffBody = new JsonObject();
-        diffBody.addProperty("File", "TestProject/Things/" + SECOND_THING + ".xml");
-        diffBody.addProperty("FromCommitID", firstCommitId);
-        var diffReq =
-                stack.thingworx
-                        .serviceRequest(
-                                GIT_THING_NAME, "GetDiffPerFileBetweenCommits", diffBody.toString())
-                        .timeout(Duration.ofSeconds(30))
-                        .build();
-        var diffRes = stack.httpClient.send(diffReq, HttpResponse.BodyHandlers.ofString());
-        assertEquals(
-                200,
-                diffRes.statusCode(),
-                "GetDiffPerFileBetweenCommits failed: "
-                        + diffRes.statusCode()
-                        + " "
-                        + diffRes.body());
-        String diffContent = diffRes.body();
-        assertFalse(
-                diffContent.isEmpty(),
-                "GetDiffPerFileBetweenCommits should show the new entity was added. Got: "
-                        + diffContent);
-        assertTrue(
-                diffContent.contains(SECOND_THING),
-                "Diff should reference the new entity. Got: " + diffContent);
+        var verifyRes =
+                httpClient.send(
+                        HttpRequest.newBuilder()
+                                .uri(URI.create(twxA.getExternalUrl() + "/Thingworx/Things/" + SOURCE_THING))
+                                .header("Accept", "application/json")
+                                .header("Authorization", "Basic " + Base64.getEncoder().encodeToString(
+                                        (credentials.thingworxAdminUser + ":" + credentials.thingworxAdminPass)
+                                                .getBytes(StandardCharsets.UTF_8)))
+                                .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
+                                .header("X-Requested-By", "ThingWorx")
+                                .GET().build(),
+                        HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, verifyRes.statusCode(), "Thing missing after rebase abort: " + verifyRes.body());
+        assertTrue(verifyRes.body().contains("rebase branch state"),
+                "Rebase abort did not restore branch state: " + verifyRes.body());
     }
 }

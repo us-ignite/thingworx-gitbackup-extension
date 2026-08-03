@@ -10,6 +10,22 @@
                         <FieldDefinition baseType="STRING" description="The commit message" name="Message" ordinal="1"/>
                     </ParameterDefinitions>
                 </ServiceDefinition>
+                <ServiceDefinition aspect.isAsync="false" category="" description="Exports the configured ThingWorx project directly to this repository." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="ExportProjectEntities">
+                    <ResultType baseType="NOTHING" description="" name="result" ordinal="0"/>
+                    <ParameterDefinitions>
+                        <FieldDefinition baseType="STRING" description="ThingWorx project name" name="ProjectName" ordinal="1"/>
+                        <FieldDefinition baseType="BOOLEAN" description="Include project dependents" name="includeDependents" ordinal="2"/>
+                        <FieldDefinition aspect.dataShape="SpotlightSearch" baseType="INFOTABLE" description="Optional entity selection" name="EntitiesToExport" ordinal="3"/>
+                        <FieldDefinition baseType="STRING" description="Compatibility parameter; commit is handled by Commit" name="commitMessage" ordinal="4"/>
+                    </ParameterDefinitions>
+                </ServiceDefinition>
+                <ServiceDefinition aspect.isAsync="false" category="" description="Imports XML entities below this repository's configured path." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="ImportProjectEntities">
+                    <ResultType baseType="INFOTABLE" description="" name="result" ordinal="0"/>
+                    <ParameterDefinitions>
+                        <FieldDefinition baseType="STRING" description="Relative path; blank uses RepoPathName" name="entityPath" ordinal="1"/>
+                        <FieldDefinition baseType="BOOLEAN" description="If true, strips dependency validation during import" name="ignoreDependencies" ordinal="2"/>
+                    </ParameterDefinitions>
+                </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Pushes existing local commits to a remote. This service does not synchronize entities, stage files, or create commits. The remote defaults to origin." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="Push">
                     <ResultType baseType="STRING" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions>
@@ -26,7 +42,7 @@
                 <ServiceDefinition aspect.isAsync="false" category="" description="Synchronizes ThingWorx entities to the working tree before pulling from the remote, then synchronizes pulled changes back into ThingWorx. The remote defaults to origin." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="Pull">
                     <ResultType baseType="STRING" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions>
-                        <FieldDefinition baseType="BOOLEAN" description="Forces a hard reset instead of a normal pull" name="Force" ordinal="1"/>
+                        <FieldDefinition aspect.defaultValue="false" baseType="BOOLEAN" description="Forces a hard reset instead of a normal pull; defaults to false" name="Force" ordinal="1"/>
                         <FieldDefinition baseType="STRING" description="Optional remote name; defaults to origin" name="Remote" ordinal="2"/>
                     </ParameterDefinitions>
                 </ServiceDefinition>

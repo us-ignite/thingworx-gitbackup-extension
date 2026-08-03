@@ -11,7 +11,6 @@ public final class Const {
     public static final String str_LocalizationTokensPrefix = "LocalizationTokensPrefix";
     public static final String str_ProjectName = "ProjectName";
     public static final String str_GitRepoURLDefaultValue = "";
-    public static final String str_FileRepositoryDefaultValue = "GitRepository";
 
     // PlatformInfo property Names
 

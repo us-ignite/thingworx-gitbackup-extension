@@ -33,6 +33,7 @@ public class InstallationBlocksImportExportTest {
 
     private static final String TEST_PROJECT = "IBIET_TestProject";
     private static final String TEST_THING = "IBIET.TestThing";
+    private static final String FILE_REPOSITORY = "IBIET_FileRepository";
 
     private TestingCredentials credentials;
     private JGitExtensionTestStack stack;
@@ -180,13 +181,38 @@ public class InstallationBlocksImportExportTest {
         assertTrue(
                 res.statusCode() == 200 || res.statusCode() == 201,
                 "CreateThing should work: " + res.statusCode() + " " + res.body());
+
+        JsonObject repositoryBody = new JsonObject();
+        repositoryBody.addProperty("name", FILE_REPOSITORY);
+        repositoryBody.addProperty("description", "FileRepository for source control smoke test");
+        repositoryBody.addProperty("thingTemplateName", "FileRepository");
+        repositoryBody.addProperty("projectName", TEST_PROJECT);
+        var repositoryReq =
+                HttpRequest.newBuilder()
+                        .uri(uri)
+                        .header("Content-Type", "application/json")
+                        .header("Accept", "application/json")
+                        .header("Authorization", authHeader)
+                        .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
+                        .header("X-Requested-By", "ThingWorx")
+                        .POST(HttpRequest.BodyPublishers.ofString(repositoryBody.toString()))
+                        .timeout(Duration.ofSeconds(30))
+                        .build();
+        var repositoryRes =
+                stack.httpClient.send(repositoryReq, HttpResponse.BodyHandlers.ofString());
+        assertTrue(
+                repositoryRes.statusCode() == 200 || repositoryRes.statusCode() == 201,
+                "Create FileRepository should work: "
+                        + repositoryRes.statusCode()
+                        + " "
+                        + repositoryRes.body());
     }
 
     @Test
     @Order(6)
     void exportEntitiesViaSourceControlFunctions() throws Exception {
         JsonObject body = new JsonObject();
-        body.addProperty("repositoryName", "GitRepository");
+        body.addProperty("repositoryName", FILE_REPOSITORY);
         body.addProperty("path", "/IBIET_SmokeTest");
         body.addProperty("projectName", TEST_PROJECT);
         body.addProperty("includeDependents", false);
@@ -220,7 +246,7 @@ public class InstallationBlocksImportExportTest {
     @Order(7)
     void importEntitiesViaSourceControlFunctions() throws Exception {
         JsonObject body = new JsonObject();
-        body.addProperty("repositoryName", "GitRepository");
+        body.addProperty("repositoryName", FILE_REPOSITORY);
         body.addProperty("path", "/IBIET_SmokeTest/" + TEST_PROJECT + "/Things");
         body.addProperty("useDefaultDataProvider", true);
         body.addProperty("withSubsystems", false);
@@ -251,7 +277,6 @@ public class InstallationBlocksImportExportTest {
                         + " Body: "
                         + res.body());
     }
-
 
     @Test
     @Order(8)

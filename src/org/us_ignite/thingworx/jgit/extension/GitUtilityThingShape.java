@@ -167,8 +167,6 @@ public class GitUtilityThingShape extends Thing {
                     String GitRepoURL,
             @ThingworxServiceParameter(name = "RepoPath", description = "", baseType = "STRING")
                     String RepoPath,
-            @ThingworxServiceParameter(name = "FileRepo", description = "", baseType = "STRING")
-                    String FileRepo,
             @ThingworxServiceParameter(name = "User", description = "", baseType = "STRING")
                     String User,
             @ThingworxServiceParameter(name = "Password", description = "", baseType = "STRING")
@@ -212,12 +210,34 @@ public class GitUtilityThingShape extends Thing {
             return;
         }
         EntityServices es = new EntityServices();
+        if (hasText(ProjectName)
+                && EntityUtilities.findEntity(ProjectName, ThingworxRelationshipTypes.Project)
+                        == null) {
+            es.CreateProject(
+                    ProjectName,
+                    "Project created for Git repository " + RepoName,
+                    "",
+                    new TagCollection());
+            _logger.info("AddNewRepo: Created missing project '" + ProjectName + "'.");
+        }
+        String repositoryProject = "GIT.Repositories";
+        if (EntityUtilities.findEntity(repositoryProject, ThingworxRelationshipTypes.Project)
+                == null) {
+            es.CreateProject(
+                    repositoryProject,
+                    "Repository Things created by the JGit extension",
+                    "",
+                    new TagCollection());
+        }
         es.CreateThing(
                 RepoName,
                 "GitRepository created by user " + GetCurrentUser() + " at " + new java.util.Date(),
                 new TagCollection(),
-                ProjectName,
-                "GIT.Repository.ThingTemplate");
+                repositoryProject,
+                "FileRepository");
+        // Keep the repository as a single Thing: the FileRepository supplies the
+        // working-tree storage and the Git shape supplies the version-control services.
+        es.AddShapeToThing(RepoName, "GIT.Repository.ThingShape");
         Thing repoThing =
                 (Thing) EntityUtilities.findEntity(RepoName, ThingworxRelationshipTypes.Thing);
         repoThing.processServiceRequest("EnableThing", new ValueCollection());
@@ -231,9 +251,9 @@ public class GitUtilityThingShape extends Thing {
                         repoThing.processServiceRequest("GetConfigurationTable", getConfigParams);
         ValueCollection configRow =
                 configTable.getRowCount() > 0 ? configTable.getRow(0) : new ValueCollection();
-        configRow.put("FileRepository", new StringPrimitive(orDefault(FileRepo, "GitRepository")));
+        configRow.put("FileRepository", new StringPrimitive(RepoName));
         configRow.put("GitRepoURL", new StringPrimitive(GitRepoURL));
-        configRow.put("RepoPathName", new StringPrimitive(RepoPath));
+        configRow.put("RepoPathName", new StringPrimitive(orDefault(RepoPath, "")));
         configRow.put("BranchName", new StringPrimitive(InitialBranch));
         configRow.put("UseProxy", new BooleanPrimitive(isTrue(UseProxy)));
         configRow.put("ProxyURL", new StringPrimitive(ProxyURL));
@@ -261,6 +281,7 @@ public class GitUtilityThingShape extends Thing {
                             + " was created but saving credentials failed: "
                             + e.getMessage());
         }
+
     }
 
     @ThingworxServiceDefinition(
@@ -288,7 +309,8 @@ public class GitUtilityThingShape extends Thing {
         String str_RepositoryName =
                 cfgTable.getRow(0).getPrimitive("FileRepository").getValue().toString();
         String str_RepositoryPathName =
-                cfgTable.getRow(0).getPrimitive("FileRepoPath").getValue().toString();
+                cfgTable.getRow(0).getPrimitive("RepoPathName").getValue().toString();
+        boolean selfHostedFileRepository = RepoName.equals(str_RepositoryName);
 
         try {
             repoThing.processServiceRequest("DeleteLocalRepoContent", new ValueCollection());
@@ -300,13 +322,15 @@ public class GitUtilityThingShape extends Thing {
         EntityServices es = new EntityServices();
         es.DeleteThing(RepoName);
         try {
-            FileRepositoryThing fileRepo =
-                    (FileRepositoryThing)
-                            EntityUtilities.findEntity(
-                                    str_RepositoryName, ThingworxRelationshipTypes.Thing);
-            ValueCollection deleteFolderParams = new ValueCollection();
-            deleteFolderParams.put("path", new StringPrimitive(str_RepositoryPathName));
-            fileRepo.processServiceRequest("DeleteFolder", deleteFolderParams);
+            if (!selfHostedFileRepository) {
+                FileRepositoryThing fileRepo =
+                        (FileRepositoryThing)
+                                EntityUtilities.findEntity(
+                                        str_RepositoryName, ThingworxRelationshipTypes.Thing);
+                ValueCollection deleteFolderParams = new ValueCollection();
+                deleteFolderParams.put("path", new StringPrimitive(str_RepositoryPathName));
+                fileRepo.processServiceRequest("DeleteFolder", deleteFolderParams);
+            }
         } catch (Exception ex) {
             _logger.error("Deleting Git Repository folder failed when deleting Thing " + RepoName);
         }
@@ -485,19 +509,7 @@ public class GitUtilityThingShape extends Thing {
         importSourceControlledEntities(FileRepositoryName, entityPath);
     }
 
-    @ThingworxServiceDefinition(
-            name = "ImportProjectEntities",
-            description =
-                    "Bulk imports all entity XML files from a FileRepository path. Returns a summary INFOTABLE with success/failure per entity.",
-            category = "",
-            isAllowOverride = false,
-            aspects = {"isAsync:false"})
-    @ThingworxServiceResult(
-            name = "result",
-            description = "",
-            baseType = "INFOTABLE",
-            aspects = {})
-    public InfoTable ImportProjectEntities(
+    private InfoTable ImportProjectEntities(
             @ThingworxServiceParameter(
                             name = "GitThingName",
                             description =
@@ -1398,19 +1410,7 @@ public class GitUtilityThingShape extends Thing {
                 "ExportProjectData not yet implemented in Java. Falling back to script if available.");
     }
 
-    @ThingworxServiceDefinition(
-            name = "ExportProjectEntities",
-            description =
-                    "Wrapper for the ExportToSourceControl service.\nBE WARNED: this service will clean ALL your project files with the lastModifiedDate and PersistanceProvider. This will happen regardless of what files you actually changed.",
-            category = "",
-            isAllowOverride = false,
-            aspects = {"isAsync:false"})
-    @ThingworxServiceResult(
-            name = "result",
-            description = "",
-            baseType = "NOTHING",
-            aspects = {})
-    public void ExportProjectEntities(
+    private void ExportProjectEntities(
             @ThingworxServiceParameter(name = "ProjectName", description = "", baseType = "STRING")
                     String ProjectName,
             @ThingworxServiceParameter(
@@ -1581,168 +1581,6 @@ public class GitUtilityThingShape extends Thing {
         }
 
         _logger.warn("ExportProjectEntities completed for project: " + ProjectName);
-    }
-
-    @ThingworxServiceDefinition(
-            name = "SyncProjectToRepository",
-            description =
-                    "Exports entities from the configured project to the FileRepository. Syncs the Git working tree to reflect live ThingWorx state.",
-            category = "",
-            isAllowOverride = false,
-            aspects = {"isAsync:false"})
-    @ThingworxServiceResult(
-            name = "result",
-            description = "",
-            baseType = "NOTHING",
-            aspects = {})
-    public void SyncProjectToRepository(
-            @ThingworxServiceParameter(
-                            name = "GitThingName",
-                            description = "GIT Repository Thing name to sync",
-                            baseType = "STRING")
-                    String GitThingName)
-            throws Exception {
-        if (isBlank(GitThingName)) return;
-
-        Thing repoThing =
-                (Thing) EntityUtilities.findEntity(GitThingName, ThingworxRelationshipTypes.Thing);
-        ValueCollection getConfigParams = new ValueCollection();
-        getConfigParams.put("tableName", new StringPrimitive("Configuration"));
-        InfoTable cfgTable =
-                (InfoTable)
-                        repoThing.processServiceRequest("GetConfigurationTable", getConfigParams);
-        String str_FileRepoName = primitiveString(cfgTable.getRow(0), "FileRepository");
-        String str_RepoPath = primitiveString(cfgTable.getRow(0), "RepoPathName");
-        String str_ProjectName = primitiveString(cfgTable.getRow(0), "ProjectName");
-
-        if (isBlank(str_ProjectName)) {
-            _logger.warn(GitThingName + ": " + Const.WARN_NO_PROJECT_SKIP);
-            return;
-        }
-
-        String str_TempPath = str_RepoPath + "/_sync_temp_" + System.currentTimeMillis();
-        _logger.warn(
-                "SyncProjectToRepository: Exporting "
-                        + str_ProjectName
-                        + " to temp path: "
-                        + str_TempPath);
-
-        Object scfObj =
-                EntityUtilities.findEntity(
-                        "SourceControlFunctions", ThingworxRelationshipTypes.Resource);
-        if (scfObj == null) {
-            throw new Exception(Const.ERR_PREFIX_SYSTEM + Const.ERR_NO_SCF_RESOURCE);
-        }
-        IServiceProvider scf = (IServiceProvider) scfObj;
-        ValueCollection exportParams = new ValueCollection();
-        exportParams.put("repositoryName", new StringPrimitive(str_FileRepoName));
-        exportParams.put("path", new StringPrimitive(str_TempPath));
-        exportParams.put("projectName", new StringPrimitive(str_ProjectName));
-        exportParams.put("includeDependents", new BooleanPrimitive(false));
-        scf.processServiceRequest("ExportSourceControlledEntities", exportParams);
-
-        removeLastModifiedDate(str_FileRepoName, str_TempPath, str_ProjectName);
-        removeModelPersistenceProviderPackage(str_FileRepoName, str_TempPath, str_ProjectName);
-
-        FileRepositoryThing fileRepo =
-                (FileRepositoryThing)
-                        EntityUtilities.findEntity(
-                                str_FileRepoName, ThingworxRelationshipTypes.Thing);
-        String str_RepoFullPath = new File(fileRepo.getRootPath(), str_RepoPath).getPath();
-        String str_TempFullPath = new File(fileRepo.getRootPath(), str_TempPath).getPath();
-        String str_ProjectFullPath = new File(str_RepoFullPath, str_ProjectName).getPath();
-        String str_TempProjectFullPath = new File(str_TempFullPath, str_ProjectName).getPath();
-
-        List<File> repoFiles = new ArrayList<>();
-        File repoProjectDir = new File(str_ProjectFullPath);
-        if (repoProjectDir.exists()) {
-            collectXmlFilesOnDisk(repoProjectDir, repoFiles);
-        }
-
-        List<File> tempFiles = new ArrayList<>();
-        File tempProjectDir = new File(str_TempProjectFullPath);
-        if (tempProjectDir.exists()) {
-            collectXmlFilesOnDisk(tempProjectDir, tempFiles);
-        }
-
-        java.util.Set<String> tempRelativePaths = new java.util.HashSet<>();
-        for (File f : tempFiles) {
-            String rel =
-                    str_TempProjectFullPath.length() + 1 < f.getAbsolutePath().length()
-                            ? f.getAbsolutePath().substring(str_TempProjectFullPath.length() + 1)
-                            : f.getName();
-            tempRelativePaths.add(rel);
-        }
-
-        for (File f : tempFiles) {
-            String rel =
-                    str_TempProjectFullPath.length() + 1 < f.getAbsolutePath().length()
-                            ? f.getAbsolutePath().substring(str_TempProjectFullPath.length() + 1)
-                            : f.getName();
-            File targetFile = new File(str_ProjectFullPath, rel);
-            targetFile.getParentFile().mkdirs();
-            Files.copy(
-                    f.toPath(),
-                    targetFile.toPath(),
-                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-        }
-
-        for (File f : repoFiles) {
-            String rel =
-                    str_ProjectFullPath.length() + 1 < f.getAbsolutePath().length()
-                            ? f.getAbsolutePath().substring(str_ProjectFullPath.length() + 1)
-                            : f.getName();
-            if (!tempRelativePaths.contains(rel)) {
-                try {
-                    Files.delete(f.toPath());
-                    _logger.warn("SyncProjectToRepository: Removed deleted entity file: " + rel);
-                } catch (Exception e) {
-                    _logger.warn(
-                            "SyncProjectToRepository: Could not delete "
-                                    + f.getAbsolutePath()
-                                    + ": "
-                                    + e.getMessage());
-                }
-            }
-        }
-
-        if (repoProjectDir.exists()) {
-            try {
-                Files.walk(repoProjectDir.toPath())
-                        .sorted((p1, p2) -> -p1.compareTo(p2))
-                        .filter(p -> p.toFile().isDirectory())
-                        .forEach(
-                                p -> {
-                                    try {
-                                        if (p.toFile().listFiles() == null
-                                                || p.toFile().listFiles().length == 0) {
-                                            Files.delete(p);
-                                        }
-                                    } catch (IOException e) {
-                                    }
-                                });
-            } catch (Exception e) {
-                _logger.warn(
-                        "SyncProjectToRepository: Could not clean empty dirs: " + e.getMessage());
-            }
-        }
-
-        try {
-            ValueCollection deleteParams = new ValueCollection();
-            deleteParams.put("path", new StringPrimitive(str_TempPath));
-            fileRepo.processServiceRequest("DeleteFolder", deleteParams);
-        } catch (Exception e) {
-            _logger.warn("SyncProjectToRepository: Could not delete temp folder: " + str_TempPath);
-        }
-
-        _logger.warn(
-                "SyncProjectToRepository completed for "
-                        + GitThingName
-                        + ": "
-                        + tempFiles.size()
-                        + " files synced, "
-                        + repoFiles.size()
-                        + " existing files reconciled.");
     }
 
     @ThingworxServiceDefinition(
