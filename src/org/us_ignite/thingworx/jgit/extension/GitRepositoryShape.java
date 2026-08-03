@@ -365,8 +365,8 @@ public class GitRepositoryShape extends Thing {
             throws Exception, GitAPIException {
         _logger.trace("Entering Service: Commit");
         refreshConfiguration();
-        if (!syncFromThingworx()) {
-            return "Commit Error: " + Const.ERR_PREFIX_SYSTEM + "Project synchronization failed.";
+        if (hasText(str_ProjectName)) {
+            ExportProjectEntities(str_ProjectName, false, null, null);
         }
         String str_CurrentMethodName = "Commit";
         boolean bool_SignCommits = false;
@@ -680,7 +680,7 @@ public class GitRepositoryShape extends Thing {
             // ThingWorx entities before the first checkout would create untracked
             // files that conflict with the remote tree during bootstrap.
             if (myGitFolder.getRepository().resolve("HEAD") != null) {
-                syncFromThingworx();
+                if (hasText(str_ProjectName)) ExportProjectEntities(str_ProjectName, false, null, null);
             }
             User us_currentUser = UserUtilities.findUser(UserUtilities.getCurrentUser());
             ValueCollection vc_RepoCredentials = getGitRepoRemoteCredential(us_currentUser);
@@ -713,7 +713,7 @@ public class GitRepositoryShape extends Thing {
                             pr.toString());
             if (pr.isSuccessful()) {
                 try {
-                    syncFromRepository();
+                    if (hasText(str_ProjectName)) ImportProjectEntities("", true);
                 } catch (Exception syncEx) {
                     _logger.warn(
                             "Pull succeeded but sync from repository failed: "
@@ -873,7 +873,7 @@ public class GitRepositoryShape extends Thing {
             return errMsg;
         }
         try {
-            syncFromThingworx();
+            if (hasText(str_ProjectName)) ExportProjectEntities(str_ProjectName, false, null, null);
             Git myGitFolder = getGitObject("CreateBranch");
             String str_StartPoint = orDefault(StartPoint, "HEAD");
             Ref branchRef =
@@ -934,7 +934,7 @@ public class GitRepositoryShape extends Thing {
         }
         String str_CurrentMethodName = "Checkout";
         try {
-            syncFromThingworx();
+            if (hasText(str_ProjectName)) ExportProjectEntities(str_ProjectName, false, null, null);
             Git myGitFolder = getGitObject("Checkout");
             Ref ref;
             try {
@@ -961,7 +961,7 @@ public class GitRepositoryShape extends Thing {
                             ? false
                             : true;
             str_CurrentBranchOrCommit = BranchNameOrCommit;
-            syncFromRepository();
+            if (hasText(str_ProjectName)) ImportProjectEntities("", true);
             String str_LogResult = (ref != null) ? ref.toString() : "No message.";
             LogOperationResult(str_LogResult, str_CurrentMethodName);
             _logger.trace("Exiting Service: Checkout");
@@ -1381,7 +1381,7 @@ public class GitRepositoryShape extends Thing {
         InfoTable iftbl_Status =
                 InfoTableInstanceFactory.createInfoTableFromDataShape("GIT.Status.DataShape");
         try {
-            syncFromThingworx();
+            if (hasText(str_ProjectName)) ExportProjectEntities(str_ProjectName, false, null, null);
             Git myGitObject = getGitObject("Status");
             org.eclipse.jgit.api.Status status = myGitObject.status().call();
             for (String stat : status.getModified()) {
@@ -1590,7 +1590,7 @@ public class GitRepositoryShape extends Thing {
                             .setMessage(isBlank(msg) ? "Merge resolved" : msg)
                             .setCommitter(name, email)
                             .call();
-            syncFromRepository();
+            if (hasText(str_ProjectName)) ImportProjectEntities("", true);
             return "Merge completed: " + commit.getId().name();
         } catch (Exception e) {
             return "MergeContinue Error: " + Const.ERR_PREFIX_GIT + e.getMessage();
@@ -1622,7 +1622,7 @@ public class GitRepositoryShape extends Thing {
                     .call();
             repo.writeMergeCommitMsg(null);
             repo.writeMergeHeads(null);
-            syncFromRepository();
+            if (hasText(str_ProjectName)) ImportProjectEntities("", true);
             return "Merge aborted.";
         } catch (Exception e) {
             return "MergeAbort Error: " + Const.ERR_PREFIX_GIT + e.getMessage();
@@ -1685,7 +1685,9 @@ public class GitRepositoryShape extends Thing {
                 return service + " Error: no rebase is in progress.";
             RebaseResult result = git.rebase().setOperation(operation).call();
             if (result.getStatus() == RebaseResult.Status.OK
-                    || result.getStatus() == RebaseResult.Status.ABORTED) syncFromRepository();
+                    || result.getStatus() == RebaseResult.Status.ABORTED) {
+                if (hasText(str_ProjectName)) ImportProjectEntities("", true);
+            }
             return service + ": " + result.getStatus() + ": " + result;
         } catch (Exception e) {
             return service + " Error: " + Const.ERR_PREFIX_GIT + e.getMessage();
@@ -1710,7 +1712,7 @@ public class GitRepositoryShape extends Thing {
         _logger.trace("Entering Service: GetDiffPerFile");
         if (File == null) return "";
         try {
-            syncFromThingworx();
+            if (hasText(str_ProjectName)) ExportProjectEntities(str_ProjectName, false, null, null);
             Git myGitObject = getGitObject("GetDiffPerFile");
             ByteArrayOutputStream dif = new ByteArrayOutputStream();
             myGitObject.diff().setPathFilter(PathFilter.create(File)).setOutputStream(dif).call();
@@ -1978,12 +1980,6 @@ public class GitRepositoryShape extends Thing {
                             baseType = "STRING")
                     String commitMessage)
             throws Exception {
-        exportProjectEntities(ProjectName, includeDependents, EntitiesToExport);
-    }
-
-    private void exportProjectEntities(
-            String ProjectName, Boolean includeDependents, InfoTable EntitiesToExport)
-            throws Exception {
         if (isBlank(ProjectName)) {
             throw new Exception(Const.ERR_PREFIX_CONFIG + Const.ERR_PROJECT_NAME_REQUIRED);
         }
@@ -2169,21 +2165,6 @@ public class GitRepositoryShape extends Thing {
         }
     }
 
-    private boolean syncFromThingworx() {
-        try {
-            if (isBlank(str_ProjectName)) {
-                _logger.trace(Const.WARN_NO_PROJECT_SKIP);
-                return true;
-            }
-            exportProjectEntities(str_ProjectName, false, null);
-            return true;
-        } catch (Exception e) {
-            _logger.error(
-                    String.format(Const.WARN_SYNC_FAILED, this.getName() + ": " + e.getMessage()));
-            return false;
-        }
-    }
-
     /** Re-read configuration written immediately before a service invocation. */
     private void refreshConfiguration() {
         try {
@@ -2269,19 +2250,6 @@ public class GitRepositoryShape extends Thing {
 
     private Object valueOf(ValueCollection row, String fieldName) {
         return row.getPrimitive(fieldName) == null ? null : row.getPrimitive(fieldName).getValue();
-    }
-
-    private void syncFromRepository() {
-        try {
-            if (isBlank(str_ProjectName)) {
-                _logger.trace(Const.WARN_NO_PROJECT_SKIP);
-                return;
-            }
-            ImportProjectEntities("", true);
-        } catch (Exception e) {
-            _logger.error(
-                    "syncFromRepository failed for " + this.getName() + ": " + e.getMessage());
-        }
     }
 
     private void LogOperationResult(String str_OperationResult, String str_ServiceName) {
@@ -2570,7 +2538,7 @@ public class GitRepositoryShape extends Thing {
             return errMsg;
         }
         try {
-            syncFromThingworx();
+            if (hasText(str_ProjectName)) ExportProjectEntities(str_ProjectName, false, null, null);
             Git myGitFolder = getGitObject("Merge");
             ObjectId mergeBase = myGitFolder.getRepository().resolve(BranchName);
             if (mergeBase == null) {
@@ -2579,7 +2547,7 @@ public class GitRepositoryShape extends Thing {
             MergeResult result = myGitFolder.merge().include(mergeBase).call();
             String str_LogResult = result.getMergeStatus().toString() + ": " + result.toString();
             if (result.getMergeStatus().isSuccessful()) {
-                syncFromRepository();
+                if (hasText(str_ProjectName)) ImportProjectEntities("", true);
             } else if (result.getMergeStatus() == MergeResult.MergeStatus.CONFLICTING) {
                 _logger.warn(Const.ERR_MERGE_CONFLICT);
             }
@@ -2628,7 +2596,7 @@ public class GitRepositoryShape extends Thing {
             return errMsg;
         }
         try {
-            syncFromThingworx();
+            if (hasText(str_ProjectName)) ExportProjectEntities(str_ProjectName, false, null, null);
             Git myGitFolder = getGitObject("Rebase");
             ObjectId upstream = myGitFolder.getRepository().resolve(UpstreamBranch);
             if (upstream == null) {
@@ -2638,7 +2606,7 @@ public class GitRepositoryShape extends Thing {
             RebaseResult result = myGitFolder.rebase().setUpstream(upstream).call();
             String str_LogResult = result.getStatus().toString() + ": " + result.toString();
             if (result.getStatus() == RebaseResult.Status.OK) {
-                syncFromRepository();
+                if (hasText(str_ProjectName)) ImportProjectEntities("", true);
             } else if (result.getStatus() == RebaseResult.Status.STOPPED) {
                 _logger.warn(Const.ERR_REBASE_CONFLICT);
             }
@@ -2696,7 +2664,7 @@ public class GitRepositoryShape extends Thing {
             return "CreateTag skipped: " + Const.ERR_PREFIX_CONFIG + Const.ERR_NO_TAG_NAME;
         }
         try {
-            syncFromThingworx();
+            if (hasText(str_ProjectName)) ExportProjectEntities(str_ProjectName, false, null, null);
             Git myGitFolder = getGitObject("CreateTag");
             Repository repo = myGitFolder.getRepository();
             ObjectId commitId;

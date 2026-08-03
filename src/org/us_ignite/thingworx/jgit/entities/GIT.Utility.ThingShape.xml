@@ -6,35 +6,11 @@
                 <PropertyDefinition aspect.cacheTime="0.0" aspect.dataChangeType="VALUE" aspect.defaultValue="500000" aspect.isPersistent="true" baseType="INTEGER" category="" description="Max size of the diff string that will be sent to the client browser. Anything larger than that will not be sent at all." isLocalOnly="false" name="MaxDiffSize" ordinal="2"/>
             </PropertyDefinitions>
             <ServiceDefinitions>
-                <ServiceDefinition aspect.isAsync="false" category="" description="" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="ExportLocalizationToken">
-                    <ResultType baseType="NOTHING" description="" name="result" ordinal="0"/>
-                    <ParameterDefinitions>
-                        <FieldDefinition baseType="STRING" description="" name="prefix" ordinal="1"/>
-                    </ParameterDefinitions>
-                </ServiceDefinition>
-                <ServiceDefinition aspect.isAsync="false" category="" description="functionality that allows exporting data from the Project DataTables/Streams/ValueStreams" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="ExportProjectData">
-                    <ResultType baseType="NOTHING" description="" name="result" ordinal="0"/>
-                    <ParameterDefinitions>
-                        <FieldDefinition baseType="STRING" description="" name="ProjectName" ordinal="1"/>
-                    </ParameterDefinitions>
-                </ServiceDefinition>
-                <ServiceDefinition aspect.isAsync="false" category="" description="wrapper for Extensions Export / ExportExtensionsToRepository" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="ExportProjectExtensions">
-                    <ResultType baseType="NOTHING" description="" name="result" ordinal="0"/>
-                    <ParameterDefinitions/>
-                </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Gets recursively the directories found in a subfolder in a FileRepository. Not part of the services of a FileRepository" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="GetFilteredDirectoryListing">
                     <ResultType aspect.dataShape="FileSystemDirectory" baseType="INFOTABLE" description="" name="result" ordinal="0"/>
                     <ParameterDefinitions/>
                 </ServiceDefinition>
-                <ServiceDefinition aspect.isAsync="false" category="" description="Removes the ConfigurationTableDefinitions to allow compatibility with 8.2. This service should be used only if you're doing crossplatform development between 8.5 and 8.2/8.3. Enable or disable in the ExportProjectEntities services" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="RemoveConfigurationTableDefinitions">
-                    <ResultType baseType="NOTHING" description="" name="result" ordinal="0"/>
-                    <ParameterDefinitions/>
-                </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Removes the lastModifiedDate. Change history is already removed by ExportToSourceControlEntities" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="RemoveLastModifiedDate">
-                    <ResultType baseType="NOTHING" description="" name="result" ordinal="0"/>
-                    <ParameterDefinitions/>
-                </ServiceDefinition>
-                <ServiceDefinition aspect.isAsync="false" category="" description="Removes the mashup preview tag to allow compatibility with 8.2. This service should be used only if you're doing crossplatform development between 8.5 and 8.2/8.3" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="RemoveMashupPreviewTag">
                     <ResultType baseType="NOTHING" description="" name="result" ordinal="0"/>
                     <ParameterDefinitions/>
                 </ServiceDefinition>
