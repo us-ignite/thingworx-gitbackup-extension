@@ -35,8 +35,8 @@
                                     <Rows>
                                         <Row>
                                             <code><![CDATA[
-try { me.InitUserExtensionProperties(); } catch(e) {}
-try { me.InitUserExtensionGpgKeysProperty(); } catch(e) {}
+try { me.InitUserExtensionProperties(); } catch(e) { logger.warn("InitializeUserExtensionsOnStartup: InitUserExtensionProperties failed: " + e); }
+try { me.InitUserExtensionGpgKeysProperty(); } catch(e) { logger.warn("InitializeUserExtensionsOnStartup: InitUserExtensionGpgKeysProperty failed: " + e); }
                                             ]]></code>
                                         </Row>
                                     </Rows>
