@@ -71,7 +71,7 @@ jobs:
           git config filter.version.clean '.gitfilters/version-clean'
           git config filter.twx-resources.smudge '.gitfilters/twx-resources-smudge'
           git config filter.twx-resources.clean '.gitfilters/twx-resources-clean'
-          git checkout HEAD -- configfiles/metadata.xml gradle.properties vendor/twx-resources.tar.gz.gpg
+          git checkout HEAD -- src/org/us_ignite/thingworx/jgit/metadata.xml gradle.properties vendor/twx-resources.tar.gz.gpg
 
       - uses: actions/setup-java@v5
         with:
