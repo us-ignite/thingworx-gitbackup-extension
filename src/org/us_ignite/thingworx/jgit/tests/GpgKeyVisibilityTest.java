@@ -111,7 +111,7 @@ public class GpgKeyVisibilityTest {
         JsonObject getKeysBody = new JsonObject();
         var req =
                 stack.thingworx
-                        .serviceRequest("GIT.Utility.Thing", "GetGpgKeys", getKeysBody.toString())
+                        .serviceRequest("GIT.Utility.Thing", "GpgKeyList", getKeysBody.toString())
                         .timeout(Duration.ofSeconds(10))
                         .build();
         var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
@@ -129,14 +129,12 @@ public class GpgKeyVisibilityTest {
     @Test
     void setAndGetGpgKeyRoundTrip() throws Exception {
         var setBody = new JsonObject();
-        setBody.addProperty("GitThing", "NonExistentTestThing");
         setBody.addProperty("GpgPrivateKey", "test-private-key-data");
         setBody.addProperty("GpgKeyPassphrase", "test-passphrase");
-        setBody.addProperty("SignCommits", false);
         setBody.addProperty("GpgKeyFingerprint", "TEST:FINGER:PRINT:1234");
         var setReq =
                 stack.thingworx
-                        .serviceRequest("GIT.Utility.Thing", "SetGpgKey", setBody.toString())
+                        .serviceRequest("GIT.Utility.Thing", "GpgKeyCreate", setBody.toString())
                         .timeout(Duration.ofSeconds(10))
                         .build();
         var setRes = stack.httpClient.send(setReq, HttpResponse.BodyHandlers.ofString());
@@ -146,7 +144,7 @@ public class GpgKeyVisibilityTest {
 
         var getReq =
                 stack.thingworx
-                        .serviceRequest("GIT.Utility.Thing", "GetGpgKeys", "{}")
+                        .serviceRequest("GIT.Utility.Thing", "GpgKeyList", "{}")
                         .timeout(Duration.ofSeconds(10))
                         .build();
         var getRes = stack.httpClient.send(getReq, HttpResponse.BodyHandlers.ofString());
@@ -173,10 +171,10 @@ public class GpgKeyVisibilityTest {
                 "GpgKeyFingerprint should match the one we set");
 
         var deleteBody = new JsonObject();
-        deleteBody.addProperty("GitThing", "NonExistentTestThing");
+        deleteBody.addProperty("GpgKeyFingerprint", "TEST:FINGER:PRINT:1234");
         var deleteReq =
                 stack.thingworx
-                        .serviceRequest("GIT.Utility.Thing", "DeleteGpgKey", deleteBody.toString())
+                        .serviceRequest("GIT.Utility.Thing", "GpgKeyDelete", deleteBody.toString())
                         .timeout(Duration.ofSeconds(10))
                         .build();
         stack.httpClient.send(deleteReq, HttpResponse.BodyHandlers.ofString());
@@ -186,7 +184,7 @@ public class GpgKeyVisibilityTest {
     void gpgKeysFieldNamesMatchExpectedSchema() throws Exception {
         var getReq =
                 stack.thingworx
-                        .serviceRequest("GIT.Utility.Thing", "GetGpgKeys", "{}")
+                        .serviceRequest("GIT.Utility.Thing", "GpgKeyList", "{}")
                         .timeout(Duration.ofSeconds(10))
                         .build();
         var getRes = stack.httpClient.send(getReq, HttpResponse.BodyHandlers.ofString());
@@ -213,5 +211,4 @@ public class GpgKeyVisibilityTest {
                 "STRING",
                 fields.getAsJsonObject("GpgKeyFingerprint").get("baseType").getAsString());
     }
-
 }

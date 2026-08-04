@@ -22,8 +22,7 @@
                 <FieldDefinition baseType="PASSWORD" description="Git password or personal access token" name="GitCommitterPassword" ordinal="3"/>
                 <FieldDefinition baseType="STRING" description="Committer email address" name="GitCommitterEmail" ordinal="4"/>
                 <FieldDefinition baseType="STRING" description="Committer full name" name="GitCommitterFullName" ordinal="5"/>
-                <FieldDefinition aspect.defaultValue="false" baseType="BOOLEAN" description="Whether commits for this repository should be signed" name="SignCommits" ordinal="6"/>
-                <FieldDefinition baseType="STRING" description="Fingerprint of the user's GPG key used for this repository" name="GpgKeyFingerprint" ordinal="7"/>
+                <FieldDefinition baseType="STRING" description="Fingerprint of the user's GPG key used for this repository; signing is enabled when this field is non-empty" name="GpgKeyFingerprint" ordinal="6"/>
             </FieldDefinitions>
         </DataShape>
     </DataShapes>

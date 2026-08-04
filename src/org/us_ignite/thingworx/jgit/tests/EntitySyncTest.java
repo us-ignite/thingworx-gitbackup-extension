@@ -117,13 +117,35 @@ public class EntitySyncTest {
                 Path.of(
                         System.getProperty(
                                 "test.extensionZip", "build/distributions/JGitExtension.zip"));
-        @SuppressWarnings("resource")
         var installer =
                 new JGitExtensionInstaller(
                         extZip, twx, network, credentials, "http://" + hostname + ":8080");
         installer.start();
         System.out.println("Extension installed on " + hostname);
         installer.close();
+    }
+
+    private void configureRepository(
+            ThingWorxContainer twx, String thingName, String fullName, String email)
+            throws Exception {
+        JsonObject body = new JsonObject();
+        body.addProperty("RepoName", thingName);
+        body.addProperty("GitRepoURL", giteaRepoUrl);
+        body.addProperty("RepoPathName", SHARED_REPO_PATH);
+        body.addProperty("BranchName", "main");
+        body.addProperty("ProjectName", TEST_PROJECT);
+        body.addProperty("GitCommitterUser", credentials.giteaUser);
+        body.addProperty("GitCommitterPassword", credentials.giteaPass);
+        body.addProperty("GitCommitterEmail", email);
+        body.addProperty("GitCommitterFullName", fullName);
+        var createRes =
+                httpClient.send(
+                        twx.serviceRequest("GIT.Utility.Thing", "RepositoryCreate", body.toString())
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
+        assertTrue(
+                createRes.statusCode() == 200 || createRes.statusCode() == 201,
+                "Repository was not created/configured: " + createRes.body());
     }
 
     @AfterAll
@@ -142,29 +164,7 @@ public class EntitySyncTest {
     @Test
     @Order(1)
     void createGitThingOnSourceInstance() throws Exception {
-        JsonObject body = new JsonObject();
-        body.addProperty("RepoName", GIT_THING_A);
-        body.addProperty("GitRepoURL", giteaRepoUrl);
-        body.addProperty("RepoPath", SHARED_REPO_PATH);
-        body.addProperty("User", credentials.giteaUser);
-        body.addProperty("Password", credentials.giteaPass);
-        body.addProperty("CommitUser", "TWX-A User");
-        body.addProperty("CommitEmail", "twxa@example.com");
-        body.addProperty("InitialBranch", "main");
-        body.addProperty("ProxyURL", "");
-        body.addProperty("ProxyPort", 0);
-        body.addProperty("UseProxy", false);
-        body.addProperty("LocalizationTokensPrefix", "");
-        body.addProperty("ProjectName", TEST_PROJECT);
-
-        var createReq =
-                twxA.serviceRequest("GIT.Utility.Thing", "AddNewRepo", body.toString())
-                        .timeout(Duration.ofSeconds(30))
-                        .build();
-        var createRes = httpClient.send(createReq, HttpResponse.BodyHandlers.ofString());
-        assertTrue(
-                createRes.statusCode() == 200 || createRes.statusCode() == 201,
-                "AddNewRepo on source failed: " + createRes.statusCode() + " " + createRes.body());
+        configureRepository(twxA, GIT_THING_A, "TWX-A User", "twxa@example.com");
 
         Thread.sleep(5000);
         var verifyReq =
@@ -188,34 +188,63 @@ public class EntitySyncTest {
         var thingRes =
                 httpClient.send(
                         HttpRequest.newBuilder()
-                                .uri(URI.create(twxA.getExternalUrl()
-                                        + "/Thingworx/Resources/EntityServices/Services/CreateThing"))
+                                .uri(
+                                        URI.create(
+                                                twxA.getExternalUrl()
+                                                        + "/Thingworx/Resources/EntityServices/Services/CreateThing"))
                                 .header("Content-Type", "application/json")
                                 .header("Accept", "application/json")
-                                .header("Authorization", "Basic " + Base64.getEncoder().encodeToString(
-                                        (credentials.thingworxAdminUser + ":" + credentials.thingworxAdminPass)
-                                                .getBytes(StandardCharsets.UTF_8)))
+                                .header(
+                                        "Authorization",
+                                        "Basic "
+                                                + Base64.getEncoder()
+                                                        .encodeToString(
+                                                                (credentials.thingworxAdminUser
+                                                                                + ":"
+                                                                                + credentials
+                                                                                        .thingworxAdminPass)
+                                                                        .getBytes(
+                                                                                StandardCharsets
+                                                                                        .UTF_8)))
                                 .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
                                 .header("X-Requested-By", "ThingWorx")
                                 .POST(HttpRequest.BodyPublishers.ofString(thingBody.toString()))
                                 .build(),
                         HttpResponse.BodyHandlers.ofString());
-        assertTrue(thingRes.statusCode() == 200 || thingRes.statusCode() == 201,
+        assertTrue(
+                thingRes.statusCode() == 200 || thingRes.statusCode() == 201,
                 "CreateThing failed: " + thingRes.statusCode() + " " + thingRes.body());
 
         var thingVerifyRes =
                 httpClient.send(
                         HttpRequest.newBuilder()
-                                .uri(URI.create(twxA.getExternalUrl() + "/Thingworx/Things/" + SOURCE_THING))
+                                .uri(
+                                        URI.create(
+                                                twxA.getExternalUrl()
+                                                        + "/Thingworx/Things/"
+                                                        + SOURCE_THING))
                                 .header("Accept", "application/json")
-                                .header("Authorization", "Basic " + Base64.getEncoder().encodeToString(
-                                        (credentials.thingworxAdminUser + ":" + credentials.thingworxAdminPass)
-                                                .getBytes(StandardCharsets.UTF_8)))
+                                .header(
+                                        "Authorization",
+                                        "Basic "
+                                                + Base64.getEncoder()
+                                                        .encodeToString(
+                                                                (credentials.thingworxAdminUser
+                                                                                + ":"
+                                                                                + credentials
+                                                                                        .thingworxAdminPass)
+                                                                        .getBytes(
+                                                                                StandardCharsets
+                                                                                        .UTF_8)))
                                 .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
                                 .header("X-Requested-By", "ThingWorx")
-                                .GET().build(),
+                                .GET()
+                                .build(),
                         HttpResponse.BodyHandlers.ofString());
-        assertEquals(200, thingVerifyRes.statusCode(), "Source Thing was not created: " + thingVerifyRes.body());
+        assertEquals(
+                200,
+                thingVerifyRes.statusCode(),
+                "Source Thing was not created: " + thingVerifyRes.body());
 
         JsonObject pushBody = new JsonObject();
         pushBody.addProperty("Message", "Cross-instance entity push from TWX-A");
@@ -236,45 +265,46 @@ public class EntitySyncTest {
         var giteaRes =
                 httpClient.send(
                         HttpRequest.newBuilder()
-                                .uri(URI.create("http://" + gitea.getHost() + ":" + gitea.getMappedPort(3000)
-                                        + "/api/v1/repos/" + credentials.giteaUser + "/" + credentials.repoName
-                                        + "/contents/" + sourcePath + "?ref=main"))
-                                .header("Authorization", "Basic " + Base64.getEncoder().encodeToString(
-                                        (credentials.giteaUser + ":" + credentials.giteaPass)
-                                                .getBytes(StandardCharsets.UTF_8)))
+                                .uri(
+                                        URI.create(
+                                                "http://"
+                                                        + gitea.getHost()
+                                                        + ":"
+                                                        + gitea.getMappedPort(3000)
+                                                        + "/api/v1/repos/"
+                                                        + credentials.giteaUser
+                                                        + "/"
+                                                        + credentials.repoName
+                                                        + "/contents/"
+                                                        + sourcePath
+                                                        + "?ref=main"))
+                                .header(
+                                        "Authorization",
+                                        "Basic "
+                                                + Base64.getEncoder()
+                                                        .encodeToString(
+                                                                (credentials.giteaUser
+                                                                                + ":"
+                                                                                + credentials
+                                                                                        .giteaPass)
+                                                                        .getBytes(
+                                                                                StandardCharsets
+                                                                                        .UTF_8)))
                                 .header("Accept", "application/json")
-                                .GET().build(),
+                                .GET()
+                                .build(),
                         HttpResponse.BodyHandlers.ofString());
-        assertEquals(200, giteaRes.statusCode(), "Entity was not pushed to Gitea: " + giteaRes.body());
-        assertTrue(giteaRes.body().contains(SOURCE_THING + ".xml"), "Gitea returned the wrong file: " + giteaRes.body());
+        assertEquals(
+                200, giteaRes.statusCode(), "Entity was not pushed to Gitea: " + giteaRes.body());
+        assertTrue(
+                giteaRes.body().contains(SOURCE_THING + ".xml"),
+                "Gitea returned the wrong file: " + giteaRes.body());
     }
 
     @Test
     @Order(3)
     void createGitThingOnTargetInstance() throws Exception {
-        JsonObject body = new JsonObject();
-        body.addProperty("RepoName", GIT_THING_B);
-        body.addProperty("GitRepoURL", giteaRepoUrl);
-        body.addProperty("RepoPath", SHARED_REPO_PATH);
-        body.addProperty("User", credentials.giteaUser);
-        body.addProperty("Password", credentials.giteaPass);
-        body.addProperty("CommitUser", "TWX-B User");
-        body.addProperty("CommitEmail", "twxb@example.com");
-        body.addProperty("InitialBranch", "main");
-        body.addProperty("ProxyURL", "");
-        body.addProperty("ProxyPort", 0);
-        body.addProperty("UseProxy", false);
-        body.addProperty("LocalizationTokensPrefix", "");
-        body.addProperty("ProjectName", TEST_PROJECT);
-
-        var createReq =
-                twxB.serviceRequest("GIT.Utility.Thing", "AddNewRepo", body.toString())
-                        .timeout(Duration.ofSeconds(30))
-                        .build();
-        var createRes = httpClient.send(createReq, HttpResponse.BodyHandlers.ofString());
-        assertTrue(
-                createRes.statusCode() == 200 || createRes.statusCode() == 201,
-                "AddNewRepo on target failed: " + createRes.statusCode() + " " + createRes.body());
+        configureRepository(twxB, GIT_THING_B, "TWX-B User", "twxb@example.com");
 
         Thread.sleep(5000);
         var verifyReq =
@@ -306,14 +336,26 @@ public class EntitySyncTest {
     void verifyEntitiesExistOnTarget() throws Exception {
         var thingReq =
                 HttpRequest.newBuilder()
-                        .uri(URI.create(twxB.getExternalUrl() + "/Thingworx/Things/" + SOURCE_THING))
+                        .uri(
+                                URI.create(
+                                        twxB.getExternalUrl()
+                                                + "/Thingworx/Things/"
+                                                + SOURCE_THING))
                         .header("Accept", "application/json")
-                        .header("Authorization", "Basic " + Base64.getEncoder().encodeToString(
-                                (credentials.thingworxAdminUser + ":" + credentials.thingworxAdminPass)
-                                        .getBytes(StandardCharsets.UTF_8)))
+                        .header(
+                                "Authorization",
+                                "Basic "
+                                        + Base64.getEncoder()
+                                                .encodeToString(
+                                                        (credentials.thingworxAdminUser
+                                                                        + ":"
+                                                                        + credentials
+                                                                                .thingworxAdminPass)
+                                                                .getBytes(StandardCharsets.UTF_8)))
                         .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
                         .header("X-Requested-By", "ThingWorx")
-                        .GET().build();
+                        .GET()
+                        .build();
         var thingRes = httpClient.send(thingReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, thingRes.statusCode(), "Target Thing was not loaded: " + thingRes.body());
 
@@ -355,37 +397,73 @@ public class EntitySyncTest {
     void pushBackAndVerifyOnSource() throws Exception {
         var updateReq =
                 HttpRequest.newBuilder()
-                        .uri(URI.create(twxB.getExternalUrl() + "/Thingworx/Things/" + SOURCE_THING))
+                        .uri(
+                                URI.create(
+                                        twxB.getExternalUrl()
+                                                + "/Thingworx/Things/"
+                                                + SOURCE_THING))
                         .header("Content-Type", "application/json")
                         .header("Accept", "application/json")
-                        .header("Authorization", "Basic " + Base64.getEncoder().encodeToString(
-                                (credentials.thingworxAdminUser + ":" + credentials.thingworxAdminPass)
-                                        .getBytes(StandardCharsets.UTF_8)))
+                        .header(
+                                "Authorization",
+                                "Basic "
+                                        + Base64.getEncoder()
+                                                .encodeToString(
+                                                        (credentials.thingworxAdminUser
+                                                                        + ":"
+                                                                        + credentials
+                                                                                .thingworxAdminPass)
+                                                                .getBytes(StandardCharsets.UTF_8)))
                         .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
                         .header("X-Requested-By", "ThingWorx")
-                        .PUT(HttpRequest.BodyPublishers.ofString(
-                                "{\"name\":\"" + SOURCE_THING + "\",\"description\":\""
-                                        + UPDATED_DESCRIPTION
-                                        + "\",\"thingTemplate\":\"GenericThing\","
-                                        + "\"projectName\":\"" + TEST_PROJECT + "\"}"))
+                        .PUT(
+                                HttpRequest.BodyPublishers.ofString(
+                                        "{\"name\":\""
+                                                + SOURCE_THING
+                                                + "\",\"description\":\""
+                                                + UPDATED_DESCRIPTION
+                                                + "\",\"thingTemplate\":\"GenericThing\","
+                                                + "\"projectName\":\""
+                                                + TEST_PROJECT
+                                                + "\"}"))
                         .build();
         var updateRes = httpClient.send(updateReq, HttpResponse.BodyHandlers.ofString());
-        assertTrue(updateRes.statusCode() == 200 || updateRes.statusCode() == 201,
+        assertTrue(
+                updateRes.statusCode() == 200 || updateRes.statusCode() == 201,
                 "Thing update failed: " + updateRes.statusCode() + " " + updateRes.body());
         var updatedThingRes =
                 httpClient.send(
                         HttpRequest.newBuilder()
-                                .uri(URI.create(twxB.getExternalUrl() + "/Thingworx/Things/" + SOURCE_THING))
+                                .uri(
+                                        URI.create(
+                                                twxB.getExternalUrl()
+                                                        + "/Thingworx/Things/"
+                                                        + SOURCE_THING))
                                 .header("Accept", "application/json")
-                                .header("Authorization", "Basic " + Base64.getEncoder().encodeToString(
-                                        (credentials.thingworxAdminUser + ":" + credentials.thingworxAdminPass)
-                                                .getBytes(StandardCharsets.UTF_8)))
+                                .header(
+                                        "Authorization",
+                                        "Basic "
+                                                + Base64.getEncoder()
+                                                        .encodeToString(
+                                                                (credentials.thingworxAdminUser
+                                                                                + ":"
+                                                                                + credentials
+                                                                                        .thingworxAdminPass)
+                                                                        .getBytes(
+                                                                                StandardCharsets
+                                                                                        .UTF_8)))
                                 .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
                                 .header("X-Requested-By", "ThingWorx")
-                                .GET().build(),
+                                .GET()
+                                .build(),
                         HttpResponse.BodyHandlers.ofString());
-        assertEquals(200, updatedThingRes.statusCode(), "Updated Thing was not found: " + updatedThingRes.body());
-        assertTrue(updatedThingRes.body().contains(UPDATED_DESCRIPTION), "Thing update was not applied: " + updatedThingRes.body());
+        assertEquals(
+                200,
+                updatedThingRes.statusCode(),
+                "Updated Thing was not found: " + updatedThingRes.body());
+        assertTrue(
+                updatedThingRes.body().contains(UPDATED_DESCRIPTION),
+                "Thing update was not applied: " + updatedThingRes.body());
 
         JsonObject pushBody = new JsonObject();
         pushBody.addProperty("Message", "Cross-instance entity return push from TWX-B");
@@ -409,20 +487,51 @@ public class EntitySyncTest {
         var updatedGiteaRes =
                 httpClient.send(
                         HttpRequest.newBuilder()
-                                .uri(URI.create("http://" + gitea.getHost() + ":" + gitea.getMappedPort(3000)
-                                        + "/api/v1/repos/" + credentials.giteaUser + "/" + credentials.repoName
-                                        + "/contents/" + updatedPath + "?ref=main"))
-                                .header("Authorization", "Basic " + Base64.getEncoder().encodeToString(
-                                        (credentials.giteaUser + ":" + credentials.giteaPass)
-                                                .getBytes(StandardCharsets.UTF_8)))
+                                .uri(
+                                        URI.create(
+                                                "http://"
+                                                        + gitea.getHost()
+                                                        + ":"
+                                                        + gitea.getMappedPort(3000)
+                                                        + "/api/v1/repos/"
+                                                        + credentials.giteaUser
+                                                        + "/"
+                                                        + credentials.repoName
+                                                        + "/contents/"
+                                                        + updatedPath
+                                                        + "?ref=main"))
+                                .header(
+                                        "Authorization",
+                                        "Basic "
+                                                + Base64.getEncoder()
+                                                        .encodeToString(
+                                                                (credentials.giteaUser
+                                                                                + ":"
+                                                                                + credentials
+                                                                                        .giteaPass)
+                                                                        .getBytes(
+                                                                                StandardCharsets
+                                                                                        .UTF_8)))
                                 .header("Accept", "application/json")
-                                .GET().build(),
+                                .GET()
+                                .build(),
                         HttpResponse.BodyHandlers.ofString());
-        assertEquals(200, updatedGiteaRes.statusCode(), "Updated entity was not pushed to Gitea: " + updatedGiteaRes.body());
-        String updatedXml = new String(Base64.getMimeDecoder().decode(
-                JsonParser.parseString(updatedGiteaRes.body()).getAsJsonObject().get("content").getAsString()),
-                StandardCharsets.UTF_8);
-        assertTrue(updatedXml.contains(UPDATED_DESCRIPTION), "Gitea contained stale entity XML: " + updatedXml);
+        assertEquals(
+                200,
+                updatedGiteaRes.statusCode(),
+                "Updated entity was not pushed to Gitea: " + updatedGiteaRes.body());
+        String updatedXml =
+                new String(
+                        Base64.getMimeDecoder()
+                                .decode(
+                                        JsonParser.parseString(updatedGiteaRes.body())
+                                                .getAsJsonObject()
+                                                .get("content")
+                                                .getAsString()),
+                        StandardCharsets.UTF_8);
+        assertTrue(
+                updatedXml.contains(UPDATED_DESCRIPTION),
+                "Gitea contained stale entity XML: " + updatedXml);
 
         var pullBody = new JsonObject();
         pullBody.addProperty("Force", false);
@@ -447,17 +556,36 @@ public class EntitySyncTest {
         var sourceThingRes =
                 httpClient.send(
                         HttpRequest.newBuilder()
-                                .uri(URI.create(twxA.getExternalUrl() + "/Thingworx/Things/" + SOURCE_THING))
+                                .uri(
+                                        URI.create(
+                                                twxA.getExternalUrl()
+                                                        + "/Thingworx/Things/"
+                                                        + SOURCE_THING))
                                 .header("Accept", "application/json")
-                                .header("Authorization", "Basic " + Base64.getEncoder().encodeToString(
-                                        (credentials.thingworxAdminUser + ":" + credentials.thingworxAdminPass)
-                                                .getBytes(StandardCharsets.UTF_8)))
+                                .header(
+                                        "Authorization",
+                                        "Basic "
+                                                + Base64.getEncoder()
+                                                        .encodeToString(
+                                                                (credentials.thingworxAdminUser
+                                                                                + ":"
+                                                                                + credentials
+                                                                                        .thingworxAdminPass)
+                                                                        .getBytes(
+                                                                                StandardCharsets
+                                                                                        .UTF_8)))
                                 .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
                                 .header("X-Requested-By", "ThingWorx")
-                                .GET().build(),
+                                .GET()
+                                .build(),
                         HttpResponse.BodyHandlers.ofString());
-        assertEquals(200, sourceThingRes.statusCode(), "Source Thing was not reloaded: " + sourceThingRes.body());
-        assertTrue(sourceThingRes.body().contains(UPDATED_DESCRIPTION), "Source Thing has stale state: " + sourceThingRes.body());
+        assertEquals(
+                200,
+                sourceThingRes.statusCode(),
+                "Source Thing was not reloaded: " + sourceThingRes.body());
+        assertTrue(
+                sourceThingRes.body().contains(UPDATED_DESCRIPTION),
+                "Source Thing has stale state: " + sourceThingRes.body());
         var filesReq =
                 twxA.serviceRequest(
                                 GIT_THING_A,
@@ -490,7 +618,8 @@ public class EntitySyncTest {
         branchBody.addProperty("StartPoint", "main");
         var branchRes =
                 httpClient.send(
-                        twxA.serviceRequest(GIT_THING_A, "CreateBranch", branchBody.toString()).build(),
+                        twxA.serviceRequest(GIT_THING_A, "CreateBranch", branchBody.toString())
+                                .build(),
                         HttpResponse.BodyHandlers.ofString());
         assertEquals(200, branchRes.statusCode(), "CreateBranch failed: " + branchRes.body());
 
@@ -498,9 +627,11 @@ public class EntitySyncTest {
         checkoutBody.addProperty("BranchNameOrCommit", branchName);
         var checkoutRes =
                 httpClient.send(
-                        twxA.serviceRequest(GIT_THING_A, "Checkout", checkoutBody.toString()).build(),
+                        twxA.serviceRequest(GIT_THING_A, "Checkout", checkoutBody.toString())
+                                .build(),
                         HttpResponse.BodyHandlers.ofString());
-        assertEquals(200, checkoutRes.statusCode(), "Checkout branch failed: " + checkoutRes.body());
+        assertEquals(
+                200, checkoutRes.statusCode(), "Checkout branch failed: " + checkoutRes.body());
 
         JsonObject thingBody = new JsonObject();
         thingBody.addProperty("name", thingName);
@@ -510,19 +641,31 @@ public class EntitySyncTest {
         var thingRes =
                 httpClient.send(
                         HttpRequest.newBuilder()
-                                .uri(URI.create(twxA.getExternalUrl()
-                                        + "/Thingworx/Resources/EntityServices/Services/CreateThing"))
+                                .uri(
+                                        URI.create(
+                                                twxA.getExternalUrl()
+                                                        + "/Thingworx/Resources/EntityServices/Services/CreateThing"))
                                 .header("Content-Type", "application/json")
                                 .header("Accept", "application/json")
-                                .header("Authorization", "Basic " + Base64.getEncoder().encodeToString(
-                                        (credentials.thingworxAdminUser + ":" + credentials.thingworxAdminPass)
-                                                .getBytes(StandardCharsets.UTF_8)))
+                                .header(
+                                        "Authorization",
+                                        "Basic "
+                                                + Base64.getEncoder()
+                                                        .encodeToString(
+                                                                (credentials.thingworxAdminUser
+                                                                                + ":"
+                                                                                + credentials
+                                                                                        .thingworxAdminPass)
+                                                                        .getBytes(
+                                                                                StandardCharsets
+                                                                                        .UTF_8)))
                                 .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
                                 .header("X-Requested-By", "ThingWorx")
                                 .POST(HttpRequest.BodyPublishers.ofString(thingBody.toString()))
                                 .build(),
                         HttpResponse.BodyHandlers.ofString());
-        assertTrue(thingRes.statusCode() == 200 || thingRes.statusCode() == 201,
+        assertTrue(
+                thingRes.statusCode() == 200 || thingRes.statusCode() == 201,
                 "CreateThing failed: " + thingRes.statusCode() + " " + thingRes.body());
 
         JsonObject commitBody = new JsonObject();
@@ -531,7 +674,8 @@ public class EntitySyncTest {
                 httpClient.send(
                         twxA.serviceRequest(GIT_THING_A, "Commit", commitBody.toString()).build(),
                         HttpResponse.BodyHandlers.ofString());
-        assertEquals(200, commitRes.statusCode(), "Commit branch Thing failed: " + commitRes.body());
+        assertEquals(
+                200, commitRes.statusCode(), "Commit branch Thing failed: " + commitRes.body());
         var pushRes =
                 httpClient.send(
                         twxA.serviceRequest(GIT_THING_A, "Push", null).build(),
@@ -540,10 +684,16 @@ public class EntitySyncTest {
 
         var checkoutMainRes =
                 httpClient.send(
-                        twxA.serviceRequest(GIT_THING_A, "Checkout",
-                                "{\"BranchNameOrCommit\":\"main\"}").build(),
+                        twxA.serviceRequest(
+                                        GIT_THING_A,
+                                        "Checkout",
+                                        "{\"BranchNameOrCommit\":\"main\"}")
+                                .build(),
                         HttpResponse.BodyHandlers.ofString());
-        assertEquals(200, checkoutMainRes.statusCode(), "Checkout main failed: " + checkoutMainRes.body());
+        assertEquals(
+                200,
+                checkoutMainRes.statusCode(),
+                "Checkout main failed: " + checkoutMainRes.body());
 
         JsonObject mergeBody = new JsonObject();
         mergeBody.addProperty("BranchName", branchName);
@@ -552,7 +702,8 @@ public class EntitySyncTest {
                         twxA.serviceRequest(GIT_THING_A, "Merge", mergeBody.toString()).build(),
                         HttpResponse.BodyHandlers.ofString());
         assertEquals(200, mergeRes.statusCode(), "Fast-forward merge failed: " + mergeRes.body());
-        assertTrue(mergeRes.body().contains("FAST_FORWARD")
+        assertTrue(
+                mergeRes.body().contains("FAST_FORWARD")
                         || mergeRes.body().contains("Fast-forward")
                         || mergeRes.body().contains("Already-up-to-date"),
                 "Expected fast-forward merge result: " + mergeRes.body());
@@ -560,17 +711,35 @@ public class EntitySyncTest {
         var thingVerifyRes =
                 httpClient.send(
                         HttpRequest.newBuilder()
-                                .uri(URI.create(twxA.getExternalUrl() + "/Thingworx/Things/" + thingName))
+                                .uri(
+                                        URI.create(
+                                                twxA.getExternalUrl()
+                                                        + "/Thingworx/Things/"
+                                                        + thingName))
                                 .header("Accept", "application/json")
-                                .header("Authorization", "Basic " + Base64.getEncoder().encodeToString(
-                                        (credentials.thingworxAdminUser + ":" + credentials.thingworxAdminPass)
-                                                .getBytes(StandardCharsets.UTF_8)))
+                                .header(
+                                        "Authorization",
+                                        "Basic "
+                                                + Base64.getEncoder()
+                                                        .encodeToString(
+                                                                (credentials.thingworxAdminUser
+                                                                                + ":"
+                                                                                + credentials
+                                                                                        .thingworxAdminPass)
+                                                                        .getBytes(
+                                                                                StandardCharsets
+                                                                                        .UTF_8)))
                                 .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
                                 .header("X-Requested-By", "ThingWorx")
-                                .GET().build(),
+                                .GET()
+                                .build(),
                         HttpResponse.BodyHandlers.ofString());
-        assertEquals(200, thingVerifyRes.statusCode(), "Merged Thing was not loaded: " + thingVerifyRes.body());
-        assertTrue(thingVerifyRes.body().contains("created on the fast-forward branch"),
+        assertEquals(
+                200,
+                thingVerifyRes.statusCode(),
+                "Merged Thing was not loaded: " + thingVerifyRes.body());
+        assertTrue(
+                thingVerifyRes.body().contains("created on the fast-forward branch"),
                 "Merged Thing has the wrong state: " + thingVerifyRes.body());
     }
 
@@ -584,79 +753,141 @@ public class EntitySyncTest {
         branchBody.addProperty("StartPoint", "main");
         var branchRes =
                 httpClient.send(
-                        twxA.serviceRequest(GIT_THING_A, "CreateBranch", branchBody.toString()).build(),
+                        twxA.serviceRequest(GIT_THING_A, "CreateBranch", branchBody.toString())
+                                .build(),
                         HttpResponse.BodyHandlers.ofString());
         assertEquals(200, branchRes.statusCode(), "CreateBranch failed: " + branchRes.body());
 
         var checkoutBranchRes =
                 httpClient.send(
-                        twxA.serviceRequest(GIT_THING_A, "Checkout",
-                                "{\"BranchNameOrCommit\":\"" + branchName + "\"}").build(),
+                        twxA.serviceRequest(
+                                        GIT_THING_A,
+                                        "Checkout",
+                                        "{\"BranchNameOrCommit\":\"" + branchName + "\"}")
+                                .build(),
                         HttpResponse.BodyHandlers.ofString());
-        assertEquals(200, checkoutBranchRes.statusCode(), "Checkout branch failed: " + checkoutBranchRes.body());
+        assertEquals(
+                200,
+                checkoutBranchRes.statusCode(),
+                "Checkout branch failed: " + checkoutBranchRes.body());
 
         var branchPutRes =
                 httpClient.send(
                         HttpRequest.newBuilder()
-                                .uri(URI.create(twxA.getExternalUrl() + "/Thingworx/Things/" + SOURCE_THING))
+                                .uri(
+                                        URI.create(
+                                                twxA.getExternalUrl()
+                                                        + "/Thingworx/Things/"
+                                                        + SOURCE_THING))
                                 .header("Content-Type", "application/json")
                                 .header("Accept", "application/json")
-                                .header("Authorization", "Basic " + Base64.getEncoder().encodeToString(
-                                        (credentials.thingworxAdminUser + ":" + credentials.thingworxAdminPass)
-                                                .getBytes(StandardCharsets.UTF_8)))
+                                .header(
+                                        "Authorization",
+                                        "Basic "
+                                                + Base64.getEncoder()
+                                                        .encodeToString(
+                                                                (credentials.thingworxAdminUser
+                                                                                + ":"
+                                                                                + credentials
+                                                                                        .thingworxAdminPass)
+                                                                        .getBytes(
+                                                                                StandardCharsets
+                                                                                        .UTF_8)))
                                 .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
                                 .header("X-Requested-By", "ThingWorx")
-                                .PUT(HttpRequest.BodyPublishers.ofString(
-                                        "{\"name\":\"" + SOURCE_THING
-                                                + "\",\"description\":\"rebase branch state\","
-                                                + "\"thingTemplate\":\"GenericThing\","
-                                                + "\"projectName\":\"" + TEST_PROJECT + "\"}"))
+                                .PUT(
+                                        HttpRequest.BodyPublishers.ofString(
+                                                "{\"name\":\""
+                                                        + SOURCE_THING
+                                                        + "\",\"description\":\"rebase branch state\","
+                                                        + "\"thingTemplate\":\"GenericThing\","
+                                                        + "\"projectName\":\""
+                                                        + TEST_PROJECT
+                                                        + "\"}"))
                                 .build(),
                         HttpResponse.BodyHandlers.ofString());
-        assertTrue(branchPutRes.statusCode() == 200 || branchPutRes.statusCode() == 201,
+        assertTrue(
+                branchPutRes.statusCode() == 200 || branchPutRes.statusCode() == 201,
                 "Branch PUT failed: " + branchPutRes.body());
         var branchCommitRes =
                 httpClient.send(
-                        twxA.serviceRequest(GIT_THING_A, "Commit", "{\"Message\":\"Rebase branch state\"}").build(),
+                        twxA.serviceRequest(
+                                        GIT_THING_A,
+                                        "Commit",
+                                        "{\"Message\":\"Rebase branch state\"}")
+                                .build(),
                         HttpResponse.BodyHandlers.ofString());
-        assertEquals(200, branchCommitRes.statusCode(), "Branch commit failed: " + branchCommitRes.body());
+        assertEquals(
+                200,
+                branchCommitRes.statusCode(),
+                "Branch commit failed: " + branchCommitRes.body());
         var branchPushRes =
                 httpClient.send(
                         twxA.serviceRequest(GIT_THING_A, "Push", null).build(),
                         HttpResponse.BodyHandlers.ofString());
-        assertEquals(200, branchPushRes.statusCode(), "Branch push failed: " + branchPushRes.body());
+        assertEquals(
+                200, branchPushRes.statusCode(), "Branch push failed: " + branchPushRes.body());
 
         var checkoutMainRes =
                 httpClient.send(
-                        twxA.serviceRequest(GIT_THING_A, "Checkout",
-                                "{\"BranchNameOrCommit\":\"main\"}").build(),
+                        twxA.serviceRequest(
+                                        GIT_THING_A,
+                                        "Checkout",
+                                        "{\"BranchNameOrCommit\":\"main\"}")
+                                .build(),
                         HttpResponse.BodyHandlers.ofString());
-        assertEquals(200, checkoutMainRes.statusCode(), "Checkout main failed: " + checkoutMainRes.body());
+        assertEquals(
+                200,
+                checkoutMainRes.statusCode(),
+                "Checkout main failed: " + checkoutMainRes.body());
         var mainPutRes =
                 httpClient.send(
                         HttpRequest.newBuilder()
-                                .uri(URI.create(twxA.getExternalUrl() + "/Thingworx/Things/" + SOURCE_THING))
+                                .uri(
+                                        URI.create(
+                                                twxA.getExternalUrl()
+                                                        + "/Thingworx/Things/"
+                                                        + SOURCE_THING))
                                 .header("Content-Type", "application/json")
                                 .header("Accept", "application/json")
-                                .header("Authorization", "Basic " + Base64.getEncoder().encodeToString(
-                                        (credentials.thingworxAdminUser + ":" + credentials.thingworxAdminPass)
-                                                .getBytes(StandardCharsets.UTF_8)))
+                                .header(
+                                        "Authorization",
+                                        "Basic "
+                                                + Base64.getEncoder()
+                                                        .encodeToString(
+                                                                (credentials.thingworxAdminUser
+                                                                                + ":"
+                                                                                + credentials
+                                                                                        .thingworxAdminPass)
+                                                                        .getBytes(
+                                                                                StandardCharsets
+                                                                                        .UTF_8)))
                                 .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
                                 .header("X-Requested-By", "ThingWorx")
-                                .PUT(HttpRequest.BodyPublishers.ofString(
-                                        "{\"name\":\"" + SOURCE_THING
-                                                + "\",\"description\":\"rebase main state\","
-                                                + "\"thingTemplate\":\"GenericThing\","
-                                                + "\"projectName\":\"" + TEST_PROJECT + "\"}"))
+                                .PUT(
+                                        HttpRequest.BodyPublishers.ofString(
+                                                "{\"name\":\""
+                                                        + SOURCE_THING
+                                                        + "\",\"description\":\"rebase main state\","
+                                                        + "\"thingTemplate\":\"GenericThing\","
+                                                        + "\"projectName\":\""
+                                                        + TEST_PROJECT
+                                                        + "\"}"))
                                 .build(),
                         HttpResponse.BodyHandlers.ofString());
-        assertTrue(mainPutRes.statusCode() == 200 || mainPutRes.statusCode() == 201,
+        assertTrue(
+                mainPutRes.statusCode() == 200 || mainPutRes.statusCode() == 201,
                 "Main PUT failed: " + mainPutRes.body());
         var mainCommitRes =
                 httpClient.send(
-                        twxA.serviceRequest(GIT_THING_A, "Commit", "{\"Message\":\"Rebase main state\"}").build(),
+                        twxA.serviceRequest(
+                                        GIT_THING_A,
+                                        "Commit",
+                                        "{\"Message\":\"Rebase main state\"}")
+                                .build(),
                         HttpResponse.BodyHandlers.ofString());
-        assertEquals(200, mainCommitRes.statusCode(), "Main commit failed: " + mainCommitRes.body());
+        assertEquals(
+                200, mainCommitRes.statusCode(), "Main commit failed: " + mainCommitRes.body());
         var mainPushRes =
                 httpClient.send(
                         twxA.serviceRequest(GIT_THING_A, "Push", null).build(),
@@ -665,16 +896,24 @@ public class EntitySyncTest {
 
         var checkoutBranchAgainRes =
                 httpClient.send(
-                        twxA.serviceRequest(GIT_THING_A, "Checkout",
-                                "{\"BranchNameOrCommit\":\"" + branchName + "\"}").build(),
+                        twxA.serviceRequest(
+                                        GIT_THING_A,
+                                        "Checkout",
+                                        "{\"BranchNameOrCommit\":\"" + branchName + "\"}")
+                                .build(),
                         HttpResponse.BodyHandlers.ofString());
-        assertEquals(200, checkoutBranchAgainRes.statusCode(), "Checkout branch again failed: " + checkoutBranchAgainRes.body());
+        assertEquals(
+                200,
+                checkoutBranchAgainRes.statusCode(),
+                "Checkout branch again failed: " + checkoutBranchAgainRes.body());
         var rebaseRes =
                 httpClient.send(
-                        twxA.serviceRequest(GIT_THING_A, "Rebase", "{\"UpstreamBranch\":\"main\"}").build(),
+                        twxA.serviceRequest(GIT_THING_A, "Rebase", "{\"UpstreamBranch\":\"main\"}")
+                                .build(),
                         HttpResponse.BodyHandlers.ofString());
         assertEquals(200, rebaseRes.statusCode(), "Rebase request failed: " + rebaseRes.body());
-        assertTrue(rebaseRes.body().contains("STOPPED") || rebaseRes.body().contains("conflict"),
+        assertTrue(
+                rebaseRes.body().contains("STOPPED") || rebaseRes.body().contains("conflict"),
                 "Expected rebase conflict: " + rebaseRes.body());
 
         var abortRes =
@@ -686,17 +925,35 @@ public class EntitySyncTest {
         var verifyRes =
                 httpClient.send(
                         HttpRequest.newBuilder()
-                                .uri(URI.create(twxA.getExternalUrl() + "/Thingworx/Things/" + SOURCE_THING))
+                                .uri(
+                                        URI.create(
+                                                twxA.getExternalUrl()
+                                                        + "/Thingworx/Things/"
+                                                        + SOURCE_THING))
                                 .header("Accept", "application/json")
-                                .header("Authorization", "Basic " + Base64.getEncoder().encodeToString(
-                                        (credentials.thingworxAdminUser + ":" + credentials.thingworxAdminPass)
-                                                .getBytes(StandardCharsets.UTF_8)))
+                                .header(
+                                        "Authorization",
+                                        "Basic "
+                                                + Base64.getEncoder()
+                                                        .encodeToString(
+                                                                (credentials.thingworxAdminUser
+                                                                                + ":"
+                                                                                + credentials
+                                                                                        .thingworxAdminPass)
+                                                                        .getBytes(
+                                                                                StandardCharsets
+                                                                                        .UTF_8)))
                                 .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
                                 .header("X-Requested-By", "ThingWorx")
-                                .GET().build(),
+                                .GET()
+                                .build(),
                         HttpResponse.BodyHandlers.ofString());
-        assertEquals(200, verifyRes.statusCode(), "Thing missing after rebase abort: " + verifyRes.body());
-        assertTrue(verifyRes.body().contains("rebase branch state"),
+        assertEquals(
+                200,
+                verifyRes.statusCode(),
+                "Thing missing after rebase abort: " + verifyRes.body());
+        assertTrue(
+                verifyRes.body().contains("rebase branch state"),
                 "Rebase abort did not restore branch state: " + verifyRes.body());
     }
 }

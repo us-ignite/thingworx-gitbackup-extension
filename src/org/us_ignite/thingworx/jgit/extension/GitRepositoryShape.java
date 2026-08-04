@@ -12,10 +12,6 @@ import com.thingworx.entities.utils.EntityUtilities;
 import com.thingworx.entities.utils.UserUtilities;
 import com.thingworx.logging.LogUtilities;
 import com.thingworx.metadata.annotations.ThingworxBaseTemplateDefinition;
-import com.thingworx.metadata.annotations.ThingworxConfigurationTableDefinition;
-import com.thingworx.metadata.annotations.ThingworxConfigurationTableDefinitions;
-import com.thingworx.metadata.annotations.ThingworxDataShapeDefinition;
-import com.thingworx.metadata.annotations.ThingworxFieldDefinition;
 import com.thingworx.metadata.annotations.ThingworxServiceDefinition;
 import com.thingworx.metadata.annotations.ThingworxServiceParameter;
 import com.thingworx.metadata.annotations.ThingworxServiceResult;
@@ -24,14 +20,15 @@ import com.thingworx.security.users.User;
 import com.thingworx.system.ContextType;
 import com.thingworx.things.Thing;
 import com.thingworx.things.repository.FileRepositoryThing;
+import com.thingworx.webservices.context.ThreadLocalContext;
 import com.thingworx.types.InfoTable;
 import com.thingworx.types.collections.ValueCollection;
 import com.thingworx.types.primitives.BooleanPrimitive;
 import com.thingworx.types.primitives.DatetimePrimitive;
+import com.thingworx.types.primitives.IPrimitiveType;
 import com.thingworx.types.primitives.InfoTablePrimitive;
 import com.thingworx.types.primitives.PasswordPrimitive;
 import com.thingworx.types.primitives.StringPrimitive;
-import com.thingworx.webservices.context.ThreadLocalContext;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
@@ -49,7 +46,6 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Iterator;
 import java.util.List;
 import org.eclipse.jgit.api.CreateBranchCommand.SetupUpstreamMode;
@@ -99,102 +95,12 @@ import org.slf4j.Logger;
 /**
  * ThingWorx repository implementation backed by an on-disk JGit repository.
  *
- * <p>The repository location is resolved from the configured FileRepository and path. Services on
+ * <p>The repository location is resolved from this Thing, which is itself a FileRepository, and
+ * its configured path. Services on
  * this class operate on the current repository state and return either a status message or the
  * InfoTable shape declared by the corresponding ThingWorx service annotation.
  */
 @ThingworxBaseTemplateDefinition(name = "GenericThing")
-@ThingworxConfigurationTableDefinitions(
-        tables = {
-            @ThingworxConfigurationTableDefinition(
-                    name = Const.str_ConfTableName,
-                    description = "",
-                    isMultiRow = false,
-                    ordinal = 0,
-                    dataShape =
-                            @ThingworxDataShapeDefinition(
-                                    fields = {
-                                        @ThingworxFieldDefinition(
-                                                name = Const.str_GitRepoURL,
-                                                description = "",
-                                                baseType = "STRING",
-                                                ordinal = 4,
-                                                aspects = {"friendlyName:Git Repo URL"}),
-                                        @ThingworxFieldDefinition(
-                                                name = Const.str_FileRepository,
-                                                description = "",
-                                                baseType = "THINGNAME",
-                                                ordinal = 5,
-                                                aspects = {
-                                                    "thingTemplate:FileRepository",
-                                                    "friendlyName:File Repository"
-                                                }),
-                                        @ThingworxFieldDefinition(
-                                                name = Const.str_RepoPathName,
-                                                description = "",
-                                                baseType = "STRING",
-                                                ordinal = 6,
-                                                aspects = {"friendlyName:File Repository Path"}),
-                                        @ThingworxFieldDefinition(
-                                                name = Const.str_InitialBranch,
-                                                description =
-                                                        "Must be the main branch setup in the remote Git repository",
-                                                baseType = "STRING",
-                                                ordinal = 7,
-                                                aspects = {
-                                                    "friendlyName:Initial branch",
-                                                    "defaultValue:main"
-                                                }),
-                                        @ThingworxFieldDefinition(
-                                                name = Const.str_UseProxy,
-                                                description = "Should Proxy be used?",
-                                                baseType = "BOOLEAN",
-                                                ordinal = 8,
-                                                aspects = {
-                                                    "friendlyName:Use Proxy?",
-                                                    "defaultValue:false"
-                                                }),
-                                        @ThingworxFieldDefinition(
-                                                name = Const.str_ProxyURL,
-                                                description =
-                                                        "The HTTP proxy used for connection to the remote; leave blank if not used ",
-                                                baseType = "STRING",
-                                                ordinal = 9,
-                                                aspects = {"friendlyName:Proxy URL"}),
-                                        @ThingworxFieldDefinition(
-                                                name = Const.str_ProxyPort,
-                                                description = "Proxy Port",
-                                                baseType = "INTEGER",
-                                                ordinal = 10,
-                                                aspects = {
-                                                    "friendlyName:Proxy Port",
-                                                    "defaultValue:0"
-                                                }),
-                                        @ThingworxFieldDefinition(
-                                                name = Const.str_LocalizationTokensPrefix,
-                                                description =
-                                                        "Prefix used for exporting Localization tokens",
-                                                baseType = "STRING",
-                                                ordinal = 10,
-                                                aspects = {
-                                                    "friendlyName:Localization Tokens Prefix"
-                                                }),
-                                        @ThingworxFieldDefinition(
-                                                name = Const.str_ProjectName,
-                                                description =
-                                                        "ThingWorx project to sync entities from",
-                                                baseType = "STRING",
-                                                ordinal = 11,
-                                                aspects = {"friendlyName:Project Name"}),
-
-                                        // ,@ThingworxFieldDefinition(name =
-                                        // Const.str_DefaultProjectToExport,
-                                        // description = "", baseType = "STRING", ordinal = 8,
-                                        // aspects = {
-                                        // "friendlyName:Default Export Project" })
-
-                                    }))
-        })
 public class GitRepositoryShape extends Thing {
     // set background file system resolution to false and enable debugging
     static {
@@ -206,7 +112,6 @@ public class GitRepositoryShape extends Thing {
     // Complete git path will be calculated by concatenating the SCR absolute
     // path and the relative path
     private String str_GitRepoURL,
-            str_FileRepository,
             str_FileRepoPath,
             str_CurrentBranchOrCommit,
             str_ProxyURL,
@@ -229,12 +134,9 @@ public class GitRepositoryShape extends Thing {
     @Override
     public void dispose() throws Exception {
         _logger.warn("Thing entered dispose phase");
-        if (!str_GitRepoURL.equals(Const.str_GitRepoURLDefaultValue)) {
+        if (hasText(str_GitRepoURL)) {
             Thread.sleep(50);
-            FileRepositoryThing srcRepo =
-                    (FileRepositoryThing)
-                            EntityUtilities.findEntity(
-                                    str_FileRepository, ThingworxRelationshipTypes.Thing);
+            FileRepositoryThing srcRepo = getConfiguredFileRepository();
             Git myGitObject = getGitObject("dispose");
             Thread.sleep(50);
             Repository myGitRepository = myGitObject.getRepository();
@@ -264,28 +166,7 @@ public class GitRepositoryShape extends Thing {
     @Override
     protected void initializeThing(ContextType ctx) throws Exception {
 
-        // Initialize internal fields based on the Configuration Table
-        this.str_GitRepoURL =
-                ((String) getConfigurationSetting(Const.str_ConfTableName, Const.str_GitRepoURL));
-        String fileRepo =
-                (String) getConfigurationSetting(Const.str_ConfTableName, Const.str_FileRepository);
-        this.str_FileRepository = orDefault(fileRepo, this.getName());
-        this.str_FileRepoPath =
-                ((String) getConfigurationSetting(Const.str_ConfTableName, Const.str_RepoPathName));
-        this.str_CurrentBranchOrCommit =
-                ((String)
-                        getConfigurationSetting(Const.str_ConfTableName, Const.str_InitialBranch));
-        this.bool_UseProxy =
-                isTrue(
-                        (Boolean)
-                                getConfigurationSetting(
-                                        Const.str_ConfTableName, Const.str_UseProxy));
-        this.str_ProxyURL =
-                ((String) getConfigurationSetting(Const.str_ConfTableName, Const.str_ProxyURL));
-        this.int_ProxyPort =
-                ((Integer) getConfigurationSetting(Const.str_ConfTableName, Const.str_ProxyPort));
-        this.str_ProjectName =
-                ((String) getConfigurationSetting(Const.str_ConfTableName, Const.str_ProjectName));
+        refreshConfiguration();
         ProxySelector.setDefault(
                 new ProxySelector() {
                     @Override
@@ -372,11 +253,8 @@ public class GitRepositoryShape extends Thing {
             throws Exception, GitAPIException {
         _logger.trace("Entering Service: Commit");
         refreshConfiguration();
-        if (hasText(str_ProjectName)) {
-            ExportProjectEntities(str_ProjectName, false, null, null);
-        }
+        ExportProjectEntities(str_ProjectName, false, null, null);
         String str_CurrentMethodName = "Commit";
-        boolean bool_SignCommits = false;
         if (isBlank(str_GitRepoURL)) {
             _logger.warn(Const.ERR_NO_REPO_URL);
             return "Commit Error: " + Const.ERR_PREFIX_CONFIG + Const.ERR_NO_REPO_URL;
@@ -407,15 +285,12 @@ public class GitRepositoryShape extends Thing {
             String str_GpgPassphrase = null;
             try {
                 ValueCollection vc_GpgKey = getUserGpgKey(us_currentUser);
-                if (vc_GpgKey != null && vc_GpgKey.getPrimitive(Const.str_SignCommits) != null) {
+                if (vc_GpgKey != null) {
                     str_GpgPrivateKey =
                             ((PasswordPrimitive) vc_GpgKey.getPrimitive(Const.str_GpgPrivateKey))
                                     .getValue();
                     str_GpgPassphrase =
                             ((PasswordPrimitive) vc_GpgKey.getPrimitive(Const.str_GpgKeyPassphrase))
-                                    .getValue();
-                    bool_SignCommits =
-                            ((BooleanPrimitive) vc_GpgKey.getPrimitive(Const.str_SignCommits))
                                     .getValue();
                 }
             } catch (Exception e) {
@@ -423,7 +298,7 @@ public class GitRepositoryShape extends Thing {
             }
 
             PastedKeyGpgSigner gpgSigner = null;
-            if (bool_SignCommits && hasText(str_GpgPrivateKey)) {
+            if (hasText(str_GpgPrivateKey)) {
                 gpgSigner = new PastedKeyGpgSigner(str_GpgPrivateKey, str_GpgPassphrase);
                 Signers.set(GpgConfig.GpgFormat.OPENPGP, gpgSigner);
                 commitCmd.setSign(true).setSigningKey(null).setSigner(gpgSigner);
@@ -559,105 +434,116 @@ public class GitRepositoryShape extends Thing {
     }
 
     @ThingworxServiceDefinition(
-            name = "VerifyGpgKey",
-            description =
-                    "Verifies a pasted PGP private key can be loaded and used for signing. Returns the key fingerprint on success.",
+            name = "SetGPGKeyForSigning",
+            description = "Selects or clears the current user's signing key for this repository",
             category = "",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
     @ThingworxServiceResult(
-            name = "Result",
+            name = "result",
             description = "",
-            baseType = "INFOTABLE",
-            aspects = {
-                "isEntityDataShape:true",
-                "dataShape:GIT.GpgKeyVerificationResult.DataShape"
-            })
-    public InfoTable VerifyGpgKey(
+            baseType = "NOTHING",
+            aspects = {})
+    public void SetGPGKeyForSigning(
             @ThingworxServiceParameter(
-                            name = "GpgPrivateKey",
-                            description = "ASCII-armored PGP private key",
+                            name = "GpgKeyFingerprint",
+                            description = "Owned GPG fingerprint; blank disables signing",
                             baseType = "STRING")
-                    String GpgPrivateKey,
-            @ThingworxServiceParameter(
-                            name = "GpgKeyPassphrase",
-                            description = "Passphrase for the PGP private key",
-                            baseType = "STRING")
-                    String GpgKeyPassphrase)
+                    String fingerprint)
             throws Exception {
-        String str_CurrentMethodName = "VerifyGpgKey";
-        InfoTable iftbl_Result =
-                InfoTableInstanceFactory.createInfoTableFromDataShape(
-                        Const.str_GpgKeyVerificationResultDataShapeName);
-        try {
-            // if no key was passed, try to read from stored GpgKeys property
-            String resolvedKey = GpgPrivateKey;
-            String resolvedPassphrase = GpgKeyPassphrase;
-            if (GpgPrivateKey == null || GpgPrivateKey.trim().isEmpty()) {
-                try {
-                    User us_currentUser = UserUtilities.findUser(UserUtilities.getCurrentUser());
-                    ValueCollection vc_GpgKey = getUserGpgKey(us_currentUser);
-                    if (vc_GpgKey != null) {
-                        resolvedKey =
-                                ((PasswordPrimitive)
-                                                vc_GpgKey.getPrimitive(Const.str_GpgPrivateKey))
-                                        .getValue();
-                        resolvedPassphrase =
-                                ((PasswordPrimitive)
-                                                vc_GpgKey.getPrimitive(Const.str_GpgKeyPassphrase))
-                                        .getValue();
-                    }
-                } catch (Exception e) {
-                    _logger.warn("No stored GpgKeys found; proceeding with provided key if any.");
-                }
-            }
-            // auto-detect base64-encoded keys for REST API calls where multi-line JSON escaping may
-            // cause issues
-            String decodedKey = resolvedKey;
-            if (resolvedKey != null && !resolvedKey.startsWith("-----")) {
-                try {
-                    byte[] decoded = Base64.getDecoder().decode(resolvedKey);
-                    decodedKey = new String(decoded, StandardCharsets.UTF_8);
-                } catch (IllegalArgumentException e) {
-                    // not valid base64, use as-is
-                }
-            }
-            PastedKeyGpgSigner signer = new PastedKeyGpgSigner(decodedKey, resolvedPassphrase);
-            PersonIdent committer = new PersonIdent("temp", "temp@temp.com");
-            boolean canLocate = signer.canLocateSigningKey(null, null, committer, null, null);
-            String fingerprint = signer.getFingerprint();
-
-            ValueCollection vc = new ValueCollection();
-            vc.put("GitThing", new StringPrimitive(repositoryThingName()));
-            vc.put("SignCommits", new BooleanPrimitive(canLocate));
-            vc.put(
-                    "GpgKeyFingerprint",
-                    new StringPrimitive(
-                            fingerprint != null ? fingerprint : "Unable to derive fingerprint"));
-            iftbl_Result.addRow(vc);
-
-            signer.clearSensitiveData();
-
-            String str_LogResult =
-                    "GPG Key verification "
-                            + (canLocate ? "succeeded" : "failed")
-                            + ". Fingerprint: "
-                            + (fingerprint != null ? fingerprint : "N/A");
-            LogOperationResult(str_LogResult, str_CurrentMethodName);
-        } catch (Exception e) {
-            StringWriter errors = new StringWriter();
-            e.printStackTrace(new PrintWriter(errors));
-            _logger.error(errors.toString());
-            LogOperationResult(errors.toString(), str_CurrentMethodName);
-            ValueCollection vc = new ValueCollection();
-            vc.put("GitThing", new StringPrimitive(repositoryThingName()));
-            vc.put("SignCommits", new BooleanPrimitive(false));
-            vc.put(
-                    "GpgKeyFingerprint",
-                    new StringPrimitive("Verification error: " + e.getMessage()));
-            iftbl_Result.addRow(vc);
+        User user = UserUtilities.findUser(UserUtilities.getCurrentUser());
+        if (user == null)
+            throw new IllegalStateException("No authenticated user context is available.");
+        InfoTable keys = null;
+        Object value = user.getPropertyValue(Const.str_UserGpgKeys);
+        if (value instanceof InfoTablePrimitive) keys = ((InfoTablePrimitive) value).getValue();
+        if (hasText(fingerprint)) {
+            boolean owned = false;
+            if (keys != null)
+                for (int i = 0; i < keys.getRowCount(); i++)
+                    if (fingerprint.equals(
+                            primitiveString(keys.getRow(i), Const.str_GpgKeyFingerprint)))
+                        owned = true;
+            if (!owned)
+                throw new IllegalArgumentException(
+                        "GPG key is not owned by the current user: " + fingerprint);
         }
-        return iftbl_Result;
+        InfoTable configs = getGitCredentials(user);
+        if (configs == null)
+            configs =
+                    InfoTableInstanceFactory.createInfoTableFromDataShape(
+                            Const.str_GitCredentialsDataShapeName);
+        ValueCollection row = null;
+        for (int i = 0; i < configs.getRowCount(); i++)
+            if (repositoryThingName().equals(primitiveString(configs.getRow(i), "GitThing")))
+                row = configs.getRow(i);
+        if (row == null) {
+            row = new ValueCollection();
+            row.put("GitThing", new StringPrimitive(repositoryThingName()));
+            configs.addRow(row);
+        }
+        row.put(Const.str_GpgKeyFingerprint, new StringPrimitive(orDefault(fingerprint, "")));
+        user.setPropertyValue(
+                Const.str_UserRepositoryConfiguration, new InfoTablePrimitive(configs));
+    }
+
+    @ThingworxServiceDefinition(
+            name = "ImportEntity",
+            description = "Imports one entity path",
+            category = "",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "result",
+            description = "",
+            baseType = "NOTHING",
+            aspects = {})
+    public void ImportEntity(
+            @ThingworxServiceParameter(
+                            name = "entityPath",
+                            description = "Repository-relative path",
+                            baseType = "STRING")
+                    String entityPath,
+            @ThingworxServiceParameter(
+                            name = "ignoreDependencies",
+                            description = "Ignore dependencies",
+                            baseType = "BOOLEAN")
+                    Boolean ignoreDependencies)
+            throws Exception {
+        importSourceControlledEntities(
+                getConfiguredFileRepository().getName(),
+                isBlank(entityPath) ? str_FileRepoPath : entityPath);
+    }
+
+    @ThingworxServiceDefinition(
+            name = "RemoveLastModifiedDate",
+            description = "Removes imported last-modified metadata",
+            category = "",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "result",
+            description = "",
+            baseType = "NOTHING",
+            aspects = {})
+    public void RemoveLastModifiedDate() throws Exception {
+        removeLastModifiedDate(getConfiguredFileRepository().getName(), str_FileRepoPath, null);
+    }
+
+    @ThingworxServiceDefinition(
+            name = "RemoveModelPersistenceProviderPackage",
+            description = "Removes model persistence provider metadata",
+            category = "",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "result",
+            description = "",
+            baseType = "NOTHING",
+            aspects = {})
+    public void RemoveModelPersistenceProviderPackage() throws Exception {
+        removeModelPersistenceProviderPackage(
+                getConfiguredFileRepository().getName(), str_FileRepoPath, null);
     }
 
     /** Fetches and integrates changes from the configured remote repository. */
@@ -689,7 +575,7 @@ public class GitRepositoryShape extends Thing {
             // ThingWorx entities before the first checkout would create untracked
             // files that conflict with the remote tree during bootstrap.
             if (myGitFolder.getRepository().resolve("HEAD") != null) {
-                if (hasText(str_ProjectName)) ExportProjectEntities(str_ProjectName, false, null, null);
+                ExportProjectEntities(str_ProjectName, false, null, null);
             }
             User us_currentUser = UserUtilities.findUser(UserUtilities.getCurrentUser());
             ValueCollection vc_RepoCredentials = getGitRepoRemoteCredential(us_currentUser);
@@ -722,7 +608,7 @@ public class GitRepositoryShape extends Thing {
                             pr.toString());
             if (pr.isSuccessful()) {
                 try {
-                    if (hasText(str_ProjectName)) ImportProjectEntities("", true);
+                    ImportProjectEntities("", true);
                 } catch (Exception syncEx) {
                     _logger.warn(
                             "Pull succeeded but sync from repository failed: "
@@ -823,10 +709,7 @@ public class GitRepositoryShape extends Thing {
                     Throwable {
         _logger.warn("DeleteLocalRepoContent:1 for entity: " + this.getName());
         Thread.sleep(5);
-        FileRepositoryThing srcRepo =
-                (FileRepositoryThing)
-                        EntityUtilities.findEntity(
-                                str_FileRepository, ThingworxRelationshipTypes.Thing);
+        FileRepositoryThing srcRepo = getConfiguredFileRepository();
         try {
             String str_FolderPath = srcRepo.getRootPath();
             closeGit();
@@ -882,7 +765,7 @@ public class GitRepositoryShape extends Thing {
             return errMsg;
         }
         try {
-            if (hasText(str_ProjectName)) ExportProjectEntities(str_ProjectName, false, null, null);
+            ExportProjectEntities(str_ProjectName, false, null, null);
             Git myGitFolder = getGitObject("CreateBranch");
             String str_StartPoint = orDefault(StartPoint, "HEAD");
             Ref branchRef =
@@ -943,7 +826,7 @@ public class GitRepositoryShape extends Thing {
         }
         String str_CurrentMethodName = "Checkout";
         try {
-            if (hasText(str_ProjectName)) ExportProjectEntities(str_ProjectName, false, null, null);
+            ExportProjectEntities(str_ProjectName, false, null, null);
             Git myGitFolder = getGitObject("Checkout");
             Ref ref;
             try {
@@ -970,7 +853,7 @@ public class GitRepositoryShape extends Thing {
                             ? false
                             : true;
             str_CurrentBranchOrCommit = BranchNameOrCommit;
-            if (hasText(str_ProjectName)) ImportProjectEntities("", true);
+            ImportProjectEntities("", true);
             String str_LogResult = (ref != null) ? ref.toString() : "No message.";
             LogOperationResult(str_LogResult, str_CurrentMethodName);
             _logger.trace("Exiting Service: Checkout");
@@ -1167,12 +1050,7 @@ public class GitRepositoryShape extends Thing {
                 obj =
                         myGitFolder
                                 .getRepository()
-                                .resolve(
-                                        "refs/heads/"
-                                                + ((String)
-                                                        getConfigurationSetting(
-                                                                Const.str_ConfTableName,
-                                                                Const.str_InitialBranch)));
+                                .resolve("refs/heads/" + ((String) str_CurrentBranchOrCommit));
             if (obj != null) {
                 Iterable<RevCommit> commits = myGitFolder.log().add(obj).call();
                 for (Iterator<RevCommit> iterator = commits.iterator(); iterator.hasNext(); ) {
@@ -1337,10 +1215,7 @@ public class GitRepositoryShape extends Thing {
                             : null;
             ref = isBlank(current) ? str_CurrentBranchOrCommit : current;
             if (isBlank(ref)) {
-                ref =
-                        (String)
-                                getConfigurationSetting(
-                                        Const.str_ConfTableName, Const.str_InitialBranch);
+                ref = str_CurrentBranchOrCommit;
             }
         }
         ObjectId resolved = repository.resolve(ref);
@@ -1391,7 +1266,7 @@ public class GitRepositoryShape extends Thing {
         InfoTable iftbl_Status =
                 InfoTableInstanceFactory.createInfoTableFromDataShape("GIT.Status.DataShape");
         try {
-            if (hasText(str_ProjectName)) ExportProjectEntities(str_ProjectName, false, null, null);
+            ExportProjectEntities(str_ProjectName, false, null, null);
             Git myGitObject = getGitObject("Status");
             org.eclipse.jgit.api.Status status = myGitObject.status().call();
             for (String stat : status.getModified()) {
@@ -1556,7 +1431,10 @@ public class GitRepositoryShape extends Thing {
                             baseType = "STRING")
                     String FilePattern) {
         try {
-            stageChanges(getGitObject("StageResolved"), FilePattern);
+            Git git = getGitObject("StageResolved");
+            String pattern = isBlank(FilePattern) ? "." : FilePattern;
+            git.add().addFilepattern(pattern).call();
+            git.add().addFilepattern(pattern).setUpdate(true).call();
             return "Staged resolved " + (isBlank(FilePattern) ? "files" : FilePattern);
         } catch (Exception e) {
             return "StageResolved Error: " + Const.ERR_PREFIX_GIT + e.getMessage();
@@ -1600,7 +1478,7 @@ public class GitRepositoryShape extends Thing {
                             .setMessage(isBlank(msg) ? "Merge resolved" : msg)
                             .setCommitter(name, email)
                             .call();
-            if (hasText(str_ProjectName)) ImportProjectEntities("", true);
+            ImportProjectEntities("", true);
             return "Merge completed: " + commit.getId().name();
         } catch (Exception e) {
             return "MergeContinue Error: " + Const.ERR_PREFIX_GIT + e.getMessage();
@@ -1632,7 +1510,7 @@ public class GitRepositoryShape extends Thing {
                     .call();
             repo.writeMergeCommitMsg(null);
             repo.writeMergeHeads(null);
-            if (hasText(str_ProjectName)) ImportProjectEntities("", true);
+            ImportProjectEntities("", true);
             return "Merge aborted.";
         } catch (Exception e) {
             return "MergeAbort Error: " + Const.ERR_PREFIX_GIT + e.getMessage();
@@ -1696,7 +1574,7 @@ public class GitRepositoryShape extends Thing {
             RebaseResult result = git.rebase().setOperation(operation).call();
             if (result.getStatus() == RebaseResult.Status.OK
                     || result.getStatus() == RebaseResult.Status.ABORTED) {
-                if (hasText(str_ProjectName)) ImportProjectEntities("", true);
+                ImportProjectEntities("", true);
             }
             return service + ": " + result.getStatus() + ": " + result;
         } catch (Exception e) {
@@ -1722,7 +1600,7 @@ public class GitRepositoryShape extends Thing {
         _logger.trace("Entering Service: GetDiffPerFile");
         if (File == null) return "";
         try {
-            if (hasText(str_ProjectName)) ExportProjectEntities(str_ProjectName, false, null, null);
+            ExportProjectEntities(str_ProjectName, false, null, null);
             Git myGitObject = getGitObject("GetDiffPerFile");
             ByteArrayOutputStream dif = new ByteArrayOutputStream();
             myGitObject.diff().setPathFilter(PathFilter.create(File)).setOutputStream(dif).call();
@@ -1970,7 +1848,11 @@ public class GitRepositoryShape extends Thing {
             baseType = "NOTHING",
             aspects = {})
     public void ExportProjectEntities(
-            @ThingworxServiceParameter(name = "ProjectName", description = "", baseType = "STRING")
+            @ThingworxServiceParameter(
+                            name = "ProjectName",
+                            description = "Required ThingWorx project name",
+                            baseType = "STRING",
+                            aspects = {"isRequired:true"})
                     String ProjectName,
             @ThingworxServiceParameter(
                             name = "includeDependents",
@@ -2016,10 +1898,11 @@ public class GitRepositoryShape extends Thing {
         removeModelPersistenceProviderPackage(fileRepo.getName(), repoPath, ProjectName);
     }
 
-    /** Imports repository XML entities into the selected ThingWorx project. */
+    /** Imports repository XML entities into this repository Thing's required ThingWorx project. */
     @ThingworxServiceDefinition(
             name = "ImportProjectEntities",
-            description = "Imports all XML entities below this repository's configured path.",
+            description =
+                    "Imports all XML entities below this repository's configured path into its required ThingWorx project.",
             category = "",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
@@ -2042,6 +1925,9 @@ public class GitRepositoryShape extends Thing {
                             aspects = {"defaultValue:false"})
                     Boolean ignoreDependencies)
             throws Exception {
+        if (isBlank(str_ProjectName)) {
+            throw new Exception(Const.ERR_PREFIX_CONFIG + Const.ERR_PROJECT_NAME_REQUIRED);
+        }
         FileRepositoryThing fileRepo = getConfiguredFileRepository();
         String repoPath = entityPath;
         if (isBlank(repoPath) || "*".equals(repoPath)) repoPath = str_FileRepoPath;
@@ -2177,91 +2063,55 @@ public class GitRepositoryShape extends Thing {
         }
     }
 
-    /** Re-read configuration written immediately before a service invocation. */
+    /** Load repository settings from the persistent Thing properties. */
     private void refreshConfiguration() {
-        try {
-            Thing targetThing = resolveTargetThing();
-            if (targetThing != null) {
-                ValueCollection params = new ValueCollection();
-                params.put("tableName", new StringPrimitive(Const.str_ConfTableName));
-                Object rawTable =
-                        targetThing.processServiceRequest("GetConfigurationTable", params);
-                InfoTable table =
-                        rawTable instanceof InfoTable
-                                ? (InfoTable) rawTable
-                                : rawTable instanceof InfoTablePrimitive
-                                        ? ((InfoTablePrimitive) rawTable).getValue()
-                                        : null;
-                if (table != null && table.getRowCount() > 0) {
-                    ValueCollection row = table.getRow(0);
-                    this.str_GitRepoURL = primitiveString(row, Const.str_GitRepoURL);
-                    this.str_FileRepository =
-                            targetThing instanceof FileRepositoryThing
-                                    ? targetThing.getName()
-                                    : orDefault(
-                                            primitiveString(row, Const.str_FileRepository),
-                                            this.getName());
-                    this.str_FileRepoPath = primitiveString(row, Const.str_RepoPathName);
-                    this.str_CurrentBranchOrCommit = primitiveString(row, Const.str_InitialBranch);
-                    this.bool_UseProxy = isTrue((Boolean) valueOf(row, Const.str_UseProxy));
-                    this.str_ProxyURL = primitiveString(row, Const.str_ProxyURL);
-                    this.int_ProxyPort = (Integer) valueOf(row, Const.str_ProxyPort);
-                    this.str_ProjectName = primitiveString(row, Const.str_ProjectName);
-                    return;
-                }
-            }
-        } catch (Exception e) {
-            _logger.warn("Could not refresh Configuration table for repository service", e);
-        }
-
-        this.str_GitRepoURL =
-                (String) getConfigurationSetting(Const.str_ConfTableName, Const.str_GitRepoURL);
-        this.str_FileRepository =
-                orDefault(
-                        (String)
-                                getConfigurationSetting(
-                                        Const.str_ConfTableName, Const.str_FileRepository),
-                        this.getName());
-        this.str_FileRepoPath =
-                (String) getConfigurationSetting(Const.str_ConfTableName, Const.str_RepoPathName);
-        this.str_CurrentBranchOrCommit =
-                (String) getConfigurationSetting(Const.str_ConfTableName, Const.str_InitialBranch);
-        this.bool_UseProxy =
-                isTrue(
-                        (Boolean)
-                                getConfigurationSetting(
-                                        Const.str_ConfTableName, Const.str_UseProxy));
-        this.str_ProxyURL =
-                (String) getConfigurationSetting(Const.str_ConfTableName, Const.str_ProxyURL);
-        this.int_ProxyPort =
-                (Integer) getConfigurationSetting(Const.str_ConfTableName, Const.str_ProxyPort);
-        this.str_ProjectName =
-                (String) getConfigurationSetting(Const.str_ConfTableName, Const.str_ProjectName);
+        this.str_GitRepoURL = propertyString(Const.str_GitRepoURL, "");
+        this.str_FileRepoPath = propertyString(Const.str_RepoPathName, "");
+        this.str_CurrentBranchOrCommit = propertyString(Const.str_InitialBranch, "main");
+        this.bool_UseProxy = propertyBoolean(Const.str_UseProxy, false);
+        this.str_ProxyURL = propertyString(Const.str_ProxyURL, "");
+        this.int_ProxyPort = propertyInteger(Const.str_ProxyPort, 0);
+        this.str_ProjectName = propertyString(Const.str_ProjectName, "");
     }
 
-    private Thing resolveTargetThing() {
+    private String propertyString(String name, String defaultValue) {
         try {
-            Object meContext = ThreadLocalContext.getMeContext();
-            if (meContext instanceof Thing) return (Thing) meContext;
-            if (meContext instanceof String && hasText((String) meContext)) {
-                return (Thing)
-                        EntityUtilities.findEntity(
-                                (String) meContext, ThingworxRelationshipTypes.Thing);
-            }
+            Object value = configurationTarget().getPropertyValue(name);
+            Object raw = value instanceof IPrimitiveType ? ((IPrimitiveType<?, ?>) value).getValue() : value;
+            return raw == null ? defaultValue : raw.toString();
         } catch (Exception e) {
-            _logger.trace("Could not resolve repository service target: " + e.getMessage());
+            return defaultValue;
         }
-        return null;
+    }
+
+    private boolean propertyBoolean(String name, boolean defaultValue) {
+        try {
+            Object value = configurationTarget().getPropertyValue(name);
+            Object raw = value instanceof IPrimitiveType ? ((IPrimitiveType<?, ?>) value).getValue() : value;
+            return raw == null ? defaultValue : Boolean.parseBoolean(raw.toString());
+        } catch (Exception e) {
+            return defaultValue;
+        }
+    }
+
+    private Integer propertyInteger(String name, int defaultValue) {
+        try {
+            Object value = configurationTarget().getPropertyValue(name);
+            Object raw = value instanceof IPrimitiveType ? ((IPrimitiveType<?, ?>) value).getValue() : value;
+            return raw == null ? defaultValue : Integer.valueOf(raw.toString());
+        } catch (Exception e) {
+            return defaultValue;
+        }
     }
 
     private String repositoryThingName() {
-        Thing targetThing = resolveTargetThing();
-        if (targetThing != null && hasText(targetThing.getName())) return targetThing.getName();
-        return this.getName();
+        Thing target = resolveTargetThing();
+        return target != null && hasText(target.getName()) ? target.getName() : getName();
     }
 
-    private Object valueOf(ValueCollection row, String fieldName) {
-        return row.getPrimitive(fieldName) == null ? null : row.getPrimitive(fieldName).getValue();
+    private Thing configurationTarget() {
+        Thing target = resolveTargetThing();
+        return target == null ? this : target;
     }
 
     private void LogOperationResult(String str_OperationResult, String str_ServiceName) {
@@ -2272,7 +2122,7 @@ public class GitRepositoryShape extends Thing {
                                     Const.str_UtilityThingName, ThingworxRelationshipTypes.Thing);
             ValueCollection vc = new ValueCollection();
             vc.put("timestamp", new DatetimePrimitive(new DateTime(System.currentTimeMillis())));
-            vc.put("User", new StringPrimitive(GetCurrentUser()));
+            vc.put("User", new StringPrimitive(UserUtilities.getCurrentUser()));
             vc.put("ServiceName", new StringPrimitive(str_ServiceName));
             vc.put("Content", new StringPrimitive(str_OperationResult));
             vc.put("Source", new StringPrimitive(this.getName()));
@@ -2280,10 +2130,6 @@ public class GitRepositoryShape extends Thing {
         } catch (Exception ex) {
             _logger.error("LogOperationResult failed: " + ex.getMessage());
         }
-    }
-
-    private String GetCurrentUser() {
-        return ThreadLocalContext.getSecurityContext().getName();
     }
 
     private void closeGit()
@@ -2448,14 +2294,7 @@ public class GitRepositoryShape extends Thing {
                         + "; Method: "
                         + str_CallerMethod);
         if (gitObject == null) {
-            Thing targetThing = resolveTargetThing();
-            if (targetThing instanceof FileRepositoryThing) {
-                str_FileRepository = targetThing.getName();
-            }
-            FileRepositoryThing srcRepo =
-                    (FileRepositoryThing)
-                            EntityUtilities.findEntity(
-                                    str_FileRepository, ThingworxRelationshipTypes.Thing);
+            FileRepositoryThing srcRepo = getConfiguredFileRepository();
             // The FileRepository root is the Git working tree. RepoPath is only
             // the subdirectory where exported ThingWorx entities are stored.
             Git myGitObject = openOrCreate(new File(srcRepo.getRootPath()));
@@ -2478,24 +2317,35 @@ public class GitRepositoryShape extends Thing {
         return gitObject;
     }
 
-    private void stageChanges(Git git, String filePattern) throws GitAPIException {
-        String pattern = isBlank(filePattern) ? "." : filePattern;
-        git.add().addFilepattern(pattern).call();
-        git.add().addFilepattern(pattern).setUpdate(true).call();
+    private FileRepositoryThing getConfiguredFileRepository() {
+        Thing target = resolveTargetThing();
+        if (!(target instanceof FileRepositoryThing)) {
+            target =
+                    (Thing)
+                            EntityUtilities.findEntity(
+                                    getName(), ThingworxRelationshipTypes.Thing);
+        }
+        if (!(target instanceof FileRepositoryThing)) {
+            throw new IllegalStateException(
+                    Const.ERR_FILE_REPO_NOT_FOUND + " Repository Thing must be a FileRepository.");
+        }
+        return (FileRepositoryThing) target;
     }
 
-    private FileRepositoryThing getConfiguredFileRepository() throws Exception {
-        refreshConfiguration();
-        Thing targetThing = resolveTargetThing();
-        if (targetThing instanceof FileRepositoryThing) {
-            return (FileRepositoryThing) targetThing;
+    private Thing resolveTargetThing() {
+        try {
+            Object meContext = ThreadLocalContext.getMeContext();
+            if (meContext instanceof Thing) return (Thing) meContext;
+            if (meContext instanceof String && hasText((String) meContext)) {
+                return
+                        (Thing)
+                                EntityUtilities.findEntity(
+                                        (String) meContext, ThingworxRelationshipTypes.Thing);
+            }
+        } catch (Exception e) {
+            _logger.trace("Could not resolve repository service target: " + e.getMessage());
         }
-        FileRepositoryThing repository =
-                (FileRepositoryThing)
-                        EntityUtilities.findEntity(
-                                str_FileRepository, ThingworxRelationshipTypes.Thing);
-        if (repository == null) throw new IllegalStateException(Const.ERR_FILE_REPO_NOT_FOUND);
-        return repository;
+        return null;
     }
 
     private String repositoryRelativePath(String file) {
@@ -2551,7 +2401,7 @@ public class GitRepositoryShape extends Thing {
             return errMsg;
         }
         try {
-            if (hasText(str_ProjectName)) ExportProjectEntities(str_ProjectName, false, null, null);
+            ExportProjectEntities(str_ProjectName, false, null, null);
             Git myGitFolder = getGitObject("Merge");
             ObjectId mergeBase = myGitFolder.getRepository().resolve(BranchName);
             if (mergeBase == null) {
@@ -2560,7 +2410,7 @@ public class GitRepositoryShape extends Thing {
             MergeResult result = myGitFolder.merge().include(mergeBase).call();
             String str_LogResult = result.getMergeStatus().toString() + ": " + result.toString();
             if (result.getMergeStatus().isSuccessful()) {
-                if (hasText(str_ProjectName)) ImportProjectEntities("", true);
+                ImportProjectEntities("", true);
             } else if (result.getMergeStatus() == MergeResult.MergeStatus.CONFLICTING) {
                 _logger.warn(Const.ERR_MERGE_CONFLICT);
             }
@@ -2610,7 +2460,7 @@ public class GitRepositoryShape extends Thing {
             return errMsg;
         }
         try {
-            if (hasText(str_ProjectName)) ExportProjectEntities(str_ProjectName, false, null, null);
+            ExportProjectEntities(str_ProjectName, false, null, null);
             Git myGitFolder = getGitObject("Rebase");
             ObjectId upstream = myGitFolder.getRepository().resolve(UpstreamBranch);
             if (upstream == null) {
@@ -2620,7 +2470,7 @@ public class GitRepositoryShape extends Thing {
             RebaseResult result = myGitFolder.rebase().setUpstream(upstream).call();
             String str_LogResult = result.getStatus().toString() + ": " + result.toString();
             if (result.getStatus() == RebaseResult.Status.OK) {
-                if (hasText(str_ProjectName)) ImportProjectEntities("", true);
+                ImportProjectEntities("", true);
             } else if (result.getStatus() == RebaseResult.Status.STOPPED) {
                 _logger.warn(Const.ERR_REBASE_CONFLICT);
             }
@@ -2679,7 +2529,7 @@ public class GitRepositoryShape extends Thing {
             return "CreateTag skipped: " + Const.ERR_PREFIX_CONFIG + Const.ERR_NO_TAG_NAME;
         }
         try {
-            if (hasText(str_ProjectName)) ExportProjectEntities(str_ProjectName, false, null, null);
+            ExportProjectEntities(str_ProjectName, false, null, null);
             Git myGitFolder = getGitObject("CreateTag");
             Repository repo = myGitFolder.getRepository();
             ObjectId commitId;
@@ -2903,10 +2753,6 @@ public class GitRepositoryShape extends Thing {
         for (int i = 0; i < keys.getRowCount(); i++) {
             ValueCollection key = keys.getRow(i);
             if (fingerprint.equals(primitiveString(key, Const.str_GpgKeyFingerprint))) {
-                if (repositoryConfig.getPrimitive(Const.str_SignCommits) != null)
-                    key.put(
-                            Const.str_SignCommits,
-                            repositoryConfig.getPrimitive(Const.str_SignCommits));
                 return key;
             }
         }
@@ -2915,7 +2761,7 @@ public class GitRepositoryShape extends Thing {
 
     private ValueCollection getGitRepoRemoteCredential(User us_currentUser) throws Exception {
         if (us_currentUser == null) return new ValueCollection();
-        var propValue = us_currentUser.getPropertyValue(Const.str_GitCredentials);
+        var propValue = us_currentUser.getPropertyValue(Const.str_UserRepositoryConfiguration);
         if (!(propValue instanceof InfoTablePrimitive)) return new ValueCollection();
         InfoTable iftbl_CredentialStore = ((InfoTablePrimitive) propValue).getValue();
         if (iftbl_CredentialStore == null) return new ValueCollection();
@@ -2924,5 +2770,12 @@ public class GitRepositoryShape extends Thing {
             if (repositoryThingName().equals(primitiveString(row, "GitThing"))) return row;
         }
         return new ValueCollection();
+    }
+
+    private InfoTable getGitCredentials(User user) throws Exception {
+        if (user == null) return null;
+        Object value = user.getPropertyValue(Const.str_UserRepositoryConfiguration);
+        if (!(value instanceof InfoTablePrimitive)) return null;
+        return ((InfoTablePrimitive) value).getValue();
     }
 }

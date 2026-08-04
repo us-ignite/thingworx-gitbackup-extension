@@ -2,9 +2,7 @@ package org.us_ignite.thingworx.jgit.extension;
 
 public final class Const {
     // GIT Configuration names
-    public static final String str_ConfTableName = "Configuration";
     public static final String str_GitRepoURL = "GitRepoURL";
-    public static final String str_FileRepository = "FileRepository";
     public static final String str_RepoPathName = "RepoPathName";
     public static final String str_InitialBranch = "BranchName";
     public static final String str_DefaultProjectToExport = "DefaultExportProject";
@@ -34,13 +32,12 @@ public final class Const {
     public static final String str_GitCommitterPassword = "GitCommitterPassword";
     public static final String str_GitCommitterName = "GitCommitterFullName";
     public static final String str_GitCommitterEmail = "GitCommitterEmail";
-    public static final String str_GitCredentials = "UserRepositoryConfiguration";
+    public static final String str_UserRepositoryConfiguration = "UserRepositoryConfiguration";
 
     // GPG Key related constants
     public static final String str_UserGpgKeys = "UserGpgKeys";
     public static final String str_GpgPrivateKey = "GpgPrivateKey";
     public static final String str_GpgKeyPassphrase = "GpgKeyPassphrase";
-    public static final String str_SignCommits = "SignCommits";
     public static final String str_GpgKeyFingerprint = "GpgKeyFingerprint";
     public static final String str_GpgKeyDataShapeName = "GIT.GpgKey.UserExtension.DataShape";
     public static final String str_GitCredentialsDataShapeName =
@@ -57,9 +54,9 @@ public final class Const {
     public static final String ERR_PREFIX_SYSTEM = "[SYSTEM] ";
 
     public static final String ERR_NO_REPO_URL =
-            "No Git repository URL configured. Set 'GitRepoURL' in the Configuration table and restart the Thing.";
+            "No Git repository URL configured. Set the GitRepoURL Thing property and restart the Thing.";
     public static final String ERR_NO_REPO_URL_PUSH =
-            "No Git repository URL configured for this thing. Set 'GitRepoURL' in the Configuration table.";
+            "No Git repository URL configured for this thing. Set the GitRepoURL Thing property.";
     public static final String ERR_NO_CREDENTIALS =
             "Missing Git credentials (username/password). Configure credentials for this repository in the current user's ThingWorx UserExtensions properties.";
     public static final String ERR_NO_COMMITTER =
@@ -84,9 +81,7 @@ public final class Const {
     public static final String ERR_DIFF_TOO_LARGE =
             "Diff size exceeds the configured maximum (%d bytes). Increase 'MaxDiffSize' in the thing properties to view this diff.";
     public static final String ERR_FILE_REPO_NOT_FOUND =
-            "FileRepository '%s' not found. Verify the FileRepository thing exists.";
-    public static final String ERR_NO_PROJECT_CONFIGURED =
-            "No project configured for this repository. Set 'ProjectName' in the Configuration table. Sync skipped.";
+            "Repository Thing is not a FileRepository.";
     public static final String ERR_AUTH_FAILED =
             "Authentication failed for repository URL '%s'. Verify your credentials and repository access.";
     public static final String ERR_NETWORK_FAILED =
@@ -102,17 +97,15 @@ public final class Const {
 
     // Warning message constants
     public static final String WARN_NO_GPG_KEYS =
-            "No GpgKeys UserExtension property found. GPG signing will be skipped. Run 'InitUserExtensionGpgKeysProperty' to initialize.";
+            "No GpgKeys UserExtension property found. GPG signing will be skipped. Run 'InitUserExtensionProperties' to initialize.";
     public static final String WARN_NO_SIGN_COMMITS =
-            "SignCommits is not enabled for this repository. If the remote requires signed commits, the push will be rejected.";
+            "No GpgKeyFingerprint configured for this repository. If the remote requires signed commits, the push will be rejected.";
     public static final String WARN_SYNC_FAILED =
             "Project sync from ThingWorx to repository failed: %s. The git operation will continue but the working tree may be out of date.";
     public static final String WARN_GIT_CREDENTIALS_NOT_FOUND =
-            "No stored GitCredentials found for this repository. Configure credentials in the current user's ThingWorx UserExtensions properties.";
+            "No stored UserRepositoryConfiguration found for this repository. Configure credentials in the current user's ThingWorx UserExtensions properties.";
     public static final String WARN_DETACHED_HEAD =
             "Repository is in detached HEAD state. Some operations may behave unexpectedly. Checkout a branch to normalize.";
-    public static final String WARN_NO_PROJECT_SKIP =
-            "No ProjectName configured. Skipping ThingWorx entity sync for this operation.";
     public static final String WARN_GIT_THING_NAME_MISSING =
             "GitThingName is required but was not provided. Returning empty result.";
 

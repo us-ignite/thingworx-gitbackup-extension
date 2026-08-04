@@ -164,41 +164,24 @@ public class GiteaGitOperationsTest {
         JsonObject body = new JsonObject();
         body.addProperty("RepoName", GIT_THING_NAME);
         body.addProperty("GitRepoURL", giteaRepoUrl);
-        body.addProperty("RepoPath", GIT_THING_PATH);
-        body.addProperty("User", credentials.giteaUser);
-        body.addProperty("Password", credentials.giteaPass);
-        body.addProperty("CommitUser", "Test User");
-        body.addProperty("CommitEmail", "test@example.com");
-        body.addProperty("InitialBranch", "main");
-        body.addProperty("ProxyURL", "");
-        body.addProperty("ProxyPort", 0);
-        body.addProperty("UseProxy", false);
-        body.addProperty("LocalizationTokensPrefix", "");
-
-        var createReq =
-                stack.thingworx
-                        .serviceRequest("GIT.Utility.Thing", "AddNewRepo", body.toString())
-                        .build();
-        var createRes = stack.httpClient.send(createReq, HttpResponse.BodyHandlers.ofString());
-        assertTrue(
-                createRes.statusCode() == 200 || createRes.statusCode() == 201,
-                "AddNewRepo failed: " + createRes.statusCode() + " " + createRes.body());
-
-        Thread.sleep(5000);
-        JsonObject configurationRequest = new JsonObject();
-        configurationRequest.addProperty("tableName", "Configuration");
-        var configurationRes =
+        body.addProperty("RepoPathName", GIT_THING_PATH);
+        body.addProperty("BranchName", "main");
+        body.addProperty("ProjectName", "GiteaGitOperationsProject");
+        body.addProperty("GitCommitterUser", credentials.giteaUser);
+        body.addProperty("GitCommitterPassword", credentials.giteaPass);
+        body.addProperty("GitCommitterEmail", "test@example.com");
+        body.addProperty("GitCommitterFullName", "Test User");
+        var createRes =
                 stack.httpClient.send(
                         stack.thingworx
                                 .serviceRequest(
-                                        GIT_THING_NAME,
-                                        "GetConfigurationTable",
-                                        configurationRequest.toString())
+                                        "GIT.Utility.Thing", "RepositoryCreate", body.toString())
                                 .build(),
                         HttpResponse.BodyHandlers.ofString());
         assertTrue(
-                configurationRes.body().contains(giteaRepoUrl),
-                "Git repository URL was not persisted: " + configurationRes.body());
+                createRes.statusCode() == 200 || createRes.statusCode() == 201,
+                "Repository was not created/configured: " + createRes.body());
+        Thread.sleep(5000);
         var verifyReq =
                 stack.thingworx.serviceRequest(GIT_THING_NAME, "GetCurrentBranch", null).build();
         var verifyRes = stack.httpClient.send(verifyReq, HttpResponse.BodyHandlers.ofString());
@@ -523,14 +506,12 @@ public class GiteaGitOperationsTest {
         registerGpgKeyWithGitea(testKey);
 
         JsonObject setKeyBody = new JsonObject();
-        setKeyBody.addProperty("GitThing", GIT_THING_NAME);
         setKeyBody.addProperty("GpgPrivateKey", testKey);
         setKeyBody.addProperty("GpgKeyPassphrase", "");
-        setKeyBody.addProperty("SignCommits", true);
         setKeyBody.addProperty("GpgKeyFingerprint", "");
         var setKeyReq =
                 stack.thingworx
-                        .serviceRequest("GIT.Utility.Thing", "SetGpgKey", setKeyBody.toString())
+                        .serviceRequest("GIT.Utility.Thing", "GpgKeyCreate", setKeyBody.toString())
                         .build();
         var setKeyRes = stack.httpClient.send(setKeyReq, HttpResponse.BodyHandlers.ofString());
         assertTrue(
@@ -542,7 +523,8 @@ public class GiteaGitOperationsTest {
         verifyKeyBody.addProperty("GpgKeyPassphrase", "");
         var verifyKeyReq =
                 stack.thingworx
-                        .serviceRequest(GIT_THING_NAME, "VerifyGpgKey", verifyKeyBody.toString())
+                        .serviceRequest(
+                                "GIT.Utility.Thing", "VerifyGpgKey", verifyKeyBody.toString())
                         .build();
         var verifyKeyRes =
                 stack.httpClient.send(verifyKeyReq, HttpResponse.BodyHandlers.ofString());
@@ -552,6 +534,24 @@ public class GiteaGitOperationsTest {
                         .body()
                         .matches("(?s).*\\\"GpgKeyFingerprint\\\"\\s*:\\s*\\\"[0-9a-fA-F]+\\\".*"),
                 "Stored GPG key fingerprint could not be located: " + verifyKeyRes.body());
+        String signingFingerprint =
+                JsonParser.parseString(verifyKeyRes.body())
+                        .getAsJsonObject()
+                        .getAsJsonArray("rows")
+                        .get(0)
+                        .getAsJsonObject()
+                        .get("GpgKeyFingerprint")
+                        .getAsString();
+        JsonObject signingBody = new JsonObject();
+        signingBody.addProperty("GpgKeyFingerprint", signingFingerprint);
+        var signingReq =
+                stack.thingworx
+                        .serviceRequest(
+                                GIT_THING_NAME, "SetGPGKeyForSigning", signingBody.toString())
+                        .build();
+        var signingRes = stack.httpClient.send(signingReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(
+                200, signingRes.statusCode(), "SetGPGKeyForSigning failed: " + signingRes.body());
 
         editFileInRepoViaThingworxAPI(
                 GIT_THING_NAME, GIT_THING_PATH + "/signed-test.txt", "Signed commit test content");

@@ -16,7 +16,8 @@ troubleshooting, development, and generated Java API documentation.
 - Git operations through ThingWorx services and mashups
 - Per-user credentials and GPG key isolation
 - Bulk project export and recursive repository import
-- Optional automatic commit and push after export
+- Synchronization of each repository Thing’s required ThingWorx project
+- Explicit export, commit, and push workflow
 - Repository proxy configuration and operation logging
 - Gradle build with Java 21 and supported ThingWorx variants
 

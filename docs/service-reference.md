@@ -1,9 +1,9 @@
 # ThingWorx service reference
 
-The extension exposes services on two ThingWorx entities:
+The extension exposes services through two ThingWorx shapes/entities:
 
-- `GIT.Repository.ThingShape` — Git repository operations.
-- `GIT.Utility.Thing` — repository lifecycle, entity synchronization, and per-user configuration.
+- `GIT.Repository.ThingShape` — Git repository operations and entity synchronization.
+- `GIT.Utility.Thing` — repository lifecycle and per-user configuration.
 
 Arguments below use the ThingWorx service names and base types defined by the Java annotations.
 `INFOTABLE` arguments use the DataShape shown in Composer for that service. Password values must
@@ -15,7 +15,6 @@ be entered through the current user’s `UserExtensions` properties and must not
 |---|---|---|
 | `Commit` | `Message: STRING` | Returns a commit status message. |
 | `Push` | `Remote: STRING` | Pushes the current branch. |
-| `VerifyGpgKey` | `GpgPrivateKey: STRING`, `GpgKeyPassphrase: STRING` | Returns `GIT.GpgKeyVerificationResult`. |
 | `Pull` | `Force: BOOLEAN` | Fetches and integrates remote changes. |
 | `Fetch` | `Remote: STRING` | Fetches remote refs without integrating them. |
 | `DeleteLocalRepoContent` | — | Deletes the local repository content. Use with care. |
@@ -40,8 +39,12 @@ be entered through the current user’s `UserExtensions` properties and must not
 | `GetDiffPerFile` | `File: STRING` | Returns the working-tree diff for one file. |
 | `GetDiffPerFileBetweenCommits` | `File: STRING`, `FromCommitID: STRING` | Returns a file diff for the requested commit against its parent. |
 | `GetCommitInfo` | `CommitID: STRING` | Returns `GIT.CommitInfo`. |
-| `ExportProjectEntities` | `ProjectName: STRING`, `includeDependents: BOOLEAN`, `EntitiesToExport: INFOTABLE`, `commitMessage: STRING` | Exports entities and optionally commits them. |
-| `ImportProjectEntities` | `entityPath: STRING`, `ignoreDependencies: BOOLEAN` | Imports repository entities and returns a summary. |
+| `ExportProjectEntities` | `ProjectName: STRING`, `includeDependents: BOOLEAN`, `EntitiesToExport: INFOTABLE`, `commitMessage: STRING` | Exports entities from the required project. `commitMessage` is retained for compatibility; committing is handled by `Commit`. |
+| `ImportProjectEntities` | `entityPath: STRING`, `ignoreDependencies: BOOLEAN` | Imports repository entities into the repository Thing’s required configured `ProjectName` and returns a summary. |
+| `ImportEntity` | `entityPath: STRING`, `ignoreDependencies: BOOLEAN` | Imports one entity path into the receiving repository’s configured project. |
+| `RemoveLastModifiedDate` | — | Removes imported last-modified metadata. |
+| `RemoveModelPersistenceProviderPackage` | — | Removes model-persistence-provider metadata during import. |
+| `SetGPGKeyForSigning` | `GpgKeyFingerprint: STRING` | Selects or clears the current user's signing key for this repository. |
 | `Merge` | `BranchName: STRING` | Merges a branch into the current branch. |
 | `Rebase` | `UpstreamBranch: STRING` | Rebases onto an upstream branch. |
 | `CreateTag` | `TagName: STRING`, `Message: STRING`, `CommitID: STRING` | Creates an annotated tag. |
@@ -49,33 +52,28 @@ be entered through the current user’s `UserExtensions` properties and must not
 | `DeleteTag` | `TagName: STRING` | Deletes a local tag. |
 
 `Push`, `Pull`, and `Fetch` use the repository’s configured remote and the current user’s Git
-credentials from `UserExtensions`. `VerifyGpgKey` is a validation service; normal signed commits
-use the stored per-user GPG key configuration.
+credentials from `UserExtensions`. Normal signed commits use the stored per-user GPG key
+configuration.
 
 ## Utility services
 
 | Service | Arguments | Result / purpose |
 |---|---|---|
-| `AddEntitiesToExportList` | `existingEntities: INFOTABLE`, `newEntitiesToExport: INFOTABLE` | Merges export-list rows. |
 | `AddLogEntry` | `Content: STRING`, `ServiceName: STRING`, `Source: STRING`, `timestamp: DATETIME`, `User: STRING` | Writes an extension log entry. |
-| `AddNewRepo` | `RepoName: STRING`, `GitRepoURL: STRING`, `RepoPath: STRING`, `User: STRING`, `Password: STRING`, `CommitUser: STRING`, `CommitEmail: STRING`, `InitialBranch: STRING`, `UseProxy: BOOLEAN`, `ProxyURL: STRING`, `ProxyPort: INTEGER`, `LocalizationTokensPrefix: STRING`, `ProjectName: STRING` | Creates and configures a repository Thing. |
-| `DeleteGitThing` | `RepoName: STRING` | Deletes a repository Thing and its stored user configuration. |
-| `GetEmptyInfotable` | — | Returns an empty `SpotlightSearch` InfoTable. |
-| `GetProjectEntities` | `project: STRING`, `entityName: STRING`, `entityType: STRING`, `includeDependents: BOOLEAN`, `tags: TAGS` | Returns project entities for export. |
-| `ImportEntity` | `GitThingName: STRING`, `entityPath: STRING`, `FileRepositoryName: STRING`, `ignoreDependencies: BOOLEAN` | Imports one entity. |
-| `InitUserExtensionProperties` | — | Creates missing Git UserExtension properties. |
-| `InitUserExtensionGpgKeysProperty` | — | Creates the GPG UserExtension property. |
-| `GetGpgKeys` | — | Returns the current user’s GPG key metadata. |
-| `SetGpgKey` | `GitThing: THINGNAME`, `GpgPrivateKey: STRING`, `GpgKeyPassphrase: STRING`, `SignCommits: BOOLEAN`, `GpgKeyFingerprint: STRING` | Stores per-user GPG configuration. |
-| `DeleteGpgKey` | `GitThing: THINGNAME` | Removes the user’s GPG configuration for a repository. |
-| `Pause` | `delay: INTEGER` | Pauses service execution for the requested delay. |
-| `RemoveEntitiesFromExportList` | `entitiesToRemove: INFOTABLE`, `existingEntities: INFOTABLE` | Removes rows from an export list. |
-| `UpdateRepo` | `RepoName: STRING`, `GitRepoURL: STRING`, `RepoPath: STRING`, `User: STRING`, `Password: STRING`, `CommitUser: STRING`, `CommitEmail: STRING`, `InitialBranch: STRING`, `UseProxy: BOOLEAN`, `ProxyURL: STRING`, `ProxyPort: INTEGER`, `LocalizationTokensPrefix: STRING`, `ProjectName: STRING` | Updates repository configuration. |
-| `ValidateGitThingName` | `GitThingName: STRING` | Validates a repository Thing name. |
-| `SetGitCredentials` | `GitCommitterUser: STRING`, `GitCommitterPassword: STRING`, `GitCommitterEmail: STRING`, `GitCommitterFullName: STRING`, `GitThing: THINGNAME` | Stores per-user repository credentials and identity. |
-| `SetProjectName` | `GitThingName: THINGNAME`, `ProjectName: STRING` | Sets the project associated with a repository. |
-| `GetFilteredDirectoryListing` | — | Returns the filtered FileRepository directory listing. |
-| `RemoveLastModifiedDate` | — | Removes imported last-modified metadata. |
-| `RemoveModelPersistenceProviderPackage` | — | Removes the model-persistence-provider package entity when required during import. |
+| `RepositoryList` | — | Lists available repository Things. Returns an `INFOTABLE` with `RepoName: STRING` rows. |
+| `RepositoryCreate` | `RepoName: STRING`, `GitRepoURL: STRING`, `RepoPathName: STRING`, `BranchName: STRING`, `ProjectName: STRING`, `UseProxy: BOOLEAN`, `ProxyURL: STRING`, `ProxyPort: INTEGER`, `LocalizationTokensPrefix: STRING`, `GitCommitterUser: STRING`, `GitCommitterPassword: STRING`, `GitCommitterEmail: STRING`, `GitCommitterFullName: STRING` | Creates and configures the repository Thing and the current user's Git credentials in one call. |
+| `RepositoryDelete` | `RepoName: STRING` | Deletes the repository Thing, local content, and the current user’s associated configuration. Returns `NOTHING`. |
+| `InitUserExtensionProperties` | — | Creates and initializes the Git credentials and reusable GPG-key UserExtension properties. |
+| `GpgKeyList` | — | Returns the current user’s reusable keys as `INFOTABLE` with `GIT.GpgKey.UserExtension.DataShape` rows. Private keys and passphrases remain protected. |
+| `VerifyGpgKey` | `GpgPrivateKey: STRING`, `GpgKeyPassphrase: STRING` | Verifies a supplied or stored GPG key and returns `GIT.GpgKeyVerificationResult`. |
+| `GpgKeyGet` | `GpgKeyFingerprint: STRING` | Returns one matching key as an `INFOTABLE` with `GIT.GpgKey.UserExtension.DataShape`. Fails if the fingerprint is not owned by the current user. |
+| `GpgKeyCreate` | `GpgPrivateKey: STRING`, `GpgKeyPassphrase: STRING`, `GpgKeyFingerprint: STRING` (optional; derived when blank) | Creates a reusable current-user key. Returns `NOTHING`; fails when the fingerprint already exists. Key values are stored in protected user properties. |
+| `GpgKeyUpdate` | `GpgKeyFingerprint: STRING`, `GpgPrivateKey: STRING`, `GpgKeyPassphrase: STRING` | Replaces the protected key material for an existing current-user fingerprint. Returns `NOTHING`; fails when the fingerprint does not exist. |
+| `GpgKeyDelete` | `GpgKeyFingerprint: STRING` | Deletes an owned key and clears matching repository signing selections. Returns `NOTHING`; fails when the fingerprint does not exist. |
+| `GitCredentialList` | — | Returns the current user’s credentials as an `INFOTABLE` with `GIT.RepositoryConfiguration.UserExtension.DataShape` rows. Passwords remain protected. |
+| `GitCredentialGet` | `GitThing: THINGNAME` | Returns one repository credential record using `GIT.RepositoryConfiguration.UserExtension.DataShape`; fails when no current-user record exists. |
+| `GitCredentialCreate` | `GitCommitterUser: STRING`, `GitCommitterPassword: STRING`, `GitCommitterEmail: STRING`, `GitCommitterFullName: STRING`, `GitThing: THINGNAME`, `GpgKeyFingerprint: STRING` | Creates a current-user credential record and returns `NOTHING`; fails if a record already exists for `GitThing`. |
+| `GitCredentialUpdate` | `GitCommitterUser: STRING`, `GitCommitterPassword: STRING`, `GitCommitterEmail: STRING`, `GitCommitterFullName: STRING`, `GitThing: THINGNAME`, `GpgKeyFingerprint: STRING` | Updates an existing current-user record and returns `NOTHING`; fails if the record is missing. A blank fingerprint clears signing. |
+| `GitCredentialDelete` | `GitThing: THINGNAME` | Deletes the current user’s credential record and returns `NOTHING`; fails if the record is missing. |
 
 For the exact InfoTable fields and service annotations, see the [generated Java API reference](api/index.md).
