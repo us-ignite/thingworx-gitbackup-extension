@@ -65,8 +65,6 @@ public final class Const {
             "Project '%s' not found. Verify the project name exists in ThingWorx.";
     public static final String ERR_PROJECT_NAME_REQUIRED =
             "ProjectName is required and was not provided.";
-    public static final String ERR_GIT_THING_NAME_REQUIRED =
-            "GitThingName is required and was not provided.";
     public static final String ERR_BRANCH_NOT_FOUND =
             "Branch '%s' not found. Verify the branch name exists locally. Use 'Pull' to fetch remote branches first.";
     public static final String ERR_UPSTREAM_NOT_FOUND =

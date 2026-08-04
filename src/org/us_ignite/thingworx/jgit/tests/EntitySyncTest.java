@@ -618,7 +618,7 @@ public class EntitySyncTest {
         branchBody.addProperty("StartPoint", "main");
         var branchRes =
                 httpClient.send(
-                        twxA.serviceRequest(GIT_THING_A, "CreateBranch", branchBody.toString())
+                        twxA.serviceRequest(GIT_THING_A, "BranchCreate", branchBody.toString())
                                 .build(),
                         HttpResponse.BodyHandlers.ofString());
         assertEquals(200, branchRes.statusCode(), "CreateBranch failed: " + branchRes.body());
@@ -753,7 +753,7 @@ public class EntitySyncTest {
         branchBody.addProperty("StartPoint", "main");
         var branchRes =
                 httpClient.send(
-                        twxA.serviceRequest(GIT_THING_A, "CreateBranch", branchBody.toString())
+                        twxA.serviceRequest(GIT_THING_A, "BranchCreate", branchBody.toString())
                                 .build(),
                         HttpResponse.BodyHandlers.ofString());
         assertEquals(200, branchRes.statusCode(), "CreateBranch failed: " + branchRes.body());
