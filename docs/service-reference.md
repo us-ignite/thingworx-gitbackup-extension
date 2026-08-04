@@ -14,23 +14,25 @@ be entered through the current user’s `UserExtensions` properties and must not
 | Service | Arguments | Result / purpose |
 |---|---|---|
 | `Commit` | `Message: STRING` | Returns a commit status message. |
-| `Push` | `Remote: STRING` | Pushes the current branch. |
+| `Push` | `Remote: STRING`, `BranchName: STRING`, `RemoteBranchName: STRING`, `SetUpstream: BOOLEAN` | Pushes the current/upstream branch or an explicit local branch to a remote branch. |
 | `Pull` | `Force: BOOLEAN` | Fetches and integrates remote changes. |
 | `Fetch` | `Remote: STRING` | Fetches remote refs without integrating them. |
 | `DeleteLocalRepoContent` | — | Deletes the local repository content. Use with care. |
-| `CreateBranch` | `BranchName: STRING`, `StartPoint: STRING` | Creates a local branch. |
-| `Checkout` | `BranchNameOrCommit: STRING` | Checks out a branch or commit. |
+| `BranchCreate` | `BranchName: STRING`, `StartPoint: STRING` | Creates a local branch without switching. |
+| `BranchSwitch` | `BranchName: STRING` | Switches to a local branch or creates a tracking branch for a matching origin branch. |
+| `Checkout` | `BranchNameOrCommit: STRING`, `CreateBranch: BOOLEAN`, `StartPoint: STRING`, `Force: BOOLEAN` | Checks out a branch, tag, or commit, optionally creating a branch or forcing the update. |
 | `GetCurrentBranch` | — | Returns the current branch or detached-head state. |
 | `GetBranchList` | — | Returns `GIT.BranchList`. |
-| `DeleteLocalBranch` | `BranchName: STRING` | Deletes a local branch. |
+| `BranchDelete` | `BranchName: STRING`, `Remote: STRING`, `DeleteRemote: BOOLEAN`, `Force: BOOLEAN` | Deletes a local branch and optionally its remote branch. |
 | `GetCommitList` | — | Returns `GIT.CommitList`. |
 | `GetLog` | `Ref: STRING`, `MaxEntries: INTEGER` | Returns `GIT.CommitLog`. |
 | `GetReflog` | `Ref: STRING`, `MaxEntries: INTEGER` | Returns `GIT.ReflogEntry`. |
 | `Status` | — | Returns `GIT.Status` for the working tree. |
+| `Add` | `File: STRING`, `All: BOOLEAN` | Stages one repository-relative file; with `All=true`, stages all non-ignored additions, modifications, and deletions. |
+| `Remove` | `File: STRING` | Removes a path from the index using cached semantics and preserves its working-tree file. |
 | `GetConflictFiles` | — | Returns conflicted files using `GIT.Status`. |
 | `ReadConflictFile` | `File: STRING` | Returns the content of a conflict file. |
 | `WriteConflictFile` | `File: STRING`, `Content: STRING` | Writes resolved conflict content. |
-| `StageResolved` | `FilePattern: STRING` | Stages resolved files. |
 | `MergeContinue` | `Message: STRING` | Completes a merge after conflicts are resolved. |
 | `MergeAbort` | — | Aborts the current merge. |
 | `RebaseContinue` | — | Continues a rebase after conflicts are resolved. |
@@ -39,11 +41,8 @@ be entered through the current user’s `UserExtensions` properties and must not
 | `GetDiffPerFile` | `File: STRING` | Returns the working-tree diff for one file. |
 | `GetDiffPerFileBetweenCommits` | `File: STRING`, `FromCommitID: STRING` | Returns a file diff for the requested commit against its parent. |
 | `GetCommitInfo` | `CommitID: STRING` | Returns `GIT.CommitInfo`. |
-| `ExportProjectEntities` | `ProjectName: STRING`, `includeDependents: BOOLEAN`, `EntitiesToExport: INFOTABLE`, `commitMessage: STRING` | Exports entities from the required project. `commitMessage` is retained for compatibility; committing is handled by `Commit`. |
+| `ExportProjectEntities` | `includeDependents: BOOLEAN` | Exports all entities from the `ProjectName` configured on the repository Thing and stages only its `RepoPathName/ProjectName` tree. It never commits. |
 | `ImportProjectEntities` | `entityPath: STRING`, `ignoreDependencies: BOOLEAN` | Imports repository entities into the repository Thing’s required configured `ProjectName` and returns a summary. |
-| `ImportEntity` | `entityPath: STRING`, `ignoreDependencies: BOOLEAN` | Imports one entity path into the receiving repository’s configured project. |
-| `RemoveLastModifiedDate` | — | Removes imported last-modified metadata. |
-| `RemoveModelPersistenceProviderPackage` | — | Removes model-persistence-provider metadata during import. |
 | `SetGPGKeyForSigning` | `GpgKeyFingerprint: STRING` | Selects or clears the current user's signing key for this repository. |
 | `Merge` | `BranchName: STRING` | Merges a branch into the current branch. |
 | `Rebase` | `UpstreamBranch: STRING` | Rebases onto an upstream branch. |

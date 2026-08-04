@@ -5,7 +5,6 @@ import static org.us_ignite.thingworx.jgit.extension.Values.isBlank;
 import static org.us_ignite.thingworx.jgit.extension.Values.primitiveString;
 
 import com.thingworx.data.util.InfoTableInstanceFactory;
-import com.thingworx.entities.interfaces.IServiceProvider;
 import com.thingworx.entities.utils.EntityUtilities;
 import com.thingworx.entities.utils.UserUtilities;
 import com.thingworx.logging.LogUtilities;
@@ -342,7 +341,14 @@ public class GitUtilityThingShape extends Thing {
             throws Exception {
         Thing repoThing =
                 (Thing) EntityUtilities.findEntity(RepoName, ThingworxRelationshipTypes.Thing);
-        String str_RepositoryPathName = propertyString(repoThing, Const.str_RepoPathName, "");
+        String str_RepositoryPathName;
+        try {
+            Object value = repoThing.getPropertyValue(Const.str_RepoPathName);
+            Object raw = value instanceof IPrimitiveType ? ((IPrimitiveType<?, ?>) value).getValue() : value;
+            str_RepositoryPathName = raw == null || isBlank(raw.toString()) ? "" : raw.toString();
+        } catch (Exception e) {
+            str_RepositoryPathName = "";
+        }
         FileRepositoryThing fileRepo = (FileRepositoryThing) repoThing;
 
         try {
@@ -389,68 +395,6 @@ public class GitUtilityThingShape extends Thing {
                 "GIT Repository Thing "
                         + RepoName
                         + " (self-hosted FileRepository) was deleted successfully.");
-    }
-
-    /** Imports one repository entity into ThingWorx. */
-    @ThingworxServiceResult(
-            name = "result",
-            description = "",
-            baseType = "NOTHING",
-            aspects = {})
-    public void ImportEntity(
-            @ThingworxServiceParameter(
-                            name = "GitThingName",
-                            description = "GIT Repository Thing used for the import",
-                            baseType = "STRING")
-                    String GitThingName,
-            @ThingworxServiceParameter(
-                            name = "entityPath",
-                            description = "relative to the repository",
-                            baseType = "STRING")
-                    String entityPath,
-            @ThingworxServiceParameter(
-                            name = "FileRepositoryName",
-                            description = "",
-                            baseType = "STRING")
-                    String FileRepositoryName,
-            @ThingworxServiceParameter(
-                            name = "ignoreDependencies",
-                            description = "If true, strips dependency validation during import",
-                            baseType = "BOOLEAN",
-                            aspects = {"defaultValue:false"})
-                    Boolean ignoreDependencies)
-            throws Exception {
-        _logger.warn("Started single entity import.");
-        if (isBlank(GitThingName))
-            throw new Exception(Const.ERR_PREFIX_CONFIG + Const.ERR_GIT_THING_NAME_REQUIRED);
-        repositoryThing(GitThingName);
-        importSourceControlledEntities(FileRepositoryName, entityPath);
-    }
-
-    private Thing repositoryThing(String thingName) throws Exception {
-        Thing repoThing =
-                (Thing) EntityUtilities.findEntity(thingName, ThingworxRelationshipTypes.Thing);
-        if (repoThing == null)
-            throw new Exception(
-                    Const.ERR_PREFIX_CONFIG + "GIT Repository Thing not found: " + thingName);
-        return repoThing;
-    }
-
-    private void importSourceControlledEntities(String repositoryName, String path)
-            throws Exception {
-        Object resource =
-                EntityUtilities.findEntity(
-                        "SourceControlFunctions", ThingworxRelationshipTypes.Resource);
-        if (resource == null)
-            throw new Exception(Const.ERR_PREFIX_SYSTEM + Const.ERR_NO_SCF_RESOURCE);
-        IServiceProvider sourceControlFunctions = (IServiceProvider) resource;
-        ValueCollection params = new ValueCollection();
-        params.put("repositoryName", new StringPrimitive(repositoryName));
-        params.put("path", new StringPrimitive(path));
-        params.put("useDefaultDataProvider", new BooleanPrimitive(true));
-        params.put("withSubsystems", new BooleanPrimitive(false));
-        params.put("overwritePropertyValues", new BooleanPrimitive(true));
-        sourceControlFunctions.processServiceRequest("ImportSourceControlledEntities", params);
     }
 
     /** Initializes the per-user extension properties required by utility services. */
@@ -510,7 +454,62 @@ public class GitUtilityThingShape extends Thing {
             try {
                 Object val = user.getPropertyValue("UserRepositoryConfiguration");
                 if (val == null) {
-                    InfoTable empty = migrateLegacyUserRepositoryConfiguration(user);
+                    InfoTable empty =
+                            InfoTableInstanceFactory.createInfoTableFromDataShape(
+                                    Const.str_GitCredentialsDataShapeName);
+                    Object credentials = null;
+                    Object gpgKeys = null;
+                    try {
+                        credentials = user.getPropertyValue("GitCredentials");
+                    } catch (Exception e) {
+                    }
+                    try {
+                        gpgKeys = user.getPropertyValue("GpgKeys");
+                    } catch (Exception e) {
+                    }
+                    if (credentials instanceof InfoTablePrimitive) {
+                        InfoTable table = ((InfoTablePrimitive) credentials).getValue();
+                        if (table != null) {
+                            for (int i = 0; i < table.getRowCount(); i++) empty.addRow(table.getRow(i));
+                        }
+                    }
+                    if (gpgKeys instanceof InfoTablePrimitive) {
+                        InfoTable table = ((InfoTablePrimitive) gpgKeys).getValue();
+                        if (table != null) {
+                            InfoTable keyStore =
+                                    InfoTableInstanceFactory.createInfoTableFromDataShape(
+                                            Const.str_UserGpgKeyDataShapeName);
+                            for (int i = 0; i < table.getRowCount(); i++) {
+                                ValueCollection source = table.getRow(i);
+                                String gitThing = primitiveString(source, "GitThing");
+                                String fingerprint = primitiveString(source, Const.str_GpgKeyFingerprint);
+                                if (!isBlank(fingerprint)) {
+                                    ValueCollection key = new ValueCollection();
+                                    key.put(Const.str_GpgKeyFingerprint, new StringPrimitive(fingerprint));
+                                    if (source.getPrimitive(Const.str_GpgPrivateKey) != null)
+                                        key.put(Const.str_GpgPrivateKey, source.getPrimitive(Const.str_GpgPrivateKey));
+                                    if (source.getPrimitive(Const.str_GpgKeyPassphrase) != null)
+                                        key.put(Const.str_GpgKeyPassphrase, source.getPrimitive(Const.str_GpgKeyPassphrase));
+                                    keyStore.addRow(key);
+                                }
+                                ValueCollection target = null;
+                                for (int j = 0; j < empty.getRowCount(); j++) {
+                                    if (gitThing.equals(primitiveString(empty.getRow(j), "GitThing"))) {
+                                        target = empty.getRow(j);
+                                        break;
+                                    }
+                                }
+                                if (target == null) {
+                                    target = new ValueCollection();
+                                    target.put("GitThing", source.getPrimitive("GitThing"));
+                                    empty.addRow(target);
+                                }
+                                if (!isBlank(fingerprint))
+                                    target.put(Const.str_GpgKeyFingerprint, new StringPrimitive(fingerprint));
+                            }
+                            user.setPropertyValue(Const.str_UserGpgKeys, new InfoTablePrimitive(keyStore));
+                        }
+                    }
                     user.setPropertyValue(
                             "UserRepositoryConfiguration", new InfoTablePrimitive(empty));
                 }
@@ -565,113 +564,41 @@ public class GitUtilityThingShape extends Thing {
             new EntityServices().RestartDependenciesForThingShape("UserExtensions");
         }
         if (user != null && user.getPropertyValue(Const.str_UserGpgKeys) == null) {
-            user.setPropertyValue(
-                    Const.str_UserGpgKeys, new InfoTablePrimitive(migrateLegacyUserGpgKeys(user)));
-        }
-    }
-
-    private InfoTable migrateLegacyUserGpgKeys(User user) throws Exception {
-        InfoTable keys =
-                InfoTableInstanceFactory.createInfoTableFromDataShape(
-                        Const.str_UserGpgKeyDataShapeName);
-        for (String propertyName : new String[] {"GpgKeys", "UserRepositoryConfiguration"}) {
-            Object value = null;
-            try {
-                value = user.getPropertyValue(propertyName);
-            } catch (Exception e) {
-            }
-            if (!(value instanceof InfoTablePrimitive)) continue;
-            InfoTable source = ((InfoTablePrimitive) value).getValue();
-            if (source == null) continue;
-            for (int i = 0; i < source.getRowCount(); i++) {
-                ValueCollection row = source.getRow(i);
-                String fingerprint = primitiveString(row, Const.str_GpgKeyFingerprint);
-                if (isBlank(fingerprint)) continue;
-                boolean alreadyStored = false;
-                for (int j = 0; j < keys.getRowCount(); j++) {
-                    if (fingerprint.equals(
-                            primitiveString(keys.getRow(j), Const.str_GpgKeyFingerprint))) {
-                        alreadyStored = true;
-                        break;
-                    }
+            InfoTable keys =
+                    InfoTableInstanceFactory.createInfoTableFromDataShape(
+                            Const.str_UserGpgKeyDataShapeName);
+            for (String propertyName : new String[] {"GpgKeys", "UserRepositoryConfiguration"}) {
+                Object value = null;
+                try {
+                    value = user.getPropertyValue(propertyName);
+                } catch (Exception e) {
                 }
-                if (alreadyStored) continue;
-                ValueCollection key = new ValueCollection();
-                key.put(Const.str_GpgKeyFingerprint, new StringPrimitive(fingerprint));
-                if (row.getPrimitive(Const.str_GpgPrivateKey) != null)
-                    key.put(Const.str_GpgPrivateKey, row.getPrimitive(Const.str_GpgPrivateKey));
-                if (row.getPrimitive(Const.str_GpgKeyPassphrase) != null)
-                    key.put(
-                            Const.str_GpgKeyPassphrase,
-                            row.getPrimitive(Const.str_GpgKeyPassphrase));
-                keys.addRow(key);
-            }
-        }
-        return keys;
-    }
-
-    private InfoTable migrateLegacyUserRepositoryConfiguration(User user) throws Exception {
-        InfoTable merged =
-                InfoTableInstanceFactory.createInfoTableFromDataShape(
-                        Const.str_GitCredentialsDataShapeName);
-        Object credentials = null;
-        Object gpgKeys = null;
-        try {
-            credentials = user.getPropertyValue("GitCredentials");
-        } catch (Exception e) {
-        }
-        try {
-            gpgKeys = user.getPropertyValue("GpgKeys");
-        } catch (Exception e) {
-        }
-        if (credentials instanceof InfoTablePrimitive) {
-            InfoTable table = ((InfoTablePrimitive) credentials).getValue();
-            if (table != null) {
-                for (int i = 0; i < table.getRowCount(); i++) merged.addRow(table.getRow(i));
-            }
-        }
-        if (gpgKeys instanceof InfoTablePrimitive) {
-            InfoTable table = ((InfoTablePrimitive) gpgKeys).getValue();
-            if (table != null) {
-                InfoTable keyStore =
-                        InfoTableInstanceFactory.createInfoTableFromDataShape(
-                                Const.str_UserGpgKeyDataShapeName);
-                for (int i = 0; i < table.getRowCount(); i++) {
-                    ValueCollection source = table.getRow(i);
-                    String gitThing = primitiveString(source, "GitThing");
-                    String fingerprint = primitiveString(source, Const.str_GpgKeyFingerprint);
-                    if (!isBlank(fingerprint)) {
-                        ValueCollection key = new ValueCollection();
-                        key.put(Const.str_GpgKeyFingerprint, new StringPrimitive(fingerprint));
-                        if (source.getPrimitive(Const.str_GpgPrivateKey) != null)
-                            key.put(
-                                    Const.str_GpgPrivateKey,
-                                    source.getPrimitive(Const.str_GpgPrivateKey));
-                        if (source.getPrimitive(Const.str_GpgKeyPassphrase) != null)
-                            key.put(
-                                    Const.str_GpgKeyPassphrase,
-                                    source.getPrimitive(Const.str_GpgKeyPassphrase));
-                        keyStore.addRow(key);
-                    }
-                    ValueCollection target = null;
-                    for (int j = 0; j < merged.getRowCount(); j++) {
-                        if (gitThing.equals(primitiveString(merged.getRow(j), "GitThing"))) {
-                            target = merged.getRow(j);
+                if (!(value instanceof InfoTablePrimitive)) continue;
+                InfoTable source = ((InfoTablePrimitive) value).getValue();
+                if (source == null) continue;
+                for (int i = 0; i < source.getRowCount(); i++) {
+                    ValueCollection row = source.getRow(i);
+                    String fingerprint = primitiveString(row, Const.str_GpgKeyFingerprint);
+                    if (isBlank(fingerprint)) continue;
+                    boolean alreadyStored = false;
+                    for (int j = 0; j < keys.getRowCount(); j++) {
+                        if (fingerprint.equals(primitiveString(keys.getRow(j), Const.str_GpgKeyFingerprint))) {
+                            alreadyStored = true;
                             break;
                         }
                     }
-                    if (target == null) {
-                        target = new ValueCollection();
-                        target.put("GitThing", source.getPrimitive("GitThing"));
-                        merged.addRow(target);
-                    }
-                    if (!isBlank(fingerprint))
-                        target.put(Const.str_GpgKeyFingerprint, new StringPrimitive(fingerprint));
+                    if (alreadyStored) continue;
+                    ValueCollection key = new ValueCollection();
+                    key.put(Const.str_GpgKeyFingerprint, new StringPrimitive(fingerprint));
+                    if (row.getPrimitive(Const.str_GpgPrivateKey) != null)
+                        key.put(Const.str_GpgPrivateKey, row.getPrimitive(Const.str_GpgPrivateKey));
+                    if (row.getPrimitive(Const.str_GpgKeyPassphrase) != null)
+                        key.put(Const.str_GpgKeyPassphrase, row.getPrimitive(Const.str_GpgKeyPassphrase));
+                    keys.addRow(key);
                 }
-                user.setPropertyValue(Const.str_UserGpgKeys, new InfoTablePrimitive(keyStore));
             }
+            user.setPropertyValue(Const.str_UserGpgKeys, new InfoTablePrimitive(keys));
         }
-        return merged;
     }
 
     private InfoTable getGpgKeysTable(User user) throws Exception {
@@ -717,7 +644,12 @@ public class GitUtilityThingShape extends Thing {
             String key = GpgPrivateKey;
             String passphrase = GpgKeyPassphrase;
             if (isBlank(key)) {
-                ValueCollection stored = firstStoredGpgKey(requireCurrentUser());
+                User currentUser = requireCurrentUser();
+                InfoTable storedKeys = getGpgKeysTable(currentUser);
+                ValueCollection stored =
+                        storedKeys == null || storedKeys.getRowCount() == 0
+                                ? null
+                                : storedKeys.getRow(0);
                 if (stored != null) {
                     key =
                             ((PasswordPrimitive) stored.getPrimitive(Const.str_GpgPrivateKey))
@@ -756,11 +688,6 @@ public class GitUtilityThingShape extends Thing {
             result.addRow(row);
         }
         return result;
-    }
-
-    private ValueCollection firstStoredGpgKey(User user) throws Exception {
-        InfoTable keys = getGpgKeysTable(user);
-        return keys == null || keys.getRowCount() == 0 ? null : keys.getRow(0);
     }
 
     /** Returns the current user’s configured GPG key metadata. */
@@ -1274,16 +1201,6 @@ public class GitUtilityThingShape extends Thing {
             throw new IllegalArgumentException("Credentials not found for repository: " + gitThing);
         current.setPropertyValue(
                 Const.str_UserRepositoryConfiguration, new InfoTablePrimitive(kept));
-    }
-
-    private String propertyString(Thing thing, String propertyName, String defaultValue) {
-        try {
-            Object value = thing.getPropertyValue(propertyName);
-            Object raw = value instanceof IPrimitiveType ? ((IPrimitiveType<?, ?>) value).getValue() : value;
-            return raw == null || isBlank(raw.toString()) ? defaultValue : raw.toString();
-        } catch (Exception e) {
-            return defaultValue;
-        }
     }
 
     private InfoTable getGitCredentials(User user) throws Exception {

@@ -13,32 +13,32 @@
                 <PropertyDefinition aspect.defaultValue="" aspect.isPersistent="true" baseType="STRING" category="Repository" description="ThingWorx project used for synchronization" name="ProjectName" ordinal="9"/>
             </PropertyDefinitions>
             <ServiceDefinitions>
-                <ServiceDefinition aspect.isAsync="false" category="" description="Syncs the ThingWorx project entities to the local working tree, stages all changes, and creates a commit. Does not push to the remote." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="Commit">
+                <ServiceDefinition aspect.isAsync="false" category="" description="Syncs the ThingWorx project entities, then commits the current Git index. Does not push to the remote." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="Commit">
                     <ResultType baseType="STRING" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions>
                         <FieldDefinition baseType="STRING" description="The commit message" name="Message" ordinal="1"/>
                     </ParameterDefinitions>
                 </ServiceDefinition>
-                <ServiceDefinition aspect.isAsync="false" category="" description="Exports the configured ThingWorx project directly to this repository." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="ExportProjectEntities">
+                <ServiceDefinition aspect.isAsync="false" category="" description="Exports and stages only the ProjectName configured on this FileRepository-backed GIT.Repository Thing." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="ExportProjectEntities">
                     <ResultType baseType="NOTHING" description="" name="result" ordinal="0"/>
                     <ParameterDefinitions>
-                        <FieldDefinition aspect.isRequired="true" baseType="STRING" description="Required ThingWorx project name" name="ProjectName" ordinal="1"/>
-                        <FieldDefinition baseType="BOOLEAN" description="" name="includeDependents" ordinal="2"/>
-                        <FieldDefinition aspect.dataShape="SpotlightSearch" baseType="INFOTABLE" description="Optional; if not set all project entities will be exported" name="EntitiesToExport" ordinal="3"/>
-                        <FieldDefinition baseType="STRING" description="Optional compatibility parameter; committing is handled by Commit." name="commitMessage" ordinal="4"/>
+                        <FieldDefinition baseType="BOOLEAN" description="Whether project dependents should also be exported" name="includeDependents" ordinal="1"/>
                     </ParameterDefinitions>
                 </ServiceDefinition>
-                <ServiceDefinition aspect.isAsync="false" category="" description="Imports all XML entities below this repository's configured path into its required ThingWorx project." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="ImportProjectEntities">
+                <ServiceDefinition aspect.isAsync="false" category="" description="Imports XML entities from this FileRepository-backed GIT.Repository into its configured ProjectName." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="ImportProjectEntities">
                     <ResultType baseType="INFOTABLE" description="" name="result" ordinal="0"/>
                     <ParameterDefinitions>
                         <FieldDefinition baseType="STRING" description="Relative path within this FileRepository; blank uses RepoPathName." name="entityPath" ordinal="1"/>
                         <FieldDefinition aspect.defaultValue="false" baseType="BOOLEAN" description="If true, strips dependency validation during import" name="ignoreDependencies" ordinal="2"/>
                     </ParameterDefinitions>
                 </ServiceDefinition>
-                <ServiceDefinition aspect.isAsync="false" category="" description="Pushes existing local commits to a remote. This service does not synchronize entities, stage files, or create commits. The remote defaults to origin." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="Push">
+                <ServiceDefinition aspect.isAsync="false" category="" description="Exports the ThingWorx project, pushes existing local commits using the current/upstream branch or explicit local and remote branch names, then imports the FileRepository tree." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="Push">
                     <ResultType baseType="STRING" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions>
-                        <FieldDefinition baseType="STRING" description="Optional remote name; defaults to origin" name="Remote" ordinal="1"/>
+                        <FieldDefinition baseType="STRING" description="Optional remote; defaults to the branch upstream or origin" name="Remote" ordinal="1"/>
+                        <FieldDefinition baseType="STRING" description="Optional local source branch; blank uses the current branch" name="BranchName" ordinal="2"/>
+                        <FieldDefinition baseType="STRING" description="Optional remote destination branch; blank uses the source branch" name="RemoteBranchName" ordinal="3"/>
+                        <FieldDefinition aspect.defaultValue="false" baseType="BOOLEAN" description="Set the local branch upstream after a successful push" name="SetUpstream" ordinal="4"/>
                     </ParameterDefinitions>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Pulls the last commit to the File Repository path" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="Pull">
@@ -57,17 +57,26 @@
                     <ResultType baseType="NOTHING" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions/>
                 </ServiceDefinition>
-                <ServiceDefinition aspect.isAsync="false" category="" description="Creates a new local branch from an optional start point (commit, branch, or tag) without switching to it." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="CreateBranch">
+                <ServiceDefinition aspect.isAsync="false" category="" description="Creates a new local branch from an optional start point without switching to it." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="BranchCreate">
                     <ResultType baseType="STRING" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions>
                         <FieldDefinition baseType="STRING" description="Name of the new branch" name="BranchName" ordinal="1"/>
                         <FieldDefinition baseType="STRING" description="Optional: commit hash, branch name, or tag to branch from (defaults to HEAD)" name="StartPoint" ordinal="2"/>
                     </ParameterDefinitions>
                 </ServiceDefinition>
-                <ServiceDefinition aspect.isAsync="false" category="" description="" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="Checkout">
+                <ServiceDefinition aspect.isAsync="false" category="" description="Checks out a branch, tag, or commit, optionally creating a branch or forcing the working tree update." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="Checkout">
                     <ResultType baseType="NOTHING" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions>
-                        <FieldDefinition baseType="STRING" description="Switches the working tree to the specified branch. This is a wrapper on top of checkout &lt;branch&gt;.It does not autocreate new branches." name="BranchNameOrCommit" ordinal="1"/>
+                        <FieldDefinition baseType="STRING" description="Branch, tag, commit, or remote branch to check out" name="BranchNameOrCommit" ordinal="1"/>
+                        <FieldDefinition aspect.defaultValue="false" baseType="BOOLEAN" description="Create a new branch before checkout" name="CreateBranch" ordinal="2"/>
+                        <FieldDefinition baseType="STRING" description="Optional start point when CreateBranch is true" name="StartPoint" ordinal="3"/>
+                        <FieldDefinition aspect.defaultValue="false" baseType="BOOLEAN" description="Force checkout over conflicting working-tree changes" name="Force" ordinal="4"/>
+                    </ParameterDefinitions>
+                </ServiceDefinition>
+                <ServiceDefinition aspect.isAsync="false" category="" description="Switches to an existing local branch or creates a tracking branch for a matching origin branch." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="BranchSwitch">
+                    <ResultType baseType="NOTHING" description="" name="Result" ordinal="0"/>
+                    <ParameterDefinitions>
+                        <FieldDefinition baseType="STRING" description="Local branch or matching remote branch name" name="BranchName" ordinal="1"/>
                     </ParameterDefinitions>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="GetCurrentBranch">
@@ -78,10 +87,13 @@
                     <ResultType aspect.dataShape="GIT.BranchList.DataShape" baseType="INFOTABLE" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions/>
                 </ServiceDefinition>
-                <ServiceDefinition aspect.isAsync="false" category="" description="This method deletes a local branch. Used in the case a remote branch was deleted/pruned and you want to remove your local copy." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="DeleteLocalBranch">
+                <ServiceDefinition aspect.isAsync="false" category="" description="Deletes a local branch and optionally its remote branch when explicitly requested." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="BranchDelete">
                     <ResultType baseType="STRING" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions>
-                        <FieldDefinition baseType="STRING" description="Branch name to be deleted, without the refs/heads/ part" name="BranchName" ordinal="1"/>
+                        <FieldDefinition baseType="STRING" description="Branch name to be deleted, without refs/heads/" name="BranchName" ordinal="1"/>
+                        <FieldDefinition baseType="STRING" description="Optional remote name used with DeleteRemote" name="Remote" ordinal="2"/>
+                        <FieldDefinition aspect.defaultValue="false" baseType="BOOLEAN" description="Explicitly delete the matching remote branch" name="DeleteRemote" ordinal="3"/>
+                        <FieldDefinition aspect.defaultValue="false" baseType="BOOLEAN" description="Force deletion when the branch is not merged" name="Force" ordinal="4"/>
                     </ParameterDefinitions>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Get a list of the commits for the current branch; if the current index is pointing to a commit, then it will return the commit list for the Initial branch configured in the Config section" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="GetCommitList">
@@ -123,10 +135,17 @@
                         <FieldDefinition baseType="STRING" description="Resolved file content" name="Content" ordinal="2"/>
                     </ParameterDefinitions>
                 </ServiceDefinition>
-                <ServiceDefinition aspect.isAsync="false" category="" description="Stages manually resolved files without exporting ThingWorx entities over the edits." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="StageResolved">
+                <ServiceDefinition aspect.isAsync="false" category="" description="Stages one repository-relative file, or all non-ignored changes when All is true." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="Add">
                     <ResultType baseType="STRING" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions>
-                        <FieldDefinition baseType="STRING" description="Optional resolved file pattern; omitted stages all changes" name="FilePattern" ordinal="1"/>
+                        <FieldDefinition baseType="STRING" description="Repository-relative file path; ignored when All is true" name="File" ordinal="1"/>
+                        <FieldDefinition aspect.defaultValue="false" baseType="BOOLEAN" description="Stages all non-ignored additions, modifications, and deletions" name="All" ordinal="2"/>
+                    </ParameterDefinitions>
+                </ServiceDefinition>
+                <ServiceDefinition aspect.isAsync="false" category="" description="Removes a repository-relative file from the Git index without deleting it." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="Remove">
+                    <ResultType baseType="STRING" description="" name="Result" ordinal="0"/>
+                    <ParameterDefinitions>
+                        <FieldDefinition baseType="STRING" description="Repository-relative file path" name="File" ordinal="1"/>
                     </ParameterDefinitions>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Completes a paused merge after conflicts are resolved and staged, then synchronizes ThingWorx." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="MergeContinue">
@@ -201,9 +220,6 @@
                     </ParameterDefinitions>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Selects or clears the current user's signing key for this repository" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="SetGPGKeyForSigning"><ResultType baseType="NOTHING" description="" name="result" ordinal="0"/><ParameterDefinitions><FieldDefinition baseType="STRING" description="Owned GPG fingerprint; blank disables signing" name="GpgKeyFingerprint" ordinal="1"/></ParameterDefinitions></ServiceDefinition>
-                <ServiceDefinition aspect.isAsync="false" category="" description="Imports one entity path" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="ImportEntity"><ResultType baseType="NOTHING" description="" name="result" ordinal="0"/><ParameterDefinitions><FieldDefinition baseType="STRING" description="Repository-relative path" name="entityPath" ordinal="1"/><FieldDefinition baseType="BOOLEAN" description="Ignore dependencies" name="ignoreDependencies" ordinal="2"/></ParameterDefinitions></ServiceDefinition>
-                <ServiceDefinition aspect.isAsync="false" category="" description="Removes imported last-modified metadata." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="RemoveLastModifiedDate"><ResultType baseType="NOTHING" description="" name="result" ordinal="0"/><ParameterDefinitions/></ServiceDefinition>
-                <ServiceDefinition aspect.isAsync="false" category="" description="Removes model persistence provider metadata" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="RemoveModelPersistenceProviderPackage"><ResultType baseType="NOTHING" description="" name="result" ordinal="0"/><ParameterDefinitions/></ServiceDefinition>
             </ServiceDefinitions>
             <EventDefinitions/>
             <ServiceMappings/>

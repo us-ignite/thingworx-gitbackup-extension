@@ -46,7 +46,7 @@ public class GiteaGitOperationsTest {
         createBody.addProperty("StartPoint", "main");
         var createReq =
                 stack.thingworx
-                        .serviceRequest(GIT_THING_NAME, "CreateBranch", createBody.toString())
+                        .serviceRequest(GIT_THING_NAME, "BranchCreate", createBody.toString())
                         .timeout(Duration.ofSeconds(10))
                         .build();
         var createRes = stack.httpClient.send(createReq, HttpResponse.BodyHandlers.ofString());
@@ -55,10 +55,10 @@ public class GiteaGitOperationsTest {
                 "CreateBranch failed: " + createRes.statusCode() + " " + createRes.body());
 
         JsonObject checkoutBody = new JsonObject();
-        checkoutBody.addProperty("BranchNameOrCommit", branchName);
+        checkoutBody.addProperty("BranchName", branchName);
         var checkoutReq =
                 stack.thingworx
-                        .serviceRequest(GIT_THING_NAME, "Checkout", checkoutBody.toString())
+                        .serviceRequest(GIT_THING_NAME, "BranchSwitch", checkoutBody.toString())
                         .timeout(Duration.ofSeconds(10))
                         .build();
         var checkoutRes = stack.httpClient.send(checkoutReq, HttpResponse.BodyHandlers.ofString());
@@ -71,9 +71,12 @@ public class GiteaGitOperationsTest {
 
         JsonObject pushBody = new JsonObject();
         pushBody.addProperty("Message", "Create branch " + branchName + " via test");
+        pushBody.addProperty("BranchName", branchName);
+        pushBody.addProperty("RemoteBranchName", branchName);
+        pushBody.addProperty("SetUpstream", true);
         var pushReq =
                 stack.thingworx
-                        .serviceRequest(GIT_THING_NAME, "Push", null)
+                        .serviceRequest(GIT_THING_NAME, "Push", pushBody.toString())
                         .timeout(Duration.ofSeconds(30))
                         .build();
         var pushRes = stack.httpClient.send(pushReq, HttpResponse.BodyHandlers.ofString());
@@ -85,10 +88,10 @@ public class GiteaGitOperationsTest {
                         + pushRes.body());
 
         JsonObject checkoutMainBody = new JsonObject();
-        checkoutMainBody.addProperty("BranchNameOrCommit", "main");
+        checkoutMainBody.addProperty("BranchName", "main");
         var checkoutMainReq =
                 stack.thingworx
-                        .serviceRequest(GIT_THING_NAME, "Checkout", checkoutMainBody.toString())
+                        .serviceRequest(GIT_THING_NAME, "BranchSwitch", checkoutMainBody.toString())
                         .timeout(Duration.ofSeconds(10))
                         .build();
         var checkoutMainRes =
@@ -214,6 +217,91 @@ public class GiteaGitOperationsTest {
         String bodyStr = pushRes.body();
         assertFalse(bodyStr.contains("Error"), "Push returned error: " + bodyStr);
         assertFalse(bodyStr.contains("Exception"), "Push threw exception: " + bodyStr);
+    }
+
+    @Test
+    @Order(3)
+    void testStageCommitAndPushRootReadme() throws Exception {
+        String readmeContent = "README staged through the explicit Git index API.";
+        editFileInRepoViaThingworxAPI(
+                GIT_THING_NAME, "/README.md", readmeContent);
+
+        JsonObject addBody = new JsonObject();
+        addBody.addProperty("File", "README.md");
+        addBody.addProperty("All", false);
+        var addReq =
+                stack.thingworx
+                        .serviceRequest(GIT_THING_NAME, "Add", addBody.toString())
+                        .timeout(Duration.ofSeconds(10))
+                        .build();
+        var addRes = stack.httpClient.send(addReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, addRes.statusCode(), "Add README.md failed: " + addRes.body());
+        assertFalse(addRes.body().contains("Error"), "Add returned error: " + addRes.body());
+
+        var statusReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "Status", null).build();
+        var statusRes = stack.httpClient.send(statusReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, statusRes.statusCode(), "Status after Add failed: " + statusRes.body());
+        assertTrue(
+                statusRes.body().contains("README.md") && statusRes.body().contains("Staged"),
+                "README.md should be reported after staging: " + statusRes.body());
+
+        JsonObject commitBody = new JsonObject();
+        commitBody.addProperty("Message", "Integration test: stage root README");
+        var commitReq =
+                stack.thingworx
+                        .serviceRequest(GIT_THING_NAME, "Commit", commitBody.toString())
+                        .timeout(Duration.ofSeconds(30))
+                        .build();
+        var commitRes = stack.httpClient.send(commitReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, commitRes.statusCode(), "README commit failed: " + commitRes.body());
+        assertFalse(
+                commitRes.body().contains("Error"),
+                "Commit returned error: " + commitRes.body());
+
+        var pushReq =
+                stack.thingworx
+                        .serviceRequest(GIT_THING_NAME, "Push", null)
+                        .timeout(Duration.ofSeconds(30))
+                        .build();
+        var pushRes = stack.httpClient.send(pushReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, pushRes.statusCode(), "README push failed: " + pushRes.body());
+        assertFalse(pushRes.body().contains("Error"), "Push returned error: " + pushRes.body());
+
+        var remoteReadmeReq =
+                java.net.http.HttpRequest.newBuilder()
+                        .uri(
+                                java.net.URI.create(
+                                        giteaExternalBaseUrl()
+                                                + "/api/v1/repos/"
+                                                + credentials.giteaUser
+                                                + "/"
+                                                + credentials.repoName
+                                                + "/contents/README.md?ref=main"))
+                        .header(
+                                "Authorization",
+                                "Basic "
+                                        + java.util.Base64.getEncoder()
+                                                .encodeToString(
+                                                        (credentials.giteaUser
+                                                                        + ":"
+                                                                        + credentials.giteaPass)
+                                                                .getBytes()))
+                        .GET()
+                        .build();
+        var remoteReadmeRes =
+                stack.httpClient.send(remoteReadmeReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(
+                200,
+                remoteReadmeRes.statusCode(),
+                "Gitea README.md lookup failed: " + remoteReadmeRes.body());
+        assertEquals(
+                "README.md",
+                JsonParser.parseString(remoteReadmeRes.body())
+                        .getAsJsonObject()
+                        .get("name")
+                        .getAsString(),
+                "Pushed README.md was not found in the remote repository: "
+                        + remoteReadmeRes.body());
     }
 
     @Test
@@ -357,10 +445,10 @@ public class GiteaGitOperationsTest {
         assertEquals(200, pullRes.statusCode(), "Pull before checkout failed: " + pullRes.body());
 
         JsonObject checkoutBody = new JsonObject();
-        checkoutBody.addProperty("BranchNameOrCommit", "it-temp-branch");
+        checkoutBody.addProperty("BranchName", "it-temp-branch");
         var checkoutReq =
                 stack.thingworx
-                        .serviceRequest(GIT_THING_NAME, "Checkout", checkoutBody.toString())
+                        .serviceRequest(GIT_THING_NAME, "BranchSwitch", checkoutBody.toString())
                         .build();
         var checkoutRes = stack.httpClient.send(checkoutReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(
@@ -369,10 +457,10 @@ public class GiteaGitOperationsTest {
                 "Checkout to temp branch failed: " + checkoutRes.body());
 
         JsonObject switchBackBody = new JsonObject();
-        switchBackBody.addProperty("BranchNameOrCommit", "main");
+        switchBackBody.addProperty("BranchName", "main");
         var switchBackReq =
                 stack.thingworx
-                        .serviceRequest(GIT_THING_NAME, "Checkout", switchBackBody.toString())
+                        .serviceRequest(GIT_THING_NAME, "BranchSwitch", switchBackBody.toString())
                         .build();
         var switchBackRes =
                 stack.httpClient.send(switchBackReq, HttpResponse.BodyHandlers.ofString());
@@ -385,7 +473,7 @@ public class GiteaGitOperationsTest {
         deleteBody.addProperty("BranchName", "it-temp-branch");
         var deleteReq =
                 stack.thingworx
-                        .serviceRequest(GIT_THING_NAME, "DeleteLocalBranch", deleteBody.toString())
+                        .serviceRequest(GIT_THING_NAME, "BranchDelete", deleteBody.toString())
                         .build();
         var deleteRes = stack.httpClient.send(deleteReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, deleteRes.statusCode(), "DeleteLocalBranch failed: " + deleteRes.body());

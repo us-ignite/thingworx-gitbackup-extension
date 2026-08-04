@@ -6,19 +6,19 @@ project as part of their workflow.
 
 ## Export
 
-Export can collect the configured project’s entities, data, extensions, and related resources into
-the repository. The export list can also be adjusted explicitly before the export runs. Configure
-the repository’s required `ProjectName` and localization-token prefix when those resources should
-be included.
+Export collects all entities from the project configured on the `GIT.Repository` Thing—which is
+itself the FileRepository—into the repository. Configure the repository’s `ProjectName` and
+localization-token prefix when those resources should be included.
 
-Export does not automatically commit or push the resulting files. Review the working tree, call
-`Commit` with an explicit message, and call `Push` separately when the commit should be published.
+Export stages only the configured ThingWorx project tree; it never commits or pushes the resulting
+files. Stage manual files with `Add`, review the index and working tree with `Status`, call `Commit`
+with an explicit message, and call `Push` separately when the commit should be published.
 
 ## Import
 
 `ImportProjectEntities` discovers XML entities recursively below the configured repository path and
-returns an import summary. `ImportEntity` is the repository Thing service for importing the
-configured path into ThingWorx; both services use the repository's required `ProjectName`.
+returns an import summary. Use it for all repository imports; it uses the repository's required
+`ProjectName`.
 Review the result summary and ThingWorx logs after an import, especially when an entity depends on
 another entity that is not present in the same revision.
 
