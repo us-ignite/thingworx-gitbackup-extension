@@ -2,6 +2,7 @@
 .gradle/
 build*/
 public/
+*javadoc*
 
 # Eclipse
 .project
