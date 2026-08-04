@@ -132,7 +132,9 @@ public class PastedKeyGpgSigner implements Signer {
         }
     }
 
-    /** Returns the fingerprint of the first usable signing key, or {@code null} when none exists. */
+    /**
+     * Returns the fingerprint of the first usable signing key, or {@code null} when none exists.
+     */
     public String getFingerprint() throws IOException, PGPException {
         if (Security.getProvider("BC") == null) {
             Security.addProvider(new BouncyCastleProvider());

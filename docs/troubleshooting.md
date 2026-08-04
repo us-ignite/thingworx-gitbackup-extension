@@ -10,7 +10,10 @@ Review `GIT.ExtensionLog.DataTable`, the service result, and the Git working tre
 
 ## GPG failures
 
-Verify the armored key, passphrase, signing-key identifier, and fingerprint. The key must contain a usable signing secret key. Confirm that the configured committer identity is acceptable to the Git server’s signature policy.
+Verify the armored key, passphrase, selected fingerprint, and repository signing selection. The key
+must contain a usable signing secret key. Confirm that the configured committer identity is
+acceptable to the Git server’s signature policy. Remember that `Commit` signs locally and `Push`
+publishes the resulting commit separately.
 
 ## Upgrade issues
 

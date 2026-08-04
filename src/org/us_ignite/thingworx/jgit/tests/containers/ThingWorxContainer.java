@@ -186,6 +186,19 @@ public class ThingWorxContainer extends GenericContainer<ThingWorxContainer> {
                 .POST(HttpRequest.BodyPublishers.ofString(body == null ? "{}" : body));
     }
 
+    public Builder propertyRequest(String thingName, String body) {
+        var baseUrl = externalUrl != null ? externalUrl : "http://thingworx:8080";
+        var uri = URI.create(baseUrl + "/Thingworx/Things/" + thingName + "/Properties");
+        return HttpRequest.newBuilder()
+                .uri(uri)
+                .header("Content-Type", "application/json;charset=UTF-8")
+                .header("Accept", "application/json")
+                .header("Authorization", authHeader)
+                .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
+                .header("X-Requested-By", "ThingWorx")
+                .PUT(HttpRequest.BodyPublishers.ofString(body == null ? "{}" : body));
+    }
+
     public HttpRequest healthCheckRequest() {
         var baseUrl = externalUrl != null ? externalUrl : "http://thingworx:8080";
         return HttpRequest.newBuilder()

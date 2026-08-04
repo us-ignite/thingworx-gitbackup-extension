@@ -10,8 +10,7 @@
             <ConfigurationTables/>
             <FieldDefinitions>
                 <FieldDefinition baseType="STRING" description="GIT Repository Thing associated with the verification" name="GitThing" ordinal="1"/>
-                <FieldDefinition baseType="BOOLEAN" description="Whether the key can be used for signing" name="SignCommits" ordinal="2"/>
-                <FieldDefinition baseType="STRING" description="OpenPGP key fingerprint or verification error" name="GpgKeyFingerprint" ordinal="3"/>
+                <FieldDefinition baseType="STRING" description="OpenPGP key fingerprint or verification error" name="GpgKeyFingerprint" ordinal="2"/>
             </FieldDefinitions>
         </DataShape>
     </DataShapes>

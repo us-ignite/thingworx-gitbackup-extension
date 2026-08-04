@@ -32,7 +32,6 @@ public class ExtMigrator extends ExtensionMigratorBase {
             throw new IllegalStateException("ExtMigrator: GIT.Utility.Thing was not imported.");
         }
         thing.processServiceRequest("InitUserExtensionProperties", null);
-        thing.processServiceRequest("InitUserExtensionGpgKeysProperty", null);
         _logger.warn("ExtMigrator: UserExtension properties initialized.");
     }
 }

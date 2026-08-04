@@ -1,21 +1,28 @@
 # Configuration
 
-Each repository Thing stores its connection and local-storage settings in its `Configuration` table.
+Each repository Thing stores its connection and local-storage settings in persistent Thing properties.
+`RepositoryCreate` accepts these repository settings and the current user's Git credentials in a
+single call.
 
 | Setting | Description |
 |---|---|
 | `GitRepoURL` | Remote Git repository URL. |
-| `FileRepository` | ThingWorx FileRepository used for the local clone. |
-| `RepoPathName` | Directory within the FileRepository. |
+| `RepoPathName` | Directory within the repository Thing's FileRepository storage. |
 | `BranchName` | Initial or default branch. The default is `main`. |
 | `UseProxy` | Enables the configured HTTP proxy. |
 | `ProxyURL` / `ProxyPort` | Proxy host and port when enabled. |
 | `LocalizationTokensPrefix` | Optional prefix used during localization-token export. |
-| `ProjectName` | Optional ThingWorx project whose entities are synchronized. |
+| `ProjectName` | Required ThingWorx project whose entities are synchronized. Repository sync operations use this project. |
+
+`RepositoryCreate` creates a Thing from the `FileRepository` template, adds
+`GIT.Repository.ThingShape`,
+configures the repository properties, and creates the current user's credential record. The
+credential service parameters are strings in the Java/XML service contract; sensitive values are
+stored in protected user-property fields.
 
 Per-user settings include Git credentials, committer identity overrides, GPG keys, and the per-repository commit-signing preference. These values are configured for each user through the ThingWorx UI on the `UserExtensions` UserExtension properties and are stored as protected ThingWorx properties where applicable.
 
 Use repository-specific credentials with the minimum permissions needed for the required Git operations. Do not put passwords or private keys in repository URLs, source files, or exported documentation.
 
-The related utility services, including `SetGitCredentials`, `SetGpgKey`, `GetGpgKeys`, and
-`DeleteGpgKey`, are listed in the [service reference](service-reference.md).
+The related utility services, including `GitCredentialCreate`, `GitCredentialList`, `GpgKeyCreate`, and
+`GpgKeyList`, are listed in the [service reference](service-reference.md).
