@@ -42,7 +42,7 @@ be entered through the current user’s `UserExtensions` properties and must not
 | `GetDiffPerFileBetweenCommits` | `File: STRING`, `FromCommitID: STRING` | Returns a file diff for the requested commit against its parent. |
 | `GetCommitInfo` | `CommitID: STRING` | Returns `GIT.CommitInfo`. |
 | `ExportProjectEntities` | `includeDependents: BOOLEAN` | Exports all entities from the `ProjectName` configured on the repository Thing and stages only its `RepoPathName/ProjectName` tree. It never commits. |
-| `ImportProjectEntities` | `entityPath: STRING`, `ignoreDependencies: BOOLEAN` | Imports repository entities into the repository Thing’s required configured `ProjectName` and returns a summary. |
+| `ImportProjectEntities` | `entityPath: STRING` | Imports repository entities into the repository Thing’s required configured `ProjectName` and returns the post-import Git status. |
 | `SetGPGKeyForSigning` | `GpgKeyFingerprint: STRING` | Selects or clears the current user's signing key for this repository. |
 | `Merge` | `BranchName: STRING` | Merges a branch into the current branch. |
 | `Rebase` | `UpstreamBranch: STRING` | Rebases onto an upstream branch. |

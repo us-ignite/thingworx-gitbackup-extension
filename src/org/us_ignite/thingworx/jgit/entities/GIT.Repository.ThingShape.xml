@@ -14,26 +14,25 @@
             </PropertyDefinitions>
             <ServiceDefinitions>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Syncs the ThingWorx project entities, then commits the current Git index. Does not push to the remote." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="Commit">
-                    <ResultType baseType="STRING" description="" name="Result" ordinal="0"/>
+                    <ResultType aspect.dataShape="GIT.OperationResult.DataShape" baseType="INFOTABLE" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions>
                         <FieldDefinition baseType="STRING" description="The commit message" name="Message" ordinal="1"/>
                     </ParameterDefinitions>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Exports and stages only the ProjectName configured on this FileRepository-backed GIT.Repository Thing." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="ExportProjectEntities">
-                    <ResultType baseType="NOTHING" description="" name="result" ordinal="0"/>
+                    <ResultType aspect.dataShape="GIT.OperationResult.DataShape" baseType="INFOTABLE" description="" name="result" ordinal="0"/>
                     <ParameterDefinitions>
                         <FieldDefinition baseType="BOOLEAN" description="Whether project dependents should also be exported" name="includeDependents" ordinal="1"/>
                     </ParameterDefinitions>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Imports XML entities from this FileRepository-backed GIT.Repository into its configured ProjectName." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="ImportProjectEntities">
-                    <ResultType baseType="INFOTABLE" description="" name="result" ordinal="0"/>
+                    <ResultType aspect.dataShape="GIT.Status.ServiceResult.DataShape" baseType="INFOTABLE" description="" name="result" ordinal="0"/>
                     <ParameterDefinitions>
                         <FieldDefinition baseType="STRING" description="Relative path within this FileRepository; blank uses RepoPathName." name="entityPath" ordinal="1"/>
-                        <FieldDefinition aspect.defaultValue="false" baseType="BOOLEAN" description="If true, strips dependency validation during import" name="ignoreDependencies" ordinal="2"/>
                     </ParameterDefinitions>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Exports the ThingWorx project, pushes existing local commits using the current/upstream branch or explicit local and remote branch names, then imports the FileRepository tree." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="Push">
-                    <ResultType baseType="STRING" description="" name="Result" ordinal="0"/>
+                    <ResultType aspect.dataShape="GIT.OperationResult.DataShape" baseType="INFOTABLE" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions>
                         <FieldDefinition baseType="STRING" description="Optional remote; defaults to the branch upstream or origin" name="Remote" ordinal="1"/>
                         <FieldDefinition baseType="STRING" description="Optional local source branch; blank uses the current branch" name="BranchName" ordinal="2"/>
@@ -42,30 +41,30 @@
                     </ParameterDefinitions>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Pulls the last commit to the File Repository path" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="Pull">
-                    <ResultType baseType="STRING" description="" name="Result" ordinal="0"/>
+                    <ResultType aspect.dataShape="GIT.OperationResult.DataShape" baseType="INFOTABLE" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions>
                         <FieldDefinition aspect.defaultValue="false" baseType="BOOLEAN" description="Forces a hard reset instead of a normal pull" name="Force" ordinal="1"/>
                     </ParameterDefinitions>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Fetches refs and objects from a remote without merging, checking out, resetting, or synchronizing entities. The remote defaults to origin." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="Fetch">
-                    <ResultType baseType="STRING" description="" name="Result" ordinal="0"/>
+                    <ResultType aspect.dataShape="GIT.OperationResult.DataShape" baseType="INFOTABLE" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions>
                         <FieldDefinition baseType="STRING" description="Optional remote name; defaults to origin" name="Remote" ordinal="1"/>
                     </ParameterDefinitions>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Deletes all files from the local repo path including the git configuration files. This operation is needed in case the git operations throw up strange errors. Reinitializes the Git object entirely." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="DeleteLocalRepoContent">
-                    <ResultType baseType="NOTHING" description="" name="Result" ordinal="0"/>
+                    <ResultType aspect.dataShape="GIT.OperationResult.DataShape" baseType="INFOTABLE" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions/>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Creates a new local branch from an optional start point without switching to it." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="BranchCreate">
-                    <ResultType baseType="STRING" description="" name="Result" ordinal="0"/>
+                    <ResultType aspect.dataShape="GIT.OperationResult.DataShape" baseType="INFOTABLE" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions>
                         <FieldDefinition baseType="STRING" description="Name of the new branch" name="BranchName" ordinal="1"/>
                         <FieldDefinition baseType="STRING" description="Optional: commit hash, branch name, or tag to branch from (defaults to HEAD)" name="StartPoint" ordinal="2"/>
                     </ParameterDefinitions>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Checks out a branch, tag, or commit, optionally creating a branch or forcing the working tree update." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="Checkout">
-                    <ResultType baseType="NOTHING" description="" name="Result" ordinal="0"/>
+                    <ResultType aspect.dataShape="GIT.OperationResult.DataShape" baseType="INFOTABLE" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions>
                         <FieldDefinition baseType="STRING" description="Branch, tag, commit, or remote branch to check out" name="BranchNameOrCommit" ordinal="1"/>
                         <FieldDefinition aspect.defaultValue="false" baseType="BOOLEAN" description="Create a new branch before checkout" name="CreateBranch" ordinal="2"/>
@@ -74,7 +73,7 @@
                     </ParameterDefinitions>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Switches to an existing local branch or creates a tracking branch for a matching origin branch." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="BranchSwitch">
-                    <ResultType baseType="NOTHING" description="" name="Result" ordinal="0"/>
+                    <ResultType aspect.dataShape="GIT.OperationResult.DataShape" baseType="INFOTABLE" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions>
                         <FieldDefinition baseType="STRING" description="Local branch or matching remote branch name" name="BranchName" ordinal="1"/>
                     </ParameterDefinitions>
@@ -88,7 +87,7 @@
                     <ParameterDefinitions/>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Deletes a local branch and optionally its remote branch when explicitly requested." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="BranchDelete">
-                    <ResultType baseType="STRING" description="" name="Result" ordinal="0"/>
+                    <ResultType aspect.dataShape="GIT.OperationResult.DataShape" baseType="INFOTABLE" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions>
                         <FieldDefinition baseType="STRING" description="Branch name to be deleted, without refs/heads/" name="BranchName" ordinal="1"/>
                         <FieldDefinition baseType="STRING" description="Optional remote name used with DeleteRemote" name="Remote" ordinal="2"/>
@@ -101,35 +100,35 @@
                     <ParameterDefinitions/>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Returns commit history, newest first. Ref is optional and defaults to the current branch, or the configured branch when HEAD is detached. MaxEntries of zero or omitted means no limit." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="GetLog">
-                    <ResultType aspect.dataShape="GIT.CommitLog.DataShape" baseType="INFOTABLE" description="" name="Result" ordinal="0"/>
+                    <ResultType aspect.dataShape="GIT.CommitLog.ServiceResult.DataShape" baseType="INFOTABLE" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions>
                         <FieldDefinition baseType="STRING" description="Optional branch, tag, commit, or ref name" name="Ref" ordinal="1"/>
                         <FieldDefinition baseType="INTEGER" description="Maximum number of entries; zero or omitted means no limit" name="MaxEntries" ordinal="2"/>
                     </ParameterDefinitions>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Returns local reflog entries, newest first. Reflogs are local to this repository clone and are not remote history. Ref defaults to HEAD; MaxEntries of zero or omitted means no limit." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="GetReflog">
-                    <ResultType aspect.dataShape="GIT.ReflogEntry.DataShape" baseType="INFOTABLE" description="" name="Result" ordinal="0"/>
+                    <ResultType aspect.dataShape="GIT.ReflogEntry.ServiceResult.DataShape" baseType="INFOTABLE" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions>
                         <FieldDefinition baseType="STRING" description="Optional ref name; defaults to HEAD" name="Ref" ordinal="1"/>
                         <FieldDefinition baseType="INTEGER" description="Maximum number of entries; zero or omitted means no limit" name="MaxEntries" ordinal="2"/>
                     </ParameterDefinitions>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="Status">
-                    <ResultType aspect.dataShape="GIT.Status.DataShape" baseType="INFOTABLE" description="" name="Result" ordinal="0"/>
+                    <ResultType aspect.dataShape="GIT.Status.ServiceResult.DataShape" baseType="INFOTABLE" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions/>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Returns Git-conflicted files without synchronizing entities." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="GetConflictFiles">
-                    <ResultType aspect.dataShape="GIT.Status.DataShape" baseType="INFOTABLE" description="" name="Result" ordinal="0"/>
+                    <ResultType aspect.dataShape="GIT.Status.ServiceResult.DataShape" baseType="INFOTABLE" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions/>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Reads a conflicted repository file for UI editing." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="ReadConflictFile">
-                    <ResultType baseType="STRING" description="" name="Result" ordinal="0"/>
+                    <ResultType aspect.dataShape="GIT.StringResult.DataShape" baseType="INFOTABLE" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions>
                         <FieldDefinition baseType="STRING" description="Repository-relative file path" name="File" ordinal="1"/>
                     </ParameterDefinitions>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Writes a UI-resolved repository file while a merge or rebase is paused." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="WriteConflictFile">
-                    <ResultType baseType="STRING" description="" name="Result" ordinal="0"/>
+                    <ResultType aspect.dataShape="GIT.OperationResult.DataShape" baseType="INFOTABLE" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions>
                         <FieldDefinition baseType="STRING" description="Repository-relative file path" name="File" ordinal="1"/>
                         <FieldDefinition baseType="STRING" description="Resolved file content" name="Content" ordinal="2"/>
@@ -171,38 +170,38 @@
                     <ParameterDefinitions/>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Compatibility service that returns the working-tree diff for one file." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="GetDiffPerFile">
-                    <ResultType baseType="STRING" description="" name="Result" ordinal="0"/>
+                    <ResultType aspect.dataShape="GIT.StringResult.DataShape" baseType="INFOTABLE" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions>
                         <FieldDefinition baseType="STRING" description="" name="File" ordinal="1"/>
                     </ParameterDefinitions>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="GetDiffPerFileBetweenCommits">
-                    <ResultType baseType="STRING" description="" name="Result" ordinal="0"/>
+                    <ResultType aspect.dataShape="GIT.StringResult.DataShape" baseType="INFOTABLE" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions>
                         <FieldDefinition baseType="STRING" description="" name="File" ordinal="1"/>
                         <FieldDefinition baseType="STRING" description="" name="FromCommitID" ordinal="2"/>
                     </ParameterDefinitions>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="This service gets a commit information based on the Commit ID" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="GetCommitInfo">
-                    <ResultType aspect.dataShape="GIT.CommitInfo.DataShape" baseType="INFOTABLE" description="" name="Result" ordinal="0"/>
+                    <ResultType aspect.dataShape="GIT.CommitInfo.ServiceResult.DataShape" baseType="INFOTABLE" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions>
                         <FieldDefinition baseType="STRING" description="" name="CommitID" ordinal="1"/>
                     </ParameterDefinitions>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Merges the specified branch into the current branch." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="Merge">
-                    <ResultType baseType="STRING" description="" name="Result" ordinal="0"/>
+                    <ResultType aspect.dataShape="GIT.OperationResult.DataShape" baseType="INFOTABLE" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions>
                         <FieldDefinition baseType="STRING" description="The branch to merge from" name="BranchName" ordinal="1"/>
                     </ParameterDefinitions>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Rebases the current branch onto the specified upstream branch." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="Rebase">
-                    <ResultType baseType="STRING" description="" name="Result" ordinal="0"/>
+                    <ResultType aspect.dataShape="GIT.OperationResult.DataShape" baseType="INFOTABLE" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions>
                         <FieldDefinition baseType="STRING" description="The branch or commit to rebase onto" name="UpstreamBranch" ordinal="1"/>
                     </ParameterDefinitions>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Creates a lightweight or annotated tag on the specified commit (defaults to HEAD)." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="CreateTag">
-                    <ResultType baseType="STRING" description="" name="Result" ordinal="0"/>
+                    <ResultType aspect.dataShape="GIT.OperationResult.DataShape" baseType="INFOTABLE" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions>
                         <FieldDefinition baseType="STRING" description="Name of the tag to create" name="TagName" ordinal="1"/>
                         <FieldDefinition baseType="STRING" description="Optional tag message (creates annotated tag)" name="Message" ordinal="2"/>
@@ -214,12 +213,12 @@
                     <ParameterDefinitions/>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Deletes a tag from the repository." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="DeleteTag">
-                    <ResultType baseType="NOTHING" description="" name="Result" ordinal="0"/>
+                    <ResultType aspect.dataShape="GIT.OperationResult.DataShape" baseType="INFOTABLE" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions>
                         <FieldDefinition baseType="STRING" description="Name of the tag to delete" name="TagName" ordinal="1"/>
                     </ParameterDefinitions>
                 </ServiceDefinition>
-                <ServiceDefinition aspect.isAsync="false" category="" description="Selects or clears the current user's signing key for this repository" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="SetGPGKeyForSigning"><ResultType baseType="NOTHING" description="" name="result" ordinal="0"/><ParameterDefinitions><FieldDefinition baseType="STRING" description="Owned GPG fingerprint; blank disables signing" name="GpgKeyFingerprint" ordinal="1"/></ParameterDefinitions></ServiceDefinition>
+                <ServiceDefinition aspect.isAsync="false" category="" description="Selects or clears the current user's signing key for this repository" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="SetGPGKeyForSigning"><ResultType aspect.dataShape="GIT.OperationResult.DataShape" baseType="INFOTABLE" description="" name="result" ordinal="0"/><ParameterDefinitions><FieldDefinition baseType="STRING" description="Owned GPG fingerprint; blank disables signing" name="GpgKeyFingerprint" ordinal="1"/></ParameterDefinitions></ServiceDefinition>
             </ServiceDefinitions>
             <EventDefinitions/>
             <ServiceMappings/>
