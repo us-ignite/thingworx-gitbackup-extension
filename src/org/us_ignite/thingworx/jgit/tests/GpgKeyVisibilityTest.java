@@ -3,9 +3,11 @@ package org.us_ignite.thingworx.jgit.tests;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.us_ignite.thingworx.jgit.tests.util.ServiceResultAssertions.assertSuccess;
+import static org.us_ignite.thingworx.jgit.tests.util.ServiceResultAssertions.responseDataShape;
+import static org.us_ignite.thingworx.jgit.tests.util.ServiceResultAssertions.responseRows;
 
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
@@ -120,10 +122,7 @@ public class GpgKeyVisibilityTest {
                 res.statusCode(),
                 "GetGpgKeys should return 200. Got " + res.statusCode() + ": " + res.body());
         assertNotNull(res.body());
-        var json = JsonParser.parseString(res.body()).getAsJsonObject();
-        assertTrue(
-                json.has("rows"),
-                "GetGpgKeys should return an infotable with 'rows' field: " + res.body());
+        assertSuccess(res.body());
     }
 
     @Test
@@ -156,12 +155,11 @@ public class GpgKeyVisibilityTest {
                         + ": "
                         + getRes.body());
         assertNotNull(getRes.body());
-        var json = JsonParser.parseString(getRes.body()).getAsJsonObject();
-        assertTrue(json.has("rows"), "Response should have rows: " + getRes.body());
+        var rows = responseRows(getRes.body());
         assertTrue(
-                json.getAsJsonArray("rows").size() > 0,
+                rows.size() > 0,
                 "Should have at least one GpgKey row: " + getRes.body());
-        var firstRow = json.getAsJsonArray("rows").get(0).getAsJsonObject();
+        var firstRow = rows.get(0).getAsJsonObject();
         assertTrue(
                 firstRow.has("GpgKeyFingerprint"),
                 "Row should have GpgKeyFingerprint field: " + firstRow);
@@ -190,11 +188,7 @@ public class GpgKeyVisibilityTest {
         var getRes = stack.httpClient.send(getReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, getRes.statusCode(), "GetGpgKeys should return 200: " + getRes.body());
 
-        var json = JsonParser.parseString(getRes.body()).getAsJsonObject();
-        assertTrue(
-                json.has("dataShape"),
-                "Response should include dataShape metadata: " + getRes.body());
-        var ds = json.getAsJsonObject("dataShape");
+        var ds = responseDataShape(getRes.body());
         assertTrue(ds.has("fieldDefinitions"), "dataShape should have fieldDefinitions: " + ds);
 
         var fields = ds.getAsJsonObject("fieldDefinitions");

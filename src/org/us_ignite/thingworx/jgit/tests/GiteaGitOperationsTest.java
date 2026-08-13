@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.us_ignite.thingworx.jgit.tests.util.ServiceResultAssertions.assertSuccess;
+import static org.us_ignite.thingworx.jgit.tests.util.ServiceResultAssertions.responseRows;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -215,8 +217,7 @@ public class GiteaGitOperationsTest {
         assertEquals(200, pushRes.statusCode(), "Push failed: " + pushRes.body());
         assertNotNull(pushRes.body());
         String bodyStr = pushRes.body();
-        assertFalse(bodyStr.contains("Error"), "Push returned error: " + bodyStr);
-        assertFalse(bodyStr.contains("Exception"), "Push threw exception: " + bodyStr);
+        assertSuccess(bodyStr);
     }
 
     @Test
@@ -254,9 +255,7 @@ public class GiteaGitOperationsTest {
                         .build();
         var commitRes = stack.httpClient.send(commitReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, commitRes.statusCode(), "README commit failed: " + commitRes.body());
-        assertFalse(
-                commitRes.body().contains("Error"),
-                "Commit returned error: " + commitRes.body());
+        assertSuccess(commitRes.body());
 
         var pushReq =
                 stack.thingworx
@@ -265,7 +264,7 @@ public class GiteaGitOperationsTest {
                         .build();
         var pushRes = stack.httpClient.send(pushReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, pushRes.statusCode(), "README push failed: " + pushRes.body());
-        assertFalse(pushRes.body().contains("Error"), "Push returned error: " + pushRes.body());
+        assertSuccess(pushRes.body());
 
         var remoteReadmeReq =
                 java.net.http.HttpRequest.newBuilder()
@@ -325,7 +324,7 @@ public class GiteaGitOperationsTest {
         var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, res.statusCode(), "Pull failed: " + res.body());
         assertNotNull(res.body());
-        assertFalse(res.body().contains("Error"), "Pull returned error: " + res.body());
+        assertSuccess(res.body());
     }
 
     @Test
@@ -583,8 +582,7 @@ public class GiteaGitOperationsTest {
                 stack.thingworx.serviceRequest(GIT_THING_NAME, "Pull", body.toString()).build();
         var pullRes = stack.httpClient.send(pullReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, pullRes.statusCode(), "Force pull failed: " + pullRes.body());
-        assertFalse(
-                pullRes.body().contains("Error"), "Force pull returned error: " + pullRes.body());
+        assertSuccess(pullRes.body());
     }
 
     @Test
@@ -623,9 +621,7 @@ public class GiteaGitOperationsTest {
                         .matches("(?s).*\\\"GpgKeyFingerprint\\\"\\s*:\\s*\\\"[0-9a-fA-F]+\\\".*"),
                 "Stored GPG key fingerprint could not be located: " + verifyKeyRes.body());
         String signingFingerprint =
-                JsonParser.parseString(verifyKeyRes.body())
-                        .getAsJsonObject()
-                        .getAsJsonArray("rows")
+                responseRows(verifyKeyRes.body())
                         .get(0)
                         .getAsJsonObject()
                         .get("GpgKeyFingerprint")
@@ -656,11 +652,7 @@ public class GiteaGitOperationsTest {
         var pushReq = stack.thingworx.serviceRequest(GIT_THING_NAME, "Push", null).build();
         var pushRes = stack.httpClient.send(pushReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, pushRes.statusCode(), "Signed Push failed: " + pushRes.body());
-        assertFalse(
-                pushRes.body().contains("Error"), "Signed Push returned error: " + pushRes.body());
-        assertFalse(
-                pushRes.body().contains("Exception"),
-                "Signed Push threw exception: " + pushRes.body());
+        assertSuccess(pushRes.body());
 
         var commitListReq =
                 stack.thingworx.serviceRequest(GIT_THING_NAME, "GetCommitList", null).build();
@@ -683,10 +675,7 @@ public class GiteaGitOperationsTest {
         assertEquals(
                 200, commitInfoRes.statusCode(), "GetCommitInfo failed: " + commitInfoRes.body());
 
-        var rows =
-                JsonParser.parseString(commitInfoRes.body())
-                        .getAsJsonObject()
-                        .getAsJsonArray("rows");
+        var rows = responseRows(commitInfoRes.body());
         assertNotNull(rows, "Commit info did not return rows: " + commitInfoRes.body());
         assertEquals(1, rows.size(), "Expected one commit info row: " + commitInfoRes.body());
         assertEquals(
@@ -825,8 +814,7 @@ public class GiteaGitOperationsTest {
         var mergeRes = stack.httpClient.send(mergeReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, mergeRes.statusCode(), "Merge failed: " + mergeRes.body());
         String body = mergeRes.body();
-        assertFalse(body.contains("Error"), "Merge returned error: " + body);
-        assertFalse(body.contains("Exception"), "Merge threw exception: " + body);
+        assertSuccess(body);
     }
 
     @Test
@@ -871,8 +859,7 @@ public class GiteaGitOperationsTest {
         var rebaseRes = stack.httpClient.send(rebaseReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, rebaseRes.statusCode(), "Rebase failed: " + rebaseRes.body());
         String body = rebaseRes.body();
-        assertFalse(body.contains("Error"), "Rebase returned error: " + body);
-        assertFalse(body.contains("Exception"), "Rebase threw exception: " + body);
+        assertSuccess(body);
     }
 
     @Test
@@ -917,7 +904,7 @@ public class GiteaGitOperationsTest {
         var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, res.statusCode(), "Fetch failed: " + res.body());
         assertNotNull(res.body());
-        assertFalse(res.body().contains("Error"), "Fetch returned error: " + res.body());
+        assertSuccess(res.body());
     }
 
     @Test
@@ -931,22 +918,13 @@ public class GiteaGitOperationsTest {
                 stack.thingworx.serviceRequest(GIT_THING_NAME, "Pull", "{\"Force\":false}").build();
         var pullRes = stack.httpClient.send(pullReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, pullRes.statusCode(), "Pull after delete failed: " + pullRes.body());
-        assertFalse(
-                pullRes.body().contains("Error"),
-                "Pull after content deletion returned error: " + pullRes.body());
+        assertSuccess(pullRes.body());
     }
 
     private String extractFirstCommitId(String json) {
-        int rowsIdx = json.indexOf("\"rows\"");
-        if (rowsIdx == -1) return null;
-        int commitIdIdx = json.indexOf("\"CommitID\"", rowsIdx);
-        if (commitIdIdx == -1) return null;
-        int colonIdx = json.indexOf(":", commitIdIdx);
-        if (colonIdx == -1) return null;
-        int quote1 = json.indexOf("\"", colonIdx);
-        if (quote1 == -1) return null;
-        int quote2 = json.indexOf("\"", quote1 + 1);
-        if (quote2 == -1) return null;
-        return json.substring(quote1 + 1, quote2);
+        var rows = responseRows(json);
+        if (rows.isEmpty()) return null;
+        var row = rows.get(0).getAsJsonObject();
+        return row.has("CommitID") ? row.get("CommitID").getAsString() : null;
     }
 }

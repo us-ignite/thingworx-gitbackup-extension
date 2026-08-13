@@ -3,6 +3,7 @@ package org.us_ignite.thingworx.jgit.tests;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.us_ignite.thingworx.jgit.tests.util.ServiceResultAssertions.assertSuccess;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -260,7 +261,7 @@ public class EntitySyncTest {
                         .build();
         var pushRes = httpClient.send(pushReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, pushRes.statusCode(), "Push on source failed: " + pushRes.body());
-        assertFalse(pushRes.body().contains("Error"), "Push returned error: " + pushRes.body());
+        assertSuccess(pushRes.body());
         String sourcePath = "shared/" + TEST_PROJECT + "/Things/" + SOURCE_THING + ".xml";
         var giteaRes =
                 httpClient.send(
@@ -328,7 +329,7 @@ public class EntitySyncTest {
                         .build();
         var pullRes = httpClient.send(pullReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, pullRes.statusCode(), "Pull on target failed: " + pullRes.body());
-        assertFalse(pullRes.body().contains("Error"), "Pull returned error: " + pullRes.body());
+        assertSuccess(pullRes.body());
     }
 
     @Test
