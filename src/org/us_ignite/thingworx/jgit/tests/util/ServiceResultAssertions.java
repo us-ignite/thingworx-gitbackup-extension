@@ -35,7 +35,9 @@ public final class ServiceResultAssertions {
         JsonObject row = assertSuccess(response);
         assertTrue(row.has("Response"), "Service result must include Response: " + response);
         JsonObject payload = row.getAsJsonObject("Response");
-        assertTrue(payload.has("dataShape"), "Service payload must include DataShape metadata: " + response);
+        assertTrue(
+                payload.has("dataShape"),
+                "Service payload must include DataShape metadata: " + response);
         return payload.getAsJsonObject("dataShape");
     }
 }

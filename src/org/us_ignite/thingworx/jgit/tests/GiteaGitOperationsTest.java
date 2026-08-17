@@ -224,8 +224,7 @@ public class GiteaGitOperationsTest {
     @Order(3)
     void testStageCommitAndPushRootReadme() throws Exception {
         String readmeContent = "README staged through the explicit Git index API.";
-        editFileInRepoViaThingworxAPI(
-                GIT_THING_NAME, "/README.md", readmeContent);
+        editFileInRepoViaThingworxAPI(GIT_THING_NAME, "/README.md", readmeContent);
 
         JsonObject addBody = new JsonObject();
         addBody.addProperty("File", "README.md");
