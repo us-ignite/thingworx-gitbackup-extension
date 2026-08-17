@@ -96,7 +96,8 @@ final class ServiceResults {
         LOGGER.error("{} failed: {}", serviceName, message, error);
     }
 
-    private static InfoTable row(String resultShape, InfoTable payload, String message, boolean error) {
+    private static InfoTable row(
+            String resultShape, InfoTable payload, String message, boolean error) {
         InfoTable result = table(resultShape);
         ValueCollection row = statusRow(message, error);
         if (payload != null) row.put("Response", new InfoTablePrimitive(payload));
@@ -115,7 +116,8 @@ final class ServiceResults {
         try {
             return InfoTableInstanceFactory.createInfoTableFromDataShape(dataShape);
         } catch (Exception e) {
-            throw new IllegalStateException("Cannot create service result DataShape " + dataShape, e);
+            throw new IllegalStateException(
+                    "Cannot create service result DataShape " + dataShape, e);
         }
     }
 }

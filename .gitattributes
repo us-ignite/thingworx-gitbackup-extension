@@ -1,3 +1,3 @@
-configfiles/metadata.xml           filter=version
+src/org/us_ignite/thingworx/jgit/metadata.xml filter=version
 gradle.properties                  filter=version
 vendor/twx-resources.tar.gz.gpg   filter=twx-resources

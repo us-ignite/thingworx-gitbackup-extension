@@ -156,9 +156,7 @@ public class GpgKeyVisibilityTest {
                         + getRes.body());
         assertNotNull(getRes.body());
         var rows = responseRows(getRes.body());
-        assertTrue(
-                rows.size() > 0,
-                "Should have at least one GpgKey row: " + getRes.body());
+        assertTrue(rows.size() > 0, "Should have at least one GpgKey row: " + getRes.body());
         var firstRow = rows.get(0).getAsJsonObject();
         assertTrue(
                 firstRow.has("GpgKeyFingerprint"),
