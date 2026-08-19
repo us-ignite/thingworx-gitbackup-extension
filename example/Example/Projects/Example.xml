@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Entities build="b349" majorVersion="8" minorVersion="3" modelPersistenceProviderPackage="H2PersistenceProviderPackage" revision="0" schemaVersion="1030" universal="">
+    <Projects>
+        <Project dependsOn="" description="Example test project" documentationContent="" homeMashup="" name="Example" packageVersion="1.0.0" projectName="Example" tags="">
+            <Owner name="Administrator" type="User"/>
+            <avatar/>
+            <DesignTimePermissions>
+                <Create/>
+                <Read/>
+                <Update/>
+                <Delete/>
+                <Metadata/>
+            </DesignTimePermissions>
+            <RunTimePermissions/>
+            <VisibilityPermissions>
+                <Visibility/>
+            </VisibilityPermissions>
+            <ConfigurationTableDefinitions/>
+            <ConfigurationTables/>
+            <ConfigurationChanges>
+                <ConfigurationChange changeAction="CREATE" changeReason="" timestamp="2026-08-19T00:00:00.000Z" user="Administrator"/>
+            </ConfigurationChanges>
+        </Project>
+    </Projects>
+</Entities>
