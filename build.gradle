@@ -562,9 +562,7 @@ task bumpVersion {
 
         versionFile.text = "$ver\n"
 
-        execOps.exec { commandLine 'git', 'checkout', 'HEAD', '--', 'build.gradle', 'src/org/us_ignite/thingworx/jgit/metadata.xml', 'gradle.properties' }
-
-        execOps.exec { commandLine 'git', 'add', '.version', 'build.gradle', 'src/org/us_ignite/thingworx/jgit/metadata.xml', 'gradle.properties' }
+        execOps.exec { commandLine 'git', 'add', '.version' }
         execOps.exec { commandLine 'git', 'commit', '-m', "Bump version to $ver" }
         execOps.exec { commandLine 'git', 'tag', "v$ver" }
 
