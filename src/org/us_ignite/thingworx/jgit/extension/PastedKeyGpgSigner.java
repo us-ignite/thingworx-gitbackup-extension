@@ -72,22 +72,16 @@ public class PastedKeyGpgSigner implements Signer {
 
             PGPSecretKey secretKey = findSecretKey(privateKeyData, signingKey);
             if (secretKey == null) {
-                throw new RuntimeException(
-                        "No suitable PGP secret key found in the provided key data");
+                throw new RuntimeException("No suitable PGP secret key found in the provided key data");
             }
 
-            PGPPrivateKey privateKey =
-                    secretKey.extractPrivateKey(
-                            new JcePBESecretKeyDecryptorBuilder()
-                                    .setProvider("BC")
-                                    .build(passphrase));
+            PGPPrivateKey privateKey = secretKey.extractPrivateKey(
+                    new JcePBESecretKeyDecryptorBuilder().setProvider("BC").build(passphrase));
 
             int algorithm = secretKey.getPublicKey().getAlgorithm();
 
-            PGPSignatureGenerator sigGen =
-                    new PGPSignatureGenerator(
-                            new JcaPGPContentSignerBuilder(algorithm, PGPUtil.SHA256)
-                                    .setProvider("BC"));
+            PGPSignatureGenerator sigGen = new PGPSignatureGenerator(
+                    new JcaPGPContentSignerBuilder(algorithm, PGPUtil.SHA256).setProvider("BC"));
 
             sigGen.init(PGPSignature.BINARY_DOCUMENT, privateKey);
 
@@ -147,11 +141,9 @@ public class PastedKeyGpgSigner implements Signer {
         return Hex.toHexString(fp);
     }
 
-    private PGPSecretKey findSecretKey(byte[] keyData, String signingKey)
-            throws IOException, PGPException {
+    private PGPSecretKey findSecretKey(byte[] keyData, String signingKey) throws IOException, PGPException {
         try (InputStream in = PGPUtil.getDecoderStream(new ByteArrayInputStream(keyData))) {
-            PGPSecretKeyRingCollection keyRings =
-                    new PGPSecretKeyRingCollection(in, new JcaKeyFingerprintCalculator());
+            PGPSecretKeyRingCollection keyRings = new PGPSecretKeyRingCollection(in, new JcaKeyFingerprintCalculator());
 
             Iterator<PGPSecretKeyRing> ringIter = keyRings.getKeyRings();
             while (ringIter.hasNext()) {

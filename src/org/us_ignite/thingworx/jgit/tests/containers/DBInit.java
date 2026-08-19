@@ -9,11 +9,7 @@ import org.testcontainers.containers.wait.strategy.Wait;
 import org.us_ignite.thingworx.jgit.tests.util.TestingCredentials;
 
 public class DBInit extends GenericContainer<DBInit> {
-    public DBInit(
-            String dbInitImage,
-            GenericContainer<?> postgres,
-            Network network,
-            TestingCredentials credentials) {
+    public DBInit(String dbInitImage, GenericContainer<?> postgres, Network network, TestingCredentials credentials) {
         this(dbInitImage, postgres, network, credentials, "postgresql");
     }
 
@@ -39,14 +35,11 @@ public class DBInit extends GenericContainer<DBInit> {
 
         Path initScript = Path.of("scripts", "db-init-wrapper.sh").toAbsolutePath();
         if (!Files.exists(initScript)) {
-            throw new IllegalStateException(
-                    "db-init-wrapper.sh must exist at " + initScript.toAbsolutePath());
+            throw new IllegalStateException("db-init-wrapper.sh must exist at " + initScript.toAbsolutePath());
         }
-        withFileSystemBind(
-                initScript.toString(), "/scripts/db-init-wrapper.sh", BindMode.READ_ONLY);
+        withFileSystemBind(initScript.toString(), "/scripts/db-init-wrapper.sh", BindMode.READ_ONLY);
 
-        withCreateContainerCmdModifier(
-                cmd -> cmd.withEntrypoint("bash", "/scripts/db-init-wrapper.sh"));
+        withCreateContainerCmdModifier(cmd -> cmd.withEntrypoint("bash", "/scripts/db-init-wrapper.sh"));
         waitingFor(Wait.forLogMessage(".*DB_INIT_DONE.*", 1));
     }
 }

@@ -1,13 +1,6 @@
 package org.us_ignite.thingworx.jgit.extension;
 
-import static org.us_ignite.thingworx.jgit.extension.Values.hasText;
-import static org.us_ignite.thingworx.jgit.extension.Values.isBlank;
-import static org.us_ignite.thingworx.jgit.extension.Values.isTrue;
-import static org.us_ignite.thingworx.jgit.extension.Values.orDefault;
-import static org.us_ignite.thingworx.jgit.extension.Values.primitiveString;
-
 import com.thingworx.data.util.InfoTableInstanceFactory;
-import com.thingworx.entities.interfaces.IServiceProvider;
 import com.thingworx.entities.utils.EntityUtilities;
 import com.thingworx.entities.utils.UserUtilities;
 import com.thingworx.logging.LogUtilities;
@@ -24,7 +17,6 @@ import com.thingworx.types.InfoTable;
 import com.thingworx.types.collections.ValueCollection;
 import com.thingworx.types.primitives.BooleanPrimitive;
 import com.thingworx.types.primitives.DatetimePrimitive;
-import com.thingworx.types.primitives.IPrimitiveType;
 import com.thingworx.types.primitives.InfoTablePrimitive;
 import com.thingworx.types.primitives.PasswordPrimitive;
 import com.thingworx.types.primitives.StringPrimitive;
@@ -34,20 +26,14 @@ import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.lang.reflect.InvocationTargetException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.net.InetSocketAddress;
-import java.net.Proxy;
-import java.net.Proxy.Type;
-import java.net.ProxySelector;
-import java.net.SocketAddress;
-import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 import org.eclipse.jgit.api.CreateBranchCommand.SetupUpstreamMode;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.ListBranchCommand.ListMode;
@@ -55,11 +41,9 @@ import org.eclipse.jgit.api.MergeResult;
 import org.eclipse.jgit.api.PullResult;
 import org.eclipse.jgit.api.RebaseResult;
 import org.eclipse.jgit.api.ResetCommand.ResetType;
-import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.RefNotFoundException;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffFormatter;
-import org.eclipse.jgit.internal.storage.file.FileRepository;
 import org.eclipse.jgit.lib.CheckoutEntry;
 import org.eclipse.jgit.lib.GpgConfig;
 import org.eclipse.jgit.lib.ObjectId;
@@ -77,7 +61,6 @@ import org.eclipse.jgit.revwalk.RevObject;
 import org.eclipse.jgit.revwalk.RevTag;
 import org.eclipse.jgit.revwalk.RevTree;
 import org.eclipse.jgit.revwalk.RevWalk;
-import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.eclipse.jgit.storage.file.WindowCacheConfig;
 import org.eclipse.jgit.transport.CredentialsProvider;
 import org.eclipse.jgit.transport.PushResult;
@@ -110,56 +93,32 @@ public class GitRepositoryShape extends Thing {
 
     private static final long serialVersionUID = -6500080561143490845L;
 
-    // Complete git path will be calculated by concatenating the SCR absolute
-    // path and the relative path
-    private String str_GitRepoURL,
-            str_FileRepoPath,
-            str_CurrentBranchOrCommit,
-            str_ProxyURL,
-            str_ProjectName;
-    private Integer int_ProxyPort;
-    private boolean bool_isDetachedHead = false, bool_UseProxy;
-    private Git gitObject;
-
-    private static Logger _logger =
-            LogUtilities.getInstance().getApplicationLogger(GitRepositoryShape.class);
+    private static Logger log = LogUtilities.getInstance().getApplicationLogger(GitRepositoryShape.class);
 
     public GitRepositoryShape() {}
 
     @Override
     protected void stopThing(ContextType ctx) throws Exception {
-        gitObject = null;
         super.stopThing(null);
     }
 
     @Override
     public void dispose() throws Exception {
-        _logger.warn("Thing entered dispose phase");
-        if (hasText(str_GitRepoURL)) {
-            Thread.sleep(50);
-            FileRepositoryThing srcRepo = getConfiguredFileRepository();
-            Git myGitObject = getGitObject("dispose");
-            Thread.sleep(50);
-            Repository myGitRepository = myGitObject.getRepository();
-            myGitRepository.close();
-            myGitRepository.close();
-            myGitRepository.close();
-            myGitRepository.close();
-            myGitRepository.close();
-            Thread.sleep(50);
-            myGitObject.close();
-            Thread.sleep(50);
-            _logger.warn(
-                    "Disposing GIT Repository Thing "
-                            + getName()
-                            + "; RepositoryCache contains: "
-                            + RepositoryCache.getRegisteredKeys().size());
-            RepositoryCache.clear();
-            // System.gc();
-            Thread.sleep(200);
-            gitObject = null;
-            String str_FolderPath = srcRepo.getRootPath();
-            deleteGitFolder(new File(str_FolderPath), "dispose");
+
+        log.warn("Disposing GIT Repository Thing "
+                + getName()
+                + "; RepositoryCache contains: "
+                + RepositoryCache.getRegisteredKeys().size());
+        String FolderPath = getConfiguredFileRepository().getRootPath();
+        File folder = new File(FolderPath);
+        if (folder.exists()) {
+            try (var paths = Files.walk(folder.toPath())) {
+                List<java.nio.file.Path> pathsToDelete =
+                        paths.sorted(Comparator.reverseOrder()).collect(java.util.stream.Collectors.toList());
+                for (java.nio.file.Path path : pathsToDelete) {
+                    Files.delete(path);
+                }
+            }
         }
         super.dispose();
     }
@@ -167,68 +126,17 @@ public class GitRepositoryShape extends Thing {
     @Override
     protected void initializeThing(ContextType ctx) throws Exception {
 
-        refreshConfiguration();
-        ProxySelector.setDefault(
-                new ProxySelector() {
-                    @Override
-                    public List<Proxy> select(URI uri) {
-                        if (bool_UseProxy
-                                && uri != null
-                                && hasText(str_GitRepoURL)
-                                && str_GitRepoURL.contains(uri.getHost())
-                                && hasText(str_ProxyURL)
-                                && int_ProxyPort != null) {
-                            return List.of(
-                                    new Proxy(
-                                            Type.HTTP,
-                                            InetSocketAddress.createUnresolved(
-                                                    str_ProxyURL, int_ProxyPort)));
-                        }
-                        return List.of(Proxy.NO_PROXY);
-                    }
-
-                    @Override
-                    public void connectFailed(URI uri, SocketAddress sa, IOException ioe) {
-                        if (uri == null || sa == null || ioe == null) {
-                            throw new IllegalArgumentException("Arguments can't be null.");
-                        }
-                    }
-                });
         WindowCacheConfig wconfig = new WindowCacheConfig();
         wconfig.setPackedGitMMAP(false);
         wconfig.install();
-        _logger.warn(
-                "1. GIT Repository Thing: "
-                        + this.getName()
-                        + " initialize phase 1.1. PackedGitMMAP set false");
-        // prevents creation of disk folder when no repo URL is configured
-        if (hasText(str_GitRepoURL)) {
-            _logger.warn(
-                    "1. GIT Repository Thing: "
-                            + this.getName()
-                            + " initialize phase 1.2. GitRepoDefault contains real repository URL.");
-            Git Mygit = getGitObject("initializeThing");
-            String str_Branch = Mygit.getRepository().getFullBranch();
-            bool_isDetachedHead = str_Branch == null || !str_Branch.startsWith("refs/heads/");
-            str_CurrentBranchOrCommit =
-                    (str_Branch != null)
-                            ? Mygit.getRepository().getBranch()
-                            : Const.str_InitialBranch;
-        }
-
-        // will display the right library version in case we use directly the source
-        // code
-        String str_JGIT_version =
-                org.eclipse.jgit.lib.Repository.class.getPackage().getImplementationVersion();
-        str_JGIT_version =
-                str_JGIT_version == null
-                        ? "6.10.1.202505221210-r; custom source code"
-                        : str_JGIT_version;
-        _logger.warn(
-                "1. GIT Repository Thing: "
-                        + this.getName()
-                        + " final initialize phase ended. Jgit library version: "
-                        + str_JGIT_version);
+        var fileRepo = new FileRepositoryManager(resolveTargetThing());
+        fileRepo.git();
+        String JGIT_version = org.eclipse.jgit.lib.Repository.class.getPackage().getImplementationVersion();
+        log.warn("1. GIT Repository Thing: "
+                + this.getName()
+                + " final initialize phase ended. Jgit library version: "
+                + JGIT_version);
+        fileRepo.close();
         super.initializeThing(null);
     }
 
@@ -253,86 +161,63 @@ public class GitRepositoryShape extends Thing {
             name = "Result",
             description = "",
             baseType = "INFOTABLE",
-            aspects = {"isEntityDataShape:true", "dataShape:GIT.OperationResult.DataShape"})
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
     public InfoTable Commit(
-            @ThingworxServiceParameter(
-                            name = "Message",
-                            description = "The commit message",
-                            baseType = "STRING")
+            @ThingworxServiceParameter(name = "Message", description = "The commit message", baseType = "STRING")
                     String Message) {
-        _logger.trace("Entering Service: Commit");
-        refreshConfiguration();
-        ExportProjectEntities(false);
-        String str_CurrentMethodName = "Commit";
-        if (isBlank(str_GitRepoURL)) {
-            _logger.warn(Const.ERR_NO_REPO_URL);
-            return ServiceResults.failure(
-                    "Commit Error: " + Const.ERR_PREFIX_CONFIG + Const.ERR_NO_REPO_URL);
-        }
+        log.trace("Entering Service: Commit");
+        String CurrentMethodName = "Commit";
         try {
-            Thread.sleep(1000);
-            Git myGitObject = getGitObject("Commit");
-            User us_currentUser = UserUtilities.findUser(UserUtilities.getCurrentUser());
-            ValueCollection vc_RepoCredentials = getGitRepoRemoteCredential(us_currentUser);
-            String str_CommitterName =
-                    primitiveString(vc_RepoCredentials, Const.str_GitCommitterName);
-            String str_CommitterEmail =
-                    primitiveString(vc_RepoCredentials, Const.str_GitCommitterEmail);
-            if (isBlank(str_CommitterName) || isBlank(str_CommitterEmail)) {
-                _logger.warn(Const.ERR_NO_COMMITTER);
-                return ServiceResults.failure(
-                        "Commit Error: " + Const.ERR_PREFIX_CONFIG + Const.ERR_NO_COMMITTER);
-            }
-            var commitCmd =
-                    myGitObject
-                            .commit()
-                            .setMessage(Message)
-                            .setCommitter(str_CommitterName, str_CommitterEmail);
 
-            String str_GpgPrivateKey = null;
-            String str_GpgPassphrase = null;
-            try {
-                ValueCollection vc_GpgKey = null;
-                if (us_currentUser != null) {
-                    ValueCollection repositoryConfig = getGitRepoRemoteCredential(us_currentUser);
-                    String fingerprint =
-                            primitiveString(repositoryConfig, Const.str_GpgKeyFingerprint);
-                    if (hasText(fingerprint)) {
-                        Object property = us_currentUser.getPropertyValue(Const.str_UserGpgKeys);
-                        if (property instanceof InfoTablePrimitive) {
-                            InfoTable keys = ((InfoTablePrimitive) property).getValue();
-                            if (keys != null) {
-                                for (int i = 0; i < keys.getRowCount(); i++) {
-                                    ValueCollection key = keys.getRow(i);
-                                    if (fingerprint.equals(
-                                            primitiveString(key, Const.str_GpgKeyFingerprint))) {
-                                        vc_GpgKey = key;
-                                        break;
-                                    }
+            User currentUser = UserUtilities.findUser(UserUtilities.getCurrentUser());
+            GitUserContextManager userContext = new GitUserContextManager();
+            ValueCollection RepoCredentials = userContext.credentialsFor(repositoryThingName());
+            String CommitterName = RepoCredentials.getStringValue(Const.GitCommitterName);
+            String CommitterEmail = RepoCredentials.getStringValue(Const.GitCommitterEmail);
+            if (CommitterName.isBlank() || CommitterEmail.isBlank()) {
+
+                return ServiceResults.failureFromString(
+                        CurrentMethodName, "Commit Error: " + Const.ERR_PREFIX_CONFIG + Const.ERR_NO_COMMITTER);
+            }
+
+            var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            fileRepo.exportProjectEntities();
+            Git myGitObject = fileRepo.git();
+            var commitCmd = myGitObject.commit().setMessage(Message).setCommitter(CommitterName, CommitterEmail);
+
+            String GpgPrivateKey = null;
+            String GpgPassphrase = null;
+            ValueCollection GpgKey = null;
+            if (currentUser != null) {
+                ValueCollection repositoryConfig = userContext.credentialsFor(repositoryThingName());
+                String fingerprint = repositoryConfig.getStringValue(Const.GpgKeyFingerprint);
+                if (fingerprint != null && !fingerprint.isBlank()) {
+                    Object property = currentUser.getPropertyValue(Const.UserGpgKeys);
+                    if (property instanceof InfoTablePrimitive) {
+                        InfoTable keys = ((InfoTablePrimitive) property).getValue();
+                        if (keys != null) {
+                            for (int i = 0; i < keys.getRowCount(); i++) {
+                                ValueCollection key = keys.getRow(i);
+                                if (fingerprint.equals(key.getStringValue(Const.GpgKeyFingerprint))) {
+                                    GpgKey = key;
+                                    break;
                                 }
                             }
                         }
                     }
                 }
-                if (vc_GpgKey != null) {
-                    str_GpgPrivateKey =
-                            ((PasswordPrimitive) vc_GpgKey.getPrimitive(Const.str_GpgPrivateKey))
-                                    .getValue();
-                    str_GpgPassphrase =
-                            ((PasswordPrimitive) vc_GpgKey.getPrimitive(Const.str_GpgKeyPassphrase))
-                                    .getValue();
-                }
-            } catch (Exception e) {
-                _logger.warn(Const.WARN_NO_GPG_KEYS);
+            }
+            if (GpgKey != null) {
+                GpgPrivateKey = ((PasswordPrimitive) GpgKey.getPrimitive(Const.GpgPrivateKey)).getValue();
+                GpgPassphrase = ((PasswordPrimitive) GpgKey.getPrimitive(Const.GpgKeyPassphrase)).getValue();
             }
 
             PastedKeyGpgSigner gpgSigner = null;
-            if (hasText(str_GpgPrivateKey)) {
-                gpgSigner = new PastedKeyGpgSigner(str_GpgPrivateKey, str_GpgPassphrase);
+            if (GpgPrivateKey != null && !GpgPrivateKey.isBlank()) {
+                gpgSigner = new PastedKeyGpgSigner(GpgPrivateKey, GpgPassphrase);
                 Signers.set(GpgConfig.GpgFormat.OPENPGP, gpgSigner);
                 commitCmd.setSign(true).setSigningKey(null).setSigner(gpgSigner);
-                commitCmd.setCredentialsProvider(
-                        new UsernamePasswordCredentialsProvider(null, str_GpgPassphrase));
+                commitCmd.setCredentialsProvider(new UsernamePasswordCredentialsProvider(null, GpgPassphrase));
             }
 
             commitCmd.call();
@@ -341,20 +226,18 @@ public class GitRepositoryShape extends Thing {
                 gpgSigner.clearSensitiveData();
             }
 
-            String str_Result = String.format(Const.SUCCESS_COMMIT, Message);
-            _logger.warn(str_Result);
-            _logger.info(str_CurrentMethodName + ": " + str_Result);
-            return ServiceResults.operation(str_Result);
+            String Result = String.format(Const.SUCCESS_COMMIT, Message);
+            fileRepo.close();
+            return ServiceResults.successFromString(CurrentMethodName, Result);
         } catch (Exception e) {
-            return ServiceResults.fromError(
-                    str_CurrentMethodName, e, buildErrorResult(str_CurrentMethodName, e));
+            return ServiceResults.fromError(CurrentMethodName, e);
         }
     }
 
     /**
      * Pushes existing local commits to a remote. It exports the configured project before the
-     * operation and imports the FileRepository afterward; it does not stage files or create a
-     * commit. When {@code Remote} is blank, the branch upstream or {@code origin} is used.
+     * successFromString and imports the FileRepository afterward; it does not stage files or create
+     * a commit. When {@code Remote} is blank, the branch upstream or {@code origin} is used.
      *
      * @param Remote remote name; blank selects the branch upstream remote or {@code origin}
      * @param BranchName optional local branch; blank selects the current branch
@@ -374,7 +257,7 @@ public class GitRepositoryShape extends Thing {
             name = "Result",
             description = "",
             baseType = "INFOTABLE",
-            aspects = {"isEntityDataShape:true", "dataShape:GIT.OperationResult.DataShape"})
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
     public InfoTable Push(
             @ThingworxServiceParameter(
                             name = "Remote",
@@ -388,8 +271,7 @@ public class GitRepositoryShape extends Thing {
                     String BranchName,
             @ThingworxServiceParameter(
                             name = "RemoteBranchName",
-                            description =
-                                    "Optional remote branch; blank uses the local branch name",
+                            description = "Optional remote branch; blank uses the local branch name",
                             baseType = "STRING")
                     String RemoteBranchName,
             @ThingworxServiceParameter(
@@ -398,133 +280,96 @@ public class GitRepositoryShape extends Thing {
                             baseType = "BOOLEAN",
                             aspects = {"defaultValue:false"})
                     Boolean SetUpstream) {
-        _logger.trace("Entering Service: Push");
-        refreshConfiguration();
-        String str_CurrentMethodName = "Push";
-        if (isBlank(str_GitRepoURL)) {
-            _logger.warn(Const.ERR_NO_REPO_URL);
-            return ServiceResults.failure(
-                    "Push Error: " + Const.ERR_PREFIX_CONFIG + Const.ERR_NO_REPO_URL_PUSH);
-        }
+        log.trace("Entering Service: Push");
+
+        String CurrentMethodName = "Push";
         try {
             long startTimePush = System.nanoTime();
-            Git myGitObject = getGitObject("Push");
-            ExportProjectEntities(false);
             long endTimeOpenRepository = System.nanoTime();
-            BigDecimal durationTimeOpenRepository =
-                    new BigDecimal(
-                                    (double) (endTimeOpenRepository - startTimePush)
-                                            / (double) 1000000)
-                            .setScale(3, RoundingMode.HALF_DOWN);
-            User us_currentUser = UserUtilities.findUser(UserUtilities.getCurrentUser());
-            ValueCollection vc_RepoCredentials = getGitRepoRemoteCredential(us_currentUser);
-            String str_User = primitiveString(vc_RepoCredentials, Const.str_GitCommitterUser);
-            String str_Password =
-                    primitiveString(vc_RepoCredentials, Const.str_GitCommitterPassword);
-            if (isBlank(str_User) || isBlank(str_Password)) {
-                _logger.warn(Const.ERR_NO_CREDENTIALS);
-                return ServiceResults.failure(
-                        "Push Error: " + Const.ERR_PREFIX_AUTH + Const.ERR_NO_CREDENTIALS);
+            BigDecimal durationTimeOpenRepository = new BigDecimal(
+                            (double) (endTimeOpenRepository - startTimePush) / (double) 1000000)
+                    .setScale(3, RoundingMode.HALF_DOWN);
+            ValueCollection RepoCredentials = new GitUserContextManager().credentialsFor(repositoryThingName());
+            String User = RepoCredentials.getStringValue(Const.GitCommitterUser);
+            String Password = RepoCredentials.getStringValue(Const.GitCommitterPassword);
+            if (User.isBlank() || Password.isBlank()) {
+
+                return ServiceResults.failureFromString(
+                        "Push", "Push Error: " + Const.ERR_PREFIX_AUTH + Const.ERR_NO_CREDENTIALS);
             }
+            var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            fileRepo.exportProjectEntities();
+            Git myGitObject = fileRepo.git();
             Repository repository = myGitObject.getRepository();
-            String sourceBranch = isBlank(BranchName) ? repository.getBranch() : BranchName;
-            if (isBlank(sourceBranch) || "HEAD".equals(sourceBranch)) {
-                return ServiceResults.failure(
-                        "Push Error: "
-                                + Const.ERR_PREFIX_CONFIG
-                                + "A detached HEAD requires an explicit BranchName.");
+            String sourceBranch = BranchName == null || BranchName.isBlank() ? repository.getBranch() : BranchName;
+            if (sourceBranch.isBlank() || "HEAD".equals(sourceBranch)) {
+                fileRepo.close();
+                return ServiceResults.failureFromString(
+                        "Push",
+                        "Push Error: " + Const.ERR_PREFIX_CONFIG + "A detached HEAD requires an explicit BranchName.");
             }
             if (repository.findRef("refs/heads/" + sourceBranch) == null) {
-                return ServiceResults.failure(
+                fileRepo.close();
+                return ServiceResults.failureFromString(
+                        "Push",
                         "Push Error: "
                                 + Const.ERR_PREFIX_CONFIG
                                 + "Local branch '"
                                 + sourceBranch
                                 + "' was not found.");
             }
-            String upstreamRemote =
-                    repository.getConfig().getString("branch", sourceBranch, "remote");
-            String remote =
-                    isBlank(Remote)
-                            ? (isBlank(upstreamRemote) ? "origin" : upstreamRemote)
-                            : Remote;
-            String destinationBranch = isBlank(RemoteBranchName) ? sourceBranch : RemoteBranchName;
-            CredentialsProvider credentialsProvider =
-                    new UsernamePasswordCredentialsProvider(str_User, str_Password);
-            var pushCommand =
-                    myGitObject
-                            .push()
-                            .setRemote(remote)
-                            .setCredentialsProvider(credentialsProvider);
-            boolean explicitRef =
-                    hasText(BranchName) || hasText(RemoteBranchName) || isTrue(SetUpstream);
-            if (explicitRef) {
-                pushCommand.setRefSpecs(
-                        new RefSpec(
-                                "refs/heads/" + sourceBranch + ":refs/heads/" + destinationBranch));
-            }
+            String upstreamRemote = repository.getConfig().getString("branch", sourceBranch, "remote");
+            String remote = Remote == null || Remote.isBlank()
+                    ? (upstreamRemote == null || upstreamRemote.isBlank() ? "origin" : upstreamRemote)
+                    : Remote;
+            String destinationBranch =
+                    RemoteBranchName == null || RemoteBranchName.isBlank() ? sourceBranch : RemoteBranchName;
+            CredentialsProvider credentialsProvider = new UsernamePasswordCredentialsProvider(User, Password);
+            var pushCommand = myGitObject.push().setRemote(remote).setCredentialsProvider(credentialsProvider);
+            pushCommand.setRefSpecs(new RefSpec("refs/heads/" + sourceBranch + ":refs/heads/" + destinationBranch));
             Iterable<PushResult> prList = pushCommand.call();
             long endTimePushFinish = System.nanoTime();
-            BigDecimal durationTimePushFinish =
-                    new BigDecimal(
-                                    (double) (endTimePushFinish - endTimeOpenRepository)
-                                            / (double) 1000000)
-                            .setScale(3, RoundingMode.HALF_DOWN);
-            String str_LogResult = "";
+            BigDecimal durationTimePushFinish = new BigDecimal(
+                            (double) (endTimePushFinish - endTimeOpenRepository) / (double) 1000000)
+                    .setScale(3, RoundingMode.HALF_DOWN);
+            String LogResult = "";
             String pushError = null;
             for (PushResult pr : prList) {
                 for (RemoteRefUpdate update : pr.getRemoteUpdates()) {
-                    str_LogResult += update;
+                    LogResult += update;
                     RemoteRefUpdate.Status status = update.getStatus();
-                    if (status != RemoteRefUpdate.Status.OK
-                            && status != RemoteRefUpdate.Status.UP_TO_DATE) {
+                    if (status != RemoteRefUpdate.Status.OK && status != RemoteRefUpdate.Status.UP_TO_DATE) {
                         String hint;
                         if (status == RemoteRefUpdate.Status.REJECTED_NONFASTFORWARD) {
                             hint = " " + Const.ERR_PUSH_NON_FAST_FORWARD;
                         } else {
                             hint = " Check the remote repository policy and credentials.";
                         }
-                        pushError =
-                                "Remote rejected "
-                                        + update.getRemoteName()
-                                        + " with status "
-                                        + status
-                                        + "."
-                                        + hint;
+                        pushError = "Remote rejected " + update.getRemoteName() + " with status " + status + "." + hint;
                     }
                 }
             }
-            str_LogResult +=
-                    " Debug Timings (ms): #1.OpenGit: "
-                            + durationTimeOpenRepository
-                            + "#2.Push: "
-                            + durationTimePushFinish;
-            Thread.sleep(2000);
-            _logger.info(str_CurrentMethodName + ": " + str_LogResult);
+            LogResult += " Debug Timings (ms): #1.OpenGit: "
+                    + durationTimeOpenRepository
+                    + "#2.Push: "
+                    + durationTimePushFinish;
+
             if (pushError != null) {
-                return ServiceResults.failure("Push Error: " + Const.ERR_PREFIX_GIT + pushError);
+                fileRepo.close();
+                return ServiceResults.failureFromString("Push", "Push Error: " + Const.ERR_PREFIX_GIT + pushError);
             }
-            if (isTrue(SetUpstream)) {
+            if (SetUpstream.booleanValue()) {
                 StoredConfig config = repository.getConfig();
                 config.setString("branch", sourceBranch, "remote", remote);
-                config.setString(
-                        "branch", sourceBranch, "merge", "refs/heads/" + destinationBranch);
+                config.setString("branch", sourceBranch, "merge", "refs/heads/" + destinationBranch);
                 config.save();
             }
-            importProjectEntitiesOrThrow();
-            return ServiceResults.operation(str_LogResult);
+            fileRepo.importProjectEntities();
+            fileRepo.close();
+
+            return ServiceResults.successFromString("Push", LogResult);
         } catch (Exception e) {
-            String errMsg;
-            StringWriter errors = new StringWriter();
-            e.printStackTrace(new PrintWriter(errors));
-            String fullTrace = errors.toString();
-            if (fullTrace.contains("pre-receive hook declined")
-                    || fullTrace.contains("REJECTED_OTHER_REASON")) {
-                errMsg = "Push rejected by remote server (pre-receive hook).";
-            } else {
-                errMsg = buildErrorResult("Push", e);
-            }
-            return ServiceResults.fromError(str_CurrentMethodName, e, errMsg);
+            return ServiceResults.fromError(CurrentMethodName, e);
         }
     }
 
@@ -538,7 +383,7 @@ public class GitRepositoryShape extends Thing {
             name = "result",
             description = "",
             baseType = "INFOTABLE",
-            aspects = {"isEntityDataShape:true", "dataShape:GIT.OperationResult.DataShape"})
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
     public InfoTable SetGPGKeyForSigning(
             @ThingworxServiceParameter(
                             name = "GpgKeyFingerprint",
@@ -546,94 +391,16 @@ public class GitRepositoryShape extends Thing {
                             baseType = "STRING")
                     String fingerprint) {
         try {
-            User user = UserUtilities.findUser(UserUtilities.getCurrentUser());
-            if (user == null)
-                throw new IllegalStateException("No authenticated user context is available.");
-            InfoTable keys = null;
-            Object value = user.getPropertyValue(Const.str_UserGpgKeys);
-            if (value instanceof InfoTablePrimitive) keys = ((InfoTablePrimitive) value).getValue();
-            if (hasText(fingerprint)) {
-                boolean owned = false;
-                if (keys != null)
-                    for (int i = 0; i < keys.getRowCount(); i++)
-                        if (fingerprint.equals(
-                                primitiveString(keys.getRow(i), Const.str_GpgKeyFingerprint)))
-                            owned = true;
-                if (!owned)
-                    throw new IllegalArgumentException(
-                            "GPG key is not owned by the current user: " + fingerprint);
+            GitUserContextManager userContext = new GitUserContextManager();
+            userContext.requireUser();
+            if (!fingerprint.isBlank()) {
+                userContext.validateGpgKeyOwnership(fingerprint);
             }
-            InfoTable configs = null;
-            Object credentialValue = user.getPropertyValue(Const.str_UserRepositoryConfiguration);
-            if (credentialValue instanceof InfoTablePrimitive) {
-                configs = ((InfoTablePrimitive) credentialValue).getValue();
-            }
-            if (configs == null)
-                configs =
-                        InfoTableInstanceFactory.createInfoTableFromDataShape(
-                                Const.str_GitCredentialsDataShapeName);
-            ValueCollection row = null;
-            for (int i = 0; i < configs.getRowCount(); i++)
-                if (repositoryThingName().equals(primitiveString(configs.getRow(i), "GitThing")))
-                    row = configs.getRow(i);
-            if (row == null) {
-                row = new ValueCollection();
-                row.put("GitThing", new StringPrimitive(repositoryThingName()));
-                configs.addRow(row);
-            }
-            row.put(Const.str_GpgKeyFingerprint, new StringPrimitive(orDefault(fingerprint, "")));
-            user.setPropertyValue(
-                    Const.str_UserRepositoryConfiguration, new InfoTablePrimitive(configs));
-            return ServiceResults.operation("GPG signing key updated.");
+            userContext.setRepositoryGpgKey(repositoryThingName(), fingerprint);
+            return ServiceResults.successFromString("SetGPGKeyForSigning", "GPG signing key updated.");
         } catch (Exception e) {
-            _logger.error("SetGPGKeyForSigning failed", e);
-            return ServiceResults.fromError(
-                    "SetGPGKeyForSigning", e, "SetGPGKeyForSigning Error: " + e.getMessage());
-        }
-    }
 
-    @ThingworxServiceDefinition(
-            name = "RemoveLastModifiedDate",
-            description = "Removes imported last-modified metadata",
-            category = "",
-            isAllowOverride = false,
-            aspects = {"isAsync:false"})
-    @ThingworxServiceResult(
-            name = "result",
-            description = "",
-            baseType = "INFOTABLE",
-            aspects = {"isEntityDataShape:true", "dataShape:GIT.OperationResult.DataShape"})
-    public InfoTable RemoveLastModifiedDate() {
-        try {
-            removeLastModifiedDate(getConfiguredFileRepository().getName(), str_FileRepoPath, null);
-            return ServiceResults.operation("Last-modified metadata removed.");
-        } catch (Exception e) {
-            return ServiceResults.fromError(
-                    "RemoveLastModifiedDate", e, buildErrorResult("RemoveLastModifiedDate", e));
-        }
-    }
-
-    @ThingworxServiceDefinition(
-            name = "RemoveModelPersistenceProviderPackage",
-            description = "Removes model persistence provider metadata",
-            category = "",
-            isAllowOverride = false,
-            aspects = {"isAsync:false"})
-    @ThingworxServiceResult(
-            name = "result",
-            description = "",
-            baseType = "INFOTABLE",
-            aspects = {"isEntityDataShape:true", "dataShape:GIT.OperationResult.DataShape"})
-    public InfoTable RemoveModelPersistenceProviderPackage() {
-        try {
-            removeModelPersistenceProviderPackage(
-                    getConfiguredFileRepository().getName(), str_FileRepoPath, null);
-            return ServiceResults.operation("Model persistence provider metadata removed.");
-        } catch (Exception e) {
-            return ServiceResults.fromError(
-                    "RemoveModelPersistenceProviderPackage",
-                    e,
-                    buildErrorResult("RemoveModelPersistenceProviderPackage", e));
+            return ServiceResults.fromError("SetGPGKeyForSigning", e);
         }
     }
 
@@ -648,7 +415,7 @@ public class GitRepositoryShape extends Thing {
             name = "Result",
             description = "",
             baseType = "INFOTABLE",
-            aspects = {"isEntityDataShape:true", "dataShape:GIT.OperationResult.DataShape"})
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
     /**
      * Fetches and integrates changes from the configured remote, then imports the synchronized
      * project back into ThingWorx. A force pull resets the local branch to the fetched remote state
@@ -666,65 +433,42 @@ public class GitRepositoryShape extends Thing {
                             baseType = "BOOLEAN",
                             aspects = {"defaultValue:false"})
                     Boolean Force) {
-        String str_CurrentMethodName = "Pull";
+        String CurrentMethodName = "Pull";
         try {
-            refreshConfiguration();
-            _logger.warn("Starting Pull for GIT Repository Thing: " + this.getName());
-            Thread.sleep(500);
-            Git myGitFolder = getGitObject("Pull");
+
+            var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            Git myGitFolder = fileRepo.git();
             // An unborn repository has no local Git state to preserve. Exporting
             // ThingWorx entities before the first checkout would create untracked
             // files that conflict with the remote tree during bootstrap.
             if (myGitFolder.getRepository().resolve("HEAD") != null) {
-                ExportProjectEntities(false);
+                fileRepo.exportProjectEntities();
             }
-            User us_currentUser = UserUtilities.findUser(UserUtilities.getCurrentUser());
-            ValueCollection vc_RepoCredentials = getGitRepoRemoteCredential(us_currentUser);
-            String str_User = primitiveString(vc_RepoCredentials, Const.str_GitCommitterUser);
-            String str_Password =
-                    primitiveString(vc_RepoCredentials, Const.str_GitCommitterPassword);
-            if (isBlank(str_User) || isBlank(str_Password)) {
-                _logger.warn(Const.ERR_NO_CREDENTIALS);
-                return ServiceResults.failure(
-                        "Pull Error: " + Const.ERR_PREFIX_AUTH + Const.ERR_NO_CREDENTIALS);
+            ValueCollection RepoCredentials = new GitUserContextManager().credentialsFor(repositoryThingName());
+            String User = RepoCredentials.getStringValue(Const.GitCommitterUser);
+            String Password = RepoCredentials.getStringValue(Const.GitCommitterPassword);
+            if (User.isBlank() || Password.isBlank()) {
+                fileRepo.close();
+                return ServiceResults.failureFromString(
+                        CurrentMethodName, "Pull Error: " + Const.ERR_PREFIX_AUTH + Const.ERR_NO_CREDENTIALS);
             }
-            if (isBlank(str_GitRepoURL)) {
-                _logger.warn(Const.ERR_NO_REPO_URL);
-                return ServiceResults.failure(
-                        "Pull Error: " + Const.ERR_PREFIX_CONFIG + Const.ERR_NO_REPO_URL);
-            }
-            CredentialsProvider credentialsProvider =
-                    new UsernamePasswordCredentialsProvider(str_User, str_Password);
-            if (isTrue(Force)) {
+            CredentialsProvider credentialsProvider = new UsernamePasswordCredentialsProvider(User, Password);
+            if (Force.booleanValue()) {
                 myGitFolder.reset().setMode(ResetType.HARD).call();
             }
-            PullResult pr =
-                    myGitFolder
-                            .pull()
-                            .setRemote("origin")
-                            .setCredentialsProvider(credentialsProvider)
-                            .call();
-            String str_LogResult =
-                    String.format(
-                            Const.SUCCESS_PULL,
-                            pr.isSuccessful() ? "Successful" : "Unsuccessful",
-                            pr.toString());
-            if (pr.isSuccessful()) {
-                try {
-                    importProjectEntitiesOrThrow();
-                } catch (Exception syncEx) {
-                    _logger.warn(
-                            "Pull succeeded but sync from repository failed: "
-                                    + syncEx.getMessage());
-                }
-            }
-            Thread.sleep(2000);
-            _logger.info(str_CurrentMethodName + ": " + str_LogResult);
-            _logger.warn("Finished Pull for GIT Repository Thing: " + this.getName());
-            return ServiceResults.operation(str_LogResult);
+            PullResult pr = myGitFolder
+                    .pull()
+                    .setRemote("origin")
+                    .setCredentialsProvider(credentialsProvider)
+                    .call();
+            String LogResult =
+                    String.format(Const.SUCCESS_PULL, pr.isSuccessful() ? "Successful" : "Unsuccessful", pr.toString());
+            fileRepo.importProjectEntities();
+            fileRepo.close();
+
+            return ServiceResults.successFromString(CurrentMethodName, LogResult);
         } catch (Exception e) {
-            return ServiceResults.fromError(
-                    str_CurrentMethodName, e, buildErrorResult(str_CurrentMethodName, e));
+            return ServiceResults.fromError(CurrentMethodName, e);
         }
     }
 
@@ -739,7 +483,7 @@ public class GitRepositoryShape extends Thing {
             name = "Result",
             description = "",
             baseType = "INFOTABLE",
-            aspects = {"isEntityDataShape:true", "dataShape:GIT.OperationResult.DataShape"})
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
     /**
      * Fetches refs from the configured remote without merging them or importing entities into
      * ThingWorx. The remote-tracking refs are updated in the local repository.
@@ -753,93 +497,32 @@ public class GitRepositoryShape extends Thing {
                             description = "Optional remote name; defaults to origin",
                             baseType = "STRING")
                     String Remote) {
-        String str_CurrentMethodName = "Fetch";
+        String CurrentMethodName = "Fetch";
         try {
-            refreshConfiguration();
-            _logger.warn("Starting Fetch for GIT Repository Thing: " + this.getName());
-            Git myGitFolder = getGitObject("Fetch");
-            User us_currentUser = UserUtilities.findUser(UserUtilities.getCurrentUser());
-            ValueCollection vc_RepoCredentials = getGitRepoRemoteCredential(us_currentUser);
-            String str_User = primitiveString(vc_RepoCredentials, Const.str_GitCommitterUser);
-            String str_Password =
-                    primitiveString(vc_RepoCredentials, Const.str_GitCommitterPassword);
-            if (isBlank(str_User) || isBlank(str_Password)) {
-                _logger.warn(Const.ERR_NO_CREDENTIALS);
-                return ServiceResults.failure(
-                        "Fetch Error: " + Const.ERR_PREFIX_AUTH + Const.ERR_NO_CREDENTIALS);
+            var fileRepo = new FileRepositoryManager(resolveTargetThing());
+
+            Git myGitFolder = fileRepo.git();
+            ValueCollection RepoCredentials = new GitUserContextManager().credentialsFor(repositoryThingName());
+            String User = RepoCredentials.getStringValue(Const.GitCommitterUser);
+            String Password = RepoCredentials.getStringValue(Const.GitCommitterPassword);
+            if (User.isBlank() || Password.isBlank()) {
+
+                return ServiceResults.failureFromString(
+                        CurrentMethodName, "Fetch Error: " + Const.ERR_PREFIX_AUTH + Const.ERR_NO_CREDENTIALS);
             }
-            if (isBlank(str_GitRepoURL)) {
-                _logger.warn(Const.ERR_NO_REPO_URL);
-                return ServiceResults.failure(
-                        "Fetch Error: " + Const.ERR_PREFIX_CONFIG + Const.ERR_NO_REPO_URL);
-            }
-            CredentialsProvider credentialsProvider =
-                    new UsernamePasswordCredentialsProvider(str_User, str_Password);
-            String remote = isBlank(Remote) ? "origin" : Remote;
+            CredentialsProvider credentialsProvider = new UsernamePasswordCredentialsProvider(User, Password);
+            String remote = Remote.isBlank() ? "origin" : Remote;
             myGitFolder
                     .fetch()
                     .setRemote(remote)
                     .setCredentialsProvider(credentialsProvider)
                     .call();
-            String str_LogResult = "Fetch from '" + remote + "' completed successfully.";
-            _logger.info(str_CurrentMethodName + ": " + str_LogResult);
-            _logger.warn("Finished Fetch for GIT Repository Thing: " + this.getName());
-            return ServiceResults.operation(str_LogResult);
-        } catch (Exception e) {
-            return ServiceResults.fromError(
-                    str_CurrentMethodName, e, buildErrorResult(str_CurrentMethodName, e));
-        }
-    }
+            String LogResult = "Fetch from '" + remote + "' completed successfully.";
 
-    @ThingworxServiceDefinition(
-            name = "DeleteLocalRepoContent",
-            description =
-                    "Deletes all files from the local repo path including the git configuration files. This operation is needed in case the git operations throw up strange errors. Reinitializes the Git object entirely.",
-            category = "",
-            isAllowOverride = false,
-            aspects = {"isAsync:false"})
-    @ThingworxServiceResult(
-            name = "Result",
-            description = "",
-            baseType = "INFOTABLE",
-            aspects = {"isEntityDataShape:true", "dataShape:GIT.OperationResult.DataShape"})
-    public InfoTable DeleteLocalRepoContent() {
-        try {
-            _logger.warn("DeleteLocalRepoContent:1 for entity: " + this.getName());
-            Thread.sleep(5);
-            FileRepositoryThing srcRepo = getConfiguredFileRepository();
-            String str_FolderPath = srcRepo.getRootPath();
-            Git gitObjectToClose = getGitObject("closeGit");
-            FileRepository gitRepository = (FileRepository) gitObjectToClose.getRepository();
-            Thread.sleep(200);
-            _logger.warn("Method DeleteLocalRepoContent, performing 1st myGitRepository.close()");
-            gitRepository.close();
-            Thread.sleep(200);
-            RepositoryCache.clear();
-            _logger.warn("Method DeleteLocalRepoContent, performing myGitObject.close()");
-            gitObjectToClose.close();
-            WindowCacheConfig wconfig = new WindowCacheConfig();
-            wconfig.setPackedGitMMAP(false);
-            wconfig.install();
-            gitObject = null;
-            _logger.warn(
-                    "DeleteLocalRepoContent:2, starting to delete files. All files should not be locked;");
-            // deleteDirectory(new File(str_FolderPath), "DeleteLocalRepoContent");
-            deleteGitFolder(new File(str_FolderPath), "DeleteLocalRepoContent");
-            Thread.sleep(5);
-        } catch (Exception ex) {
-            StringWriter errors = new StringWriter();
-            ex.printStackTrace(new PrintWriter(errors));
-            _logger.error(
-                    "Error encountered in DeleteLocalRepoContent for entity: "
-                            + this.getName()
-                            + "; Error Message: "
-                            + errors.toString());
-            return ServiceResults.fromError(
-                    "DeleteLocalRepoContent", ex, buildErrorResult("DeleteLocalRepoContent", ex));
+            return ServiceResults.successFromString(CurrentMethodName, LogResult);
+        } catch (Exception e) {
+            return ServiceResults.fromError(CurrentMethodName, e);
         }
-        _logger.warn("DeleteLocalRepoContent:3 for entity: " + this.getName());
-        return ServiceResults.operation("Local repository content deleted.");
     }
 
     @ThingworxServiceDefinition(
@@ -853,21 +536,18 @@ public class GitRepositoryShape extends Thing {
             name = "Result",
             description = "",
             baseType = "INFOTABLE",
-            aspects = {"isEntityDataShape:true", "dataShape:GIT.OperationResult.DataShape"})
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
     /**
      * Creates a local branch without checking it out. If a start point is omitted, the branch is
      * created from {@code HEAD}. The configured ThingWorx project is exported before and imported
-     * after the branch operation so the FileRepository remains synchronized.
+     * after the branch successFromString so the FileRepository remains synchronized.
      *
      * @param BranchName name of the branch to create
      * @param StartPoint optional commit, branch, or tag; blank defaults to {@code HEAD}
      * @return the created ref summary or a prefixed error message
      */
     public InfoTable BranchCreate(
-            @ThingworxServiceParameter(
-                            name = "BranchName",
-                            description = "Name of the new branch",
-                            baseType = "STRING")
+            @ThingworxServiceParameter(name = "BranchName", description = "Name of the new branch", baseType = "STRING")
                     String BranchName,
             @ThingworxServiceParameter(
                             name = "StartPoint",
@@ -875,48 +555,35 @@ public class GitRepositoryShape extends Thing {
                                     "Optional: commit hash, branch name, or tag to branch from (defaults to HEAD)",
                             baseType = "STRING")
                     String StartPoint) {
-        _logger.trace("Entering Service: BranchCreate");
-        String str_CurrentMethodName = "BranchCreate";
-        if (isBlank(BranchName)) {
-            String errMsg =
-                    "BranchCreate Error: " + Const.ERR_PREFIX_CONFIG + "BranchName is required.";
-            _logger.warn(errMsg);
-            return ServiceResults.failure(errMsg);
+        log.trace("Entering Service: BranchCreate");
+        if (BranchName.isBlank()) {
+            String errMsg = "BranchCreate Error: " + Const.ERR_PREFIX_CONFIG + "BranchName is required.";
+
+            return ServiceResults.failureFromString("BranchCreate", errMsg);
         }
         try {
-            ExportProjectEntities(false);
-            Git myGitFolder = getGitObject("BranchCreate");
-            String str_StartPoint = orDefault(StartPoint, "HEAD");
-            Ref branchRef =
-                    myGitFolder
-                            .branchCreate()
-                            .setName(BranchName)
-                            .setStartPoint(str_StartPoint)
-                            .call();
-            String str_LogResult =
-                    String.format(
-                            Const.SUCCESS_BRANCH_CREATED,
-                            BranchName,
-                            str_StartPoint,
-                            branchRef.toString());
-            importProjectEntitiesOrThrow();
-            _logger.info(str_CurrentMethodName + ": " + str_LogResult);
-            _logger.trace("Exiting Service: BranchCreate");
-            return ServiceResults.operation(branchRef.toString());
+
+            var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            fileRepo.exportProjectEntities();
+            Git myGitFolder = fileRepo.git();
+            StartPoint = Optional.ofNullable(StartPoint).orElse("HEAD");
+            Ref branchRef = myGitFolder
+                    .branchCreate()
+                    .setName(BranchName)
+                    .setStartPoint(StartPoint)
+                    .call();
+            fileRepo.importProjectEntities();
+
+            log.trace("Exiting Service: BranchCreate");
+            return ServiceResults.successFromString("BranchCreate", branchRef.toString());
         } catch (Exception e) {
-            String errMsg;
-            if (e.getMessage() != null && e.getMessage().contains("already exists")) {
-                errMsg =
-                        "BranchCreate Error: "
-                                + Const.ERR_PREFIX_GIT
-                                + "Branch '"
-                                + BranchName
-                                + "' already exists. Use a different branch name or delete the existing branch first.";
-            } else {
-                errMsg = buildErrorResult("BranchCreate", e);
-            }
-            _logger.info(str_CurrentMethodName + ": " + errMsg);
-            return ServiceResults.failure(errMsg);
+            return ServiceResults.failureFromString(
+                    "BranchCreate",
+                    "BranchCreate Error: "
+                            + Const.ERR_PREFIX_GIT
+                            + "Branch '"
+                            + BranchName
+                            + "' already exists. Use a different branch name or delete the existing branch first.");
         }
     }
 
@@ -930,7 +597,7 @@ public class GitRepositoryShape extends Thing {
             name = "Result",
             description = "",
             baseType = "INFOTABLE",
-            aspects = {"isEntityDataShape:true", "dataShape:GIT.OperationResult.DataShape"})
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
     /**
      * Checks out a local branch, commit, or an available remote branch. Project entities are
      * exported before checkout and imported afterward, so the ThingWorx project is synchronized
@@ -963,56 +630,45 @@ public class GitRepositoryShape extends Thing {
                             baseType = "BOOLEAN",
                             aspects = {"defaultValue:false"})
                     Boolean Force) {
-        _logger.trace("Entering Service: Checkout");
-        if (isBlank(BranchNameOrCommit)) {
-            _logger.warn("Checkout: BranchNameOrCommit is required.");
-            return ServiceResults.failure("Checkout: BranchNameOrCommit is required.");
+        log.trace("Entering Service: Checkout");
+        if (BranchNameOrCommit.isBlank()) {
+
+            return ServiceResults.failureFromString("Checkout", "Checkout: BranchNameOrCommit is required.");
         }
-        String str_CurrentMethodName = "Checkout";
+        String CurrentMethodName = "Checkout";
         try {
-            ExportProjectEntities(false);
-            Git myGitFolder = getGitObject("Checkout");
+            var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            fileRepo.exportProjectEntities();
+            Git myGitFolder = fileRepo.git();
             Ref ref;
             try {
                 var checkout = myGitFolder.checkout().setName(BranchNameOrCommit);
-                if (isTrue(CreateBranch)) {
-                    checkout.setCreateBranch(true).setStartPoint(orDefault(StartPoint, "HEAD"));
+                if (CreateBranch.booleanValue()) {
+                    checkout.setCreateBranch(true).setStartPoint(StartPoint.isBlank() ? "HEAD" : StartPoint);
                 }
-                checkout.setForced(isTrue(Force));
+                checkout.setForced(Force.booleanValue());
                 ref = checkout.call();
             } catch (RefNotFoundException ex) {
-                if (isTrue(CreateBranch)) throw ex;
-                if (myGitFolder.getRepository().findRef("refs/remotes/origin/" + BranchNameOrCommit)
-                        == null) {
+                if (CreateBranch.booleanValue()) throw ex;
+                if (myGitFolder.getRepository().findRef("refs/remotes/origin/" + BranchNameOrCommit) == null) {
                     throw ex;
                 }
-                _logger.warn(
-                        "Checkout: creating tracking branch from origin/" + BranchNameOrCommit);
-                ref =
-                        myGitFolder
-                                .checkout()
-                                .setCreateBranch(true)
-                                .setName(BranchNameOrCommit)
-                                .setUpstreamMode(SetupUpstreamMode.TRACK)
-                                .setStartPoint("origin/" + BranchNameOrCommit)
-                                .call();
+                log.warn("Checkout: creating tracking branch from origin/" + BranchNameOrCommit);
+                ref = myGitFolder
+                        .checkout()
+                        .setCreateBranch(true)
+                        .setName(BranchNameOrCommit)
+                        .setUpstreamMode(SetupUpstreamMode.TRACK)
+                        .setStartPoint("origin/" + BranchNameOrCommit)
+                        .call();
             }
-            bool_isDetachedHead =
-                    getGitObject("Checkout").getRepository().getFullBranch().indexOf("refs/heads")
-                                    != -1
-                            ? false
-                            : true;
-            str_CurrentBranchOrCommit = BranchNameOrCommit;
-            importProjectEntitiesOrThrow();
-            String str_LogResult = (ref != null) ? ref.toString() : "No message.";
-            _logger.info(str_CurrentMethodName + ": " + str_LogResult);
-            _logger.trace("Exiting Service: Checkout");
-            return ServiceResults.operation(str_LogResult);
+            fileRepo.importProjectEntities();
+            String LogResult = (ref != null) ? ref.toString() : "No message.";
+
+            log.trace("Exiting Service: Checkout");
+            return ServiceResults.successFromString("Checkout", LogResult);
         } catch (Exception e) {
-            return ServiceResults.fromError(
-                    str_CurrentMethodName,
-                    e,
-                    "Checkout failed for " + BranchNameOrCommit + ": " + e.getMessage());
+            return ServiceResults.fromError(CurrentMethodName, e);
         }
     }
 
@@ -1027,7 +683,7 @@ public class GitRepositoryShape extends Thing {
             name = "Result",
             description = "",
             baseType = "INFOTABLE",
-            aspects = {"isEntityDataShape:true", "dataShape:GIT.OperationResult.DataShape"})
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
     public InfoTable BranchSwitch(
             @ThingworxServiceParameter(
                             name = "BranchName",
@@ -1035,29 +691,27 @@ public class GitRepositoryShape extends Thing {
                             baseType = "STRING")
                     String BranchName) {
         try {
-            if (isBlank(BranchName)) return ServiceResults.failure("BranchName is required.");
-            ExportProjectEntities(false);
-            Git git = getGitObject("BranchSwitch");
+            if (BranchName.isBlank())
+                return ServiceResults.failureFromString("BranchSwitch", "BranchName is required.");
+            var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            fileRepo.exportProjectEntities();
+            Git git = fileRepo.git();
             Ref ref;
             try {
                 ref = git.checkout().setName(BranchName).call();
             } catch (RefNotFoundException e) {
-                ref =
-                        git.checkout()
-                                .setCreateBranch(true)
-                                .setName(BranchName)
-                                .setUpstreamMode(SetupUpstreamMode.TRACK)
-                                .setStartPoint("origin/" + BranchName)
-                                .call();
+                ref = git.checkout()
+                        .setCreateBranch(true)
+                        .setName(BranchName)
+                        .setUpstreamMode(SetupUpstreamMode.TRACK)
+                        .setStartPoint("origin/" + BranchName)
+                        .call();
             }
-            Repository repository = git.getRepository();
-            bool_isDetachedHead = !repository.getFullBranch().startsWith("refs/heads/");
-            str_CurrentBranchOrCommit = repository.getBranch();
-            importProjectEntitiesOrThrow();
-            _logger.info("BranchSwitch: " + ref);
-            return ServiceResults.operation(ref.toString());
+
+            fileRepo.importProjectEntities();
+            return ServiceResults.successFromString("BranchSwitch", ref.toString());
         } catch (Exception e) {
-            return ServiceResults.fromError("BranchSwitch", e, buildErrorResult("BranchSwitch", e));
+            return ServiceResults.fromError("BranchSwitch", e);
         }
     }
 
@@ -1071,35 +725,34 @@ public class GitRepositoryShape extends Thing {
             name = "Result",
             description = "",
             baseType = "INFOTABLE",
-            aspects = {"isEntityDataShape:true", "dataShape:GIT.CurrentBranchStatus.DataShape"})
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.CurrentBranchStatus.ServiceResult.DataShape"})
     /**
      * Reads the repository HEAD state without changing the working tree. The result identifies the
      * current branch or reports the full detached-HEAD reference.
      *
-     * @return a {@code GIT.CurrentBranchStatus.DataShape} table; an empty table indicates that the
-     *     repository state could not be read
+     * @return a {@code GIT.CurrentBranchStatus.ServiceResult.DataShape} table; an empty table
+     *     indicates that the repository state could not be read
      */
     public InfoTable GetCurrentBranch() {
         try {
-            _logger.trace("Entering Service: GetCurrentBranch");
-            InfoTable iftbl_CurrentBranchStatus =
-                    InfoTableInstanceFactory.createInfoTableFromDataShape(
-                            "GIT.CurrentBranchStatus.DataShape");
-            Repository repository = getGitObject("GetCurrentBranch").getRepository();
+            log.trace("Entering Service: GetCurrentBranch");
+            InfoTable CurrentBranchStatus =
+                    InfoTableInstanceFactory.createInfoTableFromDataShape("GIT.CurrentBranchStatus.DataShape");
+            var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            Repository repository = fileRepo.git().getRepository();
             String fullBranch = repository.getFullBranch();
-            String currentBranch = bool_isDetachedHead ? fullBranch : repository.getBranch();
+            String currentBranch = fullBranch != null ? fullBranch : repository.getBranch();
             ValueCollection vc = new ValueCollection();
 
             vc.put("BranchName", new StringPrimitive(currentBranch));
-            vc.put("DetachedHEAD", new BooleanPrimitive(bool_isDetachedHead));
-            iftbl_CurrentBranchStatus.addRow(vc);
-            _logger.trace("Exiting Service: GetCurrentBranch");
-            return iftbl_CurrentBranchStatus;
+            vc.put("DetachedHEAD", new BooleanPrimitive(fullBranch.startsWith("refs/heads/")));
+            CurrentBranchStatus.addRow(vc);
+            log.trace("Exiting Service: GetCurrentBranch");
+            return ServiceResults.successFromPayload(
+                    "GetCurrentBranch", "GIT.CurrentBranchStatus.ServiceResult.DataShape", CurrentBranchStatus);
         } catch (Exception ex) {
-            StringWriter errors = new StringWriter();
-            ex.printStackTrace(new PrintWriter(errors));
-            _logger.error("GetCurrentBranch failed: " + errors.toString());
-            return new InfoTable();
+
+            return ServiceResults.fromError("GetCurrentBranch", ex, "GIT.CurrentBranchStatus.ServiceResult.DataShape");
         }
     }
 
@@ -1113,61 +766,51 @@ public class GitRepositoryShape extends Thing {
             name = "Result",
             description = "",
             baseType = "INFOTABLE",
-            aspects = {"isEntityDataShape:true", "dataShape:GIT.BranchList.DataShape"})
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.BranchList.ServiceResult.DataShape"})
     /**
      * Lists local and remote branches using JGit's all-refs mode. This is read-only and does not
      * fetch the remote first.
      *
-     * @return a {@code GIT.BranchList.DataShape} table, or an empty table when listing fails
+     * @return a {@code GIT.BranchList.ServiceResult.DataShape} table, or an empty table when
+     *     listing fails
      */
     public InfoTable GetBranchList() {
-        _logger.trace("Entering Service: GetBranchList");
+        log.trace("Entering Service: GetBranchList");
 
         try {
-            InfoTable iftbl_BranchList =
-                    InfoTableInstanceFactory.createInfoTableFromDataShape(
-                            "GIT.BranchList.DataShape");
-            Git myGit = getGitObject("GetBranchList");
+            InfoTable BranchList = InfoTableInstanceFactory.createInfoTableFromDataShape("GIT.BranchList.DataShape");
+            var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            Git myGit = fileRepo.git();
             List<Ref> branches = myGit.branchList().setListMode(ListMode.ALL).call();
             for (Iterator<Ref> iterator = branches.iterator(); iterator.hasNext(); ) {
                 Ref ref = (Ref) iterator.next();
                 ValueCollection vc = new ValueCollection();
 
-                String str_LongBranchName = ref.getName();
-                String str_ShortBranchName, str_BranchType;
-                str_ShortBranchName =
-                        ("HEAD".equals(str_LongBranchName))
-                                ? "HEAD"
-                                : str_LongBranchName
-                                        .replace("refs/heads/", "")
-                                        .replace("refs/remotes/origin/", "");
-                str_BranchType =
-                        ("HEAD".equals(str_LongBranchName))
-                                ? "HEAD"
-                                : (str_LongBranchName.indexOf("refs/heads/") >= 0
-                                        ? "LOCAL"
-                                        : "REMOTE");
-                vc.put("BranchName", new StringPrimitive(str_LongBranchName));
-                vc.put("ShortBranchName", new StringPrimitive(str_ShortBranchName));
-                vc.put("BranchType", new StringPrimitive(str_BranchType));
-                iftbl_BranchList.addRow(vc);
+                String LongBranchName = ref.getName();
+                String ShortBranchName, BranchType;
+                ShortBranchName = ("HEAD".equals(LongBranchName))
+                        ? "HEAD"
+                        : LongBranchName.replace("refs/heads/", "").replace("refs/remotes/origin/", "");
+                BranchType = ("HEAD".equals(LongBranchName))
+                        ? "HEAD"
+                        : (LongBranchName.indexOf("refs/heads/") >= 0 ? "LOCAL" : "REMOTE");
+                vc.put("BranchName", new StringPrimitive(LongBranchName));
+                vc.put("ShortBranchName", new StringPrimitive(ShortBranchName));
+                vc.put("BranchType", new StringPrimitive(BranchType));
+                BranchList.addRow(vc);
             }
-            _logger.trace("Exiting Service: GetBranchList");
-            return iftbl_BranchList;
+            log.trace("Exiting Service: GetBranchList");
+            return ServiceResults.successFromPayload(
+                    "GetBranchList", "GIT.BranchList.ServiceResult.DataShape", BranchList);
 
         } catch (Exception ex) {
-            StringWriter errors = new StringWriter();
-            ex.printStackTrace(new PrintWriter(errors));
-            _logger.error("GetBranchList failed: " + errors.toString());
-            _logger.trace("Exiting Service: GetBranchList");
-            return new InfoTable();
+            return ServiceResults.fromError("GetBranchList", ex, "GIT.BranchList.ServiceResult.DataShape");
         }
     }
 
     @ThingworxServiceDefinition(
             name = "BranchDelete",
-            description =
-                    "Deletes a local branch and optionally deletes its remote branch when explicitly requested.",
+            description = "Deletes a local branch and optionally deletes its remote branch when explicitly requested.",
             category = "",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
@@ -1175,7 +818,7 @@ public class GitRepositoryShape extends Thing {
             name = "Result",
             description = "",
             baseType = "INFOTABLE",
-            aspects = {"isEntityDataShape:true", "dataShape:GIT.OperationResult.DataShape"})
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
     public InfoTable BranchDelete(
             @ThingworxServiceParameter(
                             name = "BranchName",
@@ -1199,124 +842,62 @@ public class GitRepositoryShape extends Thing {
                             baseType = "BOOLEAN",
                             aspects = {"defaultValue:false"})
                     Boolean Force) {
-        _logger.trace("Entering Service: BranchDelete");
-        String str_CurrentMethodName = "BranchDelete";
-        if (isBlank(BranchName)) {
-            String errMsg =
-                    "BranchDelete Error: " + Const.ERR_PREFIX_CONFIG + "BranchName is required.";
-            _logger.warn(errMsg);
-            return ServiceResults.failure(errMsg);
+        log.trace("Entering Service: BranchDelete");
+        if (BranchName.isBlank()) {
+            String errMsg = "BranchDelete Error: " + Const.ERR_PREFIX_CONFIG + "BranchName is required.";
+
+            return ServiceResults.failureFromString("BranchDelete", errMsg);
         }
-        if (isTrue(DeleteRemote) && isBlank(Remote)) {
-            return ServiceResults.failure(
-                    "BranchDelete Error: "
-                            + Const.ERR_PREFIX_CONFIG
-                            + "Remote is required when DeleteRemote is true.");
+        if (DeleteRemote.booleanValue() && Remote.isBlank()) {
+            return ServiceResults.failureFromString(
+                    "BranchDelete",
+                    "BranchDelete Error: " + Const.ERR_PREFIX_CONFIG + "Remote is required when DeleteRemote is true.");
         }
         try {
-            ExportProjectEntities(false);
-            Git myGitFolder = getGitObject("BranchDelete");
+            var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            fileRepo.exportProjectEntities();
+            Git myGitFolder = fileRepo.git();
 
-            List<String> lstr =
-                    myGitFolder
-                            .branchDelete()
-                            .setForce(isTrue(Force))
-                            .setBranchNames("refs/heads/" + BranchName)
-                            .call();
-            String str_LogResult = "";
+            List<String> lstr = myGitFolder
+                    .branchDelete()
+                    .setForce(Force.booleanValue())
+                    .setBranchNames("refs/heads/" + BranchName)
+                    .call();
+            String LogResult = "";
             if (lstr.size() == 0) {
-                str_LogResult +=
-                        " Branch '" + BranchName + "' was not found or could not be deleted.";
+                LogResult += " Branch '" + BranchName + "' was not found or could not be deleted.";
             }
             for (String str : lstr) {
-                str_LogResult += str;
+                LogResult += str;
             }
-            importProjectEntitiesOrThrow();
+            fileRepo.importProjectEntities();
 
-            if (isTrue(DeleteRemote)) {
-                User user = UserUtilities.findUser(UserUtilities.getCurrentUser());
-                ValueCollection credentials = getGitRepoRemoteCredential(user);
-                String userName = primitiveString(credentials, Const.str_GitCommitterUser);
-                String password = primitiveString(credentials, Const.str_GitCommitterPassword);
-                Iterable<PushResult> results =
-                        myGitFolder
-                                .push()
-                                .setRemote(Remote)
-                                .setCredentialsProvider(
-                                        new UsernamePasswordCredentialsProvider(userName, password))
-                                .setRefSpecs(new RefSpec(":refs/heads/" + BranchName))
-                                .call();
-                str_LogResult += " Remote delete: " + results.iterator().next();
+            if (DeleteRemote.booleanValue()) {
+                ValueCollection credentials = new GitUserContextManager().credentialsFor(repositoryThingName());
+                String userName = credentials.getStringValue(Const.GitCommitterUser);
+                String password = credentials.getStringValue(Const.GitCommitterPassword);
+                Iterable<PushResult> results = myGitFolder
+                        .push()
+                        .setRemote(Remote)
+                        .setCredentialsProvider(new UsernamePasswordCredentialsProvider(userName, password))
+                        .setRefSpecs(new RefSpec(":refs/heads/" + BranchName))
+                        .call();
+                LogResult += " Remote delete: " + results.iterator().next();
             }
-            importProjectEntitiesOrThrow();
-            _logger.info(str_CurrentMethodName + ": " + str_LogResult);
-            return ServiceResults.operation(str_LogResult);
+            fileRepo.importProjectEntities();
+
+            return ServiceResults.successFromString("BranchDelete", LogResult);
         } catch (Exception e) {
-            String errMsg;
             if (e.getMessage() != null && e.getMessage().contains("CannotDelete")) {
-                errMsg =
+                return ServiceResults.failureFromString(
+                        "BranchDelete",
                         "BranchDelete Error: "
                                 + Const.ERR_PREFIX_GIT
                                 + "Branch '"
                                 + BranchName
-                                + "' cannot be deleted. It may be the current branch. Checkout a different branch first.";
-            } else {
-                errMsg = buildErrorResult("BranchDelete", e);
+                                + "' cannot be deleted. It may be the current branch. Checkout a different branch first.");
             }
-            _logger.error(errMsg);
-            _logger.info(str_CurrentMethodName + ": " + errMsg);
-            return ServiceResults.failure(errMsg);
-        }
-    }
-
-    @ThingworxServiceDefinition(
-            name = "GetCommitList",
-            description =
-                    "Get a list of the commits for the current branch; if the current index is pointing to a commit, then it will return the commit list for the Initial branch configured in the Config section",
-            category = "",
-            isAllowOverride = false,
-            aspects = {"isAsync:false"})
-    @ThingworxServiceResult(
-            name = "Result",
-            description = "",
-            baseType = "INFOTABLE",
-            aspects = {"isEntityDataShape:true", "dataShape:GIT.CommitList.DataShape"})
-    public InfoTable GetCommitList() {
-        _logger.trace("Entering Service: GetCommitList");
-        try {
-            Git myGitFolder = getGitObject("GetCommitList");
-            InfoTable iftbl_CommitList =
-                    InfoTableInstanceFactory.createInfoTableFromDataShape(
-                            Const.str_CommitListDataShapeName);
-            // Git myGit = GetRepository();
-            ObjectId obj =
-                    myGitFolder.getRepository().resolve("refs/heads/" + str_CurrentBranchOrCommit);
-            if (obj == null)
-                obj =
-                        myGitFolder
-                                .getRepository()
-                                .resolve("refs/heads/" + ((String) str_CurrentBranchOrCommit));
-            if (obj != null) {
-                Iterable<RevCommit> commits = myGitFolder.log().add(obj).call();
-                for (Iterator<RevCommit> iterator = commits.iterator(); iterator.hasNext(); ) {
-                    RevCommit commit = (RevCommit) iterator.next();
-                    ValueCollection vc = new ValueCollection();
-                    vc.put(
-                            "CommitTime",
-                            new DatetimePrimitive(
-                                    new DateTime(((long) commit.getCommitTime() * 1000))));
-                    vc.put("CommitName", new StringPrimitive(commit.getShortMessage()));
-                    vc.put("CommitID", new StringPrimitive(commit.getId().name()));
-                    iftbl_CommitList.addRow(vc);
-                }
-            }
-            _logger.trace("Exiting Service: GetCommitList");
-            return iftbl_CommitList;
-        } catch (Exception ex) {
-            StringWriter errors = new StringWriter();
-            ex.printStackTrace(new PrintWriter(errors));
-            _logger.error("GetCommitList failed: " + errors.toString());
-            return new InfoTable();
+            return ServiceResults.fromError("BranchDelete", e);
         }
     }
 
@@ -1349,44 +930,56 @@ public class GitRepositoryShape extends Thing {
                     String Ref,
             @ThingworxServiceParameter(
                             name = "MaxEntries",
-                            description =
-                                    "Maximum number of entries; zero or omitted means no limit",
+                            description = "Maximum number of entries; zero or omitted means no limit",
                             baseType = "INTEGER")
                     Integer MaxEntries) {
-        _logger.trace("Entering Service: GetLog");
-        InfoTable result = ServiceResults.emptyPayload(Const.str_CommitLogDataShapeName);
+        log.trace("Entering Service: GetLog");
         try {
-            Repository repository = getGitObject("GetLog").getRepository();
+            InfoTable result = InfoTableInstanceFactory.createInfoTableFromDataShape(Const.CommitLogDataShapeName);
+            var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            Repository repository = fileRepo.git().getRepository();
             String historyRef = Ref;
-            if (isBlank(historyRef)) {
+            if (historyRef.isBlank()) {
                 String fullBranch = repository.getFullBranch();
-                String current =
-                        fullBranch != null && fullBranch.startsWith("refs/heads/")
-                                ? fullBranch.substring("refs/heads/".length())
-                                : null;
-                historyRef = isBlank(current) ? str_CurrentBranchOrCommit : current;
-                if (isBlank(historyRef)) historyRef = str_CurrentBranchOrCommit;
+                historyRef = fullBranch != null && fullBranch.startsWith("refs/heads/")
+                        ? fullBranch.substring("refs/heads/".length())
+                        : null;
             }
             ObjectId objectId = repository.resolve(historyRef);
             if (objectId == null && !historyRef.startsWith("refs/")) {
                 objectId = repository.resolve("refs/heads/" + historyRef);
             }
             if (objectId == null) {
-                _logger.warn("GetLog could not resolve ref: " + Ref);
-                return ServiceResults.payload("GIT.CommitLog.ServiceResult.DataShape", result, "");
+
+                return ServiceResults.successFromPayload("GetLog", "GIT.CommitLog.ServiceResult.DataShape", result);
             }
-            Iterable<RevCommit> commits = getGitObject("GetLog").log().add(objectId).call();
+            Iterable<RevCommit> commits = fileRepo.git().log().add(objectId).call();
             int count = 0;
             for (RevCommit commit : commits) {
                 if (MaxEntries != null && MaxEntries > 0 && count >= MaxEntries) break;
                 ValueCollection row = new ValueCollection();
                 row.put("CommitID", new StringPrimitive(commit.getId().name()));
                 row.put("CommitName", new StringPrimitive(commit.getShortMessage()));
+                row.put("CommitTime", new DatetimePrimitive(new DateTime((long) commit.getCommitTime() * 1000)));
+                PersonIdent author = commit.getAuthorIdent();
                 row.put(
-                        "CommitTime",
-                        new DatetimePrimitive(new DateTime((long) commit.getCommitTime() * 1000)));
-                putPerson(row, "AuthorName", "AuthorEmail", commit.getAuthorIdent());
-                putPerson(row, "CommitterName", "CommitterEmail", commit.getCommitterIdent());
+                        "AuthorName",
+                        new StringPrimitive(author == null || author.getName() == null ? "" : author.getName()));
+                row.put(
+                        "AuthorEmail",
+                        new StringPrimitive(
+                                author == null || author.getEmailAddress() == null ? "" : author.getEmailAddress()));
+                PersonIdent committer = commit.getCommitterIdent();
+                row.put(
+                        "CommitterName",
+                        new StringPrimitive(
+                                committer == null || committer.getName() == null ? "" : committer.getName()));
+                row.put(
+                        "CommitterEmail",
+                        new StringPrimitive(
+                                committer == null || committer.getEmailAddress() == null
+                                        ? ""
+                                        : committer.getEmailAddress()));
                 StringBuilder parentIds = new StringBuilder();
                 for (RevCommit parent : commit.getParents()) {
                     if (parentIds.length() > 0) parentIds.append(",");
@@ -1396,14 +989,10 @@ public class GitRepositoryShape extends Thing {
                 result.addRow(row);
                 count++;
             }
-            return ServiceResults.payload("GIT.CommitLog.ServiceResult.DataShape", result, "");
+            return ServiceResults.successFromPayload("GetLog", "GIT.CommitLog.ServiceResult.DataShape", result);
         } catch (Exception ex) {
-            _logger.error("GetLog failed: " + ex.getMessage(), ex);
-            return ServiceResults.fromError(
-                    "GIT.CommitLog.ServiceResult.DataShape",
-                    "GetLog",
-                    ex,
-                    buildErrorResult("GetLog", ex));
+
+            return ServiceResults.fromError("GetLog", ex, "GIT.CommitLog.ServiceResult.DataShape");
         }
     }
 
@@ -1418,10 +1007,7 @@ public class GitRepositoryShape extends Thing {
             name = "Result",
             description = "",
             baseType = "INFOTABLE",
-            aspects = {
-                "isEntityDataShape:true",
-                "dataShape:GIT.ReflogEntry.ServiceResult.DataShape"
-            })
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.ReflogEntry.ServiceResult.DataShape"})
     public InfoTable GetReflog(
             @ThingworxServiceParameter(
                             name = "Ref",
@@ -1430,15 +1016,15 @@ public class GitRepositoryShape extends Thing {
                     String Ref,
             @ThingworxServiceParameter(
                             name = "MaxEntries",
-                            description =
-                                    "Maximum number of entries; zero or omitted means no limit",
+                            description = "Maximum number of entries; zero or omitted means no limit",
                             baseType = "INTEGER")
                     Integer MaxEntries) {
-        _logger.trace("Entering Service: GetReflog");
-        InfoTable result = ServiceResults.emptyPayload(Const.str_ReflogEntryDataShapeName);
+        log.trace("Entering Service: GetReflog");
         try {
-            Git git = getGitObject("GetReflog");
-            String ref = isBlank(Ref) ? "HEAD" : Ref;
+            InfoTable result = InfoTableInstanceFactory.createInfoTableFromDataShape(Const.ReflogEntryDataShapeName);
+            var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            Git git = fileRepo.git();
+            String ref = Ref.isBlank() ? "HEAD" : Ref;
             if (!ref.startsWith("refs/") && !"HEAD".equals(ref)) {
                 ref = "refs/heads/" + ref;
             }
@@ -1447,53 +1033,41 @@ public class GitRepositoryShape extends Thing {
                 if (MaxEntries != null && MaxEntries > 0 && count >= MaxEntries) break;
                 ValueCollection row = new ValueCollection();
                 row.put("RefName", new StringPrimitive(ref));
-                row.put("OldObjectID", new StringPrimitive(objectIdName(entry.getOldId())));
-                row.put("NewObjectID", new StringPrimitive(objectIdName(entry.getNewId())));
-                putPerson(row, "ActorName", "ActorEmail", entry.getWho());
+                row.put(
+                        "OldObjectID",
+                        new StringPrimitive(
+                                entry.getOldId() == null ? "" : entry.getOldId().name()));
+                row.put(
+                        "NewObjectID",
+                        new StringPrimitive(
+                                entry.getNewId() == null ? "" : entry.getNewId().name()));
                 PersonIdent who = entry.getWho();
+                row.put("ActorName", new StringPrimitive(who == null || who.getName() == null ? "" : who.getName()));
+                row.put(
+                        "ActorEmail",
+                        new StringPrimitive(who == null || who.getEmailAddress() == null ? "" : who.getEmailAddress()));
                 row.put(
                         "EventTime",
-                        new DatetimePrimitive(
-                                new DateTime(
-                                        who == null ? 0 : who.getWhenAsInstant().toEpochMilli())));
-                row.put("Comment", new StringPrimitive(orEmpty(entry.getComment())));
+                        new DatetimePrimitive(new DateTime(
+                                who == null ? 0 : who.getWhenAsInstant().toEpochMilli())));
+                row.put("Comment", new StringPrimitive(entry.getComment() == null ? "" : entry.getComment()));
                 CheckoutEntry checkout = entry.parseCheckout();
                 row.put(
                         "CheckoutSource",
                         new StringPrimitive(
-                                checkout == null ? "" : orEmpty(checkout.getFromBranch())));
+                                checkout == null || checkout.getFromBranch() == null ? "" : checkout.getFromBranch()));
                 row.put(
                         "CheckoutTarget",
                         new StringPrimitive(
-                                checkout == null ? "" : orEmpty(checkout.getToBranch())));
+                                checkout == null || checkout.getToBranch() == null ? "" : checkout.getToBranch()));
                 result.addRow(row);
                 count++;
             }
-            return ServiceResults.payload("GIT.ReflogEntry.ServiceResult.DataShape", result, "");
+            return ServiceResults.successFromPayload("GetReflog", "GIT.ReflogEntry.ServiceResult.DataShape", result);
         } catch (Exception ex) {
-            _logger.error("GetReflog failed: " + ex.getMessage(), ex);
-            return ServiceResults.fromError(
-                    "GIT.ReflogEntry.ServiceResult.DataShape",
-                    "GetReflog",
-                    ex,
-                    buildErrorResult("GetReflog", ex));
+
+            return ServiceResults.fromError("GetReflog", ex, "GIT.ReflogEntry.ServiceResult.DataShape");
         }
-    }
-
-    private static void putPerson(
-            ValueCollection row, String nameField, String emailField, PersonIdent person) {
-        row.put(nameField, new StringPrimitive(person == null ? "" : orEmpty(person.getName())));
-        row.put(
-                emailField,
-                new StringPrimitive(person == null ? "" : orEmpty(person.getEmailAddress())));
-    }
-
-    private static String objectIdName(ObjectId id) {
-        return id == null ? "" : id.name();
-    }
-
-    private static String orEmpty(String value) {
-        return value == null ? "" : value;
     }
 
     /** Returns the working-tree status using the declared GIT.Status data shape. */
@@ -1516,56 +1090,41 @@ public class GitRepositoryShape extends Thing {
      *     untracked paths
      */
     public InfoTable Status() {
-        _logger.trace("Entering Service: Status");
-        InfoTable iftbl_Status = ServiceResults.emptyPayload("GIT.Status.DataShape");
+        log.trace("Entering Service: Status");
         try {
-            ExportProjectEntities(false);
-            Git myGitObject = getGitObject("Status");
+            InfoTable Status = InfoTableInstanceFactory.createInfoTableFromDataShape("GIT.Status.DataShape");
+            var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            fileRepo.exportProjectEntities();
+            Git myGitObject = fileRepo.git();
             org.eclipse.jgit.api.Status status = myGitObject.status().call();
-            for (String stat : status.getAdded()) {
-                addStatusRow(iftbl_Status, stat, "Added", true);
-            }
-            for (String stat : status.getChanged()) {
-                addStatusRow(iftbl_Status, stat, "Changed", true);
-            }
-            for (String stat : status.getIgnoredNotInIndex()) {
-                addStatusRow(iftbl_Status, stat, "Ignored", false);
-            }
-            for (String stat : status.getModified()) {
-                addStatusRow(iftbl_Status, stat, "Modified", false);
-            }
-            for (String stat : status.getMissing()) {
-                addStatusRow(iftbl_Status, stat, "Missing", false);
-            }
-            for (String stat : status.getRemoved()) {
-                addStatusRow(iftbl_Status, stat, "Removed", true);
-            }
-            for (String stat : status.getUntracked()) {
-                addStatusRow(iftbl_Status, stat, "Untracked", false);
-            }
-            for (String stat : status.getUntrackedFolders()) {
-                addStatusRow(iftbl_Status, stat, "UntrackedFolder", false);
-            }
-            _logger.trace("Exiting Service: Status");
-        } catch (Exception e) {
-            StringWriter errors = new StringWriter();
-            e.printStackTrace(new PrintWriter(errors));
-            _logger.error("Status failed: " + errors.toString());
-            return ServiceResults.fromError(
-                    "GIT.Status.ServiceResult.DataShape",
-                    "Status",
-                    e,
-                    buildErrorResult("Status", e));
-        }
-        return ServiceResults.payload("GIT.Status.ServiceResult.DataShape", iftbl_Status, "");
-    }
+            var names = Arrays.asList(
+                    "Added", "Changed", "Ignored", "Modified", "Missing", "Removed", "Untracked", "UntrackedFolder");
+            var staged = Arrays.asList(true, true, false, false, false, true, false, false);
+            var files = Arrays.asList(
+                    status.getAdded(),
+                    status.getChanged(),
+                    status.getIgnoredNotInIndex(),
+                    status.getModified(),
+                    status.getMissing(),
+                    status.getRemoved(),
+                    status.getUntracked(),
+                    status.getUntrackedFolders());
 
-    private static void addStatusRow(InfoTable table, String file, String status, boolean staged) {
-        ValueCollection row = new ValueCollection();
-        row.put("File", new StringPrimitive(file));
-        row.put("Status", new StringPrimitive(status));
-        row.put("Staged", new BooleanPrimitive(staged));
-        table.addRow(row);
+            for (var i = 0; names.size() > i + 1; i++) {
+                for (var f : files.get(i)) {
+                    ValueCollection row = new ValueCollection();
+                    row.put("File", new StringPrimitive(f));
+                    row.put("Status", new StringPrimitive(names.get(i)));
+                    row.put("Staged", new BooleanPrimitive(staged.get(i)));
+                    Status.addRow(row);
+                }
+            }
+
+            log.trace("Exiting Service: Status");
+            return ServiceResults.successFromPayload("Status", "GIT.Status.ServiceResult.DataShape", Status);
+        } catch (Exception e) {
+            return ServiceResults.fromError("Status", e, "GIT.Status.ServiceResult.DataShape");
+        }
     }
 
     @ThingworxServiceDefinition(
@@ -1580,24 +1139,21 @@ public class GitRepositoryShape extends Thing {
             baseType = "INFOTABLE",
             aspects = {"isEntityDataShape:true", "dataShape:GIT.Status.ServiceResult.DataShape"})
     public InfoTable GetConflictFiles() {
-        InfoTable result = ServiceResults.emptyPayload("GIT.Status.DataShape");
         try {
-            for (String file : getGitObject("GetConflictFiles").status().call().getConflicting()) {
+            var result = InfoTableInstanceFactory.createInfoTableFromDataShape("GIT.Status.DataShape");
+            var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            for (String file : fileRepo.git().status().call().getConflicting()) {
                 ValueCollection row = new ValueCollection();
                 row.put("File", new StringPrimitive(file));
                 row.put("Status", new StringPrimitive("Conflicting"));
                 row.put("Staged", new BooleanPrimitive(false));
                 result.addRow(row);
             }
+            return ServiceResults.successFromPayload("GetConflictFiles", "GIT.Status.ServiceResult.DataShape", result);
         } catch (Exception e) {
-            _logger.error("GetConflictFiles failed: " + e.getMessage(), e);
-            return ServiceResults.fromError(
-                    "GIT.Status.ServiceResult.DataShape",
-                    "GetConflictFiles",
-                    e,
-                    buildErrorResult("GetConflictFiles", e));
+
+            return ServiceResults.fromError("GetConflictFiles", e, "GIT.Status.ServiceResult.DataShape");
         }
-        return ServiceResults.payload("GIT.Status.ServiceResult.DataShape", result, "");
     }
 
     @ThingworxServiceDefinition(
@@ -1618,14 +1174,10 @@ public class GitRepositoryShape extends Thing {
                             baseType = "STRING")
                     String File) {
         try {
-            return ServiceResults.string(
-                    getConfiguredFileRepository().LoadText(normalizeRepositoryRelativePath(File)),
-                    "");
+            return ServiceResults.successFromString(
+                    "ReadConflictFile", getConfiguredFileRepository().LoadText(File));
         } catch (Exception e) {
-            return ServiceResults.stringFromError(
-                    "ReadConflictFile",
-                    e,
-                    "ReadConflictFile Error: " + Const.ERR_PREFIX_GIT + e.getMessage());
+            return ServiceResults.fromError("ReadConflictFile", e);
         }
     }
 
@@ -1639,35 +1191,26 @@ public class GitRepositoryShape extends Thing {
             name = "Result",
             description = "",
             baseType = "INFOTABLE",
-            aspects = {"isEntityDataShape:true", "dataShape:GIT.OperationResult.DataShape"})
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
     public InfoTable WriteConflictFile(
             @ThingworxServiceParameter(
                             name = "File",
                             description = "Repository-relative file path",
                             baseType = "STRING")
                     String File,
-            @ThingworxServiceParameter(
-                            name = "Content",
-                            description = "Resolved file content",
-                            baseType = "STRING")
+            @ThingworxServiceParameter(name = "Content", description = "Resolved file content", baseType = "STRING")
                     String Content) {
         try {
-            getConfiguredFileRepository()
-                    .SaveText(
-                            normalizeRepositoryRelativePath(File), Content == null ? "" : Content);
-            return ServiceResults.operation("Wrote conflict file " + File);
+            getConfiguredFileRepository().SaveText(File, Content == null ? "" : Content);
+            return ServiceResults.successFromString("WriteConflictFile", "Wrote conflict file " + File);
         } catch (Exception e) {
-            return ServiceResults.fromError(
-                    "WriteConflictFile",
-                    e,
-                    "WriteConflictFile Error: " + Const.ERR_PREFIX_GIT + e.getMessage());
+            return ServiceResults.fromError("WriteConflictFile", e);
         }
     }
 
     @ThingworxServiceDefinition(
             name = "Add",
-            description =
-                    "Stages one repository-relative file, or all non-ignored changes when All is true.",
+            description = "Stages one repository-relative file, or all non-ignored changes when All is true.",
             category = "",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
@@ -1675,8 +1218,8 @@ public class GitRepositoryShape extends Thing {
             name = "Result",
             description = "",
             baseType = "INFOTABLE",
-            aspects = {"isEntityDataShape:true", "dataShape:GIT.OperationResult.DataShape"})
-    public String Add(
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
+    public InfoTable Add(
             @ThingworxServiceParameter(
                             name = "File",
                             description = "Repository-relative file path; ignored when All is true",
@@ -1684,26 +1227,25 @@ public class GitRepositoryShape extends Thing {
                     String File,
             @ThingworxServiceParameter(
                             name = "All",
-                            description =
-                                    "Stages all non-ignored additions, modifications, and deletions",
+                            description = "Stages all non-ignored additions, modifications, and deletions",
                             baseType = "BOOLEAN",
                             aspects = {"defaultValue:false"})
                     Boolean All) {
         try {
-            Git git = getGitObject("Add");
-            boolean all = isTrue(All);
-            String pattern = all ? "." : normalizeRepositoryRelativePath(File);
-            stagePath(git, pattern);
-            return all ? "Staged all non-ignored changes" : "Staged " + pattern;
+            var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            boolean all = All.booleanValue();
+            String pattern = all ? "." : File;
+            fileRepo.stagePath(pattern);
+            String message = all ? "Staged all non-ignored changes" : "Staged " + pattern;
+            return ServiceResults.successFromString("Add", message);
         } catch (Exception e) {
-            return "Add Error: " + Const.ERR_PREFIX_GIT + e.getMessage();
+            return ServiceResults.fromError("Add", e);
         }
     }
 
     @ThingworxServiceDefinition(
             name = "Remove",
-            description =
-                    "Removes a repository-relative file from the Git index without deleting it.",
+            description = "Removes a repository-relative file from the Git index without deleting it.",
             category = "",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
@@ -1712,18 +1254,18 @@ public class GitRepositoryShape extends Thing {
             description = "",
             baseType = "STRING",
             aspects = {})
-    public String Remove(
+    public InfoTable Remove(
             @ThingworxServiceParameter(
                             name = "File",
                             description = "Repository-relative file path",
                             baseType = "STRING")
                     String File) {
         try {
-            String path = normalizeRepositoryRelativePath(File);
-            getGitObject("Remove").rm().setCached(true).addFilepattern(path).call();
-            return "Removed from index " + path;
+            var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            fileRepo.git().rm().setCached(true).addFilepattern(File).call();
+            return ServiceResults.successFromString("Remove", "Removed from index " + File);
         } catch (Exception e) {
-            return "Remove Error: " + Const.ERR_PREFIX_GIT + e.getMessage();
+            return ServiceResults.fromError("Remove", e);
         }
     }
 
@@ -1746,25 +1288,22 @@ public class GitRepositoryShape extends Thing {
                             baseType = "STRING")
                     String Message) {
         try {
-            Git git = getGitObject("MergeContinue");
+            var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            Git git = fileRepo.git();
             Repository repo = git.getRepository();
             if (repo.getRepositoryState() != RepositoryState.MERGING
                     && repo.getRepositoryState() != RepositoryState.MERGING_RESOLVED)
                 return "MergeContinue Error: no merge is in progress.";
-            ValueCollection identity =
-                    getGitRepoRemoteCredential(
-                            UserUtilities.findUser(UserUtilities.getCurrentUser()));
-            String name = primitiveString(identity, Const.str_GitCommitterName);
-            String email = primitiveString(identity, Const.str_GitCommitterEmail);
-            if (isBlank(name) || isBlank(email))
-                return "MergeContinue Error: " + Const.ERR_NO_COMMITTER;
-            String msg = isBlank(Message) ? repo.readMergeCommitMsg() : Message;
-            RevCommit commit =
-                    git.commit()
-                            .setMessage(isBlank(msg) ? "Merge resolved" : msg)
-                            .setCommitter(name, email)
-                            .call();
-            importProjectEntitiesOrThrow();
+            ValueCollection identity = new GitUserContextManager().credentialsFor(repositoryThingName());
+            String name = identity.getStringValue(Const.GitCommitterName);
+            String email = identity.getStringValue(Const.GitCommitterEmail);
+            if (name.isBlank() || email.isBlank()) return "MergeContinue Error: " + Const.ERR_NO_COMMITTER;
+            String msg = Message.isBlank() ? repo.readMergeCommitMsg() : Message;
+            RevCommit commit = git.commit()
+                    .setMessage(msg.isBlank() ? "Merge resolved" : msg)
+                    .setCommitter(name, email)
+                    .call();
+            fileRepo.importProjectEntities();
             return "Merge completed: " + commit.getId().name();
         } catch (Exception e) {
             return "MergeContinue Error: " + Const.ERR_PREFIX_GIT + e.getMessage();
@@ -1773,8 +1312,7 @@ public class GitRepositoryShape extends Thing {
 
     @ThingworxServiceDefinition(
             name = "MergeAbort",
-            description =
-                    "Aborts the current merge and synchronizes the restored state into ThingWorx.",
+            description = "Aborts the current merge and synchronizes the restored state into ThingWorx.",
             category = "",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
@@ -1785,7 +1323,8 @@ public class GitRepositoryShape extends Thing {
             aspects = {})
     public String MergeAbort() {
         try {
-            Git git = getGitObject("MergeAbort");
+            var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            Git git = fileRepo.git();
             Repository repo = git.getRepository();
             if (repo.getRepositoryState() != RepositoryState.MERGING
                     && repo.getRepositoryState() != RepositoryState.MERGING_RESOLVED)
@@ -1796,7 +1335,7 @@ public class GitRepositoryShape extends Thing {
                     .call();
             repo.writeMergeCommitMsg(null);
             repo.writeMergeHeads(null);
-            importProjectEntitiesOrThrow();
+            fileRepo.importProjectEntities();
             return "Merge aborted.";
         } catch (Exception e) {
             return "MergeAbort Error: " + Const.ERR_PREFIX_GIT + e.getMessage();
@@ -1816,8 +1355,7 @@ public class GitRepositoryShape extends Thing {
             baseType = "STRING",
             aspects = {})
     public String RebaseContinue() {
-        return rebaseOperation(
-                org.eclipse.jgit.api.RebaseCommand.Operation.CONTINUE, "RebaseContinue");
+        return rebaseOperation(org.eclipse.jgit.api.RebaseCommand.Operation.CONTINUE, "RebaseContinue");
     }
 
     @ThingworxServiceDefinition(
@@ -1837,8 +1375,7 @@ public class GitRepositoryShape extends Thing {
 
     @ThingworxServiceDefinition(
             name = "RebaseAbort",
-            description =
-                    "Aborts the current rebase and synchronizes the restored state into ThingWorx.",
+            description = "Aborts the current rebase and synchronizes the restored state into ThingWorx.",
             category = "",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
@@ -1851,16 +1388,15 @@ public class GitRepositoryShape extends Thing {
         return rebaseOperation(org.eclipse.jgit.api.RebaseCommand.Operation.ABORT, "RebaseAbort");
     }
 
-    private String rebaseOperation(
-            org.eclipse.jgit.api.RebaseCommand.Operation operation, String service) {
+    private String rebaseOperation(org.eclipse.jgit.api.RebaseCommand.Operation successFromString, String service) {
         try {
-            Git git = getGitObject(service);
+            var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            Git git = fileRepo.git();
             if (!git.getRepository().getRepositoryState().isRebasing())
                 return service + " Error: no rebase is in progress.";
-            RebaseResult result = git.rebase().setOperation(operation).call();
-            if (result.getStatus() == RebaseResult.Status.OK
-                    || result.getStatus() == RebaseResult.Status.ABORTED) {
-                importProjectEntitiesOrThrow();
+            RebaseResult result = git.rebase().setOperation(successFromString).call();
+            if (result.getStatus() == RebaseResult.Status.OK || result.getStatus() == RebaseResult.Status.ABORTED) {
+                fileRepo.importProjectEntities();
             }
             return service + ": " + result.getStatus() + ": " + result;
         } catch (Exception e) {
@@ -1880,30 +1416,22 @@ public class GitRepositoryShape extends Thing {
             baseType = "INFOTABLE",
             aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
     public InfoTable GetDiffPerFile(
-            @ThingworxServiceParameter(name = "File", description = "", baseType = "STRING")
-                    String File) {
-        _logger.trace("Entering Service: GetDiffPerFile");
-        if (File == null) return ServiceResults.string("", "");
+            @ThingworxServiceParameter(name = "File", description = "", baseType = "STRING") String File) {
+        log.trace("Entering Service: GetDiffPerFile");
         try {
-            ExportProjectEntities(false);
-            Git myGitObject = getGitObject("GetDiffPerFile");
+            var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            fileRepo.exportProjectEntities();
+            Git myGitObject = fileRepo.git();
             ByteArrayOutputStream dif = new ByteArrayOutputStream();
-            myGitObject.diff().setPathFilter(PathFilter.create(File)).setOutputStream(dif).call();
-            _logger.trace("Exiting Service: GetDiffPerFile");
-            return ServiceResults.string(dif.toString("UTF-8"), "");
+            myGitObject
+                    .diff()
+                    .setPathFilter(PathFilter.create(File))
+                    .setOutputStream(dif)
+                    .call();
+            log.trace("Exiting Service: GetDiffPerFile");
+            return ServiceResults.successFromString("GetDiffPerFile", dif.toString("UTF-8"));
         } catch (Exception e) {
-            StringWriter errors = new StringWriter();
-            e.printStackTrace(new PrintWriter(errors));
-            _logger.error("GetDiffPerFile failed for file '" + File + "': " + errors.toString());
-            return ServiceResults.stringFromError(
-                    "GetDiffPerFile",
-                    e,
-                    "GetDiffPerFile Error: "
-                            + Const.ERR_PREFIX_GIT
-                            + "Could not compute diff for file '"
-                            + File
-                            + "'. "
-                            + e.getMessage());
+            return ServiceResults.fromError("GetDiffPerFile", e);
         }
     }
 
@@ -1919,32 +1447,27 @@ public class GitRepositoryShape extends Thing {
             baseType = "INFOTABLE",
             aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
     public InfoTable GetDiffPerFileBetweenCommits(
-            @ThingworxServiceParameter(name = "File", description = "", baseType = "STRING")
-                    String File,
+            @ThingworxServiceParameter(name = "File", description = "", baseType = "STRING") String File,
             @ThingworxServiceParameter(name = "FromCommitID", description = "", baseType = "STRING")
-                    String str_FromCommitID) {
-        _logger.trace("Entering Service: GetDiffPerFileBetweenCommits");
-        if (File == null) return ServiceResults.string("", "");
+                    String FromCommitID) {
+        log.trace("Entering Service: GetDiffPerFileBetweenCommits");
         try {
-            String str_ToCommitID = "";
-            Git myGitObject = getGitObject("GetDiffPerFileBetweenCommits");
+            String ToCommitID = "";
+            var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            Git myGitObject = fileRepo.git();
             Repository repo = myGitObject.getRepository();
-            ObjectId commit = repo.resolve(str_FromCommitID);
+            ObjectId commit = repo.resolve(FromCommitID);
             if (commit == null) {
-                _logger.error(
-                        "GetDiffPerFileBetweenCommits: Commit '"
-                                + str_FromCommitID
-                                + "' not found.");
-                return ServiceResults.stringFailure(
-                        "Diff Error: "
-                                + String.format(Const.ERR_COMMIT_NOT_FOUND, str_FromCommitID));
+                return ServiceResults.failureFromString(
+                        "GetDiffPerFileBetweenCommits",
+                        "Diff Error: " + String.format(Const.ERR_COMMIT_NOT_FOUND, FromCommitID));
             }
             RevWalk walk = new RevWalk(repo);
             RevCommit toCommit = walk.parseCommit(commit);
             if (toCommit.getParentCount() > 0) {
-                str_ToCommitID = toCommit.getParent(0).getName();
+                ToCommitID = toCommit.getParent(0).getName();
             }
-            AbstractTreeIterator newTreeParser = prepareTreeParser(repo, str_FromCommitID);
+            AbstractTreeIterator newTreeParser = prepareTreeParser(repo, FromCommitID);
             ByteArrayOutputStream dif = new ByteArrayOutputStream();
             if (toCommit.getParentCount() == 0) {
                 myGitObject
@@ -1955,7 +1478,7 @@ public class GitRepositoryShape extends Thing {
                         .setOutputStream(dif)
                         .call();
             } else {
-                AbstractTreeIterator oldTreeParser = prepareTreeParser(repo, str_ToCommitID);
+                AbstractTreeIterator oldTreeParser = prepareTreeParser(repo, ToCommitID);
                 myGitObject
                         .diff()
                         .setNewTree(newTreeParser)
@@ -1965,34 +1488,21 @@ public class GitRepositoryShape extends Thing {
                         .call();
             }
             walk.close();
-            _logger.trace("Exiting Service: GetDiffPerFileBetweenCommits");
-            String str_DiffResult = dif.toString("UTF-8");
+            log.trace("Exiting Service: GetDiffPerFileBetweenCommits");
+            String DiffResult = dif.toString("UTF-8");
             Thing utilityThing =
-                    (Thing)
-                            EntityUtilities.findEntity(
-                                    Const.str_UtilityThingName, ThingworxRelationshipTypes.Thing);
-            int maxSize =
-                    utilityThing != null
-                            ? utilityThing.GetIntegerPropertyValue(Const.str_MaxDiffSize)
-                            : 500000;
-            if (str_DiffResult.length() > maxSize) {
-                return ServiceResults.stringFailure(
-                        String.format(Const.ERR_DIFF_TOO_LARGE, maxSize));
+                    (Thing) EntityUtilities.findEntity(Const.UtilityThingName, ThingworxRelationshipTypes.Thing);
+            int maxSize = utilityThing != null ? utilityThing.GetIntegerPropertyValue(Const.MaxDiffSize) : 500000;
+            if (DiffResult.length() > maxSize) {
+                return ServiceResults.failureFromString(
+                        "GetDiffPerFileBetweenCommits", String.format(Const.ERR_DIFF_TOO_LARGE, maxSize));
             }
-            return ServiceResults.string(str_DiffResult, "");
+            return ServiceResults.successFromString("GetDiffPerFileBetweenCommits", DiffResult);
         } catch (Exception ex) {
             StringWriter errors = new StringWriter();
             ex.printStackTrace(new PrintWriter(errors));
-            _logger.error("GetDiffPerFileBetweenCommits failed: " + errors.toString());
-            return ServiceResults.stringFromError(
-                    "GetDiffPerFileBetweenCommits",
-                    ex,
-                    "Diff Error: "
-                            + Const.ERR_PREFIX_GIT
-                            + "Could not compute diff for file '"
-                            + File
-                            + "' between commits. "
-                            + ex.getMessage());
+
+            return ServiceResults.fromError("GetDiffPerFileBetweenCommits", ex);
         }
     }
 
@@ -2006,27 +1516,21 @@ public class GitRepositoryShape extends Thing {
             name = "Result",
             description = "",
             baseType = "INFOTABLE",
-            aspects = {
-                "isEntityDataShape:true",
-                "dataShape:GIT.CommitInfo.ServiceResult.DataShape"
-            })
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.CommitInfo.ServiceResult.DataShape"})
     public InfoTable GetCommitInfo(
-            @ThingworxServiceParameter(name = "CommitID", description = "", baseType = "STRING")
-                    String CommitID) {
-        _logger.trace("Entering Service: GetCommitInfo");
-        InfoTable iftbl_Status = ServiceResults.emptyPayload(Const.str_CommitInfoDataShapeName);
+            @ThingworxServiceParameter(name = "CommitID", description = "", baseType = "STRING") String CommitID) {
+        log.trace("Entering Service: GetCommitInfo");
         if (CommitID == null) {
-            _logger.warn("GetCommitInfo: No CommitID provided.");
-            return ServiceResults.payload(
-                    "GIT.CommitInfo.ServiceResult.DataShape", iftbl_Status, "");
+            return ServiceResults.failureFromResultShape("GetCommitInfo", "GIT.CommitInfo.ServiceResult.DataShape");
         }
         try {
-            Repository myGitRepository = getGitObject("GetCommitInfo").getRepository();
+            InfoTable Status = InfoTableInstanceFactory.createInfoTableFromDataShape(Const.CommitInfoDataShapeName);
+            var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            Repository myGitRepository = fileRepo.git().getRepository();
             ObjectId commit = myGitRepository.resolve(CommitID);
             if (commit == null) {
-                _logger.error("GetCommitInfo: Commit '" + CommitID + "' not found.");
-                return ServiceResults.payload(
-                        "GIT.CommitInfo.ServiceResult.DataShape", iftbl_Status, "");
+
+                return ServiceResults.failureFromResultShape("GetCommitInfo", "GIT.CommitInfo.ServiceResult.DataShape");
             }
             try (RevWalk walk = new RevWalk(myGitRepository)) {
                 RevCommit commitAgain = walk.parseCommit(commit);
@@ -2039,33 +1543,27 @@ public class GitRepositoryShape extends Thing {
                 vc.put("Parents", new StringPrimitive(parents));
                 vc.put(
                         "Author",
-                        new StringPrimitive(
-                                commitAgain.getAuthorIdent().getName()
-                                        + " "
-                                        + commitAgain.getAuthorIdent().getEmailAddress()));
-                vc.put(
-                        "Date",
-                        new DatetimePrimitive(
-                                new DateTime(((long) commitAgain.getCommitTime() * 1000))));
+                        new StringPrimitive(commitAgain.getAuthorIdent().getName()
+                                + " "
+                                + commitAgain.getAuthorIdent().getEmailAddress()));
+                vc.put("Date", new DatetimePrimitive(new DateTime(((long) commitAgain.getCommitTime() * 1000))));
                 vc.put(
                         "Commiter",
-                        new StringPrimitive(
-                                commitAgain.getCommitterIdent().getName()
-                                        + " "
-                                        + commitAgain.getCommitterIdent().getEmailAddress()));
+                        new StringPrimitive(commitAgain.getCommitterIdent().getName()
+                                + " "
+                                + commitAgain.getCommitterIdent().getEmailAddress()));
                 vc.put("CommitDescription", new StringPrimitive(commitAgain.getFullMessage()));
-                String str_SigVerification = "";
+                String SigVerification = "";
                 byte[] rawBuf = commitAgain.getRawBuffer();
                 if (rawBuf != null) {
                     String rawStr = new String(rawBuf, java.nio.charset.StandardCharsets.UTF_8);
                     if (rawStr.contains("\ngpgsig ")) {
-                        str_SigVerification = "SIGNED";
+                        SigVerification = "SIGNED";
                     }
                 }
-                vc.put("SignatureVerification", new StringPrimitive(str_SigVerification));
-                InfoTable iftbl_CommitChangedFiles =
-                        InfoTableInstanceFactory.createInfoTableFromDataShape(
-                                Const.str_CommitChangedFiles);
+                vc.put("SignatureVerification", new StringPrimitive(SigVerification));
+                InfoTable CommitChangedFiles =
+                        InfoTableInstanceFactory.createInfoTableFromDataShape(Const.CommitChangedFiles);
                 DiffFormatter diffFormatter = new DiffFormatter(DisabledOutputStream.INSTANCE);
                 diffFormatter.setRepository(myGitRepository);
                 List<DiffEntry> entries;
@@ -2075,120 +1573,25 @@ public class GitRepositoryShape extends Thing {
 
                 for (DiffEntry diffEntry : entries) {
                     ValueCollection v2 = new ValueCollection();
-
-                    switch (diffEntry.getChangeType()) {
-                        case ADD:
-                            {
-                                v2.put("FileName", new StringPrimitive(diffEntry.getNewPath()));
-                                break;
-                            }
-                        case DELETE:
-                            {
-                                v2.put("FileName", new StringPrimitive(diffEntry.getOldPath()));
-                                break;
-                            }
-                        case MODIFY:
-                            {
-                                v2.put("FileName", new StringPrimitive(diffEntry.getNewPath()));
-                                break;
-                            }
-                        case COPY:
-                            {
-                                v2.put("FileName", new StringPrimitive(diffEntry.getNewPath()));
-                                break;
-                            }
-                        case RENAME:
-                            {
-                                v2.put("FileName", new StringPrimitive(diffEntry.getNewPath()));
-                                break;
-                            }
-                    }
-                    v2.put("Status", new StringPrimitive(diffEntry.getChangeType().toString()));
-                    iftbl_CommitChangedFiles.addRow(v2);
+                    v2.put("FileName", new StringPrimitive(diffEntry.getNewPath()));
+                    v2.put(
+                            "Status",
+                            new StringPrimitive(diffEntry.getChangeType().toString()));
+                    CommitChangedFiles.addRow(v2);
                 }
                 diffFormatter.close();
 
-                vc.put("ChangedFiles", new InfoTablePrimitive(iftbl_CommitChangedFiles));
-                iftbl_Status.addRow(vc);
+                vc.put("ChangedFiles", new InfoTablePrimitive(CommitChangedFiles));
+                Status.addRow(vc);
                 walk.dispose();
-                _logger.trace("Exiting Service: GetCommitInfo");
+                log.trace("Exiting Service: GetCommitInfo");
             }
-            return ServiceResults.payload(
-                    "GIT.CommitInfo.ServiceResult.DataShape", iftbl_Status, "");
+            return ServiceResults.successFromPayload("GetCommitInfo", "GIT.CommitInfo.ServiceResult.DataShape", Status);
         } catch (Exception ex) {
             StringWriter errors = new StringWriter();
             ex.printStackTrace(new PrintWriter(errors));
-            _logger.error(
-                    "GetCommitInfo failed for CommitID '" + CommitID + "': " + errors.toString());
-            return ServiceResults.fromError(
-                    "GIT.CommitInfo.ServiceResult.DataShape",
-                    "GetCommitInfo",
-                    ex,
-                    buildErrorResult("GetCommitInfo", ex));
-        }
-    }
-
-    /**
-     * Exports all entities belonging to the configured ThingWorx project into the repository
-     * working tree.
-     */
-    @ThingworxServiceDefinition(
-            name = "ExportProjectEntities",
-            description = "Exports and stages only the configured ThingWorx project tree.",
-            category = "",
-            isAllowOverride = false,
-            aspects = {"isAsync:false"})
-    @ThingworxServiceResult(
-            name = "result",
-            description = "",
-            baseType = "INFOTABLE",
-            aspects = {"isEntityDataShape:true", "dataShape:GIT.OperationResult.DataShape"})
-    /**
-     * Exports all entities from the configured ThingWorx project into this repository's working
-     * tree. Existing files are updated and stale export metadata is normalized; only the configured
-     * project tree is staged, and no commit or push is performed.
-     *
-     * @param includeDependents whether project dependents should also be exported
-     */
-    public InfoTable ExportProjectEntities(
-            @ThingworxServiceParameter(
-                            name = "includeDependents",
-                            description = "",
-                            baseType = "BOOLEAN")
-                    Boolean includeDependents) {
-        try {
-            refreshConfiguration();
-            FileRepositoryThing fileRepo = getConfiguredFileRepository();
-            String configuredProjectName = configuredProjectName();
-            if (isBlank(configuredProjectName)) {
-                throw new Exception(Const.ERR_PREFIX_CONFIG + Const.ERR_PROJECT_NAME_REQUIRED);
-            }
-            String repoPath = orDefault(str_FileRepoPath, "");
-            boolean includeDeps = isTrue(includeDependents);
-            IServiceProvider sourceControlFunctions =
-                    (IServiceProvider)
-                            EntityUtilities.findEntity(
-                                    "SourceControlFunctions", ThingworxRelationshipTypes.Resource);
-            if (sourceControlFunctions == null) {
-                throw new Exception(Const.ERR_PREFIX_SYSTEM + Const.ERR_NO_SCF_RESOURCE);
-            }
-
-            ValueCollection params = new ValueCollection();
-            params.put("repositoryName", new StringPrimitive(fileRepo.getName()));
-            params.put("path", new StringPrimitive(repoPath));
-            params.put("projectName", new StringPrimitive(configuredProjectName));
-            params.put("includeDependents", new BooleanPrimitive(includeDeps));
-            sourceControlFunctions.processServiceRequest("ExportSourceControlledEntities", params);
-            removeLastModifiedDate(fileRepo.getName(), repoPath, configuredProjectName);
-            removeModelPersistenceProviderPackage(
-                    fileRepo.getName(), repoPath, configuredProjectName);
-            stagePath(
-                    getGitObject("ExportProjectEntities"),
-                    projectRepositoryPath(repoPath, configuredProjectName));
-            return ServiceResults.operation("Project entities exported.");
-        } catch (Exception e) {
-            return ServiceResults.fromError(
-                    "ExportProjectEntities", e, buildErrorResult("ExportProjectEntities", e));
+            log.error("GetCommitInfo failed for CommitID '" + CommitID + "': " + errors.toString());
+            return ServiceResults.fromError("GetCommitInfo", ex, "GIT.CommitInfo.ServiceResult.DataShape");
         }
     }
 
@@ -2205,357 +1608,15 @@ public class GitRepositoryShape extends Thing {
             description = "",
             baseType = "INFOTABLE",
             aspects = {"isEntityDataShape:true", "dataShape:GIT.Status.ServiceResult.DataShape"})
-    /**
-     * Imports XML entities from this repository's configured path into its required ThingWorx
-     * project. Import uses the platform SourceControlFunctions resource and may update or create
-     * platform entities; it does not commit or push Git changes.
-     *
-     * @param entityPath repository-relative path; blank uses {@code RepoPathName}
-     * @return the Git working-tree status after import
-     */
-    public InfoTable ImportProjectEntities(
-            @ThingworxServiceParameter(
-                            name = "entityPath",
-                            description =
-                                    "Relative path within this FileRepository; blank uses RepoPathName.",
-                            baseType = "STRING")
-                    String entityPath) {
-        try {
-            refreshConfiguration();
-            FileRepositoryThing fileRepo = getConfiguredFileRepository();
-            if (isBlank(configuredProjectName())) {
-                throw new Exception(Const.ERR_PREFIX_CONFIG + Const.ERR_PROJECT_NAME_REQUIRED);
-            }
-            String repoPath = entityPath;
-            if (isBlank(repoPath) || "*".equals(repoPath)) repoPath = str_FileRepoPath;
-            while (repoPath.startsWith("/")) repoPath = repoPath.substring(1);
-            while (repoPath.endsWith("/")) repoPath = repoPath.substring(0, repoPath.length() - 1);
-
-            InfoTable files =
-                    InfoTableInstanceFactory.createInfoTableFromDataShape("FileSystemFile");
-            collectXmlFiles(fileRepo, repoPath, files);
-            if (files.getRowCount() == 0) return importStatus("No XML entities found to import.");
-            // SourceControlFunctions imports a directory tree, not an individual XML file.
-            Object resource =
-                    EntityUtilities.findEntity(
-                            "SourceControlFunctions", ThingworxRelationshipTypes.Resource);
-            if (resource == null) {
-                throw new Exception(Const.ERR_PREFIX_SYSTEM + Const.ERR_NO_SCF_RESOURCE);
-            }
-            ValueCollection importParams = new ValueCollection();
-            importParams.put("repositoryName", new StringPrimitive(fileRepo.getName()));
-            importParams.put("path", new StringPrimitive(repoPath));
-            importParams.put("useDefaultDataProvider", new BooleanPrimitive(true));
-            importParams.put("withSubsystems", new BooleanPrimitive(false));
-            importParams.put("overwritePropertyValues", new BooleanPrimitive(true));
-            ((IServiceProvider) resource)
-                    .processServiceRequest("ImportSourceControlledEntities", importParams);
-            return importStatus(
-                    "Imported " + files.getRowCount() + " XML files from " + repoPath + ".");
-        } catch (Exception e) {
-            return ServiceResults.fromError(
-                    "GIT.Status.ServiceResult.DataShape",
-                    "ImportProjectEntities",
-                    e,
-                    buildErrorResult("ImportProjectEntities", e));
-        }
-    }
-
-    private InfoTable importStatus(String message) {
-        InfoTable status = Status();
-        if (ServiceResults.isErr(status)) return status;
-        status.getRow(0).put("Message", new StringPrimitive(message));
-        return status;
-    }
-
-    private void importProjectEntitiesOrThrow() {
-        if (ServiceResults.isErr(ImportProjectEntities(""))) {
-            throw new IllegalStateException("ImportProjectEntities returned an error result.");
-        }
-    }
-
-    private void collectXmlFiles(Thing fileRepo, String path, InfoTable allFiles) throws Exception {
-        ValueCollection listParams = new ValueCollection();
-        listParams.put("path", new StringPrimitive(path));
-        listParams.put("nameMask", new StringPrimitive("*.xml"));
-        InfoTable files = (InfoTable) fileRepo.processServiceRequest("ListFiles", listParams);
-        for (int i = 0; i < files.getRowCount(); i++) {
-            ValueCollection row = files.getRow(i);
-            String name = primitiveString(row, "name");
-            String filePath = primitiveString(row, "path");
-            if (isBlank(name) || isBlank(filePath)) continue;
-            ValueCollection newRow = new ValueCollection();
-            newRow.put("name", new StringPrimitive(name));
-            newRow.put("path", new StringPrimitive(filePath));
-            allFiles.addRow(newRow);
-        }
-        ValueCollection dirParams = new ValueCollection();
-        dirParams.put("path", new StringPrimitive(path));
-        dirParams.put("nameMask", new StringPrimitive(""));
-        InfoTable dirs = (InfoTable) fileRepo.processServiceRequest("ListDirectories", dirParams);
-        for (int i = 0; i < dirs.getRowCount(); i++) {
-            String dirPath = primitiveString(dirs.getRow(i), "path");
-            if (!isBlank(dirPath)) collectXmlFiles(fileRepo, dirPath, allFiles);
-        }
-    }
-
-    /** Returns the project configured on this GIT.Repository Thing. */
-    private String configuredProjectName() {
-        return str_ProjectName == null ? "" : str_ProjectName.trim();
-    }
-
-    private void removeLastModifiedDate(String fileRepoName, String repoPath, String projectName)
-            throws IOException {
-        FileRepositoryThing fileRepo =
-                (FileRepositoryThing)
-                        EntityUtilities.findEntity(fileRepoName, ThingworxRelationshipTypes.Thing);
-        File root = new File(fileRepo.getRootPath(), repoPath);
-        if (hasText(projectName)) root = new File(root, projectName);
-        if (!root.exists()) return;
-        List<File> files = new ArrayList<>();
-        collectXmlFilesOnDisk(root, files);
-        for (File file : files) {
-            String content = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
-            Files.write(
-                    file.toPath(),
-                    content.replaceAll("\\s+lastModifiedDate=\"[^\"]*\"", "")
-                            .getBytes(StandardCharsets.UTF_8));
-        }
-    }
-
-    private void removeModelPersistenceProviderPackage(
-            String fileRepoName, String repoPath, String projectName) throws IOException {
-        FileRepositoryThing fileRepo =
-                (FileRepositoryThing)
-                        EntityUtilities.findEntity(fileRepoName, ThingworxRelationshipTypes.Thing);
-        File root = new File(fileRepo.getRootPath(), repoPath);
-        if (hasText(projectName)) root = new File(root, projectName);
-        if (!root.exists()) return;
-        List<File> files = new ArrayList<>();
-        collectXmlFilesOnDisk(root, files);
-        for (File file : files) {
-            String content = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
-            Files.write(
-                    file.toPath(),
-                    content.replaceAll("\\s+modelPersistenceProviderPackage=\"[^\"]*\"", "")
-                            .getBytes(StandardCharsets.UTF_8));
-        }
-    }
-
-    private void collectXmlFilesOnDisk(File directory, List<File> result) {
-        File[] files = directory.listFiles();
-        if (files == null) return;
-        for (File file : files) {
-            if (file.isDirectory()) collectXmlFilesOnDisk(file, result);
-            else if (file.getName().toLowerCase().endsWith(".xml")) result.add(file);
-        }
-    }
-
-    /** Load repository settings from the persistent Thing properties. */
-    private void refreshConfiguration() {
-        this.str_GitRepoURL = propertyString(Const.str_GitRepoURL, "");
-        this.str_FileRepoPath = propertyString(Const.str_RepoPathName, "");
-        this.str_CurrentBranchOrCommit = propertyString(Const.str_InitialBranch, "main");
-        try {
-            Object value = configurationTarget().getPropertyValue(Const.str_UseProxy);
-            Object raw =
-                    value instanceof IPrimitiveType
-                            ? ((IPrimitiveType<?, ?>) value).getValue()
-                            : value;
-            this.bool_UseProxy = raw == null ? false : Boolean.parseBoolean(raw.toString());
-        } catch (Exception e) {
-            this.bool_UseProxy = false;
-        }
-        this.str_ProxyURL = propertyString(Const.str_ProxyURL, "");
-        try {
-            Object value = configurationTarget().getPropertyValue(Const.str_ProxyPort);
-            Object raw =
-                    value instanceof IPrimitiveType
-                            ? ((IPrimitiveType<?, ?>) value).getValue()
-                            : value;
-            this.int_ProxyPort = raw == null ? 0 : Integer.valueOf(raw.toString());
-        } catch (Exception e) {
-            this.int_ProxyPort = 0;
-        }
-        this.str_ProjectName = propertyString(Const.str_ProjectName, "");
-    }
-
-    private String propertyString(String name, String defaultValue) {
-        try {
-            Object value = configurationTarget().getPropertyValue(name);
-            Object raw =
-                    value instanceof IPrimitiveType
-                            ? ((IPrimitiveType<?, ?>) value).getValue()
-                            : value;
-            return raw == null ? defaultValue : raw.toString();
-        } catch (Exception e) {
-            return defaultValue;
-        }
-    }
-
     private String repositoryThingName() {
         Thing target = resolveTargetThing();
-        return target != null && hasText(target.getName()) ? target.getName() : getName();
-    }
-
-    private Thing configurationTarget() {
-        Thing target = resolveTargetThing();
-        return target == null ? this : target;
-    }
-
-    private void getFilesToDelete(
-            File path,
-            String str_Source,
-            ArrayList<File> lst_FilesToDelete,
-            ArrayList<File> lst_FoldersToDelete) {
-        // _logger.warn("Starting to remove files from directory "+path.toString());
-        if (path.exists()) {
-            File[] files = path.listFiles();
-            for (int i = 0; i < files.length; i++) {
-                if (files[i].isDirectory()) {
-                    lst_FoldersToDelete.add(files[i]);
-                    getFilesToDelete(files[i], str_Source, lst_FilesToDelete, lst_FoldersToDelete);
-                } else {
-                    lst_FilesToDelete.add(files[i]);
-                }
-            }
-        }
-    }
-
-    private void deleteGitFolder(File path, String str_Source) throws InterruptedException {
-        ArrayList<File> lst_FilesToDelete = new ArrayList<File>();
-        ArrayList<File> lst_FoldersToDelete = new ArrayList<File>();
-        getFilesToDelete(path, str_Source, lst_FilesToDelete, lst_FoldersToDelete);
-        _logger.warn("Folders to delete size: " + lst_FoldersToDelete.size());
-        _logger.warn("Files to delete size: " + lst_FilesToDelete.size());
-        ArrayList<File> lst_DeletedFiles = new ArrayList<File>();
-        ArrayList<File> lst_DeletedFolders = new ArrayList<File>();
-        for (File file : lst_FilesToDelete) {
-            Thread.sleep(1);
-            try {
-                Files.delete(file.toPath());
-                lst_DeletedFiles.add(file);
-            } catch (IOException ex) {
-                StringWriter errors = new StringWriter();
-                ex.printStackTrace(new PrintWriter(errors));
-                _logger.error(
-                        "Source method: "
-                                + str_Source
-                                + "; Error removing file "
-                                + file.getAbsolutePath()
-                                + "; Error: "
-                                + ex.toString()
-                                + "; Attempting to remove read-only flag.");
-                try {
-                    file.setWritable(true);
-                    Files.delete(file.toPath());
-                    lst_DeletedFiles.add(file);
-                    _logger.warn(
-                            "Source method: "
-                                    + str_Source
-                                    + "; File deleted successfully after read-only was removed "
-                                    + file.getAbsolutePath());
-                } catch (IOException ex2) {
-                    StringWriter errors2 = new StringWriter();
-                    ex.printStackTrace(new PrintWriter(errors2));
-                    _logger.error(
-                            "Source method: "
-                                    + str_Source
-                                    + "; Error removing read-only flag for file "
-                                    + file.getAbsolutePath()
-                                    + "; Error: "
-                                    + ex.toString());
-                }
-            }
-        }
-        lst_FilesToDelete.removeAll(lst_DeletedFiles);
-        _logger.warn(
-                "Files to delete size after removal (should be zero): " + lst_FilesToDelete.size());
-        lst_FoldersToDelete.sort(
-                (f1, f2) ->
-                        Integer.compare(f2.toPath().getNameCount(), f1.toPath().getNameCount()));
-        for (File file : lst_FoldersToDelete) {
-            try {
-                Files.delete(file.toPath());
-                lst_DeletedFolders.add(file);
-            } catch (IOException ex) {
-                StringWriter errors = new StringWriter();
-                ex.printStackTrace(new PrintWriter(errors));
-                _logger.error(
-                        "Source method: "
-                                + str_Source
-                                + "; Error removing folder "
-                                + file.getAbsolutePath()
-                                + "; Error: "
-                                + ex.toString());
-            }
-        }
-        // Removes the final subfolder from the ThingWorx File Repository
-        path.delete();
-    }
-
-    private Git getGitObject(String str_CallerMethod)
-            throws IOException,
-                    GitAPIException,
-                    InterruptedException,
-                    NoSuchMethodException,
-                    SecurityException,
-                    IllegalAccessException,
-                    IllegalArgumentException,
-                    InvocationTargetException {
-        refreshConfiguration();
-        // modified so that it will store the Git repository object (from JGIT) in an
-        // internal private field, not requiring reopen each time.
-        _logger.warn(
-                "Retrieving GIT Repository Thing : "
-                        + this.getName()
-                        + "; Object is: "
-                        + (gitObject != null)
-                        + "; Method: "
-                        + str_CallerMethod);
-        if (gitObject == null) {
-            FileRepositoryThing srcRepo = getConfiguredFileRepository();
-            // The FileRepository root is the Git working tree. RepoPath is only
-            // the subdirectory where exported ThingWorx entities are stored.
-            File gitDirectory = new File(srcRepo.getRootPath());
-            Git myGitObject;
-            FileRepositoryBuilder repositoryBuilder = new FileRepositoryBuilder();
-            repositoryBuilder.addCeilingDirectory(gitDirectory);
-            repositoryBuilder.findGitDir(gitDirectory);
-            if (repositoryBuilder.getGitDir() == null) {
-                myGitObject =
-                        Git.init()
-                                .setDirectory(gitDirectory)
-                                .setInitialBranch(str_CurrentBranchOrCommit)
-                                .call();
-                Thread.sleep(2000);
-            } else {
-                myGitObject = new Git(repositoryBuilder.build());
-            }
-            StoredConfig config = myGitObject.getRepository().getConfig();
-            config.setString("remote", "origin", "url", str_GitRepoURL);
-            config.setString("remote", "origin", "fetch", "+refs/heads/*:refs/remotes/origin/*");
-            config.setString("remote", "origin", "prune", "true");
-            config.setString("core", null, "autocrlf", "input");
-            // prevents Bitmap creation during GarbageCollection
-            config.setBoolean("repack", null, "writeBitmaps", false);
-            config.save();
-            _logger.warn(
-                    "GIT Repository Thing: "
-                            + this.getName()
-                            + " Git object found null, initialized. Git object created and stored internally for future use. "
-                            + "; Method: "
-                            + str_CallerMethod);
-            gitObject = myGitObject;
-        }
-        return gitObject;
+        return target != null && !target.getName().isBlank() ? target.getName() : getName();
     }
 
     private FileRepositoryThing getConfiguredFileRepository() {
         Thing target = resolveTargetThing();
         if (!(target instanceof FileRepositoryThing)) {
-            target =
-                    (Thing) EntityUtilities.findEntity(getName(), ThingworxRelationshipTypes.Thing);
+            target = (Thing) EntityUtilities.findEntity(getName(), ThingworxRelationshipTypes.Thing);
         }
         if (!(target instanceof FileRepositoryThing)) {
             throw new IllegalStateException(
@@ -2568,47 +1629,16 @@ public class GitRepositoryShape extends Thing {
         try {
             Object meContext = ThreadLocalContext.getMeContext();
             if (meContext instanceof Thing) return (Thing) meContext;
-            if (meContext instanceof String && hasText((String) meContext)) {
-                return (Thing)
-                        EntityUtilities.findEntity(
-                                (String) meContext, ThingworxRelationshipTypes.Thing);
+            if (meContext instanceof String && !((String) meContext).isBlank()) {
+                return (Thing) EntityUtilities.findEntity((String) meContext, ThingworxRelationshipTypes.Thing);
             }
         } catch (Exception e) {
-            _logger.trace("Could not resolve repository service target: " + e.getMessage());
+            log.trace("Could not resolve repository service target: " + e.getMessage());
         }
         return null;
     }
 
-    private String normalizeRepositoryRelativePath(String file) {
-        if (isBlank(file)) throw new IllegalArgumentException("File is required.");
-        String clean = file.replace('\\', '/');
-        while (clean.startsWith("/")) clean = clean.substring(1);
-        while (clean.contains("//")) clean = clean.replace("//", "/");
-        if (isBlank(clean)) throw new IllegalArgumentException("File is required.");
-        for (String component : clean.split("/")) {
-            if (component.equals(".") || component.equals("..")) {
-                throw new IllegalArgumentException("File must remain inside the repository path.");
-            }
-        }
-        return clean;
-    }
-
-    private String projectRepositoryPath(String repoPath, String projectName) {
-        String combined =
-                (isBlank(repoPath) ? "" : repoPath)
-                        + "/"
-                        + (isBlank(projectName) ? "" : projectName);
-        return normalizeRepositoryRelativePath(combined.replaceAll("^/+|/+$", ""));
-    }
-
-    private static void stagePath(Git git, String path) throws GitAPIException {
-        git.add().addFilepattern(path).setUpdate(true).call();
-        File workTreePath = new File(git.getRepository().getWorkTree(), path);
-        if (workTreePath.exists()) git.add().addFilepattern(path).call();
-    }
-
-    private static AbstractTreeIterator prepareTreeParser(Repository repository, String objectId)
-            throws IOException {
+    private static AbstractTreeIterator prepareTreeParser(Repository repository, String objectId) throws IOException {
         try (RevWalk walk = new RevWalk(repository)) {
             RevCommit commit = walk.parseCommit(ObjectId.fromString(objectId));
             RevTree tree = walk.parseTree(commit.getTree().getId());
@@ -2632,7 +1662,7 @@ public class GitRepositoryShape extends Thing {
             name = "Result",
             description = "",
             baseType = "INFOTABLE",
-            aspects = {"isEntityDataShape:true", "dataShape:GIT.OperationResult.DataShape"})
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
     /**
      * Merges the named branch into the current branch and imports the resulting project state into
      * ThingWorx. A conflict leaves the repository in a merge-in-progress state; callers should
@@ -2647,39 +1677,31 @@ public class GitRepositoryShape extends Thing {
                             description = "The branch to merge from",
                             baseType = "STRING")
                     String BranchName) {
-        String str_CurrentMethodName = "Merge";
-        if (isBlank(BranchName)) {
+        if (BranchName.isBlank()) {
             String errMsg = "Merge Error: " + Const.ERR_PREFIX_CONFIG + "BranchName is required.";
-            _logger.warn(errMsg);
-            return ServiceResults.failure(errMsg);
+
+            return ServiceResults.failureFromString("Merge", errMsg);
         }
         try {
-            ExportProjectEntities(false);
-            Git myGitFolder = getGitObject("Merge");
+            var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            fileRepo.exportProjectEntities();
+            Git myGitFolder = fileRepo.git();
             ObjectId mergeBase = myGitFolder.getRepository().resolve(BranchName);
             if (mergeBase == null) {
-                return ServiceResults.failure(
-                        "Merge Error: " + String.format(Const.ERR_BRANCH_NOT_FOUND, BranchName));
+                return ServiceResults.failureFromString(
+                        "Merge", "Merge Error: " + String.format(Const.ERR_BRANCH_NOT_FOUND, BranchName));
             }
             MergeResult result = myGitFolder.merge().include(mergeBase).call();
-            String str_LogResult = result.getMergeStatus().toString() + ": " + result.toString();
+            String LogResult = result.getMergeStatus().toString() + ": " + result.toString();
             if (result.getMergeStatus().isSuccessful()) {
-                importProjectEntitiesOrThrow();
+                fileRepo.importProjectEntities();
             } else if (result.getMergeStatus() == MergeResult.MergeStatus.CONFLICTING) {
-                _logger.warn(Const.ERR_MERGE_CONFLICT);
+
             }
-            _logger.info(str_CurrentMethodName + ": " + str_LogResult);
-            return ServiceResults.operation(str_LogResult);
+
+            return ServiceResults.successFromString("Merge", LogResult);
         } catch (Exception e) {
-            String errMsg;
-            if (e.getMessage() != null && e.getMessage().contains("CheckoutConflict")) {
-                errMsg = "Merge Error: " + Const.ERR_MERGE_CONFLICT;
-            } else {
-                errMsg = buildErrorResult("Merge", e);
-            }
-            _logger.error(errMsg);
-            _logger.info(str_CurrentMethodName + ": " + errMsg);
-            return ServiceResults.failure(errMsg);
+            return ServiceResults.fromError("Merge", e);
         }
     }
 
@@ -2694,7 +1716,7 @@ public class GitRepositoryShape extends Thing {
             name = "Result",
             description = "",
             baseType = "INFOTABLE",
-            aspects = {"isEntityDataShape:true", "dataShape:GIT.OperationResult.DataShape"})
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
     /**
      * Rebases the current branch onto the requested upstream ref. Successful results are imported
      * into ThingWorx; conflicts leave the rebase paused for resolution, continuation, skipping, or
@@ -2709,57 +1731,49 @@ public class GitRepositoryShape extends Thing {
                             description = "The branch or commit to rebase onto",
                             baseType = "STRING")
                     String UpstreamBranch) {
-        String str_CurrentMethodName = "Rebase";
-        if (isBlank(UpstreamBranch)) {
-            String errMsg =
-                    "Rebase Error: " + Const.ERR_PREFIX_CONFIG + "UpstreamBranch is required.";
-            _logger.warn(errMsg);
-            return ServiceResults.failure(errMsg);
+        if (UpstreamBranch.isBlank()) {
+            String errMsg = "Rebase Error: " + Const.ERR_PREFIX_CONFIG + "UpstreamBranch is required.";
+
+            return ServiceResults.failureFromString("Rebase", errMsg);
         }
         try {
-            ExportProjectEntities(false);
-            Git myGitFolder = getGitObject("Rebase");
+            var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            fileRepo.exportProjectEntities();
+            Git myGitFolder = fileRepo.git();
             ObjectId upstream = myGitFolder.getRepository().resolve(UpstreamBranch);
             if (upstream == null) {
-                return ServiceResults.failure(
-                        "Rebase Error: "
-                                + String.format(Const.ERR_UPSTREAM_NOT_FOUND, UpstreamBranch));
+                return ServiceResults.failureFromString(
+                        "Rebase", "Rebase Error: " + String.format(Const.ERR_UPSTREAM_NOT_FOUND, UpstreamBranch));
             }
             RebaseResult result = myGitFolder.rebase().setUpstream(upstream).call();
-            String str_LogResult = result.getStatus().toString() + ": " + result.toString();
+            String LogResult = result.getStatus().toString() + ": " + result.toString();
             if (result.getStatus() == RebaseResult.Status.OK) {
-                importProjectEntitiesOrThrow();
+                fileRepo.importProjectEntities();
             } else if (result.getStatus() == RebaseResult.Status.STOPPED) {
-                _logger.warn(Const.ERR_REBASE_CONFLICT);
+
             }
-            _logger.info(str_CurrentMethodName + ": " + str_LogResult);
-            return ServiceResults.operation(str_LogResult);
+
+            return ServiceResults.successFromString("Rebase", LogResult);
         } catch (Exception e) {
-            String errMsg;
             if (e.getMessage() != null && e.getMessage().contains("Conflicting")) {
-                errMsg = "Rebase Error: " + Const.ERR_REBASE_CONFLICT;
-            } else {
-                errMsg = buildErrorResult("Rebase", e);
+                return ServiceResults.failureFromString("Rebase", "Rebase Error: " + Const.ERR_REBASE_CONFLICT);
             }
-            _logger.error(errMsg);
-            _logger.info(str_CurrentMethodName + ": " + errMsg);
-            return ServiceResults.failure(errMsg);
+            return ServiceResults.fromError("Rebase", e);
         }
     }
 
     /** Creates a tag at the requested commit or current repository head. */
     @ThingworxServiceDefinition(
             name = "CreateTag",
-            description =
-                    "Creates a lightweight or annotated tag on the specified commit (defaults to HEAD).",
+            description = "Creates a lightweight or annotated tag on the specified commit (defaults to HEAD).",
             category = "",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
     @ThingworxServiceResult(
             name = "Result",
             description = "",
-            baseType = "STRING",
-            aspects = {})
+            baseType = "INFOTABLE",
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
     /**
      * Creates an annotated local tag. The project is exported first so the tag points at a commit
      * representing current ThingWorx state. No remote tag is created or pushed automatically.
@@ -2767,13 +1781,10 @@ public class GitRepositoryShape extends Thing {
      * @param TagName tag name
      * @param Message annotation message
      * @param CommitID optional target commit; blank uses {@code HEAD}
-     * @return tag creation summary or a prefixed error message
+     * @return a {@code GIT.StringResult.DataShape} table
      */
     public InfoTable CreateTag(
-            @ThingworxServiceParameter(
-                            name = "TagName",
-                            description = "Name of the tag to create",
-                            baseType = "STRING")
+            @ThingworxServiceParameter(name = "TagName", description = "Name of the tag to create", baseType = "STRING")
                     String TagName,
             @ThingworxServiceParameter(
                             name = "Message",
@@ -2785,23 +1796,23 @@ public class GitRepositoryShape extends Thing {
                             description = "Optional commit to tag (defaults to HEAD)",
                             baseType = "STRING")
                     String CommitID) {
-        String str_CurrentMethodName = "CreateTag";
-        if (isBlank(TagName)) {
-            _logger.info(str_CurrentMethodName + ": " + Const.ERR_NO_TAG_NAME);
-            return ServiceResults.failure(
-                    "CreateTag skipped: " + Const.ERR_PREFIX_CONFIG + Const.ERR_NO_TAG_NAME);
+        String CurrentMethodName = "CreateTag";
+        if (TagName.isBlank()) {
+
+            return ServiceResults.failureFromString(
+                    "CreateTag", "CreateTag skipped: " + Const.ERR_PREFIX_CONFIG + Const.ERR_NO_TAG_NAME);
         }
         try {
-            ExportProjectEntities(false);
-            Git myGitFolder = getGitObject("CreateTag");
+            var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            fileRepo.exportProjectEntities();
+            Git myGitFolder = fileRepo.git();
             Repository repo = myGitFolder.getRepository();
             ObjectId commitId;
-            if (hasText(CommitID)) {
+            if (CommitID != null && !CommitID.isBlank()) {
                 commitId = repo.resolve(CommitID);
                 if (commitId == null) {
-                    return ServiceResults.failure(
-                            "CreateTag Error: "
-                                    + String.format(Const.ERR_COMMIT_NOT_FOUND, CommitID));
+                    return ServiceResults.failureFromString(
+                            "CreateTag", "CreateTag Error: " + String.format(Const.ERR_COMMIT_NOT_FOUND, CommitID));
                 }
             } else {
                 commitId = repo.resolve("HEAD");
@@ -2812,34 +1823,26 @@ public class GitRepositoryShape extends Thing {
                 walk.dispose();
             }
             Ref tagRef;
-            if (hasText(Message)) {
-                tagRef =
-                        myGitFolder
-                                .tag()
-                                .setName(TagName)
-                                .setMessage(Message)
-                                .setObjectId(revCommit)
-                                .call();
+            if (Message != null && !Message.isBlank()) {
+                tagRef = myGitFolder
+                        .tag()
+                        .setName(TagName)
+                        .setMessage(Message)
+                        .setObjectId(revCommit)
+                        .call();
             } else {
-                tagRef = myGitFolder.tag().setName(TagName).setObjectId(revCommit).call();
+                tagRef = myGitFolder
+                        .tag()
+                        .setName(TagName)
+                        .setObjectId(revCommit)
+                        .call();
             }
-            String str_LogResult =
-                    String.format(Const.SUCCESS_TAG_CREATED, TagName, tagRef.getObjectId().name());
-            _logger.info(str_CurrentMethodName + ": " + str_LogResult);
-            return ServiceResults.operation(str_LogResult);
+            String LogResult = String.format(
+                    Const.SUCCESS_TAG_CREATED, TagName, tagRef.getObjectId().name());
+
+            return ServiceResults.successFromString("CreateTag", LogResult);
         } catch (Exception e) {
-            String errMsg;
-            if (e.getMessage() != null && e.getMessage().contains("already exists")) {
-                errMsg =
-                        "CreateTag Error: "
-                                + Const.ERR_PREFIX_GIT
-                                + "Tag '"
-                                + TagName
-                                + "' already exists. Use a different tag name or delete the existing tag first.";
-            } else {
-                errMsg = buildErrorResult("CreateTag", e);
-            }
-            return ServiceResults.fromError(str_CurrentMethodName, e, errMsg);
+            return ServiceResults.fromError(CurrentMethodName, e);
         }
     }
 
@@ -2853,20 +1856,21 @@ public class GitRepositoryShape extends Thing {
             name = "Result",
             description = "",
             baseType = "INFOTABLE",
-            aspects = {"isEntityDataShape:true", "dataShape:GIT.TagList.DataShape"})
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.TagList.ServiceResult.DataShape"})
     /**
-     * Lists local tags and their target commits. This operation is read-only and does not fetch
-     * tags from the remote.
+     * Lists local tags and their target commits. This successFromString is read-only and does not
+     * fetch tags from the remote.
      *
-     * @return a {@code GIT.TagList.DataShape} table, or an empty table when listing fails
+     * @return a {@code GIT.TagList.ServiceResult.DataShape} table, or an empty table when listing
+     *     fails
      */
     public InfoTable GetTagList() {
-        _logger.trace("Entering Service: GetTagList");
+        log.trace("Entering Service: GetTagList");
         try {
-            Git myGitFolder = getGitObject("GetTagList");
+            var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            Git myGitFolder = fileRepo.git();
             Repository repo = myGitFolder.getRepository();
-            InfoTable iftbl_TagList =
-                    InfoTableInstanceFactory.createInfoTableFromDataShape("GIT.TagList.DataShape");
+            InfoTable TagList = InfoTableInstanceFactory.createInfoTableFromDataShape("GIT.TagList.DataShape");
             List<Ref> tags = myGitFolder.tagList().call();
             for (Ref tagRef : tags) {
                 ValueCollection vc = new ValueCollection();
@@ -2885,30 +1889,22 @@ public class GitRepositoryShape extends Thing {
                         if (obj instanceof RevTag) {
                             RevTag revTag = (RevTag) obj;
                             message = revTag.getShortMessage();
-                            long epochSeconds =
-                                    revTag.getTaggerIdent() != null
-                                            ? revTag.getTaggerIdent()
-                                                    .getWhenAsInstant()
-                                                    .getEpochSecond()
-                                            : 0L;
-                            tagDate =
-                                    epochSeconds > 0
-                                            ? new DateTime((long) epochSeconds * 1000)
-                                            : new DateTime(0);
+                            long epochSeconds = revTag.getTaggerIdent() != null
+                                    ? revTag.getTaggerIdent().getWhenAsInstant().getEpochSecond()
+                                    : 0L;
+                            tagDate = epochSeconds > 0 ? new DateTime((long) epochSeconds * 1000) : new DateTime(0);
                         }
                     }
                 }
                 vc.put("Message", new StringPrimitive(message));
                 vc.put("Date", new DatetimePrimitive(tagDate));
-                iftbl_TagList.addRow(vc);
+                TagList.addRow(vc);
             }
-            _logger.trace("Exiting Service: GetTagList");
-            return iftbl_TagList;
+            log.trace("Exiting Service: GetTagList");
+            return ServiceResults.successFromPayload("GetTagList", "GIT.TagList.ServiceResult.DataShape", TagList);
         } catch (Exception ex) {
-            StringWriter errors = new StringWriter();
-            ex.printStackTrace(new PrintWriter(errors));
-            _logger.error("GetTagList failed: " + errors.toString());
-            return new InfoTable();
+
+            return ServiceResults.fromError("GetTagList", ex, "GIT.TagList.ServiceResult.DataShape");
         }
     }
 
@@ -2922,37 +1918,25 @@ public class GitRepositoryShape extends Thing {
             name = "Result",
             description = "",
             baseType = "INFOTABLE",
-            aspects = {"isEntityDataShape:true", "dataShape:GIT.OperationResult.DataShape"})
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
     public InfoTable DeleteTag(
-            @ThingworxServiceParameter(
-                            name = "TagName",
-                            description = "Name of the tag to delete",
-                            baseType = "STRING")
+            @ThingworxServiceParameter(name = "TagName", description = "Name of the tag to delete", baseType = "STRING")
                     String TagName) {
-        String str_CurrentMethodName = "DeleteTag";
-        if (isBlank(TagName)) {
-            _logger.warn("DeleteTag: TagName is required.");
-            return ServiceResults.failure("DeleteTag Error: TagName is required.");
+        String CurrentMethodName = "DeleteTag";
+        if (TagName.isBlank()) {
+
+            return ServiceResults.failureFromString(CurrentMethodName, "DeleteTag Error: TagName is required.");
         }
         try {
-            Git myGitFolder = getGitObject("DeleteTag");
+            var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            Git myGitFolder = fileRepo.git();
             myGitFolder.tagDelete().setTags("refs/tags/" + TagName).call();
-            String str_LogResult = String.format(Const.SUCCESS_TAG_DELETED, TagName);
-            _logger.info(str_CurrentMethodName + ": " + str_LogResult);
-            return ServiceResults.operation(str_LogResult);
+            String LogResult = String.format(Const.SUCCESS_TAG_DELETED, TagName);
+
+            return ServiceResults.successFromString(CurrentMethodName, LogResult);
         } catch (Exception e) {
-            StringWriter errors = new StringWriter();
-            e.printStackTrace(new PrintWriter(errors));
-            _logger.error("DeleteTag failed for tag '" + TagName + "': " + errors.toString());
-            _logger.info(
-                    str_CurrentMethodName
-                            + ": DeleteTag Error: "
-                            + Const.ERR_PREFIX_GIT
-                            + "Failed to delete tag '"
-                            + TagName
-                            + "'. "
-                            + e.getMessage());
-            return ServiceResults.failure(
+            return ServiceResults.failureFromString(
+                    CurrentMethodName,
                     "DeleteTag Error: "
                             + Const.ERR_PREFIX_GIT
                             + "Failed to delete tag '"
@@ -2960,64 +1944,5 @@ public class GitRepositoryShape extends Thing {
                             + "'. "
                             + e.getMessage());
         }
-    }
-
-    private String buildErrorResult(String serviceName, Exception e) {
-        StringWriter errors = new StringWriter();
-        e.printStackTrace(new PrintWriter(errors));
-        String errMsg = errors.toString();
-        _logger.error(errMsg);
-        String userFriendly;
-        String msg = e.getMessage();
-        if (msg != null) {
-            if (msg.contains("Remote does not") || msg.contains("remote:")) {
-                userFriendly =
-                        Const.ERR_PREFIX_GIT + "Remote repository rejected the operation: " + msg;
-            } else if (msg.contains("NotAuthorizedException")
-                    || msg.contains("not authorized")
-                    || msg.contains("401")
-                    || msg.contains("Authentication")) {
-                userFriendly =
-                        Const.ERR_PREFIX_AUTH
-                                + "Authentication failed. "
-                                + String.format(Const.ERR_AUTH_FAILED, str_GitRepoURL);
-            } else if (msg.contains("TransportException")
-                    || msg.contains("Timeout")
-                    || msg.contains("timeout")
-                    || msg.contains("connect")
-                    || msg.contains("Connection refused")) {
-                userFriendly =
-                        Const.ERR_PREFIX_NETWORK
-                                + "Network error. "
-                                + String.format(Const.ERR_NETWORK_FAILED, str_GitRepoURL);
-            } else if (msg.contains("MergeConflict") || msg.contains("CheckoutConflict")) {
-                userFriendly = Const.ERR_PREFIX_GIT + Const.ERR_MERGE_CONFLICT;
-            } else {
-                userFriendly =
-                        Const.ERR_PREFIX_SYSTEM
-                                + serviceName
-                                + " failed: "
-                                + (msg.length() > 200 ? msg.substring(0, 200) + "..." : msg);
-            }
-        } else {
-            userFriendly =
-                    Const.ERR_PREFIX_SYSTEM
-                            + serviceName
-                            + " failed with an unknown error. Check logs for details.";
-        }
-        return serviceName + " Error: " + userFriendly;
-    }
-
-    private ValueCollection getGitRepoRemoteCredential(User us_currentUser) throws Exception {
-        if (us_currentUser == null) return new ValueCollection();
-        var propValue = us_currentUser.getPropertyValue(Const.str_UserRepositoryConfiguration);
-        if (!(propValue instanceof InfoTablePrimitive)) return new ValueCollection();
-        InfoTable iftbl_CredentialStore = ((InfoTablePrimitive) propValue).getValue();
-        if (iftbl_CredentialStore == null) return new ValueCollection();
-        for (int i = 0; i < iftbl_CredentialStore.getRowCount(); i++) {
-            ValueCollection row = iftbl_CredentialStore.getRow(i);
-            if (repositoryThingName().equals(primitiveString(row, "GitThing"))) return row;
-        }
-        return new ValueCollection();
     }
 }

@@ -44,83 +44,62 @@ public class GpgKeyVisibilityTest {
 
     @Test
     void gpgKeyDataShapeEntityDoesNotExist() throws Exception {
-        var req =
-                HttpRequest.newBuilder()
-                        .uri(
-                                java.net.URI.create(
-                                        stack.thingworx.getExternalUrl()
-                                                + "/Thingworx/DataShapes/GIT.GpgKey.UserExtension.DataShape"))
-                        .header("Accept", "application/json")
-                        .header(
-                                "Authorization",
-                                "Basic "
-                                        + java.util.Base64.getEncoder()
-                                                .encodeToString(
-                                                        (credentials.thingworxAdminUser
-                                                                        + ":"
-                                                                        + credentials
-                                                                                .thingworxAdminPass)
-                                                                .getBytes()))
-                        .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
-                        .header("X-Requested-By", "ThingWorx")
-                        .GET()
-                        .build();
+        var req = HttpRequest.newBuilder()
+                .uri(java.net.URI.create(
+                        stack.thingworx.getExternalUrl() + "/Thingworx/DataShapes/GIT.GpgKey.UserExtension.DataShape"))
+                .header("Accept", "application/json")
+                .header(
+                        "Authorization",
+                        "Basic "
+                                + java.util.Base64.getEncoder()
+                                        .encodeToString(
+                                                (credentials.thingworxAdminUser + ":" + credentials.thingworxAdminPass)
+                                                        .getBytes()))
+                .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
+                .header("X-Requested-By", "ThingWorx")
+                .GET()
+                .build();
         var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
         assertEquals(
                 200,
                 res.statusCode(),
-                "UserGpgKey.DataShape should be accessible via REST API. Got "
-                        + res.statusCode()
-                        + ": "
-                        + res.body());
+                "UserGpgKey.DataShape should be accessible via REST API. Got " + res.statusCode() + ": " + res.body());
     }
 
     @Test
     void otherDataShapesStillExist() throws Exception {
-        var req =
-                HttpRequest.newBuilder()
-                        .uri(
-                                java.net.URI.create(
-                                        stack.thingworx.getExternalUrl()
-                                                + "/Thingworx/DataShapes/GIT.RepositoryConfiguration.UserExtension.DataShape"))
-                        .header("Accept", "application/json")
-                        .header(
-                                "Authorization",
-                                "Basic "
-                                        + java.util.Base64.getEncoder()
-                                                .encodeToString(
-                                                        (credentials.thingworxAdminUser
-                                                                        + ":"
-                                                                        + credentials
-                                                                                .thingworxAdminPass)
-                                                                .getBytes()))
-                        .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
-                        .header("X-Requested-By", "ThingWorx")
-                        .GET()
-                        .build();
+        var req = HttpRequest.newBuilder()
+                .uri(java.net.URI.create(stack.thingworx.getExternalUrl()
+                        + "/Thingworx/DataShapes/GIT.RepositoryConfiguration.UserExtension.DataShape"))
+                .header("Accept", "application/json")
+                .header(
+                        "Authorization",
+                        "Basic "
+                                + java.util.Base64.getEncoder()
+                                        .encodeToString(
+                                                (credentials.thingworxAdminUser + ":" + credentials.thingworxAdminPass)
+                                                        .getBytes()))
+                .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
+                .header("X-Requested-By", "ThingWorx")
+                .GET()
+                .build();
         var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
         assertEquals(
                 200,
                 res.statusCode(),
-                "Unrelated DataShape should still be accessible. Got "
-                        + res.statusCode()
-                        + ": "
-                        + res.body());
+                "Unrelated DataShape should still be accessible. Got " + res.statusCode() + ": " + res.body());
     }
 
     @Test
     void userExtensionsHasGpgKeysProperty() throws Exception {
         JsonObject getKeysBody = new JsonObject();
-        var req =
-                stack.thingworx
-                        .serviceRequest("GIT.Utility.Thing", "GpgKeyList", getKeysBody.toString())
-                        .timeout(Duration.ofSeconds(10))
-                        .build();
+        var req = stack.thingworx
+                .serviceRequest("GIT.Utility.Thing", "GpgKeyList", getKeysBody.toString())
+                .timeout(Duration.ofSeconds(10))
+                .build();
         var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
         assertEquals(
-                200,
-                res.statusCode(),
-                "GetGpgKeys should return 200. Got " + res.statusCode() + ": " + res.body());
+                200, res.statusCode(), "GetGpgKeys should return 200. Got " + res.statusCode() + ": " + res.body());
         assertNotNull(res.body());
         assertSuccess(res.body());
     }
@@ -131,36 +110,29 @@ public class GpgKeyVisibilityTest {
         setBody.addProperty("GpgPrivateKey", "test-private-key-data");
         setBody.addProperty("GpgKeyPassphrase", "test-passphrase");
         setBody.addProperty("GpgKeyFingerprint", "TEST:FINGER:PRINT:1234");
-        var setReq =
-                stack.thingworx
-                        .serviceRequest("GIT.Utility.Thing", "GpgKeyCreate", setBody.toString())
-                        .timeout(Duration.ofSeconds(10))
-                        .build();
+        var setReq = stack.thingworx
+                .serviceRequest("GIT.Utility.Thing", "GpgKeyCreate", setBody.toString())
+                .timeout(Duration.ofSeconds(10))
+                .build();
         var setRes = stack.httpClient.send(setReq, HttpResponse.BodyHandlers.ofString());
         assertTrue(
                 setRes.statusCode() == 200 || setRes.statusCode() == 201,
                 "SetGpgKey should succeed. Got " + setRes.statusCode() + ": " + setRes.body());
 
-        var getReq =
-                stack.thingworx
-                        .serviceRequest("GIT.Utility.Thing", "GpgKeyList", "{}")
-                        .timeout(Duration.ofSeconds(10))
-                        .build();
+        var getReq = stack.thingworx
+                .serviceRequest("GIT.Utility.Thing", "GpgKeyList", "{}")
+                .timeout(Duration.ofSeconds(10))
+                .build();
         var getRes = stack.httpClient.send(getReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(
                 200,
                 getRes.statusCode(),
-                "GetGpgKeys should return 200 after Set. Got "
-                        + getRes.statusCode()
-                        + ": "
-                        + getRes.body());
+                "GetGpgKeys should return 200 after Set. Got " + getRes.statusCode() + ": " + getRes.body());
         assertNotNull(getRes.body());
         var rows = responseRows(getRes.body());
         assertTrue(rows.size() > 0, "Should have at least one GpgKey row: " + getRes.body());
         var firstRow = rows.get(0).getAsJsonObject();
-        assertTrue(
-                firstRow.has("GpgKeyFingerprint"),
-                "Row should have GpgKeyFingerprint field: " + firstRow);
+        assertTrue(firstRow.has("GpgKeyFingerprint"), "Row should have GpgKeyFingerprint field: " + firstRow);
         assertEquals(
                 "TEST:FINGER:PRINT:1234",
                 firstRow.get("GpgKeyFingerprint").getAsString(),
@@ -168,21 +140,19 @@ public class GpgKeyVisibilityTest {
 
         var deleteBody = new JsonObject();
         deleteBody.addProperty("GpgKeyFingerprint", "TEST:FINGER:PRINT:1234");
-        var deleteReq =
-                stack.thingworx
-                        .serviceRequest("GIT.Utility.Thing", "GpgKeyDelete", deleteBody.toString())
-                        .timeout(Duration.ofSeconds(10))
-                        .build();
+        var deleteReq = stack.thingworx
+                .serviceRequest("GIT.Utility.Thing", "GpgKeyDelete", deleteBody.toString())
+                .timeout(Duration.ofSeconds(10))
+                .build();
         stack.httpClient.send(deleteReq, HttpResponse.BodyHandlers.ofString());
     }
 
     @Test
     void gpgKeysFieldNamesMatchExpectedSchema() throws Exception {
-        var getReq =
-                stack.thingworx
-                        .serviceRequest("GIT.Utility.Thing", "GpgKeyList", "{}")
-                        .timeout(Duration.ofSeconds(10))
-                        .build();
+        var getReq = stack.thingworx
+                .serviceRequest("GIT.Utility.Thing", "GpgKeyList", "{}")
+                .timeout(Duration.ofSeconds(10))
+                .build();
         var getRes = stack.httpClient.send(getReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, getRes.statusCode(), "GetGpgKeys should return 200: " + getRes.body());
 
@@ -195,7 +165,8 @@ public class GpgKeyVisibilityTest {
         assertTrue(fields.has("GpgKeyFingerprint"), "Missing GpgKeyFingerprint field");
 
         assertEquals(
-                "PASSWORD", fields.getAsJsonObject("GpgPrivateKey").get("baseType").getAsString());
+                "PASSWORD",
+                fields.getAsJsonObject("GpgPrivateKey").get("baseType").getAsString());
         assertEquals(
                 "PASSWORD",
                 fields.getAsJsonObject("GpgKeyPassphrase").get("baseType").getAsString());

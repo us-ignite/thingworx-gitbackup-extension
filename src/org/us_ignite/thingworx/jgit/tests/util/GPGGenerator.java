@@ -27,24 +27,21 @@ public class GPGGenerator {
 
         String userId = "Test User <test@example.com>";
 
-        var pgpKeyPair =
-                new JcaPGPKeyPair(PublicKeyAlgorithmTags.RSA_SIGN, kp, new java.util.Date());
+        var pgpKeyPair = new JcaPGPKeyPair(PublicKeyAlgorithmTags.RSA_SIGN, kp, new java.util.Date());
 
         var digestProvBuilder = new JcaPGPDigestCalculatorProviderBuilder().setProvider("BC");
         var sha1Calc = digestProvBuilder.build().get(PGPUtil.SHA1);
 
-        var keyRingGen =
-                new PGPKeyRingGenerator(
-                        PGPSignature.POSITIVE_CERTIFICATION,
-                        pgpKeyPair,
-                        userId,
-                        sha1Calc,
-                        null,
-                        null,
-                        new JcaPGPContentSignerBuilder(
-                                        pgpKeyPair.getPublicKey().getAlgorithm(), PGPUtil.SHA256)
-                                .setProvider("BC"),
-                        null);
+        var keyRingGen = new PGPKeyRingGenerator(
+                PGPSignature.POSITIVE_CERTIFICATION,
+                pgpKeyPair,
+                userId,
+                sha1Calc,
+                null,
+                null,
+                new JcaPGPContentSignerBuilder(pgpKeyPair.getPublicKey().getAlgorithm(), PGPUtil.SHA256)
+                        .setProvider("BC"),
+                null);
 
         var out = new ByteArrayOutputStream();
         try (var armoredOut = new ArmoredOutputStream(out)) {
@@ -55,11 +52,9 @@ public class GPGGenerator {
 
     public static String publicKeyFromPrivateKey(String privateKeyArmored) throws Exception {
         Security.addProvider(new BouncyCastleProvider());
-        var keyRings =
-                new PGPSecretKeyRingCollection(
-                        PGPUtil.getDecoderStream(
-                                new ByteArrayInputStream(privateKeyArmored.getBytes("UTF-8"))),
-                        new JcaKeyFingerprintCalculator());
+        var keyRings = new PGPSecretKeyRingCollection(
+                PGPUtil.getDecoderStream(new ByteArrayInputStream(privateKeyArmored.getBytes("UTF-8"))),
+                new JcaKeyFingerprintCalculator());
         PGPSecretKeyRing keyRing = keyRings.getKeyRings().next();
         var out = new ByteArrayOutputStream();
         try (var armoredOut = new ArmoredOutputStream(out)) {
