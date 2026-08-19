@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Entities>
     <ExtensionPackages>
-        <ExtensionPackage dependsOn="" description="This extension provides various GIT capabilities that allow storing ThingWorx applications in a third party Git server. This version is designed ONLY for ThingWorx versions &gt;= 9.3" haCompatible="true" migratorClass="org.us_ignite.thingworx.jgit.extension.ExtMigrator" minimumThingWorxVersion="9.3.0" name="JGitExtension" packageVersion="5.10.18" vendor="US Ignite / Ryan Guild">
+        <ExtensionPackage dependsOn="" description="This extension provides various GIT capabilities that allow storing ThingWorx applications in a third party Git server. This version is designed ONLY for ThingWorx versions &gt;= 9.3" haCompatible="true" migratorClass="org.us_ignite.thingworx.jgit.extension.ExtMigrator" minimumThingWorxVersion="9.3.0" name="JGitExtension" packageVersion="@PACKAGE_VERSION@" vendor="US Ignite / Ryan Guild">
             <JarResources>
                 <FileResource description="" file="jgitextension.jar" type="JAR"/>
                 <FileResource description="" file="jsch-0.1.55.jar" type="JAR"/>
