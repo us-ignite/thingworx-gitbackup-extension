@@ -1,36 +1,55 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Entities majorVersion="9" minorVersion="3" universal="password">
+<Entities
+ majorVersion="9"
+ minorVersion="7"
+ universal="password">
     <Things>
-        <Thing aspect.isEditableExtensionObject="true" aspect.isExtension="true" description="Example test entity" documentationContent="" effectiveThingPackage="Example.ThingPackage" enabled="true" homeMashup="" identifier="" inheritedValueStream="" name="Example.Thing" projectName="Example" published="false" tags="" thingTemplate="GenericThing" valueStream="">
-            <avatar/>
+        <Thing
+         aspect.isSystemObject="false"
+         description="Example test entity"
+         documentationContent=""
+         effectiveThingPackage="ConfiguredThing"
+         enabled="false"
+         homeMashup=""
+         identifier=""
+         inheritedValueStream=""
+         name="Example.Thing"
+         projectName="Example"
+         published="false"
+         tags=""
+         thingTemplate="GenericThing"
+         valueStream="">
+            <avatar></avatar>
             <DesignTimePermissions>
-                <Create/>
-                <Read/>
-                <Update/>
-                <Delete/>
-                <Metadata/>
+                <Create></Create>
+                <Read></Read>
+                <Update></Update>
+                <Delete></Delete>
+                <Metadata></Metadata>
             </DesignTimePermissions>
-            <RunTimePermissions/>
+            <RunTimePermissions></RunTimePermissions>
             <VisibilityPermissions>
-                <Visibility/>
+                <Visibility></Visibility>
             </VisibilityPermissions>
-            <ConfigurationTableDefinitions/>
-            <ConfigurationTables/>
+            <ConfigurationTableDefinitions></ConfigurationTableDefinitions>
+            <ConfigurationTables></ConfigurationTables>
             <ThingShape>
                 <PropertyDefinitions>
                     <PropertyDefinition aspect.cacheTime="0.0" aspect.dataChangeType="VALUE" aspect.isLogged="false" aspect.isPersistent="true" aspect.isReadOnly="false" baseType="STRING" category="" description="Example property" isLocalOnly="false" name="exampleProperty" ordinal="1"/>
                 </PropertyDefinitions>
-                <ServiceDefinitions/>
-                <EventDefinitions/>
-                <Subscriptions/>
+                <ServiceDefinitions></ServiceDefinitions>
+                <EventDefinitions></EventDefinitions>
+                <ServiceMappings></ServiceMappings>
+                <ServiceImplementations></ServiceImplementations>
+                <Subscriptions></Subscriptions>
             </ThingShape>
-            <PropertyBindings/>
-            <RemotePropertyBindings/>
-            <RemoteServiceBindings/>
-            <RemoteEventBindings/>
-            <AlertConfigurations/>
-            <ImplementedShapes/>
-            <ThingProperties/>
+            <PropertyBindings></PropertyBindings>
+            <RemotePropertyBindings></RemotePropertyBindings>
+            <RemoteServiceBindings></RemoteServiceBindings>
+            <RemoteEventBindings></RemoteEventBindings>
+            <AlertConfigurations></AlertConfigurations>
+            <ImplementedShapes></ImplementedShapes>
+            <ThingProperties></ThingProperties>
         </Thing>
     </Things>
 </Entities>
