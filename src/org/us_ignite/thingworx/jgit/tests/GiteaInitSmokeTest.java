@@ -41,48 +41,31 @@ public class GiteaInitSmokeTest {
 
     @Test
     void userAndRepoExist() throws Exception {
-        String auth =
-                "Basic "
-                        + Base64.getEncoder()
-                                .encodeToString(
-                                        (credentials.giteaUser + ":" + credentials.giteaPass)
-                                                .getBytes());
+        String auth = "Basic "
+                + Base64.getEncoder().encodeToString((credentials.giteaUser + ":" + credentials.giteaPass).getBytes());
         HttpClient client = HttpClient.newHttpClient();
 
-        var userReq =
-                HttpRequest.newBuilder()
-                        .uri(
-                                URI.create(
-                                        "http://"
-                                                + gitea.getHost()
-                                                + ":"
-                                                + gitea.getMappedPort(3000)
-                                                + "/api/v1/user"))
-                        .header("Authorization", auth)
-                        .GET()
-                        .build();
+        var userReq = HttpRequest.newBuilder()
+                .uri(URI.create("http://" + gitea.getHost() + ":" + gitea.getMappedPort(3000) + "/api/v1/user"))
+                .header("Authorization", auth)
+                .GET()
+                .build();
         var userRes = client.send(userReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, userRes.statusCode(), "admin user should exist: " + userRes.body());
 
-        var repoReq =
-                HttpRequest.newBuilder()
-                        .uri(
-                                URI.create(
-                                        "http://"
-                                                + gitea.getHost()
-                                                + ":"
-                                                + gitea.getMappedPort(3000)
-                                                + "/api/v1/repos/"
-                                                + credentials.giteaUser
-                                                + "/"
-                                                + credentials.repoName))
-                        .header("Authorization", auth)
-                        .GET()
-                        .build();
+        var repoReq = HttpRequest.newBuilder()
+                .uri(URI.create("http://"
+                        + gitea.getHost()
+                        + ":"
+                        + gitea.getMappedPort(3000)
+                        + "/api/v1/repos/"
+                        + credentials.giteaUser
+                        + "/"
+                        + credentials.repoName))
+                .header("Authorization", auth)
+                .GET()
+                .build();
         var repoRes = client.send(repoReq, HttpResponse.BodyHandlers.ofString());
-        assertEquals(
-                200,
-                repoRes.statusCode(),
-                "test repo should exist and be readable: " + repoRes.body());
+        assertEquals(200, repoRes.statusCode(), "test repo should exist and be readable: " + repoRes.body());
     }
 }

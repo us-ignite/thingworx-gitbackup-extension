@@ -17,14 +17,12 @@ be entered through the current user’s `UserExtensions` properties and must not
 | `Push` | `Remote: STRING`, `BranchName: STRING`, `RemoteBranchName: STRING`, `SetUpstream: BOOLEAN` | Pushes the current/upstream branch or an explicit local branch to a remote branch. |
 | `Pull` | `Force: BOOLEAN` | Fetches and integrates remote changes. |
 | `Fetch` | `Remote: STRING` | Fetches remote refs without integrating them. |
-| `DeleteLocalRepoContent` | — | Deletes the local repository content. Use with care. |
 | `BranchCreate` | `BranchName: STRING`, `StartPoint: STRING` | Creates a local branch without switching. |
 | `BranchSwitch` | `BranchName: STRING` | Switches to a local branch or creates a tracking branch for a matching origin branch. |
 | `Checkout` | `BranchNameOrCommit: STRING`, `CreateBranch: BOOLEAN`, `StartPoint: STRING`, `Force: BOOLEAN` | Checks out a branch, tag, or commit, optionally creating a branch or forcing the update. |
-| `GetCurrentBranch` | — | Returns the current branch or detached-head state. |
-| `GetBranchList` | — | Returns `GIT.BranchList`. |
+| `GetCurrentBranch` | — | Returns `GIT.CurrentBranchStatus.ServiceResult` for the current branch or detached-head state. |
+| `GetBranchList` | — | Returns `GIT.BranchList.ServiceResult`. |
 | `BranchDelete` | `BranchName: STRING`, `Remote: STRING`, `DeleteRemote: BOOLEAN`, `Force: BOOLEAN` | Deletes a local branch and optionally its remote branch. |
-| `GetCommitList` | — | Returns `GIT.CommitList`. |
 | `GetLog` | `Ref: STRING`, `MaxEntries: INTEGER` | Returns `GIT.CommitLog`. |
 | `GetReflog` | `Ref: STRING`, `MaxEntries: INTEGER` | Returns `GIT.ReflogEntry`. |
 | `Status` | — | Returns `GIT.Status` for the working tree. |
@@ -41,13 +39,13 @@ be entered through the current user’s `UserExtensions` properties and must not
 | `GetDiffPerFile` | `File: STRING` | Returns the working-tree diff for one file. |
 | `GetDiffPerFileBetweenCommits` | `File: STRING`, `FromCommitID: STRING` | Returns a file diff for the requested commit against its parent. |
 | `GetCommitInfo` | `CommitID: STRING` | Returns `GIT.CommitInfo`. |
-| `ExportProjectEntities` | `includeDependents: BOOLEAN` | Exports all entities from the `ProjectName` configured on the repository Thing and stages only its `RepoPathName/ProjectName` tree. It never commits. |
+| `ExportProjectEntities` | — | Exports all entities from the `ProjectName` configured on the repository Thing, never includes dependents, and stages only its `RepoPathName/ProjectName` tree. It never commits. |
 | `ImportProjectEntities` | `entityPath: STRING` | Imports repository entities into the repository Thing’s required configured `ProjectName` and returns the post-import Git status. |
 | `SetGPGKeyForSigning` | `GpgKeyFingerprint: STRING` | Selects or clears the current user's signing key for this repository. |
 | `Merge` | `BranchName: STRING` | Merges a branch into the current branch. |
 | `Rebase` | `UpstreamBranch: STRING` | Rebases onto an upstream branch. |
 | `CreateTag` | `TagName: STRING`, `Message: STRING`, `CommitID: STRING` | Creates an annotated tag. |
-| `GetTagList` | — | Returns `GIT.TagList`. |
+| `GetTagList` | — | Returns `GIT.TagList.ServiceResult`. |
 | `DeleteTag` | `TagName: STRING` | Deletes a local tag. |
 
 `Push`, `Pull`, and `Fetch` use the repository’s configured remote and the current user’s Git
@@ -58,21 +56,20 @@ configuration.
 
 | Service | Arguments | Result / purpose |
 |---|---|---|
-| `AddLogEntry` | `Content: STRING`, `ServiceName: STRING`, `Source: STRING`, `timestamp: DATETIME`, `User: STRING` | Writes an extension log entry. |
 | `RepositoryList` | — | Lists available repository Things. Returns an `INFOTABLE` with `RepoName: STRING` rows. |
 | `RepositoryCreate` | `RepoName: STRING`, `GitRepoURL: STRING`, `RepoPathName: STRING`, `BranchName: STRING`, `ProjectName: STRING`, `UseProxy: BOOLEAN`, `ProxyURL: STRING`, `ProxyPort: INTEGER`, `LocalizationTokensPrefix: STRING`, `GitCommitterUser: STRING`, `GitCommitterPassword: STRING`, `GitCommitterEmail: STRING`, `GitCommitterFullName: STRING` | Creates and configures the repository Thing and the current user's Git credentials in one call. |
-| `RepositoryDelete` | `RepoName: STRING` | Deletes the repository Thing, local content, and the current user’s associated configuration. Returns `NOTHING`. |
+| `RepositoryDelete` | `RepoName: STRING` | Deletes the repository Thing, local content, and the current user’s associated configuration. |
 | `InitUserExtensionProperties` | — | Creates and initializes the Git credentials and reusable GPG-key UserExtension properties. |
-| `GpgKeyList` | — | Returns the current user’s reusable keys as `INFOTABLE` with `GIT.GpgKey.UserExtension.DataShape` rows. Private keys and passphrases remain protected. |
+| `GpgKeyList` | — | Returns the current user’s reusable keys as `INFOTABLE` with `GIT.GpgKey.ServiceResult.DataShape` rows. Private keys and passphrases remain protected. |
 | `VerifyGpgKey` | `GpgPrivateKey: STRING`, `GpgKeyPassphrase: STRING` | Verifies a supplied or stored GPG key and returns `GIT.GpgKeyVerificationResult`. |
-| `GpgKeyGet` | `GpgKeyFingerprint: STRING` | Returns one matching key as an `INFOTABLE` with `GIT.GpgKey.UserExtension.DataShape`. Fails if the fingerprint is not owned by the current user. |
-| `GpgKeyCreate` | `GpgPrivateKey: STRING`, `GpgKeyPassphrase: STRING`, `GpgKeyFingerprint: STRING` (optional; derived when blank) | Creates a reusable current-user key. Returns `NOTHING`; fails when the fingerprint already exists. Key values are stored in protected user properties. |
-| `GpgKeyUpdate` | `GpgKeyFingerprint: STRING`, `GpgPrivateKey: STRING`, `GpgKeyPassphrase: STRING` | Replaces the protected key material for an existing current-user fingerprint. Returns `NOTHING`; fails when the fingerprint does not exist. |
-| `GpgKeyDelete` | `GpgKeyFingerprint: STRING` | Deletes an owned key and clears matching repository signing selections. Returns `NOTHING`; fails when the fingerprint does not exist. |
-| `GitCredentialList` | — | Returns the current user’s credentials as an `INFOTABLE` with `GIT.RepositoryConfiguration.UserExtension.DataShape` rows. Passwords remain protected. |
-| `GitCredentialGet` | `GitThing: THINGNAME` | Returns one repository credential record using `GIT.RepositoryConfiguration.UserExtension.DataShape`; fails when no current-user record exists. |
-| `GitCredentialCreate` | `GitCommitterUser: STRING`, `GitCommitterPassword: STRING`, `GitCommitterEmail: STRING`, `GitCommitterFullName: STRING`, `GitThing: THINGNAME`, `GpgKeyFingerprint: STRING` | Creates a current-user credential record and returns `NOTHING`; fails if a record already exists for `GitThing`. |
-| `GitCredentialUpdate` | `GitCommitterUser: STRING`, `GitCommitterPassword: STRING`, `GitCommitterEmail: STRING`, `GitCommitterFullName: STRING`, `GitThing: THINGNAME`, `GpgKeyFingerprint: STRING` | Updates an existing current-user record and returns `NOTHING`; fails if the record is missing. A blank fingerprint clears signing. |
-| `GitCredentialDelete` | `GitThing: THINGNAME` | Deletes the current user’s credential record and returns `NOTHING`; fails if the record is missing. |
+| `GpgKeyGet` | `GpgKeyFingerprint: STRING` | Returns one matching key as an `INFOTABLE` with `GIT.GpgKey.ServiceResult.DataShape`. Fails if the fingerprint is not owned by the current user. |
+| `GpgKeyCreate` | `GpgPrivateKey: STRING`, `GpgKeyPassphrase: STRING`, `GpgKeyFingerprint: STRING` (optional; derived when blank) | Creates a reusable current-user key. Fails when the fingerprint already exists. Key values are stored in protected user properties. |
+| `GpgKeyUpdate` | `GpgKeyFingerprint: STRING`, `GpgPrivateKey: STRING`, `GpgKeyPassphrase: STRING` | Replaces the protected key material for an existing current-user fingerprint; fails when the fingerprint does not exist. |
+| `GpgKeyDelete` | `GpgKeyFingerprint: STRING` | Deletes an owned key and clears matching repository signing selections; fails when the fingerprint does not exist. |
+| `GitCredentialList` | — | Returns the current user’s credentials as an `INFOTABLE` with `GIT.RepositoryConfiguration.ServiceResult.DataShape` rows. Passwords remain protected. |
+| `GitCredentialGet` | `GitThing: THINGNAME` | Returns one repository credential record using `GIT.RepositoryConfiguration.ServiceResult.DataShape`; fails when no current-user record exists. |
+| `GitCredentialCreate` | `GitCommitterUser: STRING`, `GitCommitterPassword: STRING`, `GitCommitterEmail: STRING`, `GitCommitterFullName: STRING`, `GitThing: THINGNAME`, `GpgKeyFingerprint: STRING` | Creates a current-user credential record; fails if a record already exists for `GitThing`. |
+| `GitCredentialUpdate` | `GitCommitterUser: STRING`, `GitCommitterPassword: STRING`, `GitCommitterEmail: STRING`, `GitCommitterFullName: STRING`, `GitThing: THINGNAME`, `GpgKeyFingerprint: STRING` | Updates an existing current-user record; fails if the record is missing. A blank fingerprint clears signing. |
+| `GitCredentialDelete` | `GitThing: THINGNAME` | Deletes the current user’s credential record; fails if the record is missing. |
 
 For the exact InfoTable fields and service annotations, see the [generated Java API reference](api/index.md).

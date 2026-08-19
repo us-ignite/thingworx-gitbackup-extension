@@ -2,6 +2,7 @@ package org.us_ignite.thingworx.jgit.extension;
 
 import com.thingworx.data.util.InfoTableInstanceFactory;
 import com.thingworx.logging.LogUtilities;
+import com.thingworx.metadata.DataShapeDefinition;
 import com.thingworx.types.InfoTable;
 import com.thingworx.types.collections.ValueCollection;
 import com.thingworx.types.primitives.BooleanPrimitive;
@@ -11,71 +12,108 @@ import org.slf4j.Logger;
 
 /** Builds the one-row, strongly typed result models returned by extension services. */
 final class ServiceResults {
-    static final String OPERATION = "GIT.OperationResult.DataShape";
     static final String STRING = "GIT.StringResult.DataShape";
-    private static final Logger LOGGER =
-            LogUtilities.getInstance().getApplicationLogger(ServiceResults.class);
+    private static final Logger LOGGER = LogUtilities.getInstance().getApplicationLogger(ServiceResults.class);
 
     private ServiceResults() {}
-
-    static InfoTable operation(String message) {
-        return operation(message, false);
-    }
-
-    static InfoTable failure(String message) {
-        return operation(message, true);
-    }
 
     /**
      * Logs the complete failure server-side and returns only the caller-safe message in the
      * standard operation result.
      */
-    static InfoTable fromError(String serviceName, Throwable error, String message) {
-        logError(serviceName, error, message);
-        return failure(message);
-    }
-
-    static InfoTable operation(String message, boolean error) {
-        return row(OPERATION, null, message, error);
-    }
-
-    static InfoTable string(String value, String message) {
-        InfoTable result = table(STRING);
-        ValueCollection row = statusRow(message, false);
-        row.put("Response", new StringPrimitive(value == null ? "" : value));
-        result.addRow(row);
+    static InfoTable fromError(String serviceName, Throwable error) {
+        var format = String.format("%s failed: %s", serviceName, error);
+        LOGGER.error(format);
+        InfoTable result = runtimeUncheckedInfoTable();
+        result.addRow(resultRow(true, format));
         return result;
     }
 
-    static InfoTable stringFailure(String message) {
-        InfoTable result = table(STRING);
-        ValueCollection row = statusRow(message, true);
-        row.put("Response", new StringPrimitive(""));
-        result.addRow(row);
+    static InfoTable fromError(String serviceName, Throwable error, DataShapeDefinition shape) {
+        var format = String.format("%s failed: %s", serviceName, error);
+        LOGGER.error(format);
+        InfoTable result = runtimeUncheckedInfoTable(shape);
+        result.addRow(resultRow(true, format, null));
         return result;
     }
 
-    static InfoTable stringFromError(String serviceName, Throwable error, String message) {
-        logError(serviceName, error, message);
-        return stringFailure(message);
+    static InfoTable fromError(String serviceName, Throwable error, String shape) {
+        var format = String.format("%s failed: %s", serviceName, error);
+        LOGGER.error(format);
+        InfoTable result = runtimeUncheckedInfoTable(shape);
+        result.addRow(resultRow(true, format, null));
+        return result;
     }
 
-    static InfoTable payload(String resultShape, InfoTable payload, String message) {
-        return row(resultShape, payload, message, false);
+    static InfoTable successFromString(String serviceName, String value) {
+        var format = String.format("%s completed: %s", serviceName, value);
+        LOGGER.info(format);
+        InfoTable result = runtimeUncheckedInfoTable();
+        result.addRow(resultRow(false, value));
+        return result;
     }
 
-    static InfoTable payloadFailure(String resultShape, String message) {
-        return row(resultShape, null, message, true);
+    static InfoTable failureFromString(String serviceName, String message) {
+        var format = String.format("%s failed: %s", serviceName, message);
+        LOGGER.error(format);
+        InfoTable result = runtimeUncheckedInfoTable();
+        result.addRow(resultRow(true, message));
+        return result;
     }
 
-    static InfoTable fromError(
-            String resultShape, String serviceName, Throwable error, String message) {
-        logError(serviceName, error, message);
-        return payloadFailure(resultShape, message);
+    static InfoTable successFromPayload(String serviceName, String resultShape, InfoTable payload) {
+        var format = String.format("%s completed with %d rows", serviceName, payload.getRowCount());
+        LOGGER.info(format);
+        InfoTable result = runtimeUncheckedInfoTable(resultShape);
+        result.addRow(resultRow(false, format, payload));
+        return result;
     }
 
-    static InfoTable emptyPayload(String payloadShape) {
-        return table(payloadShape);
+    static InfoTable failureFromResultShape(String serviceName, String resultShape) {
+        var format = String.format("%s failed: no results", serviceName);
+        LOGGER.info(format);
+        InfoTable result = runtimeUncheckedInfoTable(resultShape);
+        result.addRow(resultRow(false, format, null));
+        return result;
+    }
+
+    private static InfoTable runtimeUncheckedInfoTable(DataShapeDefinition shape) {
+        try {
+            return InfoTableInstanceFactory.createInfoTableFromDataShape(shape);
+        } catch (Exception e) {
+            throw new RuntimeException("unable to construct infotable for result");
+        }
+    }
+
+    private static InfoTable runtimeUncheckedInfoTable(String shape) {
+        try {
+            return InfoTableInstanceFactory.createInfoTableFromDataShape(shape);
+        } catch (Exception e) {
+            throw new RuntimeException("unable to construct infotable for result");
+        }
+    }
+
+    private static InfoTable runtimeUncheckedInfoTable() {
+        try {
+            return InfoTableInstanceFactory.createInfoTableFromDataShape(STRING);
+        } catch (Exception e) {
+            throw new RuntimeException("unable to construct infotable for result");
+        }
+    }
+
+    private static ValueCollection resultRow(Boolean error, String message) {
+        ValueCollection row = new ValueCollection();
+        row.put("Message", new StringPrimitive(message));
+        row.put("Error", new BooleanPrimitive(error));
+        return row;
+    }
+
+    private static ValueCollection resultRow(Boolean error, String message, InfoTable data) {
+        ValueCollection row = new ValueCollection();
+        row.put("Message", new StringPrimitive(message));
+        row.put("Error", new BooleanPrimitive(error));
+        row.put("Result", new InfoTablePrimitive(data));
+        return row;
     }
 
     static boolean isErr(InfoTable result) {
@@ -90,34 +128,5 @@ final class ServiceResults {
 
     static boolean isOk(InfoTable result) {
         return !isErr(result);
-    }
-
-    private static void logError(String serviceName, Throwable error, String message) {
-        LOGGER.error("{} failed: {}", serviceName, message, error);
-    }
-
-    private static InfoTable row(
-            String resultShape, InfoTable payload, String message, boolean error) {
-        InfoTable result = table(resultShape);
-        ValueCollection row = statusRow(message, error);
-        if (payload != null) row.put("Response", new InfoTablePrimitive(payload));
-        result.addRow(row);
-        return result;
-    }
-
-    private static ValueCollection statusRow(String message, boolean error) {
-        ValueCollection row = new ValueCollection();
-        row.put("Message", new StringPrimitive(message == null ? "" : message));
-        row.put("Error", new BooleanPrimitive(error));
-        return row;
-    }
-
-    private static InfoTable table(String dataShape) {
-        try {
-            return InfoTableInstanceFactory.createInfoTableFromDataShape(dataShape);
-        } catch (Exception e) {
-            throw new IllegalStateException(
-                    "Cannot create service result DataShape " + dataShape, e);
-        }
     }
 }

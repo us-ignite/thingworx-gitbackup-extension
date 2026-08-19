@@ -16,10 +16,7 @@ public class JGitExtensionTestStack implements AutoCloseable {
     public final HttpClient httpClient = HttpClient.newBuilder().build();
 
     public JGitExtensionTestStack(
-            String dbInitImage,
-            String platformImage,
-            TestingCredentials credentials,
-            boolean enableGitea)
+            String dbInitImage, String platformImage, TestingCredentials credentials, boolean enableGitea)
             throws Exception {
         network = Network.newNetwork();
         postgres = new Postgres(network, credentials);
@@ -27,14 +24,12 @@ public class JGitExtensionTestStack implements AutoCloseable {
         gitea = enableGitea ? new GiteaRepo(network, credentials) : null;
         giteaInit = enableGitea ? new GiteaInit(gitea, network, credentials) : null;
         thingworx = new ThingWorxContainer(platformImage, dbInit, postgres, network, credentials);
-        var zipPath =
-                System.getProperty("test.extensionZip", "build/distributions/JGitExtension.zip");
+        var zipPath = System.getProperty("test.extensionZip", "build/distributions/JGitExtension.zip");
         installer = new JGitExtensionInstaller(Paths.get(zipPath), thingworx, network, credentials);
         this.start();
     }
 
-    public JGitExtensionTestStack(
-            String dbInitImage, String platformImage, TestingCredentials credentials)
+    public JGitExtensionTestStack(String dbInitImage, String platformImage, TestingCredentials credentials)
             throws Exception {
         this(dbInitImage, platformImage, credentials, true);
     }
