@@ -6,14 +6,14 @@
     <Things>
         <Thing
          aspect.isSystemObject="false"
-         description="Example test entity. edited"
+         description="probe"
          documentationContent=""
          effectiveThingPackage="ConfiguredThing"
          enabled="false"
          homeMashup=""
          identifier=""
          inheritedValueStream=""
-         name="Example.Thing"
+         name="Probe.Thing"
          projectName="Example"
          published="false"
          tags=""
@@ -34,20 +34,7 @@
             <ConfigurationTableDefinitions></ConfigurationTableDefinitions>
             <ConfigurationTables></ConfigurationTables>
             <ThingShape>
-                <PropertyDefinitions>
-                    <PropertyDefinition
-                     aspect.cacheTime="0.0"
-                     aspect.dataChangeType="VALUE"
-                     aspect.isLogged="false"
-                     aspect.isPersistent="true"
-                     aspect.isReadOnly="false"
-                     baseType="STRING"
-                     category=""
-                     description="Example property"
-                     isLocalOnly="false"
-                     name="exampleProperty"
-                     ordinal="1"></PropertyDefinition>
-                </PropertyDefinitions>
+                <PropertyDefinitions></PropertyDefinitions>
                 <ServiceDefinitions></ServiceDefinitions>
                 <EventDefinitions></EventDefinitions>
                 <ServiceMappings></ServiceMappings>
@@ -60,13 +47,7 @@
             <RemoteEventBindings></RemoteEventBindings>
             <AlertConfigurations></AlertConfigurations>
             <ImplementedShapes></ImplementedShapes>
-            <ThingProperties>
-                <exampleProperty>
-                    <Value></Value>
-                    <Timestamp>1970-01-01T00:00:00.000Z</Timestamp>
-                    <Quality>UNKNOWN</Quality>
-                </exampleProperty>
-            </ThingProperties>
+            <ThingProperties></ThingProperties>
         </Thing>
     </Things>
 </Entities>
