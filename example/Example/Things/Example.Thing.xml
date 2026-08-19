@@ -63,8 +63,8 @@
             <ThingProperties>
                 <exampleProperty>
                     <Value></Value>
-                    <Timestamp>1970-01-01T00:00:00.000Z</Timestamp>
-                    <Quality>UNKNOWN</Quality>
+                    <Timestamp>2026-08-19T20:38:24.339Z</Timestamp>
+                    <Quality>GOOD</Quality>
                 </exampleProperty>
             </ThingProperties>
         </Thing>
