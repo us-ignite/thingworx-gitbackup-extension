@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Entities majorVersion="9" minorVersion="3" universal="password">
+    <Things>
+        <Thing aspect.isEditableExtensionObject="true" aspect.isExtension="true" description="Example test entity" documentationContent="" effectiveThingPackage="Example.ThingPackage" enabled="true" homeMashup="" identifier="" inheritedValueStream="" name="Example.Thing" projectName="Example" published="false" tags="" thingTemplate="GenericThing" valueStream="">
+            <avatar/>
+            <DesignTimePermissions>
+                <Create/>
+                <Read/>
+                <Update/>
+                <Delete/>
+                <Metadata/>
+            </DesignTimePermissions>
+            <RunTimePermissions/>
+            <VisibilityPermissions>
+                <Visibility/>
+            </VisibilityPermissions>
+            <ConfigurationTableDefinitions/>
+            <ConfigurationTables/>
+            <ThingShape>
+                <PropertyDefinitions>
+                    <PropertyDefinition aspect.cacheTime="0.0" aspect.dataChangeType="VALUE" aspect.isLogged="false" aspect.isPersistent="true" aspect.isReadOnly="false" baseType="STRING" category="" description="Example property" isLocalOnly="false" name="exampleProperty" ordinal="1"/>
+                </PropertyDefinitions>
+                <ServiceDefinitions/>
+                <EventDefinitions/>
+                <Subscriptions/>
+            </ThingShape>
+            <PropertyBindings/>
+            <RemotePropertyBindings/>
+            <RemoteServiceBindings/>
+            <RemoteEventBindings/>
+            <AlertConfigurations/>
+            <ImplementedShapes/>
+            <ThingProperties/>
+        </Thing>
+    </Things>
+</Entities>
