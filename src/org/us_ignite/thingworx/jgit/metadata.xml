@@ -7,17 +7,13 @@
                 <FileResource description="" file="jsch-0.1.55.jar" type="JAR"/>
                 <FileResource description="" file="bcpg-jdk18on-1.72.jar" type="JAR"/>
                 <FileResource description="" file="JavaEWAH-1.2.3.jar" type="JAR"/>
-                <FileResource description="" file="org.eclipse.jgit-7.6.0.202603022253-r.jar" type="JAR"/>
+                <FileResource description="" file="org.eclipse.jgit-7.@PACKAGE_VERSION@02603022253-r.jar" type="JAR"/>
             </JarResources>
         </ExtensionPackage>
     </ExtensionPackages>
     <ThingPackages>
-        <ThingPackage className="org.us_ignite.thingworx.jgit.extension.GitRepositoryShape" description="" name="GIT.Repository.ThingPackage"/>
         <ThingPackage className="org.us_ignite.thingworx.jgit.extension.GitUtilityThingShape" description="" name="GIT.Utility.ThingPackage"/>
     </ThingPackages>
-    <ThingTemplates>
-        <ThingTemplate aspect.isEditableExtensionObject="false" description="" name="GIT.Repository.ThingTemplate" thingPackage="GIT.Repository.ThingPackage"/>
-    </ThingTemplates>
     <LocalizationTables>
         <LocalizationTable description="Default localization table" documentationContent="" homeMashup="" languageCommon="English" languageNative="English" lastModifiedDate="2017-11-03T18:18:21.412+02:00" name="Default" projectName="" tags="">
             <avatar/>

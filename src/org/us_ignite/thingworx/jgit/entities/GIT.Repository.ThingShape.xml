@@ -19,16 +19,6 @@
                         <FieldDefinition baseType="STRING" description="The commit message" name="Message" ordinal="1"/>
                     </ParameterDefinitions>
                 </ServiceDefinition>
-                <ServiceDefinition aspect.isAsync="false" category="" description="Exports and stages only the ProjectName configured on this FileRepository-backed GIT.Repository Thing." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="ExportProjectEntities">
-                    <ResultType aspect.dataShape="GIT.StringResult.DataShape" baseType="INFOTABLE" description="" name="result" ordinal="0"/>
-                    <ParameterDefinitions/>
-                </ServiceDefinition>
-                <ServiceDefinition aspect.isAsync="false" category="" description="Imports XML entities from this FileRepository-backed GIT.Repository into its configured ProjectName." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="ImportProjectEntities">
-                    <ResultType aspect.dataShape="GIT.Status.ServiceResult.DataShape" baseType="INFOTABLE" description="" name="result" ordinal="0"/>
-                    <ParameterDefinitions>
-                        <FieldDefinition baseType="STRING" description="Relative path within this FileRepository; blank uses RepoPathName." name="entityPath" ordinal="1"/>
-                    </ParameterDefinitions>
-                </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Exports the ThingWorx project, pushes existing local commits using the current/upstream branch or explicit local and remote branch names, then imports the FileRepository tree." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="Push">
                     <ResultType aspect.dataShape="GIT.StringResult.DataShape" baseType="INFOTABLE" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions>
@@ -132,31 +122,31 @@
                     </ParameterDefinitions>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Removes a repository-relative file from the Git index without deleting it." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="Remove">
-                    <ResultType baseType="STRING" description="" name="Result" ordinal="0"/>
+                    <ResultType aspect.dataShape="GIT.StringResult.DataShape" baseType="INFOTABLE" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions>
                         <FieldDefinition baseType="STRING" description="Repository-relative file path" name="File" ordinal="1"/>
                     </ParameterDefinitions>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Completes a paused merge after conflicts are resolved and staged, then synchronizes ThingWorx." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="MergeContinue">
-                    <ResultType baseType="STRING" description="" name="Result" ordinal="0"/>
+                    <ResultType aspect.dataShape="GIT.StringResult.DataShape" baseType="INFOTABLE" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions>
                         <FieldDefinition baseType="STRING" description="Optional merge commit message" name="Message" ordinal="1"/>
                     </ParameterDefinitions>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Aborts the current merge and synchronizes the restored state into ThingWorx." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="MergeAbort">
-                    <ResultType baseType="STRING" description="" name="Result" ordinal="0"/>
+                    <ResultType aspect.dataShape="GIT.StringResult.DataShape" baseType="INFOTABLE" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions/>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Continues a paused rebase after conflicts are resolved and staged, then synchronizes ThingWorx." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="RebaseContinue">
-                    <ResultType baseType="STRING" description="" name="Result" ordinal="0"/>
+                    <ResultType aspect.dataShape="GIT.StringResult.DataShape" baseType="INFOTABLE" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions/>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Skips the current commit in a paused rebase." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="RebaseSkip">
-                    <ResultType baseType="STRING" description="" name="Result" ordinal="0"/>
+                    <ResultType aspect.dataShape="GIT.StringResult.DataShape" baseType="INFOTABLE" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions/>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Aborts the current rebase and synchronizes the restored state into ThingWorx." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="RebaseAbort">
-                    <ResultType baseType="STRING" description="" name="Result" ordinal="0"/>
+                    <ResultType aspect.dataShape="GIT.StringResult.DataShape" baseType="INFOTABLE" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions/>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Compatibility service that returns the working-tree diff for one file." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="GetDiffPerFile">

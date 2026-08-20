@@ -13,7 +13,8 @@ import org.slf4j.Logger;
 /** Builds the one-row, strongly typed result models returned by extension services. */
 final class ServiceResults {
     static final String STRING = "GIT.StringResult.DataShape";
-    private static final Logger LOGGER = LogUtilities.getInstance().getApplicationLogger(ServiceResults.class);
+    private static final Logger LOGGER =
+            LogUtilities.getInstance().getApplicationLogger(ServiceResults.class);
 
     private ServiceResults() {}
 
@@ -66,6 +67,15 @@ final class ServiceResults {
         LOGGER.info(format);
         InfoTable result = runtimeUncheckedInfoTable(resultShape);
         result.addRow(resultRow(false, format, payload));
+        return result;
+    }
+
+    static InfoTable successFromPayload(
+            String serviceName, String message, String resultShape, InfoTable payload) {
+        var format = String.format("%s completed: %s", serviceName, message);
+        LOGGER.info(format);
+        InfoTable result = runtimeUncheckedInfoTable(resultShape);
+        result.addRow(resultRow(false, message, payload));
         return result;
     }
 

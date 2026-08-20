@@ -30,22 +30,28 @@ public class ThingWorxEntitiesTest {
         var stack = new JGitExtensionTestStack(DB_INIT_IMAGE, PLATFORM_IMAGE, credentials);
 
         var baseUrl =
-                stack.thingworx.getExternalUrl() != null ? stack.thingworx.getExternalUrl() : "http://thingworx:8080";
-        var req = HttpRequest.newBuilder()
-                .uri(URI.create(baseUrl + "/Thingworx/Things/GIT.Utility.Thing"))
-                .header("Accept", "application/json")
-                .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
-                .header("X-Requested-By", "ThingWorx")
-                .header(
-                        "Authorization",
-                        "Basic "
-                                + java.util.Base64.getEncoder()
-                                        .encodeToString(
-                                                (credentials.thingworxAdminUser + ":" + credentials.thingworxAdminPass)
-                                                        .getBytes()))
-                .GET()
-                .timeout(Duration.ofMinutes(2))
-                .build();
+                stack.thingworx.getExternalUrl() != null
+                        ? stack.thingworx.getExternalUrl()
+                        : "http://thingworx:8080";
+        var req =
+                HttpRequest.newBuilder()
+                        .uri(URI.create(baseUrl + "/Thingworx/Things/GIT.Utility.Thing"))
+                        .header("Accept", "application/json")
+                        .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
+                        .header("X-Requested-By", "ThingWorx")
+                        .header(
+                                "Authorization",
+                                "Basic "
+                                        + java.util.Base64.getEncoder()
+                                                .encodeToString(
+                                                        (credentials.thingworxAdminUser
+                                                                        + ":"
+                                                                        + credentials
+                                                                                .thingworxAdminPass)
+                                                                .getBytes()))
+                        .GET()
+                        .timeout(Duration.ofMinutes(2))
+                        .build();
         var res = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, res.statusCode(), "GIT.Utility.Thing GET status. Body: " + res.body());
         assertNotNull(res.body(), "GIT.Utility.Thing response body must not be null");

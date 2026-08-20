@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Entities majorVersion="9" minorVersion="3" universal="password">
     <ThingTemplates>
-        <ThingTemplate aspect.isEditableExtensionObject="false" aspect.isExtension="true" description="Base template for GIT Repository Things providing core Git operations (commit, push, pull, branch, tag, etc.)." documentationContent="" homeMashup="" name="GIT.Repository.ThingTemplate" projectName="GIT" tags="">
+        <ThingTemplate aspect.isEditableExtensionObject="false" aspect.isExtension="true" baseThingTemplate="FileRepository" description="Base template for GIT Repository Things providing core Git operations (commit, push, pull, branch, tag, etc.)." documentationContent="" homeMashup="" name="GIT.Repository.ThingTemplate" projectName="GIT" tags="">
             <avatar/>
             <DesignTimePermissions>
                 <Create/>

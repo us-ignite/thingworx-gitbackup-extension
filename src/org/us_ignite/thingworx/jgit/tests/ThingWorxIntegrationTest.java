@@ -52,16 +52,19 @@ public class ThingWorxIntegrationTest {
 
     @Test
     void thingworxTablesExist() throws Exception {
-        var tables = stack.postgres.execInContainer(
-                "psql",
-                "-U",
-                "postgres",
-                "-d",
-                credentials.twxDatabaseSchema,
-                "-c",
-                "SELECT table_schema, table_name FROM information_schema.tables WHERE table_type = 'BASE TABLE' AND table_schema NOT IN ('pg_catalog', 'information_schema') ORDER BY table_schema, table_name;");
+        var tables =
+                stack.postgres.execInContainer(
+                        "psql",
+                        "-U",
+                        "postgres",
+                        "-d",
+                        credentials.twxDatabaseSchema,
+                        "-c",
+                        "SELECT table_schema, table_name FROM information_schema.tables WHERE table_type = 'BASE TABLE' AND table_schema NOT IN ('pg_catalog', 'information_schema') ORDER BY table_schema, table_name;");
         assertEquals(0, tables.getExitCode(), "psql query failed: " + tables.getStderr());
-        assertFalse(tables.getStdout().isBlank(), "No tables found in " + credentials.twxDatabaseSchema + " database");
+        assertFalse(
+                tables.getStdout().isBlank(),
+                "No tables found in " + credentials.twxDatabaseSchema + " database");
         assertTrue(
                 tables.getStdout().contains("thing_model"),
                 "Expected ThingWorx tables in "
@@ -85,22 +88,28 @@ public class ThingWorxIntegrationTest {
     @Test
     void installAndVerifyExtension() throws Exception {
         var baseUrl =
-                stack.thingworx.getExternalUrl() != null ? stack.thingworx.getExternalUrl() : "http://thingworx:8080";
-        var req = HttpRequest.newBuilder()
-                .uri(URI.create(baseUrl + "/Thingworx/Things/GIT.Utility.Thing"))
-                .header("Accept", "application/json")
-                .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
-                .header("X-Requested-By", "ThingWorx")
-                .header(
-                        "Authorization",
-                        "Basic "
-                                + java.util.Base64.getEncoder()
-                                        .encodeToString(
-                                                (credentials.thingworxAdminUser + ":" + credentials.thingworxAdminPass)
-                                                        .getBytes()))
-                .GET()
-                .timeout(Duration.ofMinutes(2))
-                .build();
+                stack.thingworx.getExternalUrl() != null
+                        ? stack.thingworx.getExternalUrl()
+                        : "http://thingworx:8080";
+        var req =
+                HttpRequest.newBuilder()
+                        .uri(URI.create(baseUrl + "/Thingworx/Things/GIT.Utility.Thing"))
+                        .header("Accept", "application/json")
+                        .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
+                        .header("X-Requested-By", "ThingWorx")
+                        .header(
+                                "Authorization",
+                                "Basic "
+                                        + java.util.Base64.getEncoder()
+                                                .encodeToString(
+                                                        (credentials.thingworxAdminUser
+                                                                        + ":"
+                                                                        + credentials
+                                                                                .thingworxAdminPass)
+                                                                .getBytes()))
+                        .GET()
+                        .timeout(Duration.ofMinutes(2))
+                        .build();
         var res = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, res.statusCode(), "GIT.Utility.Thing GET status. Body: " + res.body());
         assertNotNull(res.body(), "GIT.Utility.Thing response body must not be null");

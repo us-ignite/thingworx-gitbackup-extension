@@ -25,7 +25,8 @@ final class GitUserContextManager {
     }
 
     User requireUser() {
-        if (user == null) throw new IllegalStateException("No authenticated user context is available.");
+        if (user == null)
+            throw new IllegalStateException("No authenticated user context is available.");
         return user;
     }
 
@@ -49,19 +50,50 @@ final class GitUserContextManager {
     }
 
     ValueCollection gpgKey(String fingerprint) throws Exception {
+        return gpgKeyByFingerprintOrLabel(fingerprint, null);
+    }
+
+    /**
+     * Resolves an owned GPG key row by fingerprint and/or label. When both are provided, both must
+     * match the same row. When neither is provided, the first key row is returned.
+     */
+    ValueCollection gpgKeyByFingerprintOrLabel(String fingerprint, String label) throws Exception {
         InfoTable keys = gpgKeys();
         if (keys != null) {
+            boolean hasFingerprint = fingerprint != null && !fingerprint.isBlank();
+            boolean hasLabel = label != null && !label.isBlank();
             for (int i = 0; i < keys.getRowCount(); i++) {
                 ValueCollection row = keys.getRow(i);
-                if (fingerprint.equals(row.getStringValue(Const.GpgKeyFingerprint))) return row;
+                boolean fingerprintMatches =
+                        fingerprint != null
+                                && fingerprint.equals(row.getStringValue(Const.GpgKeyFingerprint));
+                boolean labelMatches =
+                        label != null && label.equals(row.getStringValue(Const.GpgKeyLabel));
+                if (hasFingerprint && hasLabel) {
+                    if (fingerprintMatches && labelMatches) return row;
+                } else if (hasFingerprint) {
+                    if (fingerprintMatches) return row;
+                } else if (hasLabel) {
+                    if (labelMatches) return row;
+                }
             }
+            if (!hasFingerprint && !hasLabel && keys.getRowCount() > 0) return keys.getRow(0);
         }
         return null;
     }
 
     void validateGpgKeyOwnership(String fingerprint) throws Exception {
-        if (gpgKey(fingerprint) == null) {
-            throw new IllegalArgumentException("GPG key is not owned by the current user: " + fingerprint);
+        validateGpgKeyOwnership(fingerprint, null);
+    }
+
+    void validateGpgKeyOwnership(String fingerprint, String label) throws Exception {
+        if (gpgKeyByFingerprintOrLabel(fingerprint, label) == null) {
+            String identifier =
+                    label != null && !label.isBlank()
+                            ? "label '" + label + "'"
+                            : "fingerprint " + fingerprint;
+            throw new IllegalArgumentException(
+                    "GPG key is not owned by the current user: " + identifier);
         }
     }
 
@@ -69,7 +101,9 @@ final class GitUserContextManager {
         User currentUser = requireUser();
         InfoTable configurations = credentials();
         if (configurations == null) {
-            configurations = InfoTableInstanceFactory.createInfoTableFromDataShape(Const.GitCredentialsDataShapeName);
+            configurations =
+                    InfoTableInstanceFactory.createInfoTableFromDataShape(
+                            Const.GitCredentialsDataShapeName);
         }
         ValueCollection row = null;
         for (int i = 0; i < configurations.getRowCount(); i++) {
@@ -83,8 +117,11 @@ final class GitUserContextManager {
             row.put("GitThing", new StringPrimitive(repositoryThingName));
             configurations.addRow(row);
         }
-        row.put(Const.GpgKeyFingerprint, new StringPrimitive(fingerprint == null ? "" : fingerprint));
-        currentUser.setPropertyValue(Const.UserRepositoryConfiguration, new InfoTablePrimitive(configurations));
+        row.put(
+                Const.GpgKeyFingerprint,
+                new StringPrimitive(fingerprint == null ? "" : fingerprint));
+        currentUser.setPropertyValue(
+                Const.UserRepositoryConfiguration, new InfoTablePrimitive(configurations));
     }
 
     private InfoTable infoTableProperty(String propertyName) throws Exception {
