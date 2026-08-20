@@ -11,7 +11,7 @@
                     <ParameterDefinitions>
                         <FieldDefinition baseType="STRING" description="" name="RepoName" ordinal="1"/>
                         <FieldDefinition baseType="STRING" description="" name="GitRepoURL" ordinal="2"/>
-                        <FieldDefinition baseType="STRING" description="" name="RepoPathName" ordinal="3"/>
+                        <FieldDefinition baseType="STRING" description="" name="RepoPath" ordinal="3"/>
                         <FieldDefinition baseType="STRING" description="" name="BranchName" ordinal="4"/>
                         <FieldDefinition baseType="STRING" description="" name="ProjectName" ordinal="5"/>
                         <FieldDefinition baseType="BOOLEAN" description="" name="UseProxy" ordinal="6"/>
@@ -44,19 +44,20 @@
                         <FieldDefinition baseType="STRING" description="ASCII-armored PGP private key" name="GpgPrivateKey" ordinal="1"/>
                         <FieldDefinition baseType="STRING" description="Passphrase for the PGP private key" name="GpgKeyPassphrase" ordinal="2"/>
                         <FieldDefinition baseType="STRING" description="GPG key fingerprint for display" name="GpgKeyFingerprint" ordinal="3"/>
+                        <FieldDefinition baseType="STRING" description="Optional human-readable label for this key" name="GpgKeyLabel" ordinal="4"/>
                     </ParameterDefinitions>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Verifies a pasted PGP private key can be loaded and used for signing." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="VerifyGpgKey">
                     <ResultType aspect.dataShape="GIT.GpgKeyVerification.ServiceResult.DataShape" baseType="INFOTABLE" description="" name="Result" ordinal="0"/>
                     <ParameterDefinitions>
                         <FieldDefinition baseType="STRING" description="ASCII-armored PGP private key" name="GpgPrivateKey" ordinal="1"/>
-                        <FieldDefinition baseType="STRING" description="Passphrase for the PGP private key" name="GpgKeyPassphrase" ordinal="2"/>
                     </ParameterDefinitions>
                 </ServiceDefinition>
-                <ServiceDefinition aspect.isAsync="false" category="" description="Removes a GPG key and clears signing references" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="GpgKeyDelete">
-                    <ResultType aspect.dataShape="GIT.StringResult.DataShape" baseType="INFOTABLE" description="" name="result" ordinal="0"/>
+                <ServiceDefinition aspect.isAsync="false" category="" description="Removes a GPG key, clears signing references, and returns the deleted key" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="GpgKeyDelete">
+                    <ResultType aspect.dataShape="GIT.GpgKey.ServiceResult.DataShape" baseType="INFOTABLE" description="" name="result" ordinal="0"/>
                     <ParameterDefinitions>
                         <FieldDefinition baseType="STRING" description="GPG key fingerprint" name="GpgKeyFingerprint" ordinal="1"/>
+                        <FieldDefinition baseType="STRING" description="Optional key label" name="GpgKeyLabel" ordinal="2"/>
                     </ParameterDefinitions>
                 </ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Stores or updates Git credentials for a GIT Repository thing in the current user's GitCredentials property." isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="GitCredentialCreate">
@@ -75,8 +76,8 @@
                 <ServiceDefinition aspect.isAsync="false" category="" description="Returns credentials for one repository" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="GitCredentialGet"><ResultType aspect.dataShape="GIT.RepositoryConfiguration.ServiceResult.DataShape" baseType="INFOTABLE" description="" name="result" ordinal="0"/><ParameterDefinitions><FieldDefinition baseType="THINGNAME" description="Repository Thing" name="GitThing" ordinal="1"/></ParameterDefinitions></ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Updates credentials for an existing repository record" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="GitCredentialUpdate"><ResultType aspect.dataShape="GIT.StringResult.DataShape" baseType="INFOTABLE" description="" name="result" ordinal="0"/><ParameterDefinitions><FieldDefinition baseType="STRING" description="" name="GitCommitterUser" ordinal="1"/><FieldDefinition baseType="STRING" description="" name="GitCommitterPassword" ordinal="2"/><FieldDefinition baseType="STRING" description="" name="GitCommitterEmail" ordinal="3"/><FieldDefinition baseType="STRING" description="" name="GitCommitterFullName" ordinal="4"/><FieldDefinition baseType="THINGNAME" description="" name="GitThing" ordinal="5"/><FieldDefinition baseType="STRING" description="Optional GPG key fingerprint; blank clears signing" name="GpgKeyFingerprint" ordinal="6"/></ParameterDefinitions></ServiceDefinition>
                 <ServiceDefinition aspect.isAsync="false" category="" description="Deletes credentials for a repository" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="GitCredentialDelete"><ResultType aspect.dataShape="GIT.StringResult.DataShape" baseType="INFOTABLE" description="" name="result" ordinal="0"/><ParameterDefinitions><FieldDefinition baseType="THINGNAME" description="Repository Thing" name="GitThing" ordinal="1"/></ParameterDefinitions></ServiceDefinition>
-                <ServiceDefinition aspect.isAsync="false" category="" description="Returns one owned GPG key by fingerprint" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="GpgKeyGet"><ResultType aspect.dataShape="GIT.GpgKey.ServiceResult.DataShape" baseType="INFOTABLE" description="" name="result" ordinal="0"/><ParameterDefinitions><FieldDefinition baseType="STRING" description="Key fingerprint" name="GpgKeyFingerprint" ordinal="1"/></ParameterDefinitions></ServiceDefinition>
-                <ServiceDefinition aspect.isAsync="false" category="" description="Updates an owned GPG key" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="GpgKeyUpdate"><ResultType aspect.dataShape="GIT.StringResult.DataShape" baseType="INFOTABLE" description="" name="result" ordinal="0"/><ParameterDefinitions><FieldDefinition baseType="STRING" description="Key fingerprint" name="GpgKeyFingerprint" ordinal="1"/><FieldDefinition baseType="STRING" description="ASCII-armored private key" name="GpgPrivateKey" ordinal="2"/><FieldDefinition baseType="STRING" description="Private-key passphrase" name="GpgKeyPassphrase" ordinal="3"/></ParameterDefinitions></ServiceDefinition>
+                <ServiceDefinition aspect.isAsync="false" category="" description="Returns one owned GPG key by fingerprint or label" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="GpgKeyGet"><ResultType aspect.dataShape="GIT.GpgKey.ServiceResult.DataShape" baseType="INFOTABLE" description="" name="result" ordinal="0"/><ParameterDefinitions><FieldDefinition baseType="STRING" description="Key fingerprint" name="GpgKeyFingerprint" ordinal="1"/><FieldDefinition baseType="STRING" description="Optional key label; when both are supplied both must match" name="GpgKeyLabel" ordinal="2"/></ParameterDefinitions></ServiceDefinition>
+                <ServiceDefinition aspect.isAsync="false" category="" description="Updates an owned GPG key" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="GpgKeyUpdate"><ResultType aspect.dataShape="GIT.StringResult.DataShape" baseType="INFOTABLE" description="" name="result" ordinal="0"/><ParameterDefinitions><FieldDefinition baseType="STRING" description="Key fingerprint" name="GpgKeyFingerprint" ordinal="1"/><FieldDefinition baseType="STRING" description="Optional key label; when GpgKeyFingerprint is set this becomes the new label" name="GpgKeyLabel" ordinal="2"/><FieldDefinition baseType="STRING" description="ASCII-armored private key" name="GpgPrivateKey" ordinal="3"/><FieldDefinition baseType="STRING" description="Private-key passphrase" name="GpgKeyPassphrase" ordinal="4"/></ParameterDefinitions></ServiceDefinition>
             </ServiceDefinitions>
             <EventDefinitions/>
             <ServiceMappings/>

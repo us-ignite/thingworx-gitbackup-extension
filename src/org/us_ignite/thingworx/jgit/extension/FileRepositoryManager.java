@@ -74,8 +74,10 @@ final class FileRepositoryManager {
         if (projectName().isBlank()) {
             throw new Exception(Const.ERR_PREFIX_CONFIG + Const.ERR_PROJECT_NAME_REQUIRED);
         }
-        IServiceProvider sourceControlFunctions = (IServiceProvider)
-                EntityUtilities.findEntity("SourceControlFunctions", ThingworxRelationshipTypes.Resource);
+        IServiceProvider sourceControlFunctions =
+                (IServiceProvider)
+                        EntityUtilities.findEntity(
+                                "SourceControlFunctions", ThingworxRelationshipTypes.Resource);
         if (sourceControlFunctions == null) {
             throw new Exception(Const.ERR_PREFIX_SYSTEM + Const.ERR_NO_SCF_RESOURCE);
         }
@@ -102,7 +104,9 @@ final class FileRepositoryManager {
         }
         File root = new File(fileRepository.getRootPath(), repositoryPath());
         if (!root.exists() || !containsXmlFile(root)) return false;
-        Object resource = EntityUtilities.findEntity("SourceControlFunctions", ThingworxRelationshipTypes.Resource);
+        Object resource =
+                EntityUtilities.findEntity(
+                        "SourceControlFunctions", ThingworxRelationshipTypes.Resource);
         if (resource == null) {
             throw new Exception(Const.ERR_PREFIX_SYSTEM + Const.ERR_NO_SCF_RESOURCE);
         }
@@ -112,7 +116,8 @@ final class FileRepositoryManager {
         params.put("useDefaultDataProvider", new BooleanPrimitive(true));
         params.put("withSubsystems", new BooleanPrimitive(false));
         params.put("overwritePropertyValues", new BooleanPrimitive(true));
-        ((IServiceProvider) resource).processServiceRequest("ImportSourceControlledEntities", params);
+        ((IServiceProvider) resource)
+                .processServiceRequest("ImportSourceControlledEntities", params);
         return true;
     }
 
@@ -137,7 +142,9 @@ final class FileRepositoryManager {
         collectXmlFilesOnDisk(root, files);
         for (File file : files) {
             String content = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
-            Files.write(file.toPath(), content.replaceAll(attributePattern, "").getBytes(StandardCharsets.UTF_8));
+            Files.write(
+                    file.toPath(),
+                    content.replaceAll(attributePattern, "").getBytes(StandardCharsets.UTF_8));
         }
     }
 
@@ -197,7 +204,10 @@ final class FileRepositoryManager {
     private String propertyString(String name, String defaultValue) {
         try {
             Object value = fileRepository.getPropertyValue(name);
-            Object raw = value instanceof IPrimitiveType ? ((IPrimitiveType<?, ?>) value).getValue() : value;
+            Object raw =
+                    value instanceof IPrimitiveType
+                            ? ((IPrimitiveType<?, ?>) value).getValue()
+                            : value;
             return raw == null ? defaultValue : raw.toString();
         } catch (Exception ignored) {
             return defaultValue;
@@ -209,12 +219,13 @@ final class FileRepositoryManager {
         FileRepositoryBuilder builder = new FileRepositoryBuilder();
         builder.addCeilingDirectory(directory);
         builder.findGitDir(directory);
-        Git opened = builder.getGitDir() == null
-                ? Git.init()
-                        .setDirectory(directory)
-                        .setInitialBranch(initialBranch())
-                        .call()
-                : new Git(builder.build());
+        Git opened =
+                builder.getGitDir() == null
+                        ? Git.init()
+                                .setDirectory(directory)
+                                .setInitialBranch(initialBranch())
+                                .call()
+                        : new Git(builder.build());
         StoredConfig config = opened.getRepository().getConfig();
         config.setString("remote", "origin", "url", gitRepoUrl());
         config.setString("remote", "origin", "fetch", "+refs/heads/*:refs/remotes/origin/*");

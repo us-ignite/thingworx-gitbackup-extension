@@ -38,10 +38,13 @@ public final class Const {
     public static final String GpgPrivateKey = "GpgPrivateKey";
     public static final String GpgKeyPassphrase = "GpgKeyPassphrase";
     public static final String GpgKeyFingerprint = "GpgKeyFingerprint";
+    public static final String GpgKeyLabel = "GpgKeyLabel";
     public static final String GpgKeyDataShapeName = "GIT.GpgKey.UserExtension.DataShape";
-    public static final String GitCredentialsDataShapeName = "GIT.RepositoryConfiguration.UserExtension.DataShape";
+    public static final String GitCredentialsDataShapeName =
+            "GIT.RepositoryConfiguration.UserExtension.DataShape";
     public static final String UserGpgKeyDataShapeName = "GIT.GpgKey.UserExtension.DataShape";
-    public static final String GpgKeyVerificationResultDataShapeName = "GIT.GpgKeyVerificationResult.DataShape";
+    public static final String GpgKeyVerificationResultDataShapeName =
+            "GIT.GpgKeyVerificationResult.DataShape";
 
     // Error message constants
     public static final String ERR_PREFIX_CONFIG = "[CONFIG] ";
@@ -60,12 +63,14 @@ public final class Const {
             "Missing committer identity (name/email). Configure 'GitCommitterFullName' and 'GitCommitterEmail' in the current user's ThingWorx UserExtensions properties.";
     public static final String ERR_PROJECT_NOT_FOUND =
             "Project '%s' not found. Verify the project name exists in ThingWorx.";
-    public static final String ERR_PROJECT_NAME_REQUIRED = "ProjectName is required and was not provided.";
+    public static final String ERR_PROJECT_NAME_REQUIRED =
+            "ProjectName is required and was not provided.";
     public static final String ERR_BRANCH_NOT_FOUND =
             "Branch '%s' not found. Verify the branch name exists locally. Use 'Pull' to fetch remote branches first.";
     public static final String ERR_UPSTREAM_NOT_FOUND =
             "Upstream '%s' not found. Verify the branch or commit reference exists.";
-    public static final String ERR_COMMIT_NOT_FOUND = "Commit '%s' not found. Verify the commit hash is correct.";
+    public static final String ERR_COMMIT_NOT_FOUND =
+            "Commit '%s' not found. Verify the commit hash is correct.";
     public static final String ERR_NO_TAG_NAME = "No tag name provided. Skipping tag creation.";
     public static final String ERR_NO_SCF_RESOURCE =
             "SourceControlFunctions resource not found. Cannot export entities.";
@@ -73,7 +78,8 @@ public final class Const {
             "Could not resolve calling GitThing. Ensure the service is invoked on a GIT Repository Thing.";
     public static final String ERR_DIFF_TOO_LARGE =
             "Diff size exceeds the configured maximum (%d bytes). Increase 'MaxDiffSize' in the thing properties to view this diff.";
-    public static final String ERR_FILE_REPO_NOT_FOUND = "Repository Thing is not a FileRepository.";
+    public static final String ERR_FILE_REPO_NOT_FOUND =
+            "Repository Thing is not a FileRepository.";
     public static final String ERR_AUTH_FAILED =
             "Authentication failed for repository URL '%s'. Verify your credentials and repository access.";
     public static final String ERR_NETWORK_FAILED =
@@ -107,8 +113,10 @@ public final class Const {
     public static final String SUCCESS_TAG_DELETED = "Tag '%s' deleted.";
     public static final String SUCCESS_BRANCH_CREATED = "Branch '%s' created from '%s': %s";
     public static final String SUCCESS_BRANCH_DELETED = "Branch '%s' deleted.";
-    public static final String SUCCESS_GPG_VERIFIED = "GPG key verification succeeded. Fingerprint: %s";
+    public static final String SUCCESS_GPG_VERIFIED =
+            "GPG key verification succeeded. Fingerprint: %s";
     public static final String SUCCESS_GPG_FAILED = "GPG key verification failed. Fingerprint: %s";
     public static final String SUCCESS_PULL = "Pull %s: %s";
-    public static final String SUCCESS_BULK_IMPORT = "Bulk import completed. Success: %d, Failed: %d, Total: %d";
+    public static final String SUCCESS_BULK_IMPORT =
+            "Bulk import completed. Success: %d, Failed: %d, Total: %d";
 }

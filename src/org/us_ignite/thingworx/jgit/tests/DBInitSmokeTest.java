@@ -23,7 +23,12 @@ public class DBInitSmokeTest {
         network = Network.newNetwork();
         postgres = new Postgres(network, credentials);
         postgres.start();
-        dbInit = new DBInit("devopscadit/postgresql-init-twx:platform9.6.3", postgres, network, credentials);
+        dbInit =
+                new DBInit(
+                        "devopscadit/postgresql-init-twx:platform9.6.3",
+                        postgres,
+                        network,
+                        credentials);
         dbInit.start();
     }
 
@@ -37,8 +42,13 @@ public class DBInitSmokeTest {
     @Test
     void dbInitRunsWrapperAndStaysAlive() throws Exception {
         assertTrue(dbInit.isRunning(), "DB init container must keep running (KEEP_ALIVE)");
-        var dbCheck = postgres.execInContainer(
-                "psql", "-U", credentials.dbAdminUser, "-c", "SELECT 1 FROM pg_database WHERE datname='twx'");
+        var dbCheck =
+                postgres.execInContainer(
+                        "psql",
+                        "-U",
+                        credentials.dbAdminUser,
+                        "-c",
+                        "SELECT 1 FROM pg_database WHERE datname='twx'");
         assertTrue(dbCheck.getStdout().contains("1"), "twx database should exist");
     }
 }

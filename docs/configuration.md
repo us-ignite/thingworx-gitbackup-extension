@@ -14,9 +14,11 @@ single call.
 | `LocalizationTokensPrefix` | Optional prefix used during localization-token export. |
 | `ProjectName` | Required ThingWorx project whose entities are synchronized. Repository sync operations use this project. |
 
-`RepositoryCreate` creates a Thing from the `FileRepository` template, adds
-`GIT.Repository.ThingShape`,
-configures the repository properties, and creates the current user's credential record. The
+`RepositoryCreate` creates a Thing based on the `GIT.Repository.ThingTemplate` template, which extends
+`FileRepository` and implements the `GIT.Repository.ThingShape`. The template provides the
+FileRepository working-tree storage and the Git services, and keeping repository Things on a common
+template enables mashups to run dynamic services against any selected repository. The service then
+configures the repository properties and creates the current user's credential record. The
 credential service parameters are strings in the Java/XML service contract; sensitive values are
 stored in protected user-property fields.
 

@@ -12,7 +12,10 @@ import org.us_ignite.thingworx.jgit.tests.util.TestingCredentials;
 
 public class JGitExtensionInstaller extends GenericContainer<JGitExtensionInstaller> {
     public JGitExtensionInstaller(
-            Path extensionZip, ThingWorxContainer platform, Network network, TestingCredentials credentials) {
+            Path extensionZip,
+            ThingWorxContainer platform,
+            Network network,
+            TestingCredentials credentials) {
         this(extensionZip, platform, network, credentials, null);
     }
 
@@ -29,21 +32,29 @@ public class JGitExtensionInstaller extends GenericContainer<JGitExtensionInstal
             platform.withNetworkAliases("thingworx");
         }
 
-        assertTrue(Files.exists(extensionZip), "Extension ZIP must exist at " + extensionZip.toAbsolutePath());
+        assertTrue(
+                Files.exists(extensionZip),
+                "Extension ZIP must exist at " + extensionZip.toAbsolutePath());
 
         Path installScript = Path.of("scripts", "install-extension.sh").toAbsolutePath();
-        assertTrue(Files.exists(installScript), "Install script must exist at " + installScript.toAbsolutePath());
+        assertTrue(
+                Files.exists(installScript),
+                "Install script must exist at " + installScript.toAbsolutePath());
 
-        withFileSystemBind(extensionZip.toAbsolutePath().toString(), "/tmp/extension.zip", BindMode.READ_ONLY);
-        withFileSystemBind(installScript.toString(), "/scripts/install-extension.sh", BindMode.READ_ONLY);
+        withFileSystemBind(
+                extensionZip.toAbsolutePath().toString(), "/tmp/extension.zip", BindMode.READ_ONLY);
+        withFileSystemBind(
+                installScript.toString(), "/scripts/install-extension.sh", BindMode.READ_ONLY);
 
         withEnv("TWX_URL", twxUrl != null ? twxUrl : "http://thingworx:8080");
         withEnv("TWX_USERNAME", credentials.thingworxAdminUser);
         withEnv("TWX_PASSWORD", credentials.thingworxAdminPass);
         withEnv("EXTENSION_ZIP", "/tmp/extension.zip");
 
-        withLogConsumer(outputFrame -> System.out.print("[INSTALLER] " + outputFrame.getUtf8String()));
-        withCreateContainerCmdModifier(cmd -> cmd.withEntrypoint("sh", "/scripts/install-extension.sh"));
+        withLogConsumer(
+                outputFrame -> System.out.print("[INSTALLER] " + outputFrame.getUtf8String()));
+        withCreateContainerCmdModifier(
+                cmd -> cmd.withEntrypoint("sh", "/scripts/install-extension.sh"));
         waitingFor(Wait.forLogMessage(".*UPLOAD_DONE.*", 1));
         withStartupTimeout(java.time.Duration.ofMinutes(10));
     }
