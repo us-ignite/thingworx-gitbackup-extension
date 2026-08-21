@@ -1,4 +1,4 @@
 #!/bin/bash
 VERSION=$(cat .version 2>/dev/null || echo "0.0.0")
 ESCAPED_VERSION=$(echo "$VERSION" | sed 's/\./\\./g')
-sed "s/$ESCAPED_VERSION/@PACKAGE_VERSION@/g"
+sed "s/packageVersion=\"$ESCAPED_VERSION\"/packageVersion=\"@PACKAGE_VERSION@\"/g"

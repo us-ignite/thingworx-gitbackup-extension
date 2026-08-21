@@ -7,7 +7,7 @@
                 <FileResource description="" file="jsch-0.1.55.jar" type="JAR"/>
                 <FileResource description="" file="bcpg-jdk18on-1.72.jar" type="JAR"/>
                 <FileResource description="" file="JavaEWAH-1.2.3.jar" type="JAR"/>
-                <FileResource description="" file="org.eclipse.jgit-7.@PACKAGE_VERSION@02603022253-r.jar" type="JAR"/>
+                <FileResource description="" file="org.eclipse.jgit-7.6.0.202603022253-r.jar" type="JAR"/>
             </JarResources>
         </ExtensionPackage>
     </ExtensionPackages>
