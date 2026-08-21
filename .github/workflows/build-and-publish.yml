@@ -4,11 +4,31 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    tags: ['v*']
   pull_request:
     branches: [main]
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      jgit_version: ${{ steps.version.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - id: version
+        name: Detect JGit version change
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "push" ] \
+              && git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" \
+                | grep -Fxq 'extensions/jgit/.version'; then
+            echo 'changed=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
+          fi
+
   build:
     permissions:
       contents: read
@@ -24,7 +44,7 @@ jobs:
           git config filter.version.clean '.gitfilters/version-clean'
           git config filter.twx-resources.smudge '.gitfilters/twx-resources-smudge'
           git config filter.twx-resources.clean '.gitfilters/twx-resources-clean'
-          git checkout HEAD -- src/org/us_ignite/thingworx/jgit/metadata.xml gradle.properties vendor/twx-resources.tar.gz.gpg
+          git checkout HEAD -- extensions/jgit/gradle.properties extensions/jgit/vendor/twx-resources.tar.gz.gpg
 
       - uses: actions/setup-java@v5
         with:
@@ -35,18 +55,18 @@ jobs:
         uses: gradle/actions/setup-gradle@v5
 
       - name: Build all extension variants
-        run: ./gradlew buildAll --no-daemon
+        run: ./gradlew :extensions:jgit:buildAll
 
       - name: Upload all artifacts
         uses: actions/upload-artifact@v7
         with:
           name: JGitExtension-All
-          path: build/distributions/
+          path: extensions/jgit/build/distributions/
           if-no-files-found: error
 
   test:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
+    if: github.ref == 'refs/heads/main' && needs.changes.outputs.jgit_version == 'true'
+    needs: [build, changes]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -71,7 +91,7 @@ jobs:
           git config filter.version.clean '.gitfilters/version-clean'
           git config filter.twx-resources.smudge '.gitfilters/twx-resources-smudge'
           git config filter.twx-resources.clean '.gitfilters/twx-resources-clean'
-          git checkout HEAD -- src/org/us_ignite/thingworx/jgit/metadata.xml gradle.properties vendor/twx-resources.tar.gz.gpg
+          git checkout HEAD -- extensions/jgit/gradle.properties extensions/jgit/vendor/twx-resources.tar.gz.gpg
 
       - uses: actions/setup-java@v5
         with:
@@ -88,12 +108,12 @@ jobs:
         env:
           DOCKER_HOST: unix:///var/run/docker.sock
           TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE: /var/run/docker.sock
-        run: ./gradlew test -PtwxVersion=${{ matrix.twx }} -Dtest.dbInitImage='${{ matrix.dbInit }}' -Dtest.platformImage='${{ matrix.platform }}' --no-daemon
+        run: ./gradlew :extensions:jgit:test -PtwxVersion=${{ matrix.twx }} -Dtest.dbInitImage='${{ matrix.dbInit }}' -Dtest.platformImage='${{ matrix.platform }}'
         timeout-minutes: 45
 
   publish:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build, test]
+    if: github.ref == 'refs/heads/main' && needs.changes.outputs.jgit_version == 'true'
+    needs: [build, changes, test]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -106,11 +126,22 @@ jobs:
           name: JGitExtension-All
           path: artifacts
 
+      - name: Create and push release tag
+        shell: bash
+        run: |
+          VERSION=$(tr -d '[:space:]' < extensions/jgit/.version)
+          TAG="jgit-v${VERSION}"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git tag --annotate "$TAG" "$GITHUB_SHA" --message "JGit Extension $VERSION"
+          git push origin "$TAG"
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+
       - name: Create GitHub Release
         run: |
           RELEASE_FILES=$(ls artifacts/*.zip 2>/dev/null | tr '\n' ' ')
-          gh release create "${{ github.ref_name }}" \
-            --title "${{ github.ref_name }}" \
+          gh release create "$TAG" \
+            --title "$TAG" \
             --generate-notes \
             $RELEASE_FILES
         env:

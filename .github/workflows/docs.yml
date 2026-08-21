@@ -24,7 +24,7 @@ jobs:
           git config filter.version.clean '.gitfilters/version-clean'
           git config filter.twx-resources.smudge '.gitfilters/twx-resources-smudge'
           git config filter.twx-resources.clean '.gitfilters/twx-resources-clean'
-          git checkout HEAD -- src/org/us_ignite/thingworx/jgit/metadata.xml gradle.properties vendor/twx-resources.tar.gz.gpg
+          git checkout HEAD -- extensions/jgit/gradle.properties extensions/jgit/vendor/twx-resources.tar.gz.gpg
 
       - uses: actions/setup-java@v5
         with:
@@ -45,20 +45,20 @@ jobs:
         uses: gradle/actions/setup-gradle@v5
 
       - name: Generate Javadocs
-        run: ./gradlew javadoc --no-daemon
+        run: ./gradlew :extensions:jgit:javadoc
 
       - name: Stage generated Javadocs
         run: |
-          mkdir -p docs/api/javadoc
-          cp -R build/docs/javadoc/. docs/api/javadoc/
+          mkdir -p extensions/jgit/docs/api/javadoc
+          cp -R extensions/jgit/build/docs/javadoc/. extensions/jgit/docs/api/javadoc/
 
       - name: Build documentation site
-        run: mkdocs build --strict --site-dir public
+        run: mkdocs build --strict --config-file extensions/jgit/mkdocs.yml --site-dir public
 
       - name: Add generated Javadocs to Pages artifact
         run: |
           mkdir -p public/api/javadoc
-          cp -R build/docs/javadoc/. public/api/javadoc/
+          cp -R extensions/jgit/build/docs/javadoc/. public/api/javadoc/
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

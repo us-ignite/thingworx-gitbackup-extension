@@ -1,1 +1,5 @@
-rootProject.name = 'JGitExtension'
+rootProject.name = 'ThingWorxExtensions'
+
+include ':libraries:thingworx-dap'
+include ':libraries:thingworx-dap-runtime'
+include ':extensions:jgit'

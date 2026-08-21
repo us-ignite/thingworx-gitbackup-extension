@@ -41,7 +41,7 @@ services:
       postgres:
         condition: service_healthy
     volumes:
-      - ./scripts/db-init-wrapper.sh:/scripts/db-init-wrapper.sh:ro
+      - ./extensions/jgit/scripts/db-init-wrapper.sh:/scripts/db-init-wrapper.sh:ro
 
   thingworx:
     image: devopscadit/platform-postgres:platform9.6.3
@@ -80,8 +80,8 @@ services:
       LS_PASSWORD: ${LS_PASSWORD:-}
       USE_TRIAL_LICENSE: "true"
     volumes:
-      - ./.cache/jdk21:/mnt/jdk21:ro
-      - ./vendor/license.bin:/opt/trial.bin:ro
+      - ./extensions/jgit/.cache/jdk21:/mnt/jdk21:ro
+      - ./extensions/jgit/vendor/license.bin:/opt/trial.bin:ro
     networks:
       twx-network:
         aliases:
@@ -133,7 +133,7 @@ services:
     networks:
       - twx-network
     volumes:
-      - ./scripts/gitea-init.sh:/scripts/gitea-init.sh:ro
+      - ./extensions/jgit/scripts/gitea-init.sh:/scripts/gitea-init.sh:ro
       - gitea-data:/data
 
   extension-init:
@@ -152,8 +152,8 @@ services:
     networks:
       - twx-network
     volumes:
-      - ./scripts/install-extension.sh:/scripts/install-extension.sh:ro
-      - ./build/distributions:/distributions:ro
+      - ./extensions/jgit/scripts/install-extension.sh:/scripts/install-extension.sh:ro
+      - ./extensions/jgit/build/distributions:/distributions:ro
 
 networks:
   twx-network:
