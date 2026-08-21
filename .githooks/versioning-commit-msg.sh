@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Maintained source for the Gradle-installed commit-msg hook.
+# Maintained source for the Gradle-installed prepare-commit-msg hook.
 set -euo pipefail
 
 dry_run=false

@@ -8,12 +8,12 @@ include ':libraries:thingworx-dap'
 include ':libraries:thingworx-dap-runtime'
 include ':extensions:jgit'
 
-// The generated commit-msg hook delegates to this tracked script. Keeping the
-// policy in the repository makes it reviewable and lets CI replay the same
-// rules for commits made with hooks disabled.
+// The generated prepare-commit-msg hook delegates to this tracked script. This
+// runs after Git has the message but before it snapshots the index into the
+// commit, so hook-owned version changes are included in the same commit.
 gitHooks { extension ->
     extension.with {
-        commitMsg { context ->
+        hook('prepare-commit-msg') { context ->
             context.from(file('.githooks/versioning-commit-msg.sh'))
             context.tasks('spotlessCheck', [] as String[], true)
         }
