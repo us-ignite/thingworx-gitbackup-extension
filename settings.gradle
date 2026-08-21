@@ -1,5 +1,22 @@
+plugins {
+    id 'org.danilopianini.gradle-pre-commit-git-hooks' version '2.1.22'
+}
+
 rootProject.name = 'ThingWorxExtensions'
 
 include ':libraries:thingworx-dap'
 include ':libraries:thingworx-dap-runtime'
 include ':extensions:jgit'
+
+// The generated commit-msg hook delegates to this tracked script. Keeping the
+// policy in the repository makes it reviewable and lets CI replay the same
+// rules for commits made with hooks disabled.
+gitHooks { extension ->
+    extension.with {
+        commitMsg { context ->
+            context.from(file('.githooks/versioning-commit-msg.sh'))
+            context.tasks('spotlessCheck', [] as String[], true)
+        }
+        createHooks(true)
+    }
+}

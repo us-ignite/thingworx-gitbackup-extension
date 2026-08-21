@@ -3,6 +3,7 @@
 build*/
 public/
 site/
+issues/
 *javadoc*
 
 # Eclipse
@@ -20,6 +21,9 @@ extensions/jgit/vendor/*
 .opencode/
 *.swp
 *.swo
+.agents/
+.codex/
+.cache/
 
 # OS
 .DS_Store

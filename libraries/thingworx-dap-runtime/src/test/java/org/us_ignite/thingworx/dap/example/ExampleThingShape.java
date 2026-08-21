@@ -28,8 +28,7 @@ public final class ExampleThingShape {
             return DapResults.success(
                     "ListCommits", ExampleCommitTable.SERVICE_RESULT, ExampleCommitTable.create());
         } catch (Exception failure) {
-            return DapResults.failure(
-                    "ListCommits", failure, ExampleCommitTable.SERVICE_RESULT);
+            return DapResults.failure("ListCommits", failure, ExampleCommitTable.SERVICE_RESULT);
         }
     }
 }

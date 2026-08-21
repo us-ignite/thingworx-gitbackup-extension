@@ -1,11 +1,13 @@
 # Publishing
 
-The DAP core and runtime are published together to GitHub Packages. Keep their `.version` files
-equal, then create the matching `dap-vX.Y.Z` tag to publish both artifacts to the repository's
-Maven registry.
+The DAP core and runtime are published together to GitHub Packages. Their `.version` files are
+owned by the commit hook and remain equal; the main-branch workflow creates the matching
+`dap-vX.Y.Z` tag after it publishes both artifacts.
 
-Use `./gradlew bumpVersion -Ppatch` (or `-Pminor` / `-Pmajor`) to bump every changed component.
-Add `-PdryRun` to inspect the affected version files without editing them.
+Use a Conventional Commit when changing either package. `fix:` and `perf:` create a patch release,
+`feat:` creates a minor release, and a breaking change creates a major release. The hook stages both
+version files automatically. To inspect the proposed update without changing the index, run
+`./extensions/jgit/scripts/bump-version.sh 'fix: describe the change'` after staging the change.
 
 Consumers authenticate with a personal access token (classic) with `read:packages`, then configure:
 

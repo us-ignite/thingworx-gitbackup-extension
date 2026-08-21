@@ -448,7 +448,8 @@ public final class JGitEntityDeclarations {
     @DapProject(
             name = Const.RepositoryProjectName,
             description = "Repository Things created by the JGit extension",
-            packageVersion = "1.0.0")
+            packageVersion = "1.0.0",
+            editable = true)
     public static final class RepositoriesProjectSpec {}
 
     @DapThingTemplate(

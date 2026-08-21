@@ -53,7 +53,8 @@ public class GPGGenerator {
         return out.toString("UTF-8");
     }
 
-    public static String generateTestGpgPrivateKeyWithPassphrase(String passphrase) throws Exception {
+    public static String generateTestGpgPrivateKeyWithPassphrase(String passphrase)
+            throws Exception {
         Security.addProvider(new BouncyCastleProvider());
 
         var kpg = KeyPairGenerator.getInstance("RSA", "BC");

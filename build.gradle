@@ -11,71 +11,21 @@ allprojects {
     }
 }
 
-tasks.register('bumpVersion') {
-    group = 'publishing'
-    description = 'Bump changed components: -Pmajor, -Pminor, or -Ppatch'
-
+tasks.register('installGitHooks') {
+    group = 'verification'
+    description = 'Install the repository-managed Git hooks.'
     doLast {
-        def bumpParts = ['major', 'minor', 'patch'].findAll { project.hasProperty(it) }
-        if (bumpParts.size() != 1) {
-            throw new GradleException('Specify exactly one of -Pmajor, -Pminor, or -Ppatch.')
-        }
-        def bumpPart = bumpParts.single()
-        def dryRun = project.hasProperty('dryRun')
+        logger.lifecycle('Git hooks are installed during Gradle settings evaluation.')
+    }
+}
 
-        def changedPaths = new LinkedHashSet<String>()
-        ['git diff --name-only HEAD', 'git ls-files --others --exclude-standard'].each { command ->
-            def output = new ByteArrayOutputStream()
-            exec {
-                commandLine 'bash', '-lc', command
-                standardOutput = output
-            }
-            changedPaths.addAll(output.toString('UTF-8').readLines().findAll { !it.isBlank() })
-        }
-
-        def jgitChanged = changedPaths.any { it.startsWith('extensions/jgit/') }
-        def dapChanged = changedPaths.any {
-            it.startsWith('libraries/thingworx-dap/') || it.startsWith('libraries/thingworx-dap-runtime/')
-        }
-        if (!jgitChanged && !dapChanged) {
-            throw new GradleException('No changed versioned component directories were found.')
-        }
-
-        def versionFiles = []
-        if (jgitChanged) versionFiles << file('extensions/jgit/.version')
-        if (dapChanged) {
-            def dapFiles = [
-                file('libraries/thingworx-dap/.version'),
-                file('libraries/thingworx-dap-runtime/.version')
-            ]
-            if (dapFiles.collect { it.text.trim() }.toSet().size() != 1) {
-                throw new GradleException('DAP core and runtime versions must match before a shared release bump.')
-            }
-            versionFiles.addAll(dapFiles)
-        }
-
-        versionFiles.each { versionFile ->
-            def matcher = versionFile.text.trim() =~ /^(\d+)\.(\d+)\.(\d+)(?:-SNAPSHOT)?$/
-            if (!matcher.matches()) {
-                throw new GradleException("${versionFile} must contain X.Y.Z or X.Y.Z-SNAPSHOT.")
-            }
-            def major = matcher.group(1).toInteger()
-            def minor = matcher.group(2).toInteger()
-            def patch = matcher.group(3).toInteger()
-            String next
-            switch (bumpPart) {
-                case 'major':
-                    next = "${major + 1}.0.0"
-                    break
-                case 'minor':
-                    next = "${major}.${minor + 1}.0"
-                    break
-                case 'patch':
-                    next = "${major}.${minor}.${patch + 1}"
-                    break
-            }
-            if (!dryRun) versionFile.text = "${next}\n"
-            logger.lifecycle("${versionFile}: ${major}.${minor}.${patch} -> ${next}${dryRun ? ' (dry run)' : ''}")
+tasks.register('validateVersioning') {
+    group = 'verification'
+    description = 'Validate committed Conventional Commit version updates in a Git range.'
+    doLast {
+        def range = project.findProperty('range') ?: 'HEAD~1..HEAD'
+        exec {
+            commandLine 'bash', '.github/scripts/validate-versioning.sh', range
         }
     }
 }

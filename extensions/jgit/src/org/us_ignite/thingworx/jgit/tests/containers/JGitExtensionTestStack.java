@@ -28,7 +28,9 @@ public class JGitExtensionTestStack implements AutoCloseable {
         giteaInit = enableGitea ? new GiteaInit(gitea, network, credentials) : null;
         thingworx = new ThingWorxContainer(platformImage, dbInit, postgres, network, credentials);
         var zipPath =
-                System.getProperty("test.extensionZip", "extensions/jgit/build/distributions/JGitExtension.zip");
+                System.getProperty(
+                        "test.extensionZip",
+                        "extensions/jgit/build/distributions/JGitExtension.zip");
         installer = new JGitExtensionInstaller(Paths.get(zipPath), thingworx, network, credentials);
         this.start();
     }

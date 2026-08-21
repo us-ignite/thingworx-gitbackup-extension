@@ -7,10 +7,23 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import java.net.http.HttpResponse;
 
 /** Assertions and payload accessors for the extension's one-row ServiceResult InfoTables. */
 public final class ServiceResultAssertions {
     private ServiceResultAssertions() {}
+
+    /** Verifies both the HTTP transport result and the extension's ServiceResult envelope. */
+    public static JsonObject assertServiceSuccess(HttpResponse<String> response, String operation) {
+        assertTrue(
+                response.statusCode() == 200 || response.statusCode() == 201,
+                operation
+                        + " HTTP request failed: "
+                        + response.statusCode()
+                        + " "
+                        + response.body());
+        return assertSuccess(response.body());
+    }
 
     public static JsonObject assertSuccess(String response) {
         JsonObject table = JsonParser.parseString(response).getAsJsonObject();

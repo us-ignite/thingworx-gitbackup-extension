@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.us_ignite.thingworx.jgit.tests.util.ServiceResultAssertions.assertServiceSuccess;
 import static org.us_ignite.thingworx.jgit.tests.util.ServiceResultAssertions.assertSuccess;
 import static org.us_ignite.thingworx.jgit.tests.util.ServiceResultAssertions.responseRows;
 
@@ -53,9 +54,7 @@ public class GiteaGitOperationsTest {
                         .timeout(Duration.ofSeconds(10))
                         .build();
         var createRes = stack.httpClient.send(createReq, HttpResponse.BodyHandlers.ofString());
-        assertTrue(
-                createRes.statusCode() == 200 || createRes.statusCode() == 201,
-                "CreateBranch failed: " + createRes.statusCode() + " " + createRes.body());
+        assertServiceSuccess(createRes, "CreateBranch");
 
         JsonObject checkoutBody = new JsonObject();
         checkoutBody.addProperty("BranchName", branchName);
@@ -65,12 +64,7 @@ public class GiteaGitOperationsTest {
                         .timeout(Duration.ofSeconds(10))
                         .build();
         var checkoutRes = stack.httpClient.send(checkoutReq, HttpResponse.BodyHandlers.ofString());
-        assertTrue(
-                checkoutRes.statusCode() == 200 || checkoutRes.statusCode() == 201,
-                "Checkout to new branch failed: "
-                        + checkoutRes.statusCode()
-                        + " "
-                        + checkoutRes.body());
+        assertServiceSuccess(checkoutRes, "Checkout to new branch");
 
         JsonObject pushBody = new JsonObject();
         pushBody.addProperty("Message", "Create branch " + branchName + " via test");
@@ -83,12 +77,7 @@ public class GiteaGitOperationsTest {
                         .timeout(Duration.ofSeconds(30))
                         .build();
         var pushRes = stack.httpClient.send(pushReq, HttpResponse.BodyHandlers.ofString());
-        assertTrue(
-                pushRes.statusCode() == 200 || pushRes.statusCode() == 201,
-                "Push after branch creation failed: "
-                        + pushRes.statusCode()
-                        + " "
-                        + pushRes.body());
+        assertServiceSuccess(pushRes, "Push after branch creation");
 
         JsonObject checkoutMainBody = new JsonObject();
         checkoutMainBody.addProperty("BranchName", "main");
@@ -99,12 +88,7 @@ public class GiteaGitOperationsTest {
                         .build();
         var checkoutMainRes =
                 stack.httpClient.send(checkoutMainReq, HttpResponse.BodyHandlers.ofString());
-        assertTrue(
-                checkoutMainRes.statusCode() == 200 || checkoutMainRes.statusCode() == 201,
-                "Checkout back to main failed: "
-                        + checkoutMainRes.statusCode()
-                        + " "
-                        + checkoutMainRes.body());
+        assertServiceSuccess(checkoutMainRes, "Checkout back to main");
     }
 
     @BeforeAll
@@ -127,6 +111,8 @@ public class GiteaGitOperationsTest {
         json.addProperty("content", content);
         var req = stack.thingworx.serviceRequest(repoName, "SaveText", json.toString()).build();
         var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+        // FileRepository's inherited SaveText service returns an empty JSON object on success,
+        // rather than the extension's one-row ServiceResult envelope.
         assertTrue(
                 res.statusCode() == 200 || res.statusCode() == 201,
                 "SaveText failed: " + res.statusCode() + " " + res.body());
@@ -184,19 +170,12 @@ public class GiteaGitOperationsTest {
                                         "GIT.Utility.Thing", "RepositoryCreate", body.toString())
                                 .build(),
                         HttpResponse.BodyHandlers.ofString());
-        assertTrue(
-                createRes.statusCode() == 200 || createRes.statusCode() == 201,
-                "Repository was not created/configured: " + createRes.body());
+        assertServiceSuccess(createRes, "RepositoryCreate");
         Thread.sleep(5000);
         var verifyReq =
                 stack.thingworx.serviceRequest(GIT_THING_NAME, "GetCurrentBranch", null).build();
         var verifyRes = stack.httpClient.send(verifyReq, HttpResponse.BodyHandlers.ofString());
-        assertTrue(
-                verifyRes.statusCode() == 200 || verifyRes.statusCode() == 201,
-                "Git thing was not created successfully: "
-                        + verifyRes.statusCode()
-                        + " "
-                        + verifyRes.body());
+        assertServiceSuccess(verifyRes, "GetCurrentBranch after RepositoryCreate");
 
         var implementingReq =
                 stack.thingworx
