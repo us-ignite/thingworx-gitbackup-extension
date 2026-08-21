@@ -60,14 +60,14 @@ public class GitUtilityThingShape extends Thing {
             name = "result",
             description = "",
             baseType = "INFOTABLE",
-            aspects = {"isEntityDataShape:true", "dataShape:GIT.OperationResult.DataShape"})
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
     public InfoTable RepositoryCreate(
             @ThingworxServiceParameter(name = "RepoName", description = "", baseType = "STRING")
                     String RepoName,
             @ThingworxServiceParameter(name = "GitRepoURL", description = "", baseType = "STRING")
                     String GitRepoURL,
-            @ThingworxServiceParameter(name = "RepoPathName", description = "", baseType = "STRING")
-                    String RepoPathName,
+            @ThingworxServiceParameter(name = "RepoPath", description = "", baseType = "STRING")
+                    String RepoPath,
             @ThingworxServiceParameter(name = "BranchName", description = "", baseType = "STRING")
                     String BranchName,
             @ThingworxServiceParameter(name = "ProjectName", description = "", baseType = "STRING")
@@ -157,8 +157,7 @@ public class GitUtilityThingShape extends Thing {
             repoThing.setPropertyValue(
                     Const.GitRepoURL, new StringPrimitive(GitRepoURL == null ? "" : GitRepoURL));
             repoThing.setPropertyValue(
-                    Const.RepoPathName,
-                    new StringPrimitive(RepoPathName == null ? "" : RepoPathName));
+                    Const.RepoPath, new StringPrimitive(RepoPath == null ? "" : RepoPath));
             repoThing.setPropertyValue(
                     Const.InitialBranch,
                     new StringPrimitive(BranchName == null ? "main" : BranchName));
@@ -267,7 +266,7 @@ public class GitUtilityThingShape extends Thing {
             name = "result",
             description = "",
             baseType = "INFOTABLE",
-            aspects = {"isEntityDataShape:true", "dataShape:GIT.OperationResult.DataShape"})
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
     public InfoTable RepositoryDelete(
             @ThingworxServiceParameter(name = "RepoName", description = "", baseType = "STRING")
                     String RepoName) {
@@ -315,7 +314,7 @@ public class GitUtilityThingShape extends Thing {
             name = "result",
             description = "",
             baseType = "INFOTABLE",
-            aspects = {"isEntityDataShape:true", "dataShape:GIT.OperationResult.DataShape"})
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
     public InfoTable InitUserExtensionProperties() {
         try {
             ThingShape userExtensions =
@@ -602,7 +601,7 @@ public class GitUtilityThingShape extends Thing {
             name = "result",
             description = "",
             baseType = "INFOTABLE",
-            aspects = {"isEntityDataShape:true", "dataShape:GIT.OperationResult.DataShape"})
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
     public InfoTable GpgKeyCreate(
             @ThingworxServiceParameter(
                             name = "GpgPrivateKey",
@@ -748,7 +747,7 @@ public class GitUtilityThingShape extends Thing {
             name = "result",
             description = "",
             baseType = "INFOTABLE",
-            aspects = {"isEntityDataShape:true", "dataShape:GIT.OperationResult.DataShape"})
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
     public InfoTable GpgKeyUpdate(
             @ThingworxServiceParameter(
                             name = "GpgKeyFingerprint",
@@ -932,7 +931,7 @@ public class GitUtilityThingShape extends Thing {
             name = "result",
             description = "",
             baseType = "INFOTABLE",
-            aspects = {"isEntityDataShape:true", "dataShape:GIT.OperationResult.DataShape"})
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
     public InfoTable GitCredentialCreate(
             @ThingworxServiceParameter(
                             name = "GitCommitterUser",
@@ -1090,7 +1089,7 @@ public class GitUtilityThingShape extends Thing {
             name = "result",
             description = "",
             baseType = "INFOTABLE",
-            aspects = {"isEntityDataShape:true", "dataShape:GIT.OperationResult.DataShape"})
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
     public InfoTable GitCredentialUpdate(
             @ThingworxServiceParameter(
                             name = "GitCommitterUser",
@@ -1163,7 +1162,7 @@ public class GitUtilityThingShape extends Thing {
             name = "result",
             description = "",
             baseType = "INFOTABLE",
-            aspects = {"isEntityDataShape:true", "dataShape:GIT.OperationResult.DataShape"})
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
     public InfoTable GitCredentialDelete(
             @ThingworxServiceParameter(
                             name = "GitThing",

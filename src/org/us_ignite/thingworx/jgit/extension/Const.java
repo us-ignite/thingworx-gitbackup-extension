@@ -3,7 +3,7 @@ package org.us_ignite.thingworx.jgit.extension;
 public final class Const {
     // GIT Configuration names
     public static final String GitRepoURL = "GitRepoURL";
-    public static final String RepoPathName = "RepoPathName";
+    public static final String RepoPath = "RepoPath";
     public static final String InitialBranch = "BranchName";
     public static final String DefaultProjectToExport = "DefaultExportProject";
     public static final String LocalizationTokensPrefix = "LocalizationTokensPrefix";

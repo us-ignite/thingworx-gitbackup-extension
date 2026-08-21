@@ -131,7 +131,7 @@ public class EntitySyncTest {
         JsonObject body = new JsonObject();
         body.addProperty("RepoName", thingName);
         body.addProperty("GitRepoURL", giteaRepoUrl);
-        body.addProperty("RepoPathName", SHARED_REPO_PATH);
+        body.addProperty("RepoPath", SHARED_REPO_PATH);
         body.addProperty("BranchName", "main");
         body.addProperty("ProjectName", TEST_PROJECT);
         body.addProperty("GitCommitterUser", credentials.giteaUser);

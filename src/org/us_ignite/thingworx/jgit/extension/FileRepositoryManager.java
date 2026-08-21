@@ -54,7 +54,7 @@ final class FileRepositoryManager {
     }
 
     String repositoryPath() {
-        return propertyString(Const.RepoPathName, "");
+        return propertyString(Const.RepoPath, "");
     }
 
     String projectName() {
