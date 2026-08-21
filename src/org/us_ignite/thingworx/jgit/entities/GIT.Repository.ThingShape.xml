@@ -4,7 +4,7 @@
         <ThingShape aspect.isEditableExtensionObject="false" aspect.isExtension="true" className="org.us_ignite.thingworx.jgit.extension.GitRepositoryShape" description="Base ThingShape for GIT Repository Things providing core Git operations (commit, push, pull, branch, tag, etc.)." documentationContent="" homeMashup="" name="GIT.Repository.ThingShape" projectName="GIT" tags="">
             <PropertyDefinitions>
                 <PropertyDefinition aspect.defaultValue="" aspect.isPersistent="true" baseType="STRING" category="Repository" description="Remote Git repository URL" name="GitRepoURL" ordinal="1"/>
-                <PropertyDefinition aspect.defaultValue="" aspect.isPersistent="true" baseType="STRING" category="Repository" description="Repository path within this FileRepository" name="RepoPathName" ordinal="2"/>
+                <PropertyDefinition aspect.defaultValue="" aspect.isPersistent="true" baseType="STRING" category="Repository" description="Repository path within this FileRepository" name="RepoPath" ordinal="2"/>
                 <PropertyDefinition aspect.defaultValue="main" aspect.isPersistent="true" baseType="STRING" category="Repository" description="Initial Git branch" name="BranchName" ordinal="4"/>
                 <PropertyDefinition aspect.defaultValue="false" aspect.isPersistent="true" baseType="BOOLEAN" category="Repository" description="Use an HTTP proxy" name="UseProxy" ordinal="5"/>
                 <PropertyDefinition aspect.defaultValue="" aspect.isPersistent="true" baseType="STRING" category="Repository" description="HTTP proxy URL" name="ProxyURL" ordinal="6"/>

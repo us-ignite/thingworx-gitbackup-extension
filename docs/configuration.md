@@ -7,7 +7,7 @@ single call.
 | Setting | Description |
 |---|---|
 | `GitRepoURL` | Remote Git repository URL. |
-| `RepoPathName` | Directory within the repository Thing's FileRepository storage. |
+| `RepoPath` | Directory within the repository Thing's FileRepository storage. |
 | `BranchName` | Initial or default branch. The default is `main`. |
 | `UseProxy` | Enables the configured HTTP proxy. |
 | `ProxyURL` / `ProxyPort` | Proxy host and port when enabled. |

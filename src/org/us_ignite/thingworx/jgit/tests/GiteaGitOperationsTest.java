@@ -170,7 +170,7 @@ public class GiteaGitOperationsTest {
         JsonObject body = new JsonObject();
         body.addProperty("RepoName", GIT_THING_NAME);
         body.addProperty("GitRepoURL", giteaRepoUrl);
-        body.addProperty("RepoPathName", GIT_THING_PATH);
+        body.addProperty("RepoPath", GIT_THING_PATH);
         body.addProperty("BranchName", "main");
         body.addProperty("ProjectName", "GiteaGitOperationsProject");
         body.addProperty("GitCommitterUser", credentials.giteaUser);
