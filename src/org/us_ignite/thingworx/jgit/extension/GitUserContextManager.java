@@ -55,13 +55,16 @@ final class GitUserContextManager {
 
     /**
      * Resolves an owned GPG key row by fingerprint and/or label. When both are provided, both must
-     * match the same row. When neither is provided, the first key row is returned.
+     * match the same row. When neither is provided, an IllegalArgumentException is thrown.
      */
     ValueCollection gpgKeyByFingerprintOrLabel(String fingerprint, String label) throws Exception {
+        boolean hasFingerprint = fingerprint != null && !fingerprint.isBlank();
+        boolean hasLabel = label != null && !label.isBlank();
+        if (!hasFingerprint && !hasLabel) {
+            throw new IllegalArgumentException("GpgKeyFingerprint or GpgKeyLabel is required.");
+        }
         InfoTable keys = gpgKeys();
         if (keys != null) {
-            boolean hasFingerprint = fingerprint != null && !fingerprint.isBlank();
-            boolean hasLabel = label != null && !label.isBlank();
             for (int i = 0; i < keys.getRowCount(); i++) {
                 ValueCollection row = keys.getRow(i);
                 boolean fingerprintMatches =
@@ -77,7 +80,6 @@ final class GitUserContextManager {
                     if (labelMatches) return row;
                 }
             }
-            if (!hasFingerprint && !hasLabel && keys.getRowCount() > 0) return keys.getRow(0);
         }
         return null;
     }

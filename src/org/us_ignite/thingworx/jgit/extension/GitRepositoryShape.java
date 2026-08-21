@@ -433,7 +433,8 @@ public class GitRepositoryShape extends Thing {
 
     @ThingworxServiceDefinition(
             name = "SetGPGKeyForSigning",
-            description = "Selects or clears the current user's signing key for this repository",
+            description =
+                    "Selects or clears the current user's signing key for this repository by fingerprint or label",
             category = "",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
@@ -445,16 +446,33 @@ public class GitRepositoryShape extends Thing {
     public InfoTable SetGPGKeyForSigning(
             @ThingworxServiceParameter(
                             name = "GpgKeyFingerprint",
-                            description = "Owned GPG fingerprint; blank disables signing",
+                            description =
+                                    "Owned GPG fingerprint; when both fingerprint and label are supplied both must match; blank disables signing",
                             baseType = "STRING")
-                    String fingerprint) {
+                    String fingerprint,
+            @ThingworxServiceParameter(
+                            name = "GpgKeyLabel",
+                            description =
+                                    "Optional key label; when both fingerprint and label are supplied both must match",
+                            baseType = "STRING")
+                    String label) {
         try {
             GitUserContextManager userContext = new GitUserContextManager();
             userContext.requireUser();
-            if (!fingerprint.isBlank()) {
-                userContext.validateGpgKeyOwnership(fingerprint);
+            boolean hasFingerprint = fingerprint != null && !fingerprint.isBlank();
+            boolean hasLabel = label != null && !label.isBlank();
+            String fingerprintToStore = "";
+            if (hasFingerprint || hasLabel) {
+                userContext.validateGpgKeyOwnership(fingerprint, label);
+                ValueCollection row = userContext.gpgKeyByFingerprintOrLabel(fingerprint, label);
+                if (row != null) {
+                    String resolved = row.getStringValue(Const.GpgKeyFingerprint);
+                    fingerprintToStore = resolved != null ? resolved : "";
+                } else if (hasFingerprint) {
+                    fingerprintToStore = fingerprint;
+                }
             }
-            userContext.setRepositoryGpgKey(resolveTargetThing().getName(), fingerprint);
+            userContext.setRepositoryGpgKey(resolveTargetThing().getName(), fingerprintToStore);
             return ServiceResults.successFromString(
                     "SetGPGKeyForSigning", "GPG signing key updated.");
         } catch (Exception e) {

@@ -9,8 +9,10 @@
             <ConfigurationTableDefinitions/>
             <ConfigurationTables/>
             <FieldDefinitions>
-                <FieldDefinition baseType="STRING" description="GIT Repository Thing associated with the verification" name="GitThing" ordinal="1"/>
-                <FieldDefinition baseType="STRING" description="OpenPGP key fingerprint or verification error" name="GpgKeyFingerprint" ordinal="2"/>
+                <FieldDefinition baseType="STRING" description="OpenPGP key fingerprint or verification error" name="GpgKeyFingerprint" ordinal="1"/>
+                <FieldDefinition baseType="BOOLEAN" description="True when the key material can be loaded and used for signing" name="Valid" ordinal="2"/>
+                <FieldDefinition baseType="STRING" description="Optional human-readable label for this key; &quot;Not in User Keys&quot; when the key is valid but not owned" name="GpgKeyLabel" ordinal="3"/>
+                <FieldDefinition baseType="BOOLEAN" description="True when the key fingerprint is owned by the current user" name="Stored" ordinal="4"/>
             </FieldDefinitions>
         </DataShape>
     </DataShapes>

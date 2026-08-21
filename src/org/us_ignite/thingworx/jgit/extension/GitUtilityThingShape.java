@@ -27,7 +27,9 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import org.json.JSONObject;
@@ -528,28 +530,287 @@ public class GitUtilityThingShape extends Thing {
                             name = "GpgPrivateKey",
                             description = "ASCII-armored PGP private key",
                             baseType = "STRING")
-                    String GpgPrivateKey) {
+                    String GpgPrivateKey,
+            @ThingworxServiceParameter(
+                            name = "GpgKeyPassphrase",
+                            description = "Passphrase for the PGP private key",
+                            baseType = "STRING")
+                    String GpgKeyPassphrase,
+            @ThingworxServiceParameter(
+                            name = "All",
+                            description = "When true, verifies all stored keys for the current user",
+                            baseType = "BOOLEAN")
+                    Boolean All,
+            @ThingworxServiceParameter(
+                            name = "GpgKeyFingerprint",
+                            description =
+                                    "Optional GPG key fingerprint to verify a stored key; when both fingerprint and label are supplied both must match",
+                            baseType = "STRING")
+                    String GpgKeyFingerprint,
+            @ThingworxServiceParameter(
+                            name = "GpgKeyLabel",
+                            description =
+                                    "Optional GPG key label to verify a stored key; when both fingerprint and label are supplied both must match",
+                            baseType = "STRING")
+                    String GpgKeyLabel) {
         InfoTable result = null;
         try {
-            if (GpgPrivateKey == null || GpgPrivateKey.isBlank())
-                throw new IllegalArgumentException("GpgPrivateKey is required.");
             result =
                     InfoTableInstanceFactory.createInfoTableFromDataShape(
                             Const.GpgKeyVerificationResultDataShapeName);
-            String key = GpgPrivateKey;
-            if (!key.startsWith("-----")) {
-                key = new String(Base64.getDecoder().decode(key), StandardCharsets.UTF_8);
+            boolean all = All != null && All;
+            if (all) {
+                User currentUser = new GitUserContextManager().requireUser();
+                InfoTable storedKeys = getGpgKeysTable(currentUser);
+                if (storedKeys != null) {
+                    for (int i = 0; i < storedKeys.getRowCount(); i++) {
+                        ValueCollection stored = storedKeys.getRow(i);
+                        String storedKey =
+                                stored.getPrimitive(Const.GpgPrivateKey) != null
+                                        ? ((PasswordPrimitive)
+                                                        stored.getPrimitive(Const.GpgPrivateKey))
+                                                .getValue()
+                                        : null;
+                        String storedPassphrase =
+                                stored.getPrimitive(Const.GpgKeyPassphrase) != null
+                                        ? ((PasswordPrimitive)
+                                                        stored.getPrimitive(Const.GpgKeyPassphrase))
+                                                .getValue()
+                                        : null;
+                        String storedFingerprint =
+                                stored.getStringValue(Const.GpgKeyFingerprint);
+                        String keyForVerify = storedKey;
+                        if (keyForVerify != null && !keyForVerify.startsWith("-----")) {
+                            try {
+                                keyForVerify =
+                                        new String(
+                                                Base64.getDecoder().decode(keyForVerify),
+                                                StandardCharsets.UTF_8);
+                            } catch (IllegalArgumentException iae) {
+                                // keep original value; signer will report invalid
+                            }
+                        }
+                        boolean valid = false;
+                        String fingerprint = storedFingerprint;
+                        PastedKeyGpgSigner signer = null;
+                        try {
+                            signer = new PastedKeyGpgSigner(keyForVerify, storedPassphrase);
+                            String derived = signer.getFingerprint();
+                            if (derived != null && !derived.isBlank()) {
+                                fingerprint = derived;
+                                valid = true;
+                            }
+                        } catch (Exception ex) {
+                            if (fingerprint == null || fingerprint.isBlank()) {
+                                fingerprint = "Unable to derive fingerprint";
+                            }
+                        } finally {
+                            if (signer != null) signer.clearSensitiveData();
+                        }
+                        ValueCollection row = new ValueCollection();
+                        row.put("GpgKeyFingerprint", new StringPrimitive(fingerprint));
+                        row.put("Valid", new BooleanPrimitive(valid));
+                        row.put("Stored", new BooleanPrimitive(true));
+                        String storedLabel = stored.getStringValue(Const.GpgKeyLabel);
+                        row.put(
+                                Const.GpgKeyLabel,
+                                new StringPrimitive(storedLabel != null ? storedLabel : ""));
+                        result.addRow(row);
+                    }
+                }
+            } else if ((GpgKeyFingerprint != null && !GpgKeyFingerprint.isBlank())
+                    || (GpgKeyLabel != null && !GpgKeyLabel.isBlank())) {
+                boolean hasFingerprint = GpgKeyFingerprint != null && !GpgKeyFingerprint.isBlank();
+                boolean hasLabel = GpgKeyLabel != null && !GpgKeyLabel.isBlank();
+                User currentUser = new GitUserContextManager().requireUser();
+                InfoTable storedKeys = getGpgKeysTable(currentUser);
+                if (storedKeys == null || storedKeys.getRowCount() == 0) {
+                    throw new IllegalArgumentException(
+                            "GPG key not found: "
+                                    + (hasLabel && hasFingerprint
+                                            ? "fingerprint " + GpgKeyFingerprint + " and label '" + GpgKeyLabel + "'"
+                                            : hasFingerprint
+                                                    ? "fingerprint " + GpgKeyFingerprint
+                                                    : "label '" + GpgKeyLabel + "'"));
+                }
+                boolean anyMatched = false;
+                for (int i = 0; i < storedKeys.getRowCount(); i++) {
+                    ValueCollection stored = storedKeys.getRow(i);
+                    String fp = stored.getStringValue(Const.GpgKeyFingerprint);
+                    String lbl = stored.getStringValue(Const.GpgKeyLabel);
+                    boolean fingerprintMatches =
+                            GpgKeyFingerprint != null && GpgKeyFingerprint.equals(fp);
+                    boolean labelMatches = GpgKeyLabel != null && GpgKeyLabel.equals(lbl);
+                    boolean matches;
+                    if (hasFingerprint && hasLabel) {
+                        matches = fingerprintMatches && labelMatches;
+                    } else if (hasFingerprint) {
+                        matches = fingerprintMatches;
+                    } else {
+                        matches = labelMatches;
+                    }
+                    if (!matches) continue;
+                    anyMatched = true;
+                    String storedKey =
+                            stored.getPrimitive(Const.GpgPrivateKey) != null
+                                    ? ((PasswordPrimitive) stored.getPrimitive(Const.GpgPrivateKey))
+                                            .getValue()
+                                    : null;
+                    String storedPassphrase =
+                            stored.getPrimitive(Const.GpgKeyPassphrase) != null
+                                    ? ((PasswordPrimitive)
+                                                    stored.getPrimitive(Const.GpgKeyPassphrase))
+                                            .getValue()
+                                    : null;
+                    String storedFingerprint = fp;
+                    String keyForVerify = storedKey;
+                    if (keyForVerify != null && !keyForVerify.startsWith("-----")) {
+                        try {
+                            keyForVerify =
+                                    new String(
+                                            Base64.getDecoder().decode(keyForVerify),
+                                            StandardCharsets.UTF_8);
+                        } catch (IllegalArgumentException iae) {
+                            // keep original value; signer will report invalid
+                        }
+                    }
+                    boolean valid = false;
+                    String fingerprint = storedFingerprint;
+                    PastedKeyGpgSigner signer = null;
+                    try {
+                        signer = new PastedKeyGpgSigner(keyForVerify, storedPassphrase);
+                        String derived = signer.getFingerprint();
+                        if (derived != null && !derived.isBlank()) {
+                            fingerprint = derived;
+                            valid = true;
+                        }
+                    } catch (Exception ex) {
+                        if (fingerprint == null || fingerprint.isBlank()) {
+                            fingerprint = "Unable to derive fingerprint";
+                        }
+                    } finally {
+                        if (signer != null) signer.clearSensitiveData();
+                    }
+                    ValueCollection row = new ValueCollection();
+                    row.put("GpgKeyFingerprint", new StringPrimitive(fingerprint));
+                    row.put("Valid", new BooleanPrimitive(valid));
+                    row.put("Stored", new BooleanPrimitive(true));
+                    String storedLabel = lbl;
+                    row.put(
+                            Const.GpgKeyLabel,
+                            new StringPrimitive(storedLabel != null ? storedLabel : ""));
+                    result.addRow(row);
+                }
+                if (!anyMatched) {
+                    throw new IllegalArgumentException(
+                            "GPG key not found: "
+                                    + (hasLabel && hasFingerprint
+                                            ? "fingerprint " + GpgKeyFingerprint + " and label '" + GpgKeyLabel + "'"
+                                            : hasFingerprint
+                                                    ? "fingerprint " + GpgKeyFingerprint
+                                                    : "label '" + GpgKeyLabel + "'"));
+                }
+            } else {
+                String key = GpgPrivateKey;
+                String passphrase = GpgKeyPassphrase;
+                if (key == null || key.isBlank()) {
+                    throw new IllegalArgumentException(
+                            "GpgPrivateKey is required when All is false and no GpgKeyFingerprint/GpgKeyLabel is supplied.");
+                }
+                if (key != null && !key.startsWith("-----")) {
+                    try {
+                        key = new String(Base64.getDecoder().decode(key), StandardCharsets.UTF_8);
+                    } catch (IllegalArgumentException iae) {
+                        // keep original value; signer will report invalid
+                    }
+                }
+                PastedKeyGpgSigner signer = null;
+                String fingerprint = null;
+                boolean valid = false;
+                try {
+                    signer = new PastedKeyGpgSigner(key, passphrase);
+                    fingerprint = signer.getFingerprint();
+                    valid = fingerprint != null && !fingerprint.isBlank();
+                    if (!valid) {
+                        fingerprint = "Unable to derive fingerprint";
+                    }
+                } catch (Exception ex) {
+                    fingerprint = "Unable to derive fingerprint";
+                    valid = false;
+                } finally {
+                    if (signer != null) {
+                        try { signer.clearSensitiveData(); } catch (Exception ignored) {}
+                    }
+                }
+                String gpgKeyLabel = "";
+                if (valid) {
+                    try {
+                        User labelUser = new GitUserContextManager().requireUser();
+                        InfoTable labelKeys = getGpgKeysTable(labelUser);
+                        boolean found = false;
+                        if (labelKeys != null) {
+                            for (int j = 0; j < labelKeys.getRowCount(); j++) {
+                                ValueCollection r = labelKeys.getRow(j);
+                                if (fingerprint.equals(
+                                        r.getStringValue(Const.GpgKeyFingerprint))) {
+                                    String lbl = r.getStringValue(Const.GpgKeyLabel);
+                                    gpgKeyLabel = lbl != null ? lbl : "";
+                                    found = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if (!found) {
+                            gpgKeyLabel = "Not in User Keys";
+                        }
+                    } catch (Exception ignored) {
+                        if (valid) {
+                            gpgKeyLabel = "Not in User Keys";
+                        }
+                    }
+                } else {
+                    try {
+                        User labelUser = new GitUserContextManager().requireUser();
+                        InfoTable labelKeys = getGpgKeysTable(labelUser);
+                        if (labelKeys != null && fingerprint != null) {
+                            for (int j = 0; j < labelKeys.getRowCount(); j++) {
+                                ValueCollection r = labelKeys.getRow(j);
+                                if (fingerprint.equals(
+                                        r.getStringValue(Const.GpgKeyFingerprint))) {
+                                    String lbl = r.getStringValue(Const.GpgKeyLabel);
+                                    gpgKeyLabel = lbl != null ? lbl : "";
+                                    break;
+                                }
+                            }
+                        }
+                    } catch (Exception ignored) {
+                    }
+                }
+                boolean stored = false;
+                try {
+                    User storedUser = new GitUserContextManager().requireUser();
+                    InfoTable storedKeysForFlag = getGpgKeysTable(storedUser);
+                    if (fingerprint != null && storedKeysForFlag != null) {
+                        for (int j = 0; j < storedKeysForFlag.getRowCount(); j++) {
+                            if (fingerprint.equals(
+                                    storedKeysForFlag.getRow(j).getStringValue(Const.GpgKeyFingerprint))) {
+                                stored = true;
+                                break;
+                            }
+                        }
+                    }
+                } catch (Exception ignored) {
+                }
+                ValueCollection row = new ValueCollection();
+                row.put(
+                        "GpgKeyFingerprint",
+                        new StringPrimitive(
+                                fingerprint != null ? fingerprint : "Unable to derive fingerprint"));
+                row.put("Valid", new BooleanPrimitive(valid));
+                row.put("Stored", new BooleanPrimitive(stored));
+                row.put(Const.GpgKeyLabel, new StringPrimitive(gpgKeyLabel));
+                result.addRow(row);
             }
-            PastedKeyGpgSigner signer = new PastedKeyGpgSigner(key, null);
-            String fingerprint = signer.getFingerprint();
-            ValueCollection row = new ValueCollection();
-            row.put("GitThing", new StringPrimitive(""));
-            row.put(
-                    "GpgKeyFingerprint",
-                    new StringPrimitive(
-                            fingerprint != null ? fingerprint : "Unable to derive fingerprint"));
-            result.addRow(row);
-            signer.clearSensitiveData();
         } catch (Exception e) {
             StringWriter errors = new StringWriter();
             e.printStackTrace(new PrintWriter(errors));
@@ -593,7 +854,8 @@ public class GitUtilityThingShape extends Thing {
     /** Creates a reusable GPG key for the current user. */
     @ThingworxServiceDefinition(
             name = "GpgKeyCreate",
-            description = "Adds a reusable GPG key for the current user, keyed by fingerprint",
+            description =
+                    "Adds a reusable GPG key for the current user, keyed by fingerprint with optional label",
             category = "",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
@@ -676,7 +938,7 @@ public class GitUtilityThingShape extends Thing {
 
     @ThingworxServiceDefinition(
             name = "GpgKeyGet",
-            description = "Returns one owned GPG key by fingerprint",
+            description = "Returns one owned GPG key by fingerprint or label",
             category = "",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
@@ -693,7 +955,8 @@ public class GitUtilityThingShape extends Thing {
                     String fingerprint,
             @ThingworxServiceParameter(
                             name = "GpgKeyLabel",
-                            description = "Optional key label",
+                            description =
+                                    "Optional key label; when both are supplied both must match",
                             baseType = "STRING")
                     String label) {
         try {
@@ -739,7 +1002,8 @@ public class GitUtilityThingShape extends Thing {
 
     @ThingworxServiceDefinition(
             name = "GpgKeyUpdate",
-            description = "Updates an owned GPG key",
+            description =
+                    "Updates an owned GPG key selected by fingerprint or label; when fingerprint is supplied it is the sole selector and the label becomes the new value",
             category = "",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
@@ -751,7 +1015,8 @@ public class GitUtilityThingShape extends Thing {
     public InfoTable GpgKeyUpdate(
             @ThingworxServiceParameter(
                             name = "GpgKeyFingerprint",
-                            description = "Key fingerprint",
+                            description =
+                                    "Key fingerprint; when supplied selection is by fingerprint only",
                             baseType = "STRING")
                     String fingerprint,
             @ThingworxServiceParameter(
@@ -777,30 +1042,75 @@ public class GitUtilityThingShape extends Thing {
             User user = new GitUserContextManager().requireUser();
             InfoTable keys = getGpgKeysTable(user);
             if (keys == null) throw new IllegalArgumentException("GPG key not found.");
+            boolean hasFingerprint = fingerprint != null && !fingerprint.isBlank();
+            boolean hasLabel = GpgKeyLabel != null && !GpgKeyLabel.isBlank();
             boolean found = false;
+            Map<String, String> fingerprintUpdates = new HashMap<>();
             for (int i = 0; i < keys.getRowCount(); i++) {
                 ValueCollection row = keys.getRow(i);
+                // Fingerprint wins: when fingerprint is supplied, selection is by fingerprint only.
+                // The supplied label (if any) is treated as the new label to write, not a second
+                // selector.
                 boolean matches;
-                if (fingerprint != null && !fingerprint.isBlank())
+                if (hasFingerprint)
                     matches = fingerprint.equals(row.getStringValue(Const.GpgKeyFingerprint));
                 else matches = GpgKeyLabel.equals(row.getStringValue(Const.GpgKeyLabel));
                 if (matches) {
-                    if (GpgKeyLabel != null
-                            && !GpgKeyLabel.isBlank()
-                            && fingerprint != null
-                            && !fingerprint.isBlank())
-                        if (!GpgKeyLabel.equals(row.getStringValue(Const.GpgKeyLabel)))
+                    // If fingerprint selected the row and a different label was supplied, treat as
+                    // rename.
+                    if (hasFingerprint
+                            && hasLabel
+                            && !GpgKeyLabel.equals(row.getStringValue(Const.GpgKeyLabel)))
+                        for (int j = 0; j < keys.getRowCount(); j++)
+                            if (j != i
+                                    && GpgKeyLabel.equals(
+                                            keys.getRow(j).getStringValue(Const.GpgKeyLabel)))
+                                throw new IllegalArgumentException(
+                                        "A GPG key with this label already exists: " + GpgKeyLabel);
+                    String oldFingerprint = row.getStringValue(Const.GpgKeyFingerprint);
+                    // When new key material is supplied (label-supplied update or
+                    // fingerprint-supplied
+                    // rotation), derive the fingerprint from the key so the stored fingerprint
+                    // stays
+                    // consistent with the private key.
+                    if (privateKey != null && !privateKey.isBlank()) {
+                        String derivedFingerprint = null;
+                        PastedKeyGpgSigner signer = new PastedKeyGpgSigner(privateKey, passphrase);
+                        try {
+                            derivedFingerprint = signer.getFingerprint();
+                        } finally {
+                            signer.clearSensitiveData();
+                        }
+                        if (derivedFingerprint != null
+                                && !derivedFingerprint.isBlank()
+                                && !derivedFingerprint.equals(oldFingerprint)) {
                             for (int j = 0; j < keys.getRowCount(); j++)
                                 if (j != i
-                                        && GpgKeyLabel.equals(
-                                                keys.getRow(j).getStringValue(Const.GpgKeyLabel)))
+                                        && derivedFingerprint.equals(
+                                                keys.getRow(j)
+                                                        .getStringValue(Const.GpgKeyFingerprint)))
                                     throw new IllegalArgumentException(
-                                            "A GPG key with this label already exists: "
-                                                    + GpgKeyLabel);
+                                            "A GPG key with this fingerprint already exists: "
+                                                    + derivedFingerprint);
+                            row.put(
+                                    Const.GpgKeyFingerprint,
+                                    new StringPrimitive(derivedFingerprint));
+                            // Helper codepath: when updating by label and the fingerprint rotates,
+                            // keep the user's repository credentials in sync so signing does not
+                            // break.
+                            if (!hasFingerprint && hasLabel) {
+                                fingerprintUpdates.put(oldFingerprint, derivedFingerprint);
+                            } else if (hasFingerprint) {
+                                // Also keep repo credentials in sync for fingerprint-wins rotation;
+                                // callers who selected by fingerprint expect their repos to keep
+                                // signing.
+                                fingerprintUpdates.put(oldFingerprint, derivedFingerprint);
+                            }
+                        }
+                    }
                     row.put(Const.GpgPrivateKey, new PasswordPrimitive(privateKey));
                     row.put(Const.GpgKeyPassphrase, new PasswordPrimitive(passphrase));
-                    if (GpgKeyLabel != null && !GpgKeyLabel.isBlank())
-                        row.put(Const.GpgKeyLabel, new StringPrimitive(GpgKeyLabel));
+                    if (hasLabel) row.put(Const.GpgKeyLabel, new StringPrimitive(GpgKeyLabel));
                     found = true;
                 }
             }
@@ -811,6 +1121,28 @@ public class GitUtilityThingShape extends Thing {
                                         ? "fingerprint " + fingerprint
                                         : "label '" + GpgKeyLabel + "'"));
             user.setPropertyValue(Const.UserGpgKeys, new InfoTablePrimitive(keys));
+            // Propagate fingerprint rotation to repository credentials referencing the old
+            // fingerprint.
+            if (!fingerprintUpdates.isEmpty()) {
+                InfoTable configurations = new GitUserContextManager().credentials();
+                if (configurations != null) {
+                    boolean changed = false;
+                    for (int i = 0; i < configurations.getRowCount(); i++) {
+                        ValueCollection credRow = configurations.getRow(i);
+                        String cfgFp = credRow.getStringValue(Const.GpgKeyFingerprint);
+                        String newFp = fingerprintUpdates.get(cfgFp);
+                        if (newFp != null) {
+                            credRow.put(Const.GpgKeyFingerprint, new StringPrimitive(newFp));
+                            changed = true;
+                        }
+                    }
+                    if (changed) {
+                        user.setPropertyValue(
+                                Const.UserRepositoryConfiguration,
+                                new InfoTablePrimitive(configurations));
+                    }
+                }
+            }
             return ServiceResults.successFromString("GpgKeyUpdate", "GPG key updated.");
         } catch (Exception e) {
             return ServiceResults.fromError("GpgKeyUpdate", e);
