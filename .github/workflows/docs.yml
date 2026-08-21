@@ -20,8 +20,6 @@ jobs:
         env:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
-          git config filter.version.smudge '.gitfilters/version-smudge'
-          git config filter.version.clean '.gitfilters/version-clean'
           git config filter.twx-resources.smudge '.gitfilters/twx-resources-smudge'
           git config filter.twx-resources.clean '.gitfilters/twx-resources-clean'
           git checkout HEAD -- extensions/jgit/gradle.properties extensions/jgit/vendor/twx-resources.tar.gz.gpg

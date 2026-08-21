@@ -9,15 +9,15 @@ import static org.us_ignite.thingworx.jgit.tests.util.ServiceResultAssertions.re
 
 import com.google.gson.JsonObject;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Base64;
-import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.us_ignite.thingworx.jgit.tests.containers.JGitExtensionTestStack;
@@ -28,13 +28,16 @@ import org.us_ignite.thingworx.jgit.tests.util.TestingCredentials;
  * Integration tests for {@code VerifyGpgKey} covering all valid calling conventions.
  *
  * <p>All 5 args are optional selectors (precedence: All > Fingerprint/Label > GpgPrivateKey):
+ *
  * <ul>
- *   <li>pasted {@code GpgPrivateKey}+{@code GpgKeyPassphrase} (Base64 or armored) -> single new key</li>
- *   <li>blank {@code GpgPrivateKey} -> first stored key fallback</li>
- *   <li>{@code All=true} -> all stored keys</li>
- *   <li>{@code GpgKeyFingerprint} and/or {@code GpgKeyLabel} -> matching stored key(s)</li>
+ *   <li>pasted {@code GpgPrivateKey}+{@code GpgKeyPassphrase} (Base64 or armored) -> single new key
+ *   <li>blank {@code GpgPrivateKey} -> first stored key fallback
+ *   <li>{@code All=true} -> all stored keys
+ *   <li>{@code GpgKeyFingerprint} and/or {@code GpgKeyLabel} -> matching stored key(s)
  * </ul>
- * Result rows are {@code GIT.GpgKeyVerificationResult} with {@code GpgKeyFingerprint, Valid, Stored, GpgKeyLabel}.
+ *
+ * Result rows are {@code GIT.GpgKeyVerificationResult} with {@code GpgKeyFingerprint, Valid,
+ * Stored, GpgKeyLabel}.
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @Testcontainers
@@ -71,8 +74,11 @@ public class VerifyGpgKeyConventionsTest {
     }
 
     private JsonObject verifyResponse(JsonObject body) throws Exception {
-        var req = stack.thingworx.serviceRequest("GIT.Utility.Thing", "VerifyGpgKey", body.toString())
-                .timeout(Duration.ofSeconds(10)).build();
+        var req =
+                stack.thingworx
+                        .serviceRequest("GIT.Utility.Thing", "VerifyGpgKey", body.toString())
+                        .timeout(Duration.ofSeconds(10))
+                        .build();
         var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, res.statusCode(), "VerifyGpgKey HTTP should be 200: " + res.body());
         assertSuccess(res.body());
@@ -91,7 +97,9 @@ public class VerifyGpgKeyConventionsTest {
         assertEquals(1, rows.size(), "pasted new key should return one row");
         var row = rows.get(0).getAsJsonObject();
         assertTrue(row.has("Valid") && row.get("Valid").getAsBoolean(), "Valid should be true");
-        assertTrue(row.has("Stored") && !row.get("Stored").getAsBoolean(), "Stored should be false for new key");
+        assertTrue(
+                row.has("Stored") && !row.get("Stored").getAsBoolean(),
+                "Stored should be false for new key");
         assertEquals("Not in User Keys", row.get("GpgKeyLabel").getAsString());
         assertTrue(row.get("GpgKeyFingerprint").getAsString().matches("[0-9A-Fa-f]+"));
     }
@@ -99,7 +107,9 @@ public class VerifyGpgKeyConventionsTest {
     @Test
     @Order(2)
     void pastedUnencryptedBase64_NotInUserKeys() throws Exception {
-        String b64 = Base64.getEncoder().encodeToString(unencryptedKeyArmored.getBytes(StandardCharsets.UTF_8));
+        String b64 =
+                Base64.getEncoder()
+                        .encodeToString(unencryptedKeyArmored.getBytes(StandardCharsets.UTF_8));
         JsonObject body = new JsonObject();
         body.addProperty("GpgPrivateKey", b64);
         body.addProperty("GpgKeyPassphrase", "");
@@ -119,7 +129,9 @@ public class VerifyGpgKeyConventionsTest {
         body.addProperty("GpgKeyPassphrase", passphrase);
         var res = verifyResponse(body);
         var row = responseRows(res.toString()).get(0).getAsJsonObject();
-        assertTrue(row.get("Valid").getAsBoolean(), "encrypted key with correct passphrase should be Valid");
+        assertTrue(
+                row.get("Valid").getAsBoolean(),
+                "encrypted key with correct passphrase should be Valid");
         assertFalse(row.get("Stored").getAsBoolean());
         assertEquals("Not in User Keys", row.get("GpgKeyLabel").getAsString());
     }
@@ -131,9 +143,11 @@ public class VerifyGpgKeyConventionsTest {
         body.addProperty("GpgPrivateKey", encryptedKeyArmored);
         body.addProperty("GpgKeyPassphrase", "wrong-passphrase");
         var res = verifyResponse(body);
-        // Valid is derived from fingerprint; wrong passphrase should still derive? Bouncy may still get fingerprint?
+        // Valid is derived from fingerprint; wrong passphrase should still derive? Bouncy may still
+        // get fingerprint?
         // PastedKeyGpgSigner loads without passphrase for fingerprint; but signing would fail.
-        // Our implementation marks Valid based on getFingerprint() != blank, so it will be true even with wrong passphrase.
+        // Our implementation marks Valid based on getFingerprint() != blank, so it will be true
+        // even with wrong passphrase.
         // This documents current behavior: fingerprint derivation does not require passphrase.
         var row = responseRows(res.toString()).get(0).getAsJsonObject();
         assertNotNull(row.get("GpgKeyFingerprint").getAsString());
@@ -150,9 +164,14 @@ public class VerifyGpgKeyConventionsTest {
         create1.addProperty("GpgKeyPassphrase", "");
         create1.addProperty("GpgKeyFingerprint", "");
         create1.addProperty("GpgKeyLabel", unencryptedLabel);
-        var req1 = stack.thingworx.serviceRequest("GIT.Utility.Thing", "GpgKeyCreate", create1.toString()).build();
+        var req1 =
+                stack.thingworx
+                        .serviceRequest("GIT.Utility.Thing", "GpgKeyCreate", create1.toString())
+                        .build();
         var res1 = stack.httpClient.send(req1, HttpResponse.BodyHandlers.ofString());
-        assertTrue(res1.statusCode()==200 || res1.statusCode()==201, "GpgKeyCreate unencrypted failed: "+res1.body());
+        assertTrue(
+                res1.statusCode() == 200 || res1.statusCode() == 201,
+                "GpgKeyCreate unencrypted failed: " + res1.body());
 
         // encrypted stored
         JsonObject create2 = new JsonObject();
@@ -160,18 +179,35 @@ public class VerifyGpgKeyConventionsTest {
         create2.addProperty("GpgKeyPassphrase", passphrase);
         create2.addProperty("GpgKeyFingerprint", "");
         create2.addProperty("GpgKeyLabel", encryptedLabel);
-        var req2 = stack.thingworx.serviceRequest("GIT.Utility.Thing", "GpgKeyCreate", create2.toString()).build();
+        var req2 =
+                stack.thingworx
+                        .serviceRequest("GIT.Utility.Thing", "GpgKeyCreate", create2.toString())
+                        .build();
         var res2 = stack.httpClient.send(req2, HttpResponse.BodyHandlers.ofString());
-        assertTrue(res2.statusCode()==200 || res2.statusCode()==201, "GpgKeyCreate encrypted failed: "+res2.body());
+        assertTrue(
+                res2.statusCode() == 200 || res2.statusCode() == 201,
+                "GpgKeyCreate encrypted failed: " + res2.body());
 
         // fetch fingerprints via Verify to capture derived ones
-        JsonObject v1 = new JsonObject(); v1.addProperty("GpgKeyLabel", unencryptedLabel);
+        JsonObject v1 = new JsonObject();
+        v1.addProperty("GpgKeyLabel", unencryptedLabel);
         var vr1 = verifyResponse(v1);
-        unencryptedFingerprint = responseRows(vr1.toString()).get(0).getAsJsonObject().get("GpgKeyFingerprint").getAsString();
+        unencryptedFingerprint =
+                responseRows(vr1.toString())
+                        .get(0)
+                        .getAsJsonObject()
+                        .get("GpgKeyFingerprint")
+                        .getAsString();
 
-        JsonObject v2 = new JsonObject(); v2.addProperty("GpgKeyLabel", encryptedLabel);
+        JsonObject v2 = new JsonObject();
+        v2.addProperty("GpgKeyLabel", encryptedLabel);
         var vr2 = verifyResponse(v2);
-        encryptedFingerprint = responseRows(vr2.toString()).get(0).getAsJsonObject().get("GpgKeyFingerprint").getAsString();
+        encryptedFingerprint =
+                responseRows(vr2.toString())
+                        .get(0)
+                        .getAsJsonObject()
+                        .get("GpgKeyFingerprint")
+                        .getAsString();
 
         assertNotNull(unencryptedFingerprint);
         assertNotNull(encryptedFingerprint);
@@ -198,12 +234,18 @@ public class VerifyGpgKeyConventionsTest {
         JsonObject body = new JsonObject();
         body.addProperty("GpgPrivateKey", "");
         body.addProperty("GpgKeyPassphrase", "");
-        var req = stack.thingworx.serviceRequest("GIT.Utility.Thing", "VerifyGpgKey", body.toString()).build();
+        var req =
+                stack.thingworx
+                        .serviceRequest("GIT.Utility.Thing", "VerifyGpgKey", body.toString())
+                        .build();
         var resp = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, resp.statusCode());
-        assertTrue(resp.body().contains("\"Error\":true") || resp.body().contains("\"Error\" : true"),
+        assertTrue(
+                resp.body().contains("\"Error\":true") || resp.body().contains("\"Error\" : true"),
                 "blank with no selector should now error after fallback removal: " + resp.body());
-        assertTrue(resp.body().contains("GpgPrivateKey is required"), "should mention required: " + resp.body());
+        assertTrue(
+                resp.body().contains("GpgPrivateKey is required"),
+                "should mention required: " + resp.body());
     }
 
     @Test
@@ -218,7 +260,9 @@ public class VerifyGpgKeyConventionsTest {
             var r = el.getAsJsonObject();
             assertTrue(r.get("Valid").getAsBoolean(), "All stored keys should be Valid: " + r);
             assertTrue(r.get("Stored").getAsBoolean(), "All stored keys Stored=true: " + r);
-            assertTrue(r.has("GpgKeyFingerprint") && !r.get("GpgKeyFingerprint").getAsString().isBlank());
+            assertTrue(
+                    r.has("GpgKeyFingerprint")
+                            && !r.get("GpgKeyFingerprint").getAsString().isBlank());
             assertTrue(r.has("GpgKeyLabel"));
         }
     }
@@ -262,17 +306,24 @@ public class VerifyGpgKeyConventionsTest {
         var res = verifyResponse(body);
         var rows = responseRows(res.toString());
         assertEquals(1, rows.size());
-        assertEquals(unencryptedFingerprint, rows.get(0).getAsJsonObject().get("GpgKeyFingerprint").getAsString());
+        assertEquals(
+                unencryptedFingerprint,
+                rows.get(0).getAsJsonObject().get("GpgKeyFingerprint").getAsString());
 
         // mismatch should fail Error=true
         JsonObject mismatch = new JsonObject();
         mismatch.addProperty("GpgKeyFingerprint", unencryptedFingerprint);
         mismatch.addProperty("GpgKeyLabel", encryptedLabel);
-        var req = stack.thingworx.serviceRequest("GIT.Utility.Thing", "VerifyGpgKey", mismatch.toString()).build();
+        var req =
+                stack.thingworx
+                        .serviceRequest("GIT.Utility.Thing", "VerifyGpgKey", mismatch.toString())
+                        .build();
         var resp = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, resp.statusCode());
         // ServiceResults.fromError returns Error=true
-        assertTrue(resp.body().contains("\"Error\":true") || resp.body().contains("\"Error\" : true"), "mismatched fingerprint+label should error: " + resp.body());
+        assertTrue(
+                resp.body().contains("\"Error\":true") || resp.body().contains("\"Error\" : true"),
+                "mismatched fingerprint+label should error: " + resp.body());
     }
 
     @Test
@@ -297,14 +348,18 @@ public class VerifyGpgKeyConventionsTest {
         body.addProperty("GpgKeyPassphrase", "");
         var res = verifyResponse(body);
         var row = responseRows(res.toString()).get(0).getAsJsonObject();
-        // Current impl: getFingerprint() returns null -> "Unable to derive fingerprint", Valid=false
-        // But PastedKeyGpgSigner may still throw; we assert Valid=false if fingerprint is placeholder
+        // Current impl: getFingerprint() returns null -> "Unable to derive fingerprint",
+        // Valid=false
+        // But PastedKeyGpgSigner may still throw; we assert Valid=false if fingerprint is
+        // placeholder
         // If service returns Valid=false, Stored false
         assertTrue(row.has("Valid"));
         // Valid should be false for garbage key
         assertFalse(row.get("Valid").getAsBoolean(), "invalid key should be Valid=false: " + row);
         assertFalse(row.get("Stored").getAsBoolean());
-        assertTrue(row.get("GpgKeyLabel").getAsString().isEmpty(), "invalid non-owned should have empty label");
+        assertTrue(
+                row.get("GpgKeyLabel").getAsString().isEmpty(),
+                "invalid non-owned should have empty label");
     }
 
     @Test
@@ -312,9 +367,14 @@ public class VerifyGpgKeyConventionsTest {
     void verifyNonExistentFingerprint_Fails() throws Exception {
         JsonObject body = new JsonObject();
         body.addProperty("GpgKeyFingerprint", "NONEXISTENTFP1234567890");
-        var req = stack.thingworx.serviceRequest("GIT.Utility.Thing", "VerifyGpgKey", body.toString()).build();
+        var req =
+                stack.thingworx
+                        .serviceRequest("GIT.Utility.Thing", "VerifyGpgKey", body.toString())
+                        .build();
         var resp = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, resp.statusCode());
-        assertTrue(resp.body().contains("\"Error\":true") || resp.body().contains("\"Error\" : true"), "non-existent fingerprint should error: " + resp.body());
+        assertTrue(
+                resp.body().contains("\"Error\":true") || resp.body().contains("\"Error\" : true"),
+                "non-existent fingerprint should error: " + resp.body());
     }
 }

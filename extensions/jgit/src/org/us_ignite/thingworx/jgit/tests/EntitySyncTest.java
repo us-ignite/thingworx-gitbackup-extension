@@ -2,6 +2,7 @@ package org.us_ignite.thingworx.jgit.tests;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.us_ignite.thingworx.jgit.tests.util.ServiceResultAssertions.assertServiceSuccess;
 import static org.us_ignite.thingworx.jgit.tests.util.ServiceResultAssertions.assertSuccess;
 
 import com.google.gson.JsonObject;
@@ -116,7 +117,8 @@ public class EntitySyncTest {
         Path extZip =
                 Path.of(
                         System.getProperty(
-                                "test.extensionZip", "extensions/jgit/build/distributions/JGitExtension.zip"));
+                                "test.extensionZip",
+                                "extensions/jgit/build/distributions/JGitExtension.zip"));
         var installer =
                 new JGitExtensionInstaller(
                         extZip, twx, network, credentials, "http://" + hostname + ":8080");
@@ -143,9 +145,7 @@ public class EntitySyncTest {
                         twx.serviceRequest("GIT.Utility.Thing", "RepositoryCreate", body.toString())
                                 .build(),
                         HttpResponse.BodyHandlers.ofString());
-        assertTrue(
-                createRes.statusCode() == 200 || createRes.statusCode() == 201,
-                "Repository was not created/configured: " + createRes.body());
+        assertServiceSuccess(createRes, "RepositoryCreate for " + thingName);
     }
 
     @AfterAll
@@ -172,9 +172,7 @@ public class EntitySyncTest {
                         .timeout(Duration.ofSeconds(10))
                         .build();
         var verifyRes = httpClient.send(verifyReq, HttpResponse.BodyHandlers.ofString());
-        assertTrue(
-                verifyRes.statusCode() == 200 || verifyRes.statusCode() == 201,
-                "GitThing A was not created: " + verifyRes.statusCode() + " " + verifyRes.body());
+        assertServiceSuccess(verifyRes, "GetCurrentBranch for source repository");
     }
 
     @Test
@@ -410,9 +408,7 @@ public class EntitySyncTest {
                         .timeout(Duration.ofSeconds(10))
                         .build();
         var verifyRes = httpClient.send(verifyReq, HttpResponse.BodyHandlers.ofString());
-        assertTrue(
-                verifyRes.statusCode() == 200 || verifyRes.statusCode() == 201,
-                "GitThing B was not created: " + verifyRes.statusCode() + " " + verifyRes.body());
+        assertServiceSuccess(verifyRes, "GetCurrentBranch for target repository");
     }
 
     @Test

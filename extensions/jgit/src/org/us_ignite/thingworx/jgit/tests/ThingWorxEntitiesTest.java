@@ -38,8 +38,7 @@ public class ThingWorxEntitiesTest {
                 200,
                 utilityResponse.statusCode(),
                 "GIT.Utility.Thing GET status. Body: " + utilityResponse.body());
-        assertNotNull(
-                utilityResponse.body(), "GIT.Utility.Thing response body must not be null");
+        assertNotNull(utilityResponse.body(), "GIT.Utility.Thing response body must not be null");
 
         var repositoriesProjectResponse = get(baseUrl, "Projects/GIT.Repositories");
         assertEquals(

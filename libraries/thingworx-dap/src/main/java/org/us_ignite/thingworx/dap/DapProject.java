@@ -14,4 +14,7 @@ public @interface DapProject {
     String description() default "";
 
     String packageVersion() default "1.0.0";
+
+    /** Whether ThingWorx may modify entities created in this extension project at runtime. */
+    boolean editable() default false;
 }

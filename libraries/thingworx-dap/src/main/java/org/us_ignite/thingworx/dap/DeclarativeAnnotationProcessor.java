@@ -330,7 +330,11 @@ public final class DeclarativeAnnotationProcessor extends AbstractProcessor {
     private void generateProject(TypeElement type) {
         DapProject declaration = type.getAnnotation(DapProject.class);
         String body =
-                "        <Project dependsOn=\"\" description=\""
+                "        <Project "
+                        + (declaration.editable()
+                                ? "aspect.isEditableExtensionObject=\"true\" "
+                                : "")
+                        + "dependsOn=\"\" description=\""
                         + escape(declaration.description())
                         + "\" documentationContent=\"\" homeMashup=\"\" name=\""
                         + escape(declaration.name())

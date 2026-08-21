@@ -1,2 +1,1 @@
-extensions/jgit/gradle.properties                 filter=version
 extensions/jgit/vendor/twx-resources.tar.gz.gpg   filter=twx-resources

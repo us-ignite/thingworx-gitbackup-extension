@@ -8,6 +8,28 @@ on:
     branches: [main]
 
 jobs:
+  versioning:
+    name: Validate Conventional Commit versioning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Replay versioning policy
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = pull_request ]; then
+            RANGE="${{ github.event.pull_request.base.sha }}..${{ github.sha }}"
+          else
+            RANGE="${{ github.event.before }}..${{ github.sha }}"
+          fi
+          # The all-zero before SHA is used only when a branch is first created.
+          if [[ "$RANGE" == 0000000000000000000000000000000000000000* ]]; then
+            RANGE="$(git rev-list --max-parents=0 HEAD)..${{ github.sha }}"
+          fi
+          .github/scripts/validate-versioning.sh "$RANGE"
+
   changes:
     runs-on: ubuntu-latest
     outputs:
@@ -30,6 +52,7 @@ jobs:
           fi
 
   build:
+    needs: versioning
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -40,8 +63,6 @@ jobs:
         env:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
-          git config filter.version.smudge '.gitfilters/version-smudge'
-          git config filter.version.clean '.gitfilters/version-clean'
           git config filter.twx-resources.smudge '.gitfilters/twx-resources-smudge'
           git config filter.twx-resources.clean '.gitfilters/twx-resources-clean'
           git checkout HEAD -- extensions/jgit/gradle.properties extensions/jgit/vendor/twx-resources.tar.gz.gpg
@@ -87,8 +108,6 @@ jobs:
         env:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
-          git config filter.version.smudge '.gitfilters/version-smudge'
-          git config filter.version.clean '.gitfilters/version-clean'
           git config filter.twx-resources.smudge '.gitfilters/twx-resources-smudge'
           git config filter.twx-resources.clean '.gitfilters/twx-resources-clean'
           git checkout HEAD -- extensions/jgit/gradle.properties extensions/jgit/vendor/twx-resources.tar.gz.gpg
@@ -133,16 +152,20 @@ jobs:
           TAG="jgit-v${VERSION}"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git tag --annotate "$TAG" "$GITHUB_SHA" --message "JGit Extension $VERSION"
-          git push origin "$TAG"
+          if ! git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            git tag --annotate "$TAG" "$GITHUB_SHA" --message "JGit Extension $VERSION"
+            git push origin "$TAG"
+          fi
           echo "TAG=$TAG" >> "$GITHUB_ENV"
 
       - name: Create GitHub Release
         run: |
           RELEASE_FILES=$(ls artifacts/*.zip 2>/dev/null | tr '\n' ' ')
-          gh release create "$TAG" \
-            --title "$TAG" \
-            --generate-notes \
-            $RELEASE_FILES
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" \
+              --title "$TAG" \
+              --generate-notes \
+              $RELEASE_FILES
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
