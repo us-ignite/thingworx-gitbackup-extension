@@ -10,8 +10,8 @@ site/
 .classpath
 .settings/
 bin/
-vendor/*
-!vendor/twx-resources.tar.gz.gpg
+extensions/jgit/vendor/*
+!extensions/jgit/vendor/twx-resources.tar.gz.gpg
 
 # IDE
 *.iml

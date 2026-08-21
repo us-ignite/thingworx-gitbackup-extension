@@ -1,0 +1,44 @@
+name: Publish ThingWorx DAP
+
+on:
+  push:
+    tags: ['dap-v*']
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Configure git filters
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          git config filter.version.smudge '.gitfilters/version-smudge'
+          git config filter.version.clean '.gitfilters/version-clean'
+          git config filter.twx-resources.smudge '.gitfilters/twx-resources-smudge'
+          git config filter.twx-resources.clean '.gitfilters/twx-resources-clean'
+          git checkout HEAD -- extensions/jgit/vendor/twx-resources.tar.gz.gpg
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: corretto
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v5
+
+      - name: Verify tag matches DAP version
+        shell: bash
+        run: |
+          CORE_VERSION=$(tr -d '[:space:]' < libraries/thingworx-dap/.version)
+          RUNTIME_VERSION=$(tr -d '[:space:]' < libraries/thingworx-dap-runtime/.version)
+          test "$CORE_VERSION" = "$RUNTIME_VERSION"
+          test "${GITHUB_REF_NAME}" = "dap-v${CORE_VERSION}"
+
+      - name: Verify and publish DAP artifacts
+        run: ./gradlew :libraries:thingworx-dap:check :libraries:thingworx-dap-runtime:verifyDapExample :libraries:thingworx-dap:publish :libraries:thingworx-dap-runtime:publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

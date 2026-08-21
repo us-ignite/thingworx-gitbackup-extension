@@ -1,0 +1,55 @@
+plugins {
+    id 'java-library'
+    id 'eclipse'
+    id 'maven-publish'
+    id 'com.diffplug.spotless'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+    withSourcesJar()
+    withJavadocJar()
+}
+
+version = file('.version').text.trim()
+
+spotless {
+    java {
+        target 'src/**/*.java'
+        googleJavaFormat().aosp()
+        removeUnusedImports()
+        trimTrailingWhitespace()
+        endWithNewline()
+    }
+    groovyGradle { target 'build.gradle' }
+}
+
+publishing {
+    repositories {
+        maven {
+            name = 'GitHubPackages'
+            url = uri('https://maven.pkg.github.com/us-ignite/thingworx-gitbackup-extension')
+            credentials {
+                username = findProperty('gpr.user') ?: System.getenv('GITHUB_ACTOR')
+                password = findProperty('gpr.key') ?: System.getenv('GITHUB_TOKEN')
+            }
+        }
+    }
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+            artifactId = 'thingworx-dap'
+            pom {
+                name = 'ThingWorx DAP'
+                description = 'Declarative annotation processor for ThingWorx entity XML.'
+                url = 'https://github.com/us-ignite/thingworx-gitbackup-extension'
+                licenses { license { name = 'MIT License'; url = 'https://opensource.org/license/mit' } }
+                scm {
+                    connection = 'scm:git:https://github.com/us-ignite/thingworx-gitbackup-extension.git'
+                    url = 'https://github.com/us-ignite/thingworx-gitbackup-extension'
+                }
+            }
+        }
+    }
+}

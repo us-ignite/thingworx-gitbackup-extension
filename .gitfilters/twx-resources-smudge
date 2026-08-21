@@ -6,9 +6,9 @@ cat > "$TMP"
 
 if [ -n "${GPG_PASSPHRASE:-}" ]; then
   ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "$(dirname "$0")/..")
-  mkdir -p "$ROOT/vendor"
+  mkdir -p "$ROOT/extensions/jgit/vendor"
   gpg --decrypt --cipher AES256 --batch --passphrase "$GPG_PASSPHRASE" < "$TMP" 2>/dev/null \
-    | tar xz -C "$ROOT/vendor" 2>/dev/null || true
+    | tar xz -C "$ROOT/extensions/jgit/vendor" 2>/dev/null || true
 fi
 
 cat "$TMP"
