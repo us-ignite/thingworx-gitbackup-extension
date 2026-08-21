@@ -34,7 +34,13 @@ final class ServiceResults {
         var format = String.format("%s failed: %s", serviceName, error);
         LOGGER.error(format);
         InfoTable result = runtimeUncheckedInfoTable(shape);
-        result.addRow(resultRow(true, format, null));
+        // Avoid NPE in JSONUtilities when Result is null (e.g., VerifyGpgKey not-found)
+        try {
+            InfoTable empty = InfoTableInstanceFactory.createInfoTableFromDataShape(Const.GpgKeyVerificationResultDataShapeName);
+            result.addRow(resultRow(true, format, empty));
+        } catch (Exception ex) {
+            result.addRow(resultRow(true, format));
+        }
         return result;
     }
 
@@ -42,7 +48,16 @@ final class ServiceResults {
         var format = String.format("%s failed: %s", serviceName, error);
         LOGGER.error(format);
         InfoTable result = runtimeUncheckedInfoTable(shape);
-        result.addRow(resultRow(true, format, null));
+        if ("GIT.GpgKeyVerification.ServiceResult.DataShape".equals(shape)) {
+            try {
+                InfoTable empty = InfoTableInstanceFactory.createInfoTableFromDataShape(Const.GpgKeyVerificationResultDataShapeName);
+                result.addRow(resultRow(true, format, empty));
+                return result;
+            } catch (Exception ex) {
+                // fall through to message-only row
+            }
+        }
+        result.addRow(resultRow(true, format));
         return result;
     }
 

@@ -198,7 +198,7 @@
                         <FieldDefinition baseType="STRING" description="Name of the tag to delete" name="TagName" ordinal="1"/>
                     </ParameterDefinitions>
                 </ServiceDefinition>
-                <ServiceDefinition aspect.isAsync="false" category="" description="Selects or clears the current user's signing key for this repository" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="SetGPGKeyForSigning"><ResultType aspect.dataShape="GIT.StringResult.DataShape" baseType="INFOTABLE" description="" name="result" ordinal="0"/><ParameterDefinitions><FieldDefinition baseType="STRING" description="Owned GPG fingerprint; blank disables signing" name="GpgKeyFingerprint" ordinal="1"/></ParameterDefinitions></ServiceDefinition>
+                <ServiceDefinition aspect.isAsync="false" category="" description="Selects or clears the current user's signing key for this repository by fingerprint or label" isAllowOverride="false" isLocalOnly="false" isOpen="false" isPrivate="false" name="SetGPGKeyForSigning"><ResultType aspect.dataShape="GIT.StringResult.DataShape" baseType="INFOTABLE" description="" name="result" ordinal="0"/><ParameterDefinitions><FieldDefinition baseType="STRING" description="Owned GPG fingerprint; when both fingerprint and label are supplied both must match; blank disables signing" name="GpgKeyFingerprint" ordinal="1"/><FieldDefinition baseType="STRING" description="Optional key label; when both fingerprint and label are supplied both must match" name="GpgKeyLabel" ordinal="2"/></ParameterDefinitions></ServiceDefinition>
             </ServiceDefinitions>
             <EventDefinitions/>
             <ServiceMappings/>
