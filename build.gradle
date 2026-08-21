@@ -585,6 +585,17 @@ task bumpVersion {
         execOps.exec { commandLine 'git', 'commit', '-m', "Bump version to $ver" }
         execOps.exec { commandLine 'git', 'tag', "v$ver" }
 
+        // Re-smudge version-filtered files so the working tree reflects the new version.
+        // Without this, `metadata.xml` (and `gradle.properties`) stay at the old smudged
+        // version until the next checkout, which makes `grep packageVersion metadata.xml`
+        // appear not to have bumped.
+        try {
+            execOps.exec {
+                commandLine 'sh', '-c',
+                    'rm -f src/org/us_ignite/thingworx/jgit/metadata.xml gradle.properties && git checkout HEAD -- src/org/us_ignite/thingworx/jgit/metadata.xml gradle.properties 2>/dev/null || true'
+            }
+        } catch (Exception ignored) {}
+
         logger.lifecycle("Committed and tagged v$ver")
     }
 }
