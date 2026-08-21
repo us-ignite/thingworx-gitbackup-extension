@@ -122,27 +122,40 @@ if [[ $bump == none ]]; then
   exit 0
 fi
 
+needs_retry=false
 for target in "${targets[@]}"; do
   if ! git cat-file -e "HEAD:$target" 2>/dev/null; then
     base=$(baseline_version "$target")
     expected=$base
     [[ $bump == none ]] || expected=$(next_version "$base" "$bump")
-    printf 'versioning hook: %s -> %s (%s)\n' "$target" "$expected" "$bump"
-    if ! $dry_run; then
-      printf '%s\n' "$expected" > "$target"
-      git add -- "$target"
+    staged=$(git show ":$target" 2>/dev/null | tr -d '[:space:]' || true)
+    if [[ $staged != "$expected" ]]; then
+      printf 'versioning hook: %s -> %s (%s)\n' "$target" "$expected" "$bump"
+      if ! $dry_run; then
+        printf '%s\n' "$expected" > "$target"
+        git add -- "$target"
+        needs_retry=true
+      fi
+    else
+      printf 'versioning hook: %s already staged at %s\n' "$target" "$expected"
     fi
     continue
   fi
   current=$(git show "HEAD:$target" | tr -d '[:space:]')
   proposed=$(next_version "$current" "$bump")
-  if ! git diff --cached --quiet -- "$target"; then
-    staged=$(git show ":$target" | tr -d '[:space:]')
-    [[ $staged == "$proposed" ]] || fail "$target is staged as $staged; expected $proposed."
-  fi
-  printf 'versioning hook: %s -> %s (%s)%s\n' "$target" "$proposed" "$bump" "$($dry_run && printf ' [dry run]')"
-  if ! $dry_run; then
-    printf '%s\n' "$proposed" > "$target"
-    git add -- "$target"
+  staged=$(git show ":$target" 2>/dev/null | tr -d '[:space:]' || true)
+  if [[ $staged != "$proposed" ]]; then
+    printf 'versioning hook: %s -> %s (%s)\n' "$target" "$proposed" "$bump"
+    if ! $dry_run; then
+      printf '%s\n' "$proposed" > "$target"
+      git add -- "$target"
+      needs_retry=true
+    fi
+  else
+    printf 'versioning hook: %s already staged at %s\n' "$target" "$proposed"
   fi
 done
+
+if $needs_retry; then
+  fail 'version files were updated and staged; rerun git commit with the same message.'
+fi

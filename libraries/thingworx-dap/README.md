@@ -1,6 +1,6 @@
-# ThingWorx DAP
+# ThingWorx DeclarativeAnnotationProcessor
 
-`io.github.us-ignite:thingworx-dap` provides DAP annotations and the annotation processor that
+`io.github.us-ignite:thingworx-dap` provides DeclarativeAnnotationProcessor annotations and the annotation processor that
 generates ThingWorx SourceControlEntities XML from Java declarations. It is SDK-independent and
 is intended for use as an `annotationProcessor` dependency.
 
