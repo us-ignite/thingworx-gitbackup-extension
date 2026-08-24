@@ -2,6 +2,12 @@ name: Build and Publish
 
 on:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: Run integration tests and publish the committed JGit version.
+        required: false
+        default: false
+        type: boolean
   push:
     branches: [main]
   pull_request:
@@ -36,9 +42,11 @@ jobs:
         name: Detect JGit version change
         shell: bash
         run: |
-          if [ "${{ github.event_name }}" = "push" ] \
+          if { [ "${{ github.event_name }}" = "workflow_dispatch" ] \
+              && [ "${{ inputs.publish }}" = "true" ]; } \
+              || { [ "${{ github.event_name }}" = "push" ] \
               && git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" \
-                | grep -Fxq 'extensions/jgit/.version'; then
+                | grep -Fxq 'extensions/jgit/.version'; }; then
             echo 'changed=true' >> "$GITHUB_OUTPUT"
           else
             echo 'changed=false' >> "$GITHUB_OUTPUT"
