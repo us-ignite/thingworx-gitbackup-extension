@@ -9,5 +9,10 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.METHOD)
 public @interface DapServicePayload {
+    /**
+     * Returns the configured value.
+     *
+     * @return the Java type that declares the service payload DataShape.
+     */
     Class<?> value();
 }

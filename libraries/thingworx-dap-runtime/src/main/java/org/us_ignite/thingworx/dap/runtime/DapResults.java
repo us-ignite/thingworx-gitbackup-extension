@@ -16,6 +16,15 @@ public final class DapResults {
 
     private DapResults() {}
 
+    /**
+     * Creates a successful result using a row-count message.
+     *
+     * @param <T> the payload proxy type
+     * @param serviceName the service name for logging
+     * @param contract the payload service-result contract
+     * @param payload the successful payload
+     * @return the generated service-result InfoTable
+     */
     public static <T extends DapDataShapeProxy<InfoTable>> InfoTable success(
             String serviceName, DapServiceContract<T> contract, T payload) {
         String message =
@@ -24,12 +33,31 @@ public final class DapResults {
         return payloadResult(contract.shape(), false, message, payload.toInfoTable());
     }
 
+    /**
+     * Creates a successful result with an explicit message.
+     *
+     * @param <T> the payload proxy type
+     * @param serviceName the service name for logging
+     * @param message the success message
+     * @param contract the payload service-result contract
+     * @param payload the successful payload
+     * @return the generated service-result InfoTable
+     */
     public static <T extends DapDataShapeProxy<InfoTable>> InfoTable success(
             String serviceName, String message, DapServiceContract<T> contract, T payload) {
         LOGGER.info(serviceName + " completed: " + message);
         return payloadResult(contract.shape(), false, message, payload.toInfoTable());
     }
 
+    /**
+     * Creates a failed payload result from an exception.
+     *
+     * @param <T> the payload proxy type
+     * @param serviceName the service name for logging
+     * @param failure the service failure
+     * @param contract the payload service-result contract
+     * @return the generated service-result InfoTable
+     */
     public static <T extends DapDataShapeProxy<InfoTable>> InfoTable failure(
             String serviceName, Throwable failure, DapServiceContract<T> contract) {
         String message = serviceName + " failed: " + failure;
@@ -37,6 +65,15 @@ public final class DapResults {
         return payloadFailure(contract, message);
     }
 
+    /**
+     * Creates a failed payload result with an explicit message.
+     *
+     * @param <T> the payload proxy type
+     * @param serviceName the service name for logging
+     * @param message the failure message
+     * @param contract the payload service-result contract
+     * @return the generated service-result InfoTable
+     */
     public static <T extends DapDataShapeProxy<InfoTable>> InfoTable failure(
             String serviceName, String message, DapServiceContract<T> contract) {
         LOGGER.error(serviceName + " failed: " + message);
@@ -55,6 +92,14 @@ public final class DapResults {
         }
     }
 
+    /**
+     * Creates a successful no-payload result.
+     *
+     * @param serviceName the service name for logging
+     * @param message the optional success message
+     * @param contract the no-payload service-result contract
+     * @return the generated service-result InfoTable
+     */
     public static InfoTable success(
             String serviceName, String message, DapNoPayloadServiceContract contract) {
         String resultMessage = message == null ? serviceName + " completed" : message;
@@ -62,12 +107,28 @@ public final class DapResults {
         return noPayloadResult(contract.shape(), false, resultMessage);
     }
 
+    /**
+     * Creates a failed no-payload result with an explicit message.
+     *
+     * @param serviceName the service name for logging
+     * @param message the failure message
+     * @param contract the no-payload service-result contract
+     * @return the generated service-result InfoTable
+     */
     public static InfoTable failure(
             String serviceName, String message, DapNoPayloadServiceContract contract) {
         LOGGER.error(serviceName + " failed: " + message);
         return noPayloadResult(contract.shape(), true, message);
     }
 
+    /**
+     * Creates a failed no-payload result from an exception.
+     *
+     * @param serviceName the service name for logging
+     * @param failure the service failure
+     * @param contract the no-payload service-result contract
+     * @return the generated service-result InfoTable
+     */
     public static InfoTable failure(
             String serviceName, Throwable failure, DapNoPayloadServiceContract contract) {
         String message = serviceName + " failed: " + failure;

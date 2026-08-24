@@ -9,12 +9,31 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.TYPE)
 public @interface DapProject {
+    /**
+     * Returns the configured value.
+     *
+     * @return the project name.
+     */
     String name();
 
+    /**
+     * Returns the configured value.
+     *
+     * @return the optional project description.
+     */
     String description() default "";
 
+    /**
+     * Returns the configured value.
+     *
+     * @return the project package version.
+     */
     String packageVersion() default "1.0.0";
 
-    /** Whether ThingWorx may modify entities created in this extension project at runtime. */
+    /**
+     * Returns the configured value.
+     *
+     * @return whether ThingWorx may modify entities created in this project at runtime.
+     */
     boolean editable() default false;
 }

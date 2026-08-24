@@ -302,7 +302,9 @@ public class GitRepositoryShape extends Thing {
             }
             if (GpgKey != null) {
                 GpgPrivateKey =
-                        ((PasswordPrimitive) GpgKey.getPrimitive(Const.GpgPrivateKey)).getValue();
+                        PastedKeyGpgSigner.normalizePrivateKey(
+                                ((PasswordPrimitive) GpgKey.getPrimitive(Const.GpgPrivateKey))
+                                        .getValue());
                 GpgPassphrase =
                         ((PasswordPrimitive) GpgKey.getPrimitive(Const.GpgKeyPassphrase))
                                 .getValue();
