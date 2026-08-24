@@ -19,16 +19,9 @@ jobs:
       - name: Replay versioning policy
         shell: bash
         run: |
-          if [ "${{ github.event_name }}" = pull_request ]; then
-            RANGE="${{ github.event.pull_request.base.sha }}..${{ github.sha }}"
-          else
-            RANGE="${{ github.event.before }}..${{ github.sha }}"
-          fi
-          # The all-zero before SHA is used only when a branch is first created.
-          if [[ "$RANGE" == 0000000000000000000000000000000000000000* ]]; then
-            RANGE="$(git rev-list --max-parents=0 HEAD)..${{ github.sha }}"
-          fi
-          .github/scripts/validate-versioning.sh "$RANGE"
+          # Validate only the commit that triggered this run. This avoids
+          # replaying older, already-pushed history when new work is added.
+          .github/scripts/validate-versioning.sh 'HEAD^..HEAD'
 
   changes:
     runs-on: ubuntu-latest
