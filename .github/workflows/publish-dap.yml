@@ -2,6 +2,12 @@ name: Publish ThingWorx DAP
 
 on:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the committed DAP version.
+        required: false
+        default: false
+        type: boolean
   push:
     branches: [main]
 
@@ -18,7 +24,11 @@ jobs:
         shell: bash
         run: |
           if [ "${{ github.event_name }}" = workflow_dispatch ]; then
-            echo 'changed=true' >> "$GITHUB_OUTPUT"
+            if [ "${{ inputs.publish }}" = "true" ]; then
+              echo 'changed=true' >> "$GITHUB_OUTPUT"
+            else
+              echo 'changed=false' >> "$GITHUB_OUTPUT"
+            fi
           elif git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" | grep -Eq '^libraries/thingworx-dap(-runtime)?/\.version$'; then
             echo 'changed=true' >> "$GITHUB_OUTPUT"
           else
@@ -26,7 +36,7 @@ jobs:
           fi
 
   publish:
-    if: github.event_name == 'push' && needs.changes.outputs.dap_version == 'true'
+    if: needs.changes.outputs.dap_version == 'true'
     needs: changes
     runs-on: ubuntu-latest
     permissions:
