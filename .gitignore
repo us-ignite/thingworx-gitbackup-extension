@@ -24,6 +24,7 @@ extensions/jgit/vendor/*
 .agents/
 .codex/
 .cache/
+private-*.asc
 
 # OS
 .DS_Store
@@ -34,6 +35,8 @@ graalvm-jdk-21*
 
 # Integration test credentials
 .env
+private-signing-key.asc
+private-signing-key.b64
 
 # Cached downloads
 .cache/

@@ -8,6 +8,7 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.Security;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Iterator;
 import org.bouncycastle.bcpg.ArmoredOutputStream;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
@@ -45,8 +46,28 @@ public class PastedKeyGpgSigner implements Signer {
 
     /** Creates a signer from an armored private key and its passphrase. */
     public PastedKeyGpgSigner(String privateKeyArmored, String passphrase) {
-        this.privateKeyData = privateKeyArmored.getBytes(StandardCharsets.UTF_8);
+        this.privateKeyData =
+                normalizePrivateKey(privateKeyArmored).getBytes(StandardCharsets.UTF_8);
         this.passphrase = passphrase != null ? passphrase.toCharArray() : new char[0];
+    }
+
+    /**
+     * Normalizes raw armored key text and Base64-wrapped armored key text.
+     *
+     * @param privateKey the raw or Base64-encoded private key
+     * @return raw armored key text, or the original value when it is not a Base64-wrapped key
+     */
+    public static String normalizePrivateKey(String privateKey) {
+        if (privateKey == null) return null;
+        String trimmed = privateKey.trim();
+        if (trimmed.startsWith("-----BEGIN")) return trimmed;
+        try {
+            String decoded =
+                    new String(Base64.getDecoder().decode(trimmed), StandardCharsets.UTF_8).trim();
+            return decoded.startsWith("-----BEGIN") ? decoded : privateKey;
+        } catch (IllegalArgumentException ignored) {
+            return privateKey;
+        }
     }
 
     /** Overwrites the in-memory key and passphrase buffers. */

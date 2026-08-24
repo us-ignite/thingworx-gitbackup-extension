@@ -16,7 +16,9 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.us_ignite.thingworx.jgit.extension.PastedKeyGpgSigner;
 import org.us_ignite.thingworx.jgit.tests.containers.JGitExtensionTestStack;
+import org.us_ignite.thingworx.jgit.tests.util.GPGGenerator;
 import org.us_ignite.thingworx.jgit.tests.util.TestingCredentials;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -30,10 +32,16 @@ public class GpgKeyVisibilityTest {
 
     private TestingCredentials credentials;
     private JGitExtensionTestStack stack;
+    private String testPrivateKey;
+    private String testFingerprint;
 
     @BeforeAll
     public void beforeAll() throws Exception {
         credentials = new TestingCredentials();
+        testPrivateKey = GPGGenerator.generateTestGpgPrivateKey();
+        PastedKeyGpgSigner signer = new PastedKeyGpgSigner(testPrivateKey, "");
+        testFingerprint = signer.getFingerprint();
+        signer.clearSensitiveData();
         stack = new JGitExtensionTestStack(DB_INIT_IMAGE, PLATFORM_IMAGE, credentials);
     }
 
@@ -128,9 +136,9 @@ public class GpgKeyVisibilityTest {
     @Test
     void setAndGetGpgKeyRoundTrip() throws Exception {
         var setBody = new JsonObject();
-        setBody.addProperty("GpgPrivateKey", "test-private-key-data");
+        setBody.addProperty("GpgPrivateKey", testPrivateKey);
         setBody.addProperty("GpgKeyPassphrase", "test-passphrase");
-        setBody.addProperty("GpgKeyFingerprint", "TEST:FINGER:PRINT:1234");
+        setBody.addProperty("GpgKeyFingerprint", testFingerprint);
         setBody.addProperty("GpgKeyLabel", "ci-signing-key");
         var setReq =
                 stack.thingworx
@@ -163,7 +171,7 @@ public class GpgKeyVisibilityTest {
                 firstRow.has("GpgKeyFingerprint"),
                 "Row should have GpgKeyFingerprint field: " + firstRow);
         assertEquals(
-                "TEST:FINGER:PRINT:1234",
+                testFingerprint,
                 firstRow.get("GpgKeyFingerprint").getAsString(),
                 "GpgKeyFingerprint should match the one we set");
         assertTrue(firstRow.has("GpgKeyLabel"), "Row should have GpgKeyLabel field: " + firstRow);
@@ -192,7 +200,7 @@ public class GpgKeyVisibilityTest {
         assertTrue(
                 labelRows.size() > 0, "Get by label should return a row: " + getByLabelRes.body());
         assertEquals(
-                "TEST:FINGER:PRINT:1234",
+                testFingerprint,
                 labelRows.get(0).getAsJsonObject().get("GpgKeyFingerprint").getAsString(),
                 "Get by label should return the matching key");
 
@@ -208,12 +216,12 @@ public class GpgKeyVisibilityTest {
 
     @Test
     void deleteByLabelClearsRepositorySigningReferences() throws Exception {
-        String fingerprint = "TEST:FINGER:LABEL:DELETE";
+        String fingerprint = testFingerprint;
         String label = "label-delete-signing-test";
         String repoThing = "GIT.Repo.LabelDelete.Test";
 
         var createBody = new JsonObject();
-        createBody.addProperty("GpgPrivateKey", "test-private-key-data");
+        createBody.addProperty("GpgPrivateKey", testPrivateKey);
         createBody.addProperty("GpgKeyPassphrase", "test-passphrase");
         createBody.addProperty("GpgKeyFingerprint", fingerprint);
         createBody.addProperty("GpgKeyLabel", label);

@@ -34,6 +34,9 @@ dependencies {
     api project(':libraries:thingworx-dap')
     compileOnly fileTree(dir: sdkExtractDir, include: '*.jar')
     testImplementation fileTree(dir: sdkExtractDir, include: '*.jar')
+
+    // JUnit Platform is required by the test task and supports runtime DAP tests.
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.8.2'
 }
 
 tasks.withType(JavaCompile).configureEach {

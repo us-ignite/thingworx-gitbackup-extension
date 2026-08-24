@@ -54,6 +54,9 @@ public final class DeclarativeAnnotationProcessor extends AbstractProcessor {
     private final Set<String> referencedServiceResults = new HashSet<>();
     private final Map<String, ShapeModel> shapes = new LinkedHashMap<>();
 
+    /** Creates the declarative annotation processor. */
+    public DeclarativeAnnotationProcessor() {}
+
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment round) {
         for (Element element : round.getElementsAnnotatedWith(DapDataShape.class)) {

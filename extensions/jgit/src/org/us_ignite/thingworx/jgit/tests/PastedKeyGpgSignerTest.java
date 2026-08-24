@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import org.bouncycastle.openpgp.PGPSecretKey;
 import org.bouncycastle.openpgp.PGPSecretKeyRingCollection;
 import org.bouncycastle.openpgp.PGPUtil;
@@ -24,6 +25,15 @@ class PastedKeyGpgSignerTest {
         String key = GPGGenerator.generateTestGpgPrivateKey();
         PastedKeyGpgSigner signer = new PastedKeyGpgSigner(key, "");
         assertNotNull(signer);
+        signer.clearSensitiveData();
+    }
+
+    @Test
+    void acceptsBase64WrappedArmoredKey() throws Exception {
+        String key = GPGGenerator.generateTestGpgPrivateKey();
+        String encoded = Base64.getEncoder().encodeToString(key.getBytes(StandardCharsets.UTF_8));
+        PastedKeyGpgSigner signer = new PastedKeyGpgSigner(encoded, "");
+        assertNotNull(signer.getFingerprint(), "Base64-wrapped key should be parsed");
         signer.clearSensitiveData();
     }
 

@@ -9,9 +9,24 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.TYPE)
 public @interface DapNoPayloadServiceResult {
+    /**
+     * Returns the configured value.
+     *
+     * @return the service-result DataShape name.
+     */
     String name();
 
+    /**
+     * Returns the configured value.
+     *
+     * @return the owning project name.
+     */
     String projectName() default "GIT";
 
+    /**
+     * Returns the configured value.
+     *
+     * @return the service-result DataShape description.
+     */
     String description() default "Status and message returned by a service.";
 }

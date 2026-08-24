@@ -25,8 +25,6 @@ import com.thingworx.types.primitives.PasswordPrimitive;
 import com.thingworx.types.primitives.StringPrimitive;
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -618,17 +616,7 @@ public class GitUtilityThingShape extends Thing {
                                                 .getValue()
                                         : null;
                         String storedFingerprint = stored.getStringValue(Const.GpgKeyFingerprint);
-                        String keyForVerify = storedKey;
-                        if (keyForVerify != null && !keyForVerify.startsWith("-----")) {
-                            try {
-                                keyForVerify =
-                                        new String(
-                                                Base64.getDecoder().decode(keyForVerify),
-                                                StandardCharsets.UTF_8);
-                            } catch (IllegalArgumentException iae) {
-                                // keep original value; signer will report invalid
-                            }
-                        }
+                        String keyForVerify = PastedKeyGpgSigner.normalizePrivateKey(storedKey);
                         boolean valid = false;
                         String fingerprint = storedFingerprint;
                         PastedKeyGpgSigner signer = null;
@@ -706,17 +694,7 @@ public class GitUtilityThingShape extends Thing {
                                             .getValue()
                                     : null;
                     String storedFingerprint = fp;
-                    String keyForVerify = storedKey;
-                    if (keyForVerify != null && !keyForVerify.startsWith("-----")) {
-                        try {
-                            keyForVerify =
-                                    new String(
-                                            Base64.getDecoder().decode(keyForVerify),
-                                            StandardCharsets.UTF_8);
-                        } catch (IllegalArgumentException iae) {
-                            // keep original value; signer will report invalid
-                        }
-                    }
+                    String keyForVerify = PastedKeyGpgSigner.normalizePrivateKey(storedKey);
                     boolean valid = false;
                     String fingerprint = storedFingerprint;
                     PastedKeyGpgSigner signer = null;
@@ -758,18 +736,11 @@ public class GitUtilityThingShape extends Thing {
                                                     : "label '" + GpgKeyLabel + "'"));
                 }
             } else {
-                String key = GpgPrivateKey;
+                String key = PastedKeyGpgSigner.normalizePrivateKey(GpgPrivateKey);
                 String passphrase = GpgKeyPassphrase;
                 if (key == null || key.isBlank()) {
                     throw new IllegalArgumentException(
                             "GpgPrivateKey is required when All is false and no GpgKeyFingerprint/GpgKeyLabel is supplied.");
-                }
-                if (key != null && !key.startsWith("-----")) {
-                    try {
-                        key = new String(Base64.getDecoder().decode(key), StandardCharsets.UTF_8);
-                    } catch (IllegalArgumentException iae) {
-                        // keep original value; signer will report invalid
-                    }
                 }
                 PastedKeyGpgSigner signer = null;
                 String fingerprint = null;
@@ -932,7 +903,8 @@ public class GitUtilityThingShape extends Thing {
                     String GpgKeyPassphrase,
             @ThingworxServiceParameter(
                             name = "GpgKeyFingerprint",
-                            description = "GPG key fingerprint for display",
+                            description =
+                                    "Optional fingerprint used to verify the fingerprint derived from the private key",
                             baseType = "STRING")
                     String GpgKeyFingerprint,
             @ThingworxServiceParameter(
@@ -941,18 +913,25 @@ public class GitUtilityThingShape extends Thing {
                             baseType = "STRING")
                     String GpgKeyLabel) {
         try {
+            GpgPrivateKey = PastedKeyGpgSigner.normalizePrivateKey(GpgPrivateKey);
+            if (GpgPrivateKey == null || GpgPrivateKey.isBlank())
+                throw new IllegalArgumentException("GpgPrivateKey is required.");
             User currentUser = new GitUserContextManager().requireUser();
-            if (GpgKeyFingerprint.isBlank()) {
-                if (GpgPrivateKey.isBlank())
-                    throw new IllegalArgumentException(
-                            "GpgPrivateKey or GpgKeyFingerprint is required.");
-                PastedKeyGpgSigner signer = new PastedKeyGpgSigner(GpgPrivateKey, GpgKeyPassphrase);
-                try {
-                    GpgKeyFingerprint = signer.getFingerprint();
-                } finally {
-                    signer.clearSensitiveData();
-                }
+            String derivedFingerprint;
+            PastedKeyGpgSigner signer = new PastedKeyGpgSigner(GpgPrivateKey, GpgKeyPassphrase);
+            try {
+                derivedFingerprint = signer.getFingerprint();
+            } finally {
+                signer.clearSensitiveData();
             }
+            if (derivedFingerprint == null || derivedFingerprint.isBlank())
+                throw new IllegalArgumentException(
+                        "Unable to derive fingerprint from GpgPrivateKey.");
+            if (GpgKeyFingerprint == null || GpgKeyFingerprint.isBlank())
+                GpgKeyFingerprint = derivedFingerprint;
+            else if (!derivedFingerprint.equalsIgnoreCase(GpgKeyFingerprint))
+                throw new IllegalArgumentException(
+                        "GpgKeyFingerprint does not match the supplied GpgPrivateKey.");
             InitUserExtensionProperties();
             InfoTable gpgKeys = getGpgKeysTable(currentUser);
             if (gpgKeys == null)
@@ -1094,6 +1073,7 @@ public class GitUtilityThingShape extends Thing {
                             baseType = "STRING")
                     String passphrase) {
         try {
+            privateKey = PastedKeyGpgSigner.normalizePrivateKey(privateKey);
             if ((fingerprint == null || fingerprint.isBlank())
                     && (GpgKeyLabel == null || GpgKeyLabel.isBlank()))
                 throw new IllegalArgumentException("GpgKeyFingerprint or GpgKeyLabel is required.");
