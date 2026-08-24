@@ -2,14 +2,26 @@
 set -euo pipefail
 
 TMP=$(mktemp)
+trap 'rm -f "$TMP"' EXIT
 cat > "$TMP"
 
 if [ -n "${GPG_PASSPHRASE:-}" ]; then
   ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "$(dirname "$0")/..")
   mkdir -p "$ROOT/extensions/jgit/vendor"
-  gpg --decrypt --cipher AES256 --batch --passphrase "$GPG_PASSPHRASE" < "$TMP" 2>/dev/null \
-    | tar xz -C "$ROOT/extensions/jgit/vendor" 2>/dev/null || true
+  if ! gpg --decrypt --batch --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" < "$TMP" \
+      | tar xz -C "$ROOT/extensions/jgit/vendor"; then
+    printf 'twx-resources smudge: failed to decrypt or extract the SDK archive.\n' >&2
+    exit 1
+  fi
+  for sdk in \
+    MED-61098-CD-096_9-6-0_ThingWorx-Extension-SDK-9-6-0.zip \
+    MED-61098-CD-097_9-7-0_ThingWorx-Extension-SDK-9-7-0.zip \
+    MED-61098-CD-101_10-1-0_ThingWorx-Extension-SDK-10-1-0.zip; do
+    if [ ! -s "$ROOT/extensions/jgit/vendor/$sdk" ]; then
+      printf 'twx-resources smudge: required SDK archive is missing after extraction: %s\n' "$sdk" >&2
+      exit 1
+    fi
+  done
 fi
 
 cat "$TMP"
-rm "$TMP"
