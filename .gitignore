@@ -11,8 +11,8 @@ issues/
 .classpath
 .settings/
 bin/
-extensions/jgit/vendor/*
-!extensions/jgit/vendor/twx-resources.tar.gz.gpg
+vendor/*
+!vendor/twx-resources.tar.gz.gpg
 
 # IDE
 *.iml

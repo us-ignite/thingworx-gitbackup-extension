@@ -22,8 +22,8 @@ jobs:
         run: |
           git config filter.twx-resources.smudge '.gitfilters/twx-resources-smudge'
           git config filter.twx-resources.clean '.gitfilters/twx-resources-clean'
-          git checkout HEAD -- extensions/jgit/gradle.properties extensions/jgit/vendor/twx-resources.tar.gz.gpg
-          .gitfilters/twx-resources-smudge < extensions/jgit/vendor/twx-resources.tar.gz.gpg > /dev/null
+          git checkout HEAD -- apps/thingworx-jgit-extension/gradle.properties vendor/twx-resources.tar.gz.gpg || git checkout HEAD -- extensions/jgit/gradle.properties extensions/jgit/vendor/twx-resources.tar.gz.gpg
+          .gitfilters/twx-resources-smudge < vendor/twx-resources.tar.gz.gpg 2>/dev/null || .gitfilters/twx-resources-smudge < extensions/jgit/vendor/twx-resources.tar.gz.gpg > /dev/null
 
       - uses: actions/setup-java@v5
         with:
@@ -44,20 +44,20 @@ jobs:
         uses: gradle/actions/setup-gradle@v5
 
       - name: Generate Javadocs
-        run: ./gradlew :extensions:jgit:javadoc
+        run: ./gradlew :apps:thingworx-jgit-extension:javadoc
 
       - name: Stage generated Javadocs
         run: |
-          mkdir -p extensions/jgit/docs/api/javadoc
-          cp -R extensions/jgit/build/docs/javadoc/. extensions/jgit/docs/api/javadoc/
+          mkdir -p apps/thingworx-jgit-extension/docs/api/javadoc
+          cp -R apps/thingworx-jgit-extension/build/docs/javadoc/. apps/thingworx-jgit-extension/docs/api/javadoc/
 
       - name: Build documentation site
-        run: mkdocs build --strict --config-file extensions/jgit/mkdocs.yml --site-dir public
+        run: mkdocs build --strict --config-file apps/thingworx-jgit-extension/mkdocs.yml --site-dir public
 
       - name: Add generated Javadocs to Pages artifact
         run: |
           mkdir -p public/api/javadoc
-          cp -R extensions/jgit/build/docs/javadoc/. public/api/javadoc/
+          cp -R apps/thingworx-jgit-extension/build/docs/javadoc/. public/api/javadoc/
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

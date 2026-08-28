@@ -18,9 +18,10 @@ def twxVersion = project.findProperty('twxVersion') ?: '9.6'
 def sdkZipNames = [
     '9.6': 'MED-61098-CD-096_9-6-0_ThingWorx-Extension-SDK-9-6-0.zip',
     '9.7': 'MED-61098-CD-097_9-7-0_ThingWorx-Extension-SDK-9-7-0.zip',
+    '10.0': 'MED-61098-CD-100_10-0-0_ThingWorx-Extension-SDK-10-0-0.zip',
     '10.1': 'MED-61098-CD-101_10-1-0_ThingWorx-Extension-SDK-10-1-0.zip'
 ]
-def sdkZip = file("${rootDir}/extensions/jgit/vendor/${sdkZipNames[twxVersion]}")
+def sdkZip = file("${rootDir}/vendor/${sdkZipNames[twxVersion]}")
 def sdkExtractDir = file("${buildDir}/sdk-${twxVersion}")
 
 tasks.register('unpackSdk', Copy) {

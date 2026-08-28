@@ -1,0 +1,9 @@
+The ThingWorx operator and the ThingWorxCluster CRD are installed.
+
+The chart does not create a ThingWorx instance. Create namespace-local Secrets,
+ConfigMaps, and external PostgreSQL infrastructure first, then apply the sample
+API resource from examples/thingworxcluster.yaml after replacing every REPLACE value.
+
+Check lifecycle progress with:
+  kubectl get thingworxclusters -A
+  kubectl describe twx <name> -n <namespace>

@@ -7,7 +7,7 @@ owned by the commit hook and remain equal; the main-branch workflow creates the 
 Use a Conventional Commit when changing either package. `fix:` and `perf:` create a patch release,
 `feat:` creates a minor release, and a breaking change creates a major release. The hook stages both
 version files automatically. To inspect the proposed update without changing the index, run
-`./extensions/jgit/scripts/bump-version.sh 'fix: describe the change'` after staging the change.
+`./apps/thingworx-jgit-extension/scripts/bump-version.sh 'fix: describe the change'` after staging the change.
 
 Consumers authenticate with a personal access token (classic) with `read:packages`, then configure:
 

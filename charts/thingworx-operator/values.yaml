@@ -1,0 +1,9 @@
+image:
+  repository: ghcr.io/us-ignite/thingworx/thingworx-operator
+  tag: latest
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+resources: {}
+rolloutToken: ""

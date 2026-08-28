@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "thingworx-operator.fullname" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "thingworx-operator.name" . }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "thingworx-operator.name" . }}
+      annotations:
+        thingworx.us-ignite.org/dev-rollout: {{ .Values.rolloutToken | quote }}
+    spec:
+      serviceAccountName: {{ include "thingworx-operator.fullname" . }}
+      containers:
+        - name: operator
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

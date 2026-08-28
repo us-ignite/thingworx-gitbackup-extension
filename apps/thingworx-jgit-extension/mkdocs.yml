@@ -1,0 +1,5 @@
+# Shim — canonical config is now /mkdocs.yml at the repository root.
+# Kept for backwards compatibility with old `mkdocs --config-file apps/...` invocations.
+INHERIT: ../../mkdocs.yml
+# Override docs_dir which is relative to the config file location.
+docs_dir: docs

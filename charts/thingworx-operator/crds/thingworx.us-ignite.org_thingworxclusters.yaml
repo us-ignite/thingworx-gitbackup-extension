@@ -1,0 +1,162 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: thingworxclusters.thingworx.us-ignite.org
+spec:
+  group: thingworx.us-ignite.org
+  names:
+    kind: ThingWorxCluster
+    listKind: ThingWorxClusterList
+    plural: thingworxclusters
+    singular: thingworxcluster
+    shortNames: [twx]
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required: [spec]
+          properties:
+            spec:
+              type: object
+              required: [images, database, storage, platformAdminPassword, keystorePassword]
+              x-kubernetes-validations:
+                - rule: "!has(oldSelf.enableHA) || self.enableHA == oldSelf.enableHA"
+                  message: "spec.enableHA is immutable"
+                - rule: "!has(oldSelf.database) || !has(oldSelf.database.internal) || self.database.internal == oldSelf.database.internal"
+                  message: "spec.database.internal is immutable"
+                - rule: "!self.enableHA || !self.database.internal"
+                  message: "enableHA requires database.internal=false and external HA PostgreSQL"
+                - rule: "!self.enableHA || (has(self.images.ignite) && has(self.images.cxServer) && has(self.images.zookeeper) && has(self.images.haProxy))"
+                  message: "enableHA requires ignite, cxServer, zookeeper, and haProxy images"
+                - rule: "!self.enableHA || has(self.cxServerAppKey)"
+                  message: "enableHA requires cxServerAppKey"
+              properties:
+                enableHA: {type: boolean, default: false}
+                images:
+                  type: object
+                  required: [platform, databaseInit, securityCli]
+                  properties:
+                    platform: {type: string, default: "ghcr.io/us-ignite/thingworx/platform-postgres:10.1.2"}
+                    databaseInit: {type: string, default: "ghcr.io/us-ignite/thingworx/postgres-init:10.1.2"}
+                    securityCli: {type: string, default: "ghcr.io/us-ignite/thingworx/security-tool:10.1.2"}
+                    ignite: {type: string, default: "apacheignite/ignite:2.16.0"}
+                    cxServer: {type: string, default: "ghcr.io/us-ignite/thingworx/cxserver-twx:10.1"}
+                    haProxy: {type: string, default: "haproxy:3.0.10"}
+                    zookeeper: {type: string, default: "zookeeper:3.8.4"}
+                    kafka: {type: string}
+                    otelCollector: {type: string}
+                    extensionInstaller: {type: string, default: "ghcr.io/us-ignite/thingworx/extension-installer:latest"}
+                database:
+                  type: object
+                  required: [database, schema, username, adminUsername, credentials, adminCredentials]
+                  x-kubernetes-validations:
+                    - rule: "self.internal || has(self.host)"
+                      message: "external PostgreSQL requires database.host"
+                  properties:
+                    internal: {type: boolean, default: true}
+                    image: {type: string, default: "postgres:16"}
+                    host: {type: string}
+                    port: {type: integer, default: 5432}
+                    database: {type: string}
+                    schema: {type: string}
+                    username: {type: string}
+                    adminUsername: {type: string}
+                    credentials:
+                      type: object
+                      properties:
+                        name: {type: string}
+                        key: {type: string}
+                    adminCredentials:
+                      type: object
+                      required: [name, key]
+                      properties:
+                        name: {type: string}
+                        key: {type: string}
+                storage:
+                  type: object
+                  required: [storageClassName]
+                  properties:
+                    storageClassName: {type: string}
+                    sharedStorageSize: {type: string}
+                    componentStorageSize: {type: string}
+                ingress:
+                  type: object
+                  properties:
+                    host: {type: string}
+                    className: {type: string}
+                    tlsSecretName: {type: string}
+                    certManagerIssuer: {type: string}
+                settingsConfigMap: {type: string}
+                licenseSecret: {type: string}
+                imagePullSecret: {type: string}
+                platformAdminPassword:
+                  type: object
+                  required: [name, key]
+                  properties:
+                    name: {type: string}
+                    key: {type: string}
+                provisioningAppKey:
+                  type: object
+                  required: [name, key]
+                  properties:
+                    name: {type: string}
+                    key: {type: string}
+                cxServerAppKey:
+                  type: object
+                  required: [name, key]
+                  properties:
+                    name: {type: string}
+                    key: {type: string}
+                extensionImportAppKey:
+                  type: object
+                  required: [name, key]
+                  properties:
+                    name: {type: string}
+                    key: {type: string}
+                keystorePassword:
+                  type: object
+                  required: [name, key]
+                  properties:
+                    name: {type: string}
+                    key: {type: string}
+                extensionImportPolicy:
+                  type: object
+                  default: {entities: true}
+                  properties:
+                    entities: {type: boolean, default: true}
+                    extensibleEntities: {type: boolean, default: false}
+                    jarResources: {type: boolean, default: false}
+                    javascriptResources: {type: boolean, default: false}
+                    cssResources: {type: boolean, default: false}
+                    jsonResources: {type: boolean, default: false}
+                    webAppResources: {type: boolean, default: false}
+                kafkaEnabled: {type: boolean, default: false}
+                otelEnabled: {type: boolean, default: false}
+            status:
+              type: object
+              properties:
+                phase: {type: string}
+                message: {type: string}
+                observedGeneration: {type: integer, format: int64}
+                currentVersion: {type: string}
+                mode: {type: string, enum: [SINGLE_NODE, HA]}
+                conditions:
+                  type: array
+                  x-kubernetes-list-type: map
+                  x-kubernetes-list-map-keys: [type]
+                  items:
+                    type: object
+                    required: [type, status, reason, message, lastTransitionTime]
+                    properties:
+                      type: {type: string}
+                      status: {type: string, enum: ["True", "False", Unknown]}
+                      reason: {type: string}
+                      message: {type: string}
+                      lastTransitionTime: {type: string, format: date-time}
+                      observedGeneration: {type: integer, format: int64}
+      subresources:
+        status: {}

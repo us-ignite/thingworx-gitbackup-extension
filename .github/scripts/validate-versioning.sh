@@ -26,17 +26,36 @@ next_version() {
 
 bootstrap_version() {
   case "$1" in
-    extensions/jgit/.version) printf '6.0.6' ;;
+    apps/thingworx-jgit-extension/.version|extensions/jgit/.version) printf '6.0.6' ;;
     libraries/thingworx-dap/.version|libraries/thingworx-dap-runtime/.version) printf '0.1.0' ;;
     *) fail "no bootstrap version is defined for $1" ;;
   esac
 }
 
+resolve_jgit_version_at() {
+  local ref=$1
+  if git cat-file -e "$ref:apps/thingworx-jgit-extension/.version" 2>/dev/null; then
+    git show "$ref:apps/thingworx-jgit-extension/.version" | tr -d '[:space:]'
+  elif git cat-file -e "$ref:extensions/jgit/.version" 2>/dev/null; then
+    git show "$ref:extensions/jgit/.version" | tr -d '[:space:]'
+  elif git cat-file -e "$ref:.version" 2>/dev/null; then
+    git show "$ref:.version" | tr -d '[:space:]'
+  else
+    return 1
+  fi
+}
+
+has_jgit_version_at() {
+  git cat-file -e "$1:apps/thingworx-jgit-extension/.version" 2>/dev/null \
+    || git cat-file -e "$1:extensions/jgit/.version" 2>/dev/null \
+    || git cat-file -e "$1:.version" 2>/dev/null
+}
+
 baseline_version() {
   case "$1" in
-    extensions/jgit/.version)
-      if git cat-file -e "$parent:.version" 2>/dev/null; then
-        git show "$parent:.version" | tr -d '[:space:]'
+    apps/thingworx-jgit-extension/.version|extensions/jgit/.version)
+      if resolve_jgit_version_at "$parent" >/dev/null; then
+        resolve_jgit_version_at "$parent"
       else
         bootstrap_version "$1"
       fi
@@ -54,8 +73,8 @@ for commit in "${commits[@]}"; do
   jgit=false; dap=false
   for path in "${paths[@]}"; do
     case "$path" in
-      extensions/jgit/.version|libraries/thingworx-dap/.version|libraries/thingworx-dap-runtime/.version) ;;
-      extensions/jgit/*) jgit=true ;;
+      apps/thingworx-jgit-extension/.version|extensions/jgit/.version|libraries/thingworx-dap/.version|libraries/thingworx-dap-runtime/.version) ;;
+      apps/thingworx-jgit-extension/*|extensions/jgit/*) jgit=true ;;
       libraries/thingworx-dap/*|libraries/thingworx-dap-runtime/*) dap=true ;;
     esac
   done
@@ -65,13 +84,35 @@ for commit in "${commits[@]}"; do
   if [[ $header =~ !: ]] || grep -qE '^BREAKING([[:space:]-])CHANGE:[[:space:]]+' <<<"$message"; then bump=major
   elif [[ $header =~ $feat_header ]]; then bump=minor
   elif [[ $header =~ $patch_header ]]; then bump=patch; fi
-  targets=(); $jgit && targets+=(extensions/jgit/.version); $dap && targets+=(libraries/thingworx-dap/.version libraries/thingworx-dap-runtime/.version)
+  targets=(); $jgit && targets+=(apps/thingworx-jgit-extension/.version); $dap && targets+=(libraries/thingworx-dap/.version libraries/thingworx-dap-runtime/.version)
   for target in "${targets[@]}"; do
     changed=false
+    legacy="extensions/jgit/.version"
     for path in "${paths[@]}"; do [[ $path == "$target" ]] && changed=true; done
-    if ! git cat-file -e "$parent:$target" 2>/dev/null; then
+    # For jgit, also consider legacy path renames as change
+    if [[ $target == "apps/thingworx-jgit-extension/.version" ]]; then
+      for path in "${paths[@]}"; do [[ $path == "$legacy" ]] && changed=true; done
+      # If target is new path but only legacy changed (rename), treat as changed
+      # Need to handle first commit after refactor where file moved
+    fi
+    # Determine if parent had any jgit version (new, legacy, or root)
+    has_parent_version=false
+    if [[ $target == "apps/thingworx-jgit-extension/.version" ]]; then
+      has_jgit_version_at "$parent" && has_parent_version=true
+    else
+      git cat-file -e "$parent:$target" 2>/dev/null && has_parent_version=true
+    fi
+    if ! $has_parent_version; then
       $changed || fail "$commit is missing bootstrap $target."
-      new=$(git show "$commit:$target" | tr -d '[:space:]')
+      # Get new version from commit: prefer new path, fallback to legacy
+      new=""
+      if git cat-file -e "$commit:$target" 2>/dev/null; then
+        new=$(git show "$commit:$target" | tr -d '[:space:]')
+      elif [[ $target == "apps/thingworx-jgit-extension/.version" ]] && git cat-file -e "$commit:$legacy" 2>/dev/null; then
+        new=$(git show "$commit:$legacy" | tr -d '[:space:]')
+      else
+        fail "$commit is missing $target content."
+      fi
       base=$(baseline_version "$target")
       expected=$base
       [[ $bump == none ]] || expected=$(next_version "$base" "$bump")
@@ -79,11 +120,32 @@ for commit in "${commits[@]}"; do
       continue
     fi
     if [[ $bump == none ]]; then
+      # Allow rename-only changes without version bump during refactor
+      is_rename_only=false
+      if [[ $target == "apps/thingworx-jgit-extension/.version" ]]; then
+        # If commit only moves file without version change, legacy deletion + new addition with same version is ok for non-releasing? But policy says non-releasing should not change version file.
+        # During refactor, a non-releasing commit that only renames path should be allowed if version stays same.
+        # Check if both legacy deletion and new addition present with same content as parent.
+        if $changed; then
+          old=$(resolve_jgit_version_at "$parent" | tr -d '[:space:]' || true)
+          new=""
+          if git cat-file -e "$commit:$target" 2>/dev/null; then new=$(git show "$commit:$target" | tr -d '[:space:]')
+          elif git cat-file -e "$commit:$legacy" 2>/dev/null; then new=$(git show "$commit:$legacy" | tr -d '[:space:]'); fi
+          if [[ $new == "$old" ]]; then
+            is_rename_only=true
+          fi
+        fi
+      fi
+      if $is_rename_only; then
+        continue
+      fi
       $changed && fail "$commit changes $target for a non-releasing type."
     else
       $changed || fail "$commit is missing required $target update."
-      old=$(git show "$parent:$target" | tr -d '[:space:]')
-      new=$(git show "$commit:$target" | tr -d '[:space:]')
+      old=$(resolve_jgit_version_at "$parent" | tr -d '[:space:]')
+      new=""
+      if git cat-file -e "$commit:$target" 2>/dev/null; then new=$(git show "$commit:$target" | tr -d '[:space:]')
+      elif [[ $target == "apps/thingworx-jgit-extension/.version" ]] && git cat-file -e "$commit:$legacy" 2>/dev/null; then new=$(git show "$commit:$legacy" | tr -d '[:space:]'); fi
       expected=$(next_version "$old" "$bump")
       [[ $new == "$expected" ]] || fail "$commit has $target=$new; expected $expected."
     fi

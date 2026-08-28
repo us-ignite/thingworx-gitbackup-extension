@@ -6,7 +6,11 @@ rootProject.name = 'ThingWorxExtensions'
 
 include ':libraries:thingworx-dap'
 include ':libraries:thingworx-dap-runtime'
-include ':extensions:jgit'
+include ':apps:thingworx-jgit-extension'
+include ':apps:thingworx-operator'
+include ':images:platform'
+include ':images:security-tool'
+include ':images:connection-server'
 
 // The generated prepare-commit-msg hook delegates to this tracked script. This
 // runs after Git has the message but before it snapshots the index into the

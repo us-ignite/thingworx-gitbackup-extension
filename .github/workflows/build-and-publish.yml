@@ -46,7 +46,7 @@ jobs:
               && [ "${{ inputs.publish }}" = "true" ]; } \
               || { [ "${{ github.event_name }}" = "push" ] \
               && git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" \
-                | grep -Fxq 'extensions/jgit/.version'; }; then
+                | grep -Eq '^(apps/thingworx-jgit-extension|extensions/jgit)/\.version$'; }; then
             echo 'changed=true' >> "$GITHUB_OUTPUT"
           else
             echo 'changed=false' >> "$GITHUB_OUTPUT"
@@ -66,8 +66,8 @@ jobs:
         run: |
           git config filter.twx-resources.smudge '.gitfilters/twx-resources-smudge'
           git config filter.twx-resources.clean '.gitfilters/twx-resources-clean'
-          git checkout HEAD -- extensions/jgit/gradle.properties extensions/jgit/vendor/twx-resources.tar.gz.gpg
-          .gitfilters/twx-resources-smudge < extensions/jgit/vendor/twx-resources.tar.gz.gpg > /dev/null
+          git checkout HEAD -- apps/thingworx-jgit-extension/gradle.properties vendor/twx-resources.tar.gz.gpg || git checkout HEAD -- extensions/jgit/gradle.properties extensions/jgit/vendor/twx-resources.tar.gz.gpg
+          .gitfilters/twx-resources-smudge < vendor/twx-resources.tar.gz.gpg 2>/dev/null || .gitfilters/twx-resources-smudge < extensions/jgit/vendor/twx-resources.tar.gz.gpg > /dev/null
 
       - uses: actions/setup-java@v5
         with:
@@ -78,13 +78,13 @@ jobs:
         uses: gradle/actions/setup-gradle@v5
 
       - name: Build all extension variants
-        run: ./gradlew :extensions:jgit:buildAll
+        run: ./gradlew :apps:thingworx-jgit-extension:buildAll
 
       - name: Upload all artifacts
         uses: actions/upload-artifact@v7
         with:
           name: JGitExtension-All
-          path: extensions/jgit/build/distributions/
+          path: apps/thingworx-jgit-extension/build/distributions/
           if-no-files-found: error
 
   test:
@@ -112,8 +112,8 @@ jobs:
         run: |
           git config filter.twx-resources.smudge '.gitfilters/twx-resources-smudge'
           git config filter.twx-resources.clean '.gitfilters/twx-resources-clean'
-          git checkout HEAD -- extensions/jgit/gradle.properties extensions/jgit/vendor/twx-resources.tar.gz.gpg
-          .gitfilters/twx-resources-smudge < extensions/jgit/vendor/twx-resources.tar.gz.gpg > /dev/null
+          git checkout HEAD -- apps/thingworx-jgit-extension/gradle.properties vendor/twx-resources.tar.gz.gpg || git checkout HEAD -- extensions/jgit/gradle.properties extensions/jgit/vendor/twx-resources.tar.gz.gpg
+          .gitfilters/twx-resources-smudge < vendor/twx-resources.tar.gz.gpg 2>/dev/null || .gitfilters/twx-resources-smudge < extensions/jgit/vendor/twx-resources.tar.gz.gpg > /dev/null
 
       - uses: actions/setup-java@v5
         with:
@@ -130,7 +130,7 @@ jobs:
         env:
           DOCKER_HOST: unix:///var/run/docker.sock
           TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE: /var/run/docker.sock
-        run: ./gradlew :extensions:jgit:test -PtwxVersion=${{ matrix.twx }} -Dtest.dbInitImage='${{ matrix.dbInit }}' -Dtest.platformImage='${{ matrix.platform }}'
+        run: ./gradlew :apps:thingworx-jgit-extension:test -PtwxVersion=${{ matrix.twx }} -Dtest.dbInitImage='${{ matrix.dbInit }}' -Dtest.platformImage='${{ matrix.platform }}'
         timeout-minutes: 45
 
   publish:
@@ -151,7 +151,7 @@ jobs:
       - name: Create and push release tag
         shell: bash
         run: |
-          VERSION=$(tr -d '[:space:]' < extensions/jgit/.version)
+          VERSION=$(tr -d '[:space:]' < apps/thingworx-jgit-extension/.version 2>/dev/null || tr -d '[:space:]' < extensions/jgit/.version)
           TAG="jgit-v${VERSION}"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
