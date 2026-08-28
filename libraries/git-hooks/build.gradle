@@ -1,0 +1,24 @@
+plugins {
+    id 'groovy'
+    id 'java-gradle-plugin'
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation localGroovy()
+}
+
+gradlePlugin {
+    plugins {
+        gitHooks {
+            id = 'thingworx.git-hooks'
+            implementationClass = 'thingworx.VersioningPlugin'
+        }
+    }
+}
+
+group = 'io.github.us-ignite'
+version = '0.1.0'

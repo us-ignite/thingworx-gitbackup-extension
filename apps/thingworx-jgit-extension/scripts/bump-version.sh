@@ -17,4 +17,5 @@ cd "$ROOT_DIR"
 MESSAGE_FILE=$(mktemp)
 trap 'rm -f "$MESSAGE_FILE"' EXIT
 printf '%s\n' "$1" > "$MESSAGE_FILE"
-.githooks/versioning-commit-msg.sh --dry-run "$MESSAGE_FILE"
+# Delegate to Gradle JVM task (replaces 199-line bash)
+COMMIT_MSG_FILE="$MESSAGE_FILE" ./gradlew prepareCommitMsg -PdryRun=true --rerun-tasks 2>&1 | grep -E "versioning hook|already staged"

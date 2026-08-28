@@ -1,3 +1,7 @@
+pluginManagement {
+    includeBuild('libraries/git-hooks')
+}
+
 plugins {
     id 'org.danilopianini.gradle-pre-commit-git-hooks' version '2.1.22'
 }
@@ -12,14 +16,11 @@ include ':images:platform'
 include ':images:security-tool'
 include ':images:connection-server'
 
-// The generated prepare-commit-msg hook delegates to this tracked script. This
-// runs after Git has the message but before it snapshots the index into the
-// commit, so hook-owned version changes are included in the same commit.
+// Pure Gradle hooks: .version is set at commit via prepareCommitMsg (JVM), build reads .version at build time (no smudge).
 gitHooks { extension ->
     extension.with {
         hook('prepare-commit-msg') { context ->
-            context.from(file('.githooks/versioning-commit-msg.sh'))
-            context.tasks('spotlessCheck', [] as String[], true)
+            context.tasks('prepareCommitMsg', ['spotlessCheck'] as String[], true)
         }
         createHooks(true)
     }

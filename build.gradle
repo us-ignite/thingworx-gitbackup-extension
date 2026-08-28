@@ -1,5 +1,6 @@
 plugins {
     id 'com.diffplug.spotless' version '7.0.2' apply false
+    id 'thingworx.git-hooks'
 }
 
 allprojects {
@@ -16,16 +17,5 @@ tasks.register('installGitHooks') {
     description = 'Install the repository-managed Git hooks.'
     doLast {
         logger.lifecycle('Git hooks are installed during Gradle settings evaluation.')
-    }
-}
-
-tasks.register('validateVersioning') {
-    group = 'verification'
-    description = 'Validate committed Conventional Commit version updates in a Git range.'
-    doLast {
-        def range = project.findProperty('range') ?: 'HEAD~1..HEAD'
-        exec {
-            commandLine 'bash', '.github/scripts/validate-versioning.sh', range
-        }
     }
 }
