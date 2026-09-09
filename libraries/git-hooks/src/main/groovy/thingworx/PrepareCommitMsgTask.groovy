@@ -70,7 +70,7 @@ abstract class PrepareCommitMsgTask extends DefaultTask {
         List<String> targets = []
         if (jgitChanged) targets << 'apps/thingworx-jgit-extension/.version'
         if (dapChanged) targets.addAll(['libraries/thingworx-dap/.version','libraries/thingworx-dap-runtime/.version'])
-        if (operatorChanged) targets << 'apps/thingworx-operator/.version'
+        if (operatorChanged) targets.addAll(['apps/thingworx-operator/.version','charts/thingworx-operator/.version'])
 
         List<String> allVersionFiles = ['apps/thingworx-jgit-extension/.version','extensions/jgit/.version','libraries/thingworx-dap/.version','libraries/thingworx-dap-runtime/.version','apps/thingworx-operator/.version','charts/thingworx-operator/.version']
         if (!targets.isEmpty() && !conventional) {
