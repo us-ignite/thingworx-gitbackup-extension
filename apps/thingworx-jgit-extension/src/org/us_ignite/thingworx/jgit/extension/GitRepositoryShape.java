@@ -647,7 +647,14 @@ public class GitRepositoryShape extends Thing {
                 log.error(
                         "Pull: import of project '" + fileRepo.projectName() + "' failed",
                         importEx);
-                LogResult += " Import warning: " + importEx.getMessage();
+                String failureMessage =
+                        "Git Pull completed, but importing entities into ThingWorx failed for project '"
+                                + fileRepo.projectName()
+                                + "': "
+                                + importEx.getMessage();
+                LogResult += " Import error: " + importEx.getMessage();
+                return DapResults.failure(
+                        CurrentMethodName, failureMessage, StringResultContract.SERVICE_RESULT);
             }
 
             return DapResults.success(

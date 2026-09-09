@@ -25,4 +25,11 @@ ThingWorx without user action. There is no direct `ImportProjectEntities` servic
 Review ThingWorx logs after a `Pull`, especially when an entity depends on another entity that is not
 present in the same revision. `Pull` always imports the configured project.
 
+When `Pull` successfully fetches and merges Git history but importing one or more entities into
+ThingWorx throws, the service preserves the pulled Git changes and returns a failure envelope
+(`Error=true`) with the message `Git Pull completed, but importing entities into ThingWorx failed for
+project '<ProjectName>': <cause>`. The working tree remains at the pulled revision; no automatic
+reset or rollback of the potentially partial ThingWorx import is attempted. Cleanup still runs, and
+the case where no XML entities exist under the repository path remains a warning, not a failure.
+
 Always review changes in Git before importing them into a shared or production ThingWorx instance.

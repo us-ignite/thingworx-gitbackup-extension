@@ -1,0 +1,50 @@
+package org.us_ignite.thingworx.jgit.test;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
+import org.testcontainers.containers.Network;
+import org.us_ignite.thingworx.jgit.test.util.TestingCredentials;
+import org.us_ignite.thingworx.testcontainers.DBInit;
+import org.us_ignite.thingworx.testcontainers.Postgres;
+import org.us_ignite.thingworx.testcontainers.TestImages;
+
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+public class DBInitSmokeTest {
+    private final TestingCredentials credentials = new TestingCredentials();
+    private Network network;
+    private Postgres postgres;
+    private DBInit dbInit;
+
+    @BeforeAll
+    void setup() throws Exception {
+        network = Network.newNetwork();
+        postgres = new Postgres(network, credentials);
+        postgres.start();
+        dbInit = new DBInit(TestImages.dbInitImage(), postgres, network, credentials);
+        dbInit.start();
+    }
+
+    @AfterAll
+    void tearDown() {
+        if (dbInit != null) dbInit.close();
+        if (postgres != null) postgres.close();
+        if (network != null) network.close();
+    }
+
+    @Test
+    void dbInitRunsWrapperAndStaysAlive() throws Exception {
+        assertTrue(dbInit.isRunning(), "DB init container must keep running (KEEP_ALIVE)");
+        var dbCheck =
+                postgres.execInContainer(
+                        "psql",
+                        "-U",
+                        credentials.dbAdminUser,
+                        "-c",
+                        "SELECT 1 FROM pg_database WHERE datname='twx'");
+        assertTrue(dbCheck.getStdout().contains("1"), "twx database should exist");
+    }
+}

@@ -1,0 +1,177 @@
+plugins {
+    id 'base'
+}
+
+def chartDir = file("${rootDir}/charts/thingworx-operator")
+def sourceDir = projectDir
+def generatedDir = file("${buildDir}/generated/deployments")
+
+def propertyOrDefault = { String name, String fallback ->
+    project.findProperty(name)?.toString()?.trim() ?: fallback
+}
+
+def kubeContext = propertyOrDefault('kubeContext', '')
+def operatorNamespace = propertyOrDefault('operatorNamespace', 'thingworx-operator')
+def thingworxNamespace = propertyOrDefault('thingworxNamespace', 'thingworx')
+def helmRelease = propertyOrDefault('helmRelease', 'thingworx-operator')
+def waitTimeout = propertyOrDefault('deploymentTimeout', '30m')
+def operatorImageRepository = propertyOrDefault(
+        'operatorImageRepository',
+        'ghcr.io/us-ignite/thingworx/thingworx-operator')
+def operatorImageTag = propertyOrDefault('operatorImageTag', 'latest')
+
+def kubectlArgs = { ->
+    kubeContext ? ['--context', kubeContext] : []
+}
+
+def runCommand = { List<String> command, String failureMessage ->
+    logger.lifecycle("$command")
+    def result = project.exec {
+        commandLine command
+        ignoreExitValue = true
+    }
+    if (result.exitValue != 0) {
+        throw new GradleException(failureMessage)
+    }
+}
+
+def requireTools = {
+    runCommand(['helm', 'version', '--short'], 'helm is required for operator deployment tasks')
+    runCommand(['kubectl'] + kubectlArgs() + ['version', '--client=true'],
+            'kubectl is required for operator deployment tasks')
+}
+
+def requireNamespace = { String namespace ->
+    runCommand(['kubectl'] + kubectlArgs() + ['get', 'namespace', namespace],
+            "Kubernetes namespace '$namespace' does not exist")
+}
+
+def requireResources = { String scenario ->
+    def resources = [
+            secrets: ['thingworx-license', 'thingworx-platform-admin', 'thingworx-keystore',
+                      'thingworx-app-keys', 'thingworx-database', 'thingworx-database-admin'],
+            configMaps: []
+    ]
+    if (scenario == 'production') {
+        resources.secrets += ['thingworx-registry']
+        resources.configMaps += ['thingworx-settings']
+    }
+    resources.secrets.each { secret ->
+        runCommand(['kubectl'] + kubectlArgs() + ['get', 'secret', secret, '-n', thingworxNamespace],
+                "Required Secret '$secret' is missing from namespace '$thingworxNamespace'")
+    }
+    resources.configMaps.each { configMap ->
+        runCommand(['kubectl'] + kubectlArgs() + ['get', 'configmap', configMap, '-n', thingworxNamespace],
+                "Required ConfigMap '$configMap' is missing from namespace '$thingworxNamespace'")
+    }
+}
+
+def helmBaseArgs = { ->
+    def args = ['helm'] + (kubeContext ? ['--kube-context', kubeContext] : [])
+    args += ['upgrade', '--install', helmRelease, chartDir.absolutePath,
+             '--namespace', operatorNamespace, '--create-namespace',
+             '--set', "image.repository=${operatorImageRepository}",
+             '--set', "image.tag=${operatorImageTag}",
+             '--set', "watchedNamespaces=${thingworxNamespace}"]
+    args
+}
+
+def renderScenario = { String scenario ->
+    def source = file("${sourceDir}/${scenario == 'production' ? 'thingworxcluster.yaml' : 'thingworxcluster-single-node.yaml'}")
+    def output = file("${generatedDir}/${source.name}")
+    output.parentFile.mkdirs()
+    def content = source.text
+    content = content.replaceAll(/(?m)^  namespace: .*$/, "  namespace: ${thingworxNamespace}")
+
+    // Image properties override only the corresponding image field and leave the checked-in
+    // examples usable as documentation when no override is supplied.
+    [
+            platform: 'platformImage',
+            databaseInit: 'databaseInitImage',
+            securityCli: 'securityCliImage',
+            ignite: 'igniteImage',
+            cxServer: 'cxServerImage',
+            haProxy: 'haProxyImage',
+            zookeeper: 'zookeeperImage',
+            extensionInstaller: 'extensionInstallerImage',
+            image: 'postgresImage'
+    ].each { field, property ->
+        def value = project.findProperty(property)?.toString()?.trim()
+        if (value) {
+            content = content.replaceAll(/(?m)^(\s+${field}:\s+).*$/, "\$1${value}")
+        }
+    }
+    output.text = content
+    output
+}
+
+def waitForOperator = {
+    runCommand(['kubectl'] + kubectlArgs() + ['rollout', 'status',
+                                               "deployment/${helmRelease}-thingworx-operator",
+                                               '-n', operatorNamespace, '--timeout', waitTimeout],
+            'The ThingWorx operator deployment did not become ready')
+}
+
+def deployChart = {
+    requireTools()
+    runCommand(helmBaseArgs(), 'Helm failed to install or upgrade the ThingWorx operator chart')
+    waitForOperator()
+}
+
+tasks.register('deployOperatorChart') {
+    group = 'deployment'
+    description = 'Install or upgrade the ThingWorx operator Helm chart and wait for rollout.'
+    doLast { deployChart() }
+}
+
+def registerClusterTask = { String taskName, String scenario, String description ->
+    tasks.register(taskName) {
+        group = 'deployment'
+        description = description
+        dependsOn tasks.named('deployOperatorChart')
+        doLast {
+            requireNamespace(thingworxNamespace)
+            requireResources(scenario)
+            def manifest = renderScenario(scenario)
+            runCommand(['kubectl'] + kubectlArgs() + ['apply', '--namespace', thingworxNamespace,
+                                                       '--filename', manifest.absolutePath],
+                    "Failed to apply the ${scenario} ThingWorxCluster configuration")
+            def name = scenario == 'production' ? 'production' : 'development'
+            runCommand(['kubectl'] + kubectlArgs() + ['wait',
+                                                       "thingworxcluster/${name}",
+                                                       '--for=jsonpath={.status.phase}=READY',
+                                                       '--namespace', thingworxNamespace,
+                                                       '--timeout', waitTimeout],
+                    "ThingWorxCluster '$name' did not reach READY")
+        }
+    }
+}
+
+registerClusterTask('deployProductionCluster', 'production',
+        'Deploy the HA production ThingWorxCluster configuration and wait for READY.')
+registerClusterTask('deployDevelopmentCluster', 'development',
+        'Deploy the single-node development ThingWorxCluster configuration and wait for READY.')
+
+tasks.register('verifyDeploymentManifests') {
+    group = 'verification'
+    description = 'Validate the checked-in ThingWorx deployment examples and Helm chart.'
+    doLast {
+        ['thingworxcluster.yaml', 'thingworxcluster-single-node.yaml',
+            'thingworxextension.yaml'].each { name ->
+            def manifest = file("${sourceDir}/${name}")
+            if (!manifest.exists()) throw new GradleException("Missing deployment example: ${manifest}")
+        }
+        runCommand(['helm', 'lint', chartDir.absolutePath], 'Helm chart lint failed')
+        runCommand(['helm', 'template', helmRelease, chartDir.absolutePath], 'Helm chart templating failed')
+        ['production', 'development'].each { scenario ->
+            def manifest = renderScenario(scenario)
+            runCommand(['kubectl'] + kubectlArgs() + ['apply', '--dry-run=client', '--validate=false',
+                                                       '--filename', manifest.absolutePath],
+                    "Kubernetes manifest validation failed for ${scenario}")
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('verifyDeploymentManifests')
+}

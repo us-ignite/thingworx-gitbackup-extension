@@ -94,7 +94,7 @@ tasks.withType(JavaCompile).configureEach {
 // Keep the published API reference focused on extension implementation classes.
 tasks.named('javadoc') {
     source = sourceSets.main.allJava.matching {
-        exclude '**/tests/**'
+        exclude '**/test/**'
     }
 }
 
@@ -102,13 +102,13 @@ sourceSets {
     main {
         java {
             srcDir 'src'
-            include 'org/us_ignite/thingworx/jgit/extension/**/*.java'
+            exclude '**/test/**'
         }
     }
     test {
         java {
             srcDir 'src'
-            include 'org/us_ignite/thingworx/jgit/tests/**/*.java'
+            include 'org/us_ignite/thingworx/jgit/test/**/*.java'
         }
         compileClasspath += sourceSets.main.output
         runtimeClasspath += sourceSets.main.output
@@ -124,11 +124,11 @@ eclipse {
                     it instanceof org.gradle.plugins.ide.eclipse.model.SourceFolder
                 }
                 def main = new org.gradle.plugins.ide.eclipse.model.SourceFolder('src', 'bin/main')
-                main.includes = ['org/us_ignite/thingworx/jgit/extension/**/*.java']
-                main.excludes = []
+                main.includes = []
+                main.excludes = ['**/test/**']
                 cp.entries.add(main)
                 def test = new org.gradle.plugins.ide.eclipse.model.SourceFolder('src', 'bin/test')
-                test.includes = ['org/us_ignite/thingworx/jgit/tests/**/*.java']
+                test.includes = ['org/us_ignite/thingworx/jgit/test/**/*.java']
                 test.entryAttributes['test'] = 'true'
                 test.entryAttributes['gradle_used_by_scope'] = 'test'
                 cp.entries.add(test)
@@ -192,6 +192,7 @@ dependencies {
     testImplementation 'org.testcontainers:testcontainers:2.0.5'
     testImplementation 'org.testcontainers:testcontainers-junit-jupiter:2.0.5'
     testImplementation 'org.testcontainers:postgresql:1.21.4'
+    testImplementation project(':libraries:thingworx-testcontainers')
     testImplementation 'com.google.code.gson:gson:2.10.1'
     implementation 'org.json:json:20231013'
 }
@@ -199,20 +200,31 @@ dependencies {
 def dapOutputDir = file("${buildDir}/generated/dap")
 def dapEntityTypes = ['DataShapes', 'ThingShapes', 'ThingTemplates', 'Things', 'Projects']
 
+def localDapOutputDir = dapOutputDir
+def localPackageVersionCC = packageVersion
+def localMinTwCC = minTwVersion
+def localAnnotationProcessorCC = configurations.annotationProcessor
 tasks.named('compileJava') {
+    def localOutputDir = localDapOutputDir
+    def localPkgVer = localPackageVersionCC
+    def localMinTw = localMinTwCC
+    def localAP = localAnnotationProcessorCC
     dependsOn unpackSdk
-    outputs.dir dapOutputDir
-    doFirst { delete dapOutputDir }
-    options.annotationProcessorPath = configurations.annotationProcessor
+    outputs.dir localOutputDir
+    doFirst {
+        def d = new File(localOutputDir.absolutePath)
+        if (d.exists()) d.deleteDir()
+    }
+    options.annotationProcessorPath = localAP
     options.compilerArgs += [
-        "-Adap.output=${dapOutputDir.absolutePath}",
-        "-Adap.packageVersion=${packageVersion}",
-        "-Adap.minimumThingWorxVersion=${minTwVersion}"
+        "-Adap.output=${localOutputDir.absolutePath}",
+        "-Adap.packageVersion=${localPkgVer}",
+        "-Adap.minimumThingWorxVersion=${localMinTw}"
     ]
 }
 
 tasks.named('check') {
-    dependsOn ':libraries:thingworx-dap-runtime:verifyDapExample'
+    dependsOn ':examples:thingworx-dap-usage:verifyDapExample'
 }
 
 jar {
@@ -232,24 +244,49 @@ jar {
 }
 
 test {
-    description = 'Run tests for the current twxVersion (default 9.6)'
+    description = 'Run tests for the current twxVersion (default 10.1)'
     group = 'verification'
     enabled = false
 
-    if (gradle.startParameter.taskNames.any { it == 'test' || it.endsWith(':test') }) {
+    if (gradle.startParameter.taskNames.any { taskName ->
+        ['test', 'check', 'build'].any { lifecycle -> taskName == lifecycle || taskName.endsWith(":${lifecycle}") }
+    }) {
         enabled = true
     }
 
-    dependsOn 'packageExtension', 'fetchJdk21', ":images:platform:build${twxVersion.replace('.', '')}"
+    dependsOn 'packageExtension', ":images:platform:build${twxVersion.replace('.', '')}"
     systemProperty "test.extensionZip", "${buildDir}/distributions/${packageName}.zip"
     systemProperty "test.dbInitImage", System.getProperty('test.dbInitImage') ?: sdkCfg.dbInitImage
     systemProperty "test.platformImage", System.getProperty('test.platformImage') ?: sdkCfg.platformImage
     systemProperty "test.postgresImage", System.getProperty('test.postgresImage') ?: sdkCfg.postgresImage
     systemProperty "test.postgresHostAuth", System.getProperty('test.postgresHostAuth') ?: sdkCfg.postgresHostAuth ?: "scram-sha-256"
     systemProperty "test.postgresPasswordEncryption", System.getProperty('test.postgresPasswordEncryption') ?: sdkCfg.postgresPasswordEncryption ?: "scram-sha-256"
+    def explicitDbInit = System.getProperty('test.dbInitScript') ?: project.findProperty('test.dbInitScript')
+    def dbInitPath = explicitDbInit != null ? new File(explicitDbInit.toString()).absolutePath : new File(rootDir, 'apps/thingworx-jgit-extension/scripts/db-init-wrapper.sh').absolutePath
+    systemProperty 'test.dbInitScript', dbInitPath
+    def explicitLicense = System.getProperty('test.licenseFile') ?: project.findProperty('test.licenseFile')
+    if (explicitLicense != null) {
+        def licensePath = new File(explicitLicense.toString()).absolutePath
+        systemProperty 'test.licenseFile', licensePath
+        systemProperty 'test.licenseFile.explicit', 'true'
+    } else {
+        def defaultLicense = new File(rootDir, 'vendor/license.bin')
+        if (defaultLicense.exists() && defaultLicense.canRead()) {
+            systemProperty 'test.licenseFile', defaultLicense.absolutePath
+        }
+    }
     def junitProps = new Properties()
     file('junit.properties').withInputStream { junitProps.load(it) }
     junitProps.each { k, v -> systemProperty k, v }
+    def parallelismOverride = project.findProperty('testParallelism')
+    if (parallelismOverride != null) {
+        def parsed = parallelismOverride.toString().trim()
+        if (!parsed.matches(/^[1-9][0-9]*$/)) {
+            throw new GradleException("testParallelism must be a positive integer, got '${parallelismOverride}'")
+        }
+        systemProperty 'junit.jupiter.execution.parallel.config.fixed.parallelism', parsed
+    }
+    maxParallelForks = 4
     useJUnitPlatform()
     testLogging {
         events 'passed', 'skipped', 'failed'
@@ -257,6 +294,7 @@ test {
 }
 
 task prepPackage(dependsOn: [jar]) {
+    notCompatibleWithConfigurationCache("uses Project.copy with closure capturing")
     def zipStage = file("${buildDir}/zip")
     doFirst { delete zipStage }
     doLast {
@@ -304,40 +342,6 @@ task packageExtension(type: Zip, dependsOn: prepPackage) {
     from file("${buildDir}/zip")
 }
 
-def jdkCacheDir = file("${projectDir}/.cache/jdk21")
-
-task fetchJdk21 {
-    description = 'Download and cache Corretto JDK 21 in .cache/jdk21'
-    group = 'development'
-    outputs.dir jdkCacheDir
-    doLast {
-        def javaBin = file("${jdkCacheDir}/bin/java")
-        if (javaBin.exists()) {
-            logger.lifecycle("JDK 21 already cached at ${jdkCacheDir}")
-            return
-        }
-        def url = 'https://corretto.aws/downloads/latest/amazon-corretto-21-x64-linux-jdk.tar.gz'
-        def tar = file("${jdkCacheDir}/corretto21.tar.gz")
-        jdkCacheDir.mkdirs()
-        logger.lifecycle("Downloading Corretto 21 JDK...")
-        execOps.exec {
-            commandLine 'curl', '-sL', '-o', tar, url
-        }
-        logger.lifecycle("Extracting Corretto 21 JDK...")
-        execOps.exec {
-            commandLine 'tar', 'xzf', tar, '-C', jdkCacheDir, '--strip-components=1'
-        }
-        tar.delete()
-        logger.lifecycle("Corretto 21 JDK cached at ${jdkCacheDir}")
-    }
-}
-
-task cleanJdkCache(type: Delete) {
-    description = 'Delete the cached JDK 21 download'
-    group = 'development'
-    delete jdkCacheDir
-}
-
 task fetchLemminx {
     description = 'Download Eclipse LemMinX XML Language Server uber JAR'
     group = 'development'
@@ -361,7 +365,6 @@ task fetchLemminx {
 }
 
 task composeUp(type: Exec) {
-    dependsOn fetchJdk21
     workingDir = rootProject.projectDir
     commandLine 'docker', 'compose', 'up', '-d'
     description = 'Start the development stack (PostgreSQL, ThingWorx, Gitea)'
@@ -390,7 +393,7 @@ task composeLogs(type: Exec) {
 }
 
 task devSetup {
-    dependsOn packageExtension, fetchJdk21, fetchLemminx
+    dependsOn packageExtension, fetchLemminx
     description = 'Build extension, start dev stack, install extension on ThingWorx, and create Gitea test repo'
     group = 'development'
     doLast {
@@ -583,28 +586,35 @@ task devSetup {
 task buildAll {
     description = 'Build extension packages for all ThingWorx versions (9.6.x, 9.7.x, 10.0.x, 10.1.x)'
     group = 'publishing'
+    def localSdkConfigs = sdkConfigs
+    def localRootDir = rootProject.projectDir
     doLast {
-        sdkConfigs.each { ver, cfg ->
-            logger.lifecycle("--- Building for ThingWorx ${cfg.outputSuffix} ---")
-            execOps.exec {
-                workingDir = rootProject.projectDir
-                commandLine './gradlew', '-q', ':apps:thingworx-jgit-extension:packageExtension', "-PtwxVersion=$ver"
-            }
+        localSdkConfigs.each { ver, cfg ->
+            println "--- Building for ThingWorx ${cfg.outputSuffix} ---"
+            def proc = new ProcessBuilder('bash', '-c', "./gradlew --no-configuration-cache --console=plain :apps:thingworx-jgit-extension:packageExtension -PtwxVersion=${ver}").directory(new File(localRootDir.absolutePath)).inheritIO().start()
+            if (proc.waitFor() != 0) throw new GradleException("packageExtension failed for ${ver}")
         }
     }
 }
 
 sdkConfigs.each { ver, cfg ->
     def taskName = "test${ver.replace('.', '_')}"
+    def capturedVer = ver
+    def capturedDesc = cfg.outputSuffix
+    def localRootDir = rootProject.projectDir
     tasks.register(taskName) {
-        description = "Run tests for ThingWorx ${cfg.outputSuffix}"
+        description = "Run tests for ThingWorx ${capturedDesc}"
         group = 'verification'
+        def localVer = capturedVer
+        def localRoot = localRootDir
         doLast {
-            def extraArgs = System.properties.findAll { k, v -> k.startsWith('test.') }.collect { k, v -> "-D$k=$v" }
-            execOps.exec {
-                workingDir = rootProject.projectDir
-                commandLine(['./gradlew', '-q', ':apps:thingworx-jgit-extension:test', "-PtwxVersion=$ver"] + extraArgs)
-            }
+            def extraArgs = System.properties.findAll { k, v -> k.startsWith('test.') }.collect { k, v -> "-D$k=$v" }.join(' ')
+            def cmd = "./gradlew --no-configuration-cache --console=plain :apps:thingworx-jgit-extension:test -PtwxVersion=${localVer} ${extraArgs}"
+            def proc = new ProcessBuilder('bash', '-c', cmd).directory(new File(localRoot.absolutePath))
+                    .redirectErrorStream(true).start()
+            proc.inputStream.eachLine { line -> logger.lifecycle("[ThingWorx ${localVer}] ${line}") }
+            def exitCode = proc.waitFor()
+            if (exitCode != 0) throw new GradleException("test failed for ${localVer} (nested Gradle exit code ${exitCode})")
         }
     }
 }
@@ -612,16 +622,26 @@ sdkConfigs.each { ver, cfg ->
 task testAll {
     description = 'Run tests for all ThingWorx versions sequentially'
     group = 'verification'
+    def localSdkConfigs = sdkConfigs
+    def localRootDir = rootProject.projectDir
     doLast {
-        sdkConfigs.each { ver, cfg ->
-            logger.lifecycle("--- Running tests for ThingWorx ${cfg.outputSuffix} ---")
-            def extraArgs = System.properties.findAll { k, v -> k.startsWith('test.') }.collect { k, v -> "-D$k=$v" }
-            execOps.exec {
-                workingDir = rootProject.projectDir
-                commandLine(['./gradlew', '-q', ':apps:thingworx-jgit-extension:test', "-PtwxVersion=$ver"] + extraArgs)
-            }
+        localSdkConfigs.each { ver, cfg ->
+            println "--- Running tests for ThingWorx ${cfg.outputSuffix} ---"
+            def extraArgs = System.properties.findAll { k, v -> k.startsWith('test.') }.collect { k, v -> "-D$k=$v" }.join(' ')
+            def cmd = "./gradlew --no-configuration-cache --console=plain :apps:thingworx-jgit-extension:test -PtwxVersion=${ver} ${extraArgs}"
+            def proc = new ProcessBuilder('bash', '-c', cmd).directory(new File(localRootDir.absolutePath))
+                    .redirectErrorStream(true).start()
+            proc.inputStream.eachLine { line -> logger.lifecycle("[ThingWorx ${ver}] ${line}") }
+            def exitCode = proc.waitFor()
+            if (exitCode != 0) throw new GradleException("test failed for ${ver} (nested Gradle exit code ${exitCode})")
         }
     }
+}
+
+task checkAll {
+    description = 'Run checks for all ThingWorx versions'
+    group = 'verification'
+    dependsOn testAll
 }
 
 clean {

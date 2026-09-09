@@ -15,9 +15,98 @@ spec:
         thingworx.us-ignite.org/dev-rollout: {{ .Values.rolloutToken | quote }}
     spec:
       serviceAccountName: {{ include "thingworx-operator.fullname" . }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
       containers:
         - name: operator
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          env:
+            - name: OPERATOR_LEADER_ELECTION_ENABLED
+              value: {{ .Values.leaderElection.enabled | quote }}
+            - name: OPERATOR_LEADER_ELECTION_LEASE_NAME
+              value: {{ .Values.leaderElection.leaseName | quote }}
+            {{- if .Values.leaderElection.leaseNamespace }}
+            - name: OPERATOR_LEADER_ELECTION_LEASE_NAMESPACE
+              value: {{ .Values.leaderElection.leaseNamespace | quote }}
+            {{- end }}
+            - name: OPERATOR_LEADER_ELECTION_LEASE_DURATION_SECONDS
+              value: {{ .Values.leaderElection.leaseDurationSeconds | quote }}
+            - name: OPERATOR_LEADER_ELECTION_RENEW_DEADLINE_SECONDS
+              value: {{ .Values.leaderElection.renewDeadlineSeconds | quote }}
+            - name: OPERATOR_LEADER_ELECTION_RETRY_PERIOD_SECONDS
+              value: {{ .Values.leaderElection.retryPeriodSeconds | quote }}
+            {{- if .Values.leaderElection.identity }}
+            - name: OPERATOR_LEADER_ELECTION_IDENTITY
+              value: {{ .Values.leaderElection.identity | quote }}
+            {{- end }}
+            - name: OPERATOR_LEADER_ELECTION_EXIT_ON_STOP_LEADING
+              value: {{ .Values.leaderElection.exitOnStopLeading | quote }}
+            - name: OPERATOR_RETRY_MAX_ATTEMPTS
+              value: {{ .Values.retry.maxAttempts | quote }}
+            - name: OPERATOR_VERSION
+              value: {{ .Chart.AppVersion | quote }}
+            - name: OPERATOR_RETRY_INITIAL_INTERVAL_MS
+              value: {{ .Values.retry.initialIntervalMs | quote }}
+            - name: OPERATOR_RETRY_INTERVAL_MULTIPLIER
+              value: {{ .Values.retry.intervalMultiplier | quote }}
+            {{- if .Values.retry.maxIntervalMs }}
+            - name: OPERATOR_RETRY_MAX_INTERVAL_MS
+              value: {{ .Values.retry.maxIntervalMs | quote }}
+            {{- end }}
+            {{- if .Values.watchedNamespaces }}
+            {{- if kindIs "slice" .Values.watchedNamespaces }}
+            - name: OPERATOR_WATCHED_NAMESPACES
+              value: {{ join "," .Values.watchedNamespaces | quote }}
+            {{- else }}
+            - name: OPERATOR_WATCHED_NAMESPACES
+              value: {{ .Values.watchedNamespaces | quote }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.watchedNamespace }}
+            - name: OPERATOR_NAMESPACE
+              value: {{ .Values.watchedNamespace | quote }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.livenessProbe.httpGet.path }}
+              port: {{ .Values.livenessProbe.httpGet.port }}
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+            successThreshold: {{ .Values.livenessProbe.successThreshold }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.readinessProbe.httpGet.path }}
+              port: {{ .Values.readinessProbe.httpGet.port }}
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+            successThreshold: {{ .Values.readinessProbe.successThreshold }}
+          {{- end }}

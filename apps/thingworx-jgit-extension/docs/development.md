@@ -46,9 +46,9 @@ the utility Thing, the project, localization tokens, and extension metadata. Gen
 written below `build/generated/dap/` in ThingWorx SourceControlEntities-style directories such as
 `DataShapes/`, `ThingShapes/`, and `Things/`; do not add hand-authored entity XML.
 
-The DAP example package under `libraries/thingworx-dap-runtime/src/test/java` exercises DataShape
+The DAP example project under `examples/thingworx-dap-usage` exercises DataShape
 proxies, ServiceResult generation, and Java service metadata generation against the real SDK:
 
 ```bash
-./gradlew :libraries:thingworx-dap-runtime:verifyDapExample
+./gradlew :examples:thingworx-dap-usage:verifyDapExample
 ```

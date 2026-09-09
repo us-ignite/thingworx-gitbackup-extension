@@ -5,5 +5,95 @@ image:
 
 replicaCount: 1
 
-resources: {}
+service:
+  enabled: true
+  type: ClusterIP
+  port: 8080
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
 rolloutToken: ""
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1337
+  runAsGroup: 1337
+  fsGroup: 1337
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1337
+  runAsGroup: 1337
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  seccompProfile:
+    type: RuntimeDefault
+  readOnlyRootFilesystem: true
+
+networkPolicy:
+  enabled: true
+  # Additional egress rules to append (e.g., for corporate proxy, registry)
+  extraEgress: []
+
+livenessProbe:
+  enabled: true
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 3
+  failureThreshold: 3
+  successThreshold: 1
+
+readinessProbe:
+  enabled: true
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 2
+  failureThreshold: 3
+  successThreshold: 1
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+leaderElection:
+  enabled: true
+  leaseName: thingworx-operator
+  leaseNamespace: ""
+  leaseDurationSeconds: 15
+  renewDeadlineSeconds: 10
+  retryPeriodSeconds: 2
+  identity: ""
+  exitOnStopLeading: false
+
+retry:
+  maxAttempts: 5
+  initialIntervalMs: 2000
+  intervalMultiplier: 1.5
+  maxIntervalMs: ""
+
+# Comma-separated list of namespaces to watch. Empty means watch all namespaces.
+watchedNamespaces: ""
+# Deprecated alias for watchedNamespaces (single namespace). Use watchedNamespaces instead.
+watchedNamespace: ""
+
+# Additional environment variables to inject into the operator container.
+# Example:
+# extraEnv:
+#   - name: OPERATOR_RETRY_MAX_ATTEMPTS
+#     value: "10"
+extraEnv: []

@@ -12,6 +12,18 @@ java {
     withJavadocJar()
 }
 
+sourceSets {
+    main {
+        java {
+            srcDirs = ['src']
+            exclude 'test/**'
+        }
+    }
+    test {
+        java.srcDirs = []
+    }
+}
+
 version = file('.version').text.trim()
 
 def twxVersion = project.findProperty('twxVersion') ?: '9.6'
@@ -34,48 +46,11 @@ tasks.register('unpackSdk', Copy) {
 dependencies {
     api project(':libraries:thingworx-dap')
     compileOnly fileTree(dir: sdkExtractDir, include: '*.jar')
-    testImplementation fileTree(dir: sdkExtractDir, include: '*.jar')
-
-    // JUnit Platform is required by the test task and supports runtime DAP tests.
-    testImplementation 'org.junit.jupiter:junit-jupiter:5.8.2'
 }
 
 tasks.withType(JavaCompile).configureEach {
     dependsOn tasks.named('unpackSdk')
     options.compilerArgs += ['-Xlint:deprecation']
-}
-
-tasks.withType(Test).configureEach {
-    useJUnitPlatform()
-}
-
-def dapExampleOutputDir = file("${buildDir}/generated/dap-example")
-tasks.named('compileTestJava') {
-    outputs.dir dapExampleOutputDir
-    doFirst { delete dapExampleOutputDir }
-    options.annotationProcessorPath = configurations.annotationProcessor
-    options.compilerArgs += [
-        "-Adap.output=${dapExampleOutputDir.absolutePath}",
-        '-Adap.packageVersion=1.0.0',
-        '-Adap.minimumThingWorxVersion=9.6.0'
-    ]
-}
-
-dependencies {
-    annotationProcessor project(':libraries:thingworx-dap')
-}
-
-tasks.register('verifyDapExample') {
-    description = 'Compile the DAP example and verify its generated ThingWorx XML'
-    group = 'verification'
-    dependsOn tasks.named('compileTestJava')
-    doLast {
-        def shape = new XmlSlurper().parse(new File(dapExampleOutputDir, 'DataShapes/GIT.ExampleCommit.DataShape.xml')).DataShapes.DataShape
-        assert shape.@name.text() == 'GIT.ExampleCommit.DataShape'
-        assert shape.FieldDefinitions.FieldDefinition*.@name*.text() == ['CommitID', 'Message']
-        def wrapper = new XmlSlurper().parse(new File(dapExampleOutputDir, 'DataShapes/GIT.ExampleCommit.ServiceResult.DataShape.xml')).DataShapes.DataShape
-        assert wrapper.FieldDefinitions.FieldDefinition.find { it.@name.text() == 'Result' }.@'aspect.dataShape'.text() == 'GIT.ExampleCommit.DataShape'
-    }
 }
 
 spotless {

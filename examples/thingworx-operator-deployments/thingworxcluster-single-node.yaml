@@ -1,0 +1,43 @@
+# Single-node development deployment example.
+apiVersion: thingworx.us-ignite.org/v1alpha1
+kind: ThingWorxCluster
+metadata:
+  name: development
+  namespace: thingworx
+spec:
+  enableHA: false
+  images:
+    platform: ghcr.io/us-ignite/thingworx/platform-postgres:10.1.2
+    databaseInit: ghcr.io/us-ignite/thingworx/postgres-init:10.1.2
+    securityCli: ghcr.io/us-ignite/thingworx/security-tool:10.1.2
+    # Retained explicitly for editors whose cached CRD schema marks these defaults as required.
+    # They are only used by HA resources and are ignored for this single-node cluster.
+    ignite: apacheignite/ignite:2.16.0
+    cxServer: ghcr.io/us-ignite/thingworx/cxserver-twx:10.1
+    extensionInstaller: ghcr.io/us-ignite/thingworx/extension-installer:10.1.2
+  database:
+    internal: true
+    image: postgres:16
+    port: 5432
+    database: thingworx
+    schema: thingworx
+    username: thingworx
+    adminUsername: postgres
+    credentials: {name: thingworx-database, key: password}
+    adminCredentials: {name: thingworx-database-admin, key: password}
+  storage:
+    storageClassName: standard
+    sharedStorageSize: 20Gi
+    componentStorageSize: 10Gi
+  licenseSecret: thingworx-license
+  platformAdminPassword: {name: thingworx-platform-admin, key: password}
+  keystorePassword: {name: thingworx-keystore, key: password}
+  provisioningAppKey: {name: thingworx-app-keys, key: provisioning}
+  extensionImportAppKey: {name: thingworx-app-keys, key: extensions}
+  extensionImportPolicy:
+    entities: true
+    jarResources: true
+  ingress:
+    host: thingworx.local
+    className: nginx
+    tlsSecretName: thingworx-local-tls

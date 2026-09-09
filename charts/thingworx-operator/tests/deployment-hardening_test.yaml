@@ -1,0 +1,68 @@
+suite: thingworx-operator deployment hardening (issue 009 - deployment)
+templates:
+  - deployment.yaml
+tests:
+  - it: podSecurityContext enforces seccomp RuntimeDefault
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 1337
+
+  - it: container securityContext enforces least privilege
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop[0]
+          value: ALL
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.seccompProfile.type
+          value: RuntimeDefault
+
+  - it: mounts emptyDir /tmp for readOnlyRootFilesystem (JAR temp)
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tmp
+            emptyDir: {}
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: tmp
+            mountPath: /tmp
+
+  - it: preserves leader election env vars (issue 007)
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OPERATOR_LEADER_ELECTION_ENABLED
+            value: "true"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OPERATOR_LEADER_ELECTION_LEASE_NAME
+            value: thingworx-operator
+
+  - it: retains probes and resources (issue 008)
+    asserts:
+      - exists:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+      - exists:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+      - exists:
+          path: spec.template.spec.containers[0].resources.limits.memory

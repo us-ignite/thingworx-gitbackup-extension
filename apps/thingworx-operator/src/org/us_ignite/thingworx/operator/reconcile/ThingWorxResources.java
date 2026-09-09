@@ -32,8 +32,15 @@ import org.us_ignite.thingworx.operator.api.ThingWorxCluster;
 /**
  * Builds Kubernetes resources from a cluster spec. No PTC binaries or secret values are embedded.
  */
-final class ThingWorxResources {
+public final class ThingWorxResources {
     private ThingWorxResources() {}
+
+    public static final int DEFAULT_JOB_TTL_SECONDS_AFTER_FINISHED = 3600;
+
+    static int jobTtlSeconds(ThingWorxCluster cluster) {
+        var value = cluster.getSpec().getJobTtlSecondsAfterFinished();
+        return value != null ? value : DEFAULT_JOB_TTL_SECONDS_AFTER_FINISHED;
+    }
 
     static String name(ThingWorxCluster cluster, String suffix) {
         return cluster.getMetadata().getName() + "-" + suffix;
@@ -49,7 +56,7 @@ final class ThingWorxResources {
                 component);
     }
 
-    static List<HasMetadata> precheck(ThingWorxCluster cluster) {
+    public static List<HasMetadata> precheck(ThingWorxCluster cluster) {
         var spec = cluster.getSpec();
         var resources = new ArrayList<HasMetadata>();
         resources.add(
@@ -97,7 +104,7 @@ final class ThingWorxResources {
         return resources;
     }
 
-    static List<HasMetadata> database(ThingWorxCluster cluster) {
+    public static List<HasMetadata> database(ThingWorxCluster cluster) {
         var databaseInit =
                 job(
                         cluster,
@@ -147,7 +154,7 @@ final class ThingWorxResources {
         return List.of(databaseInit, securityInit);
     }
 
-    static List<HasMetadata> coordination(ThingWorxCluster cluster) {
+    public static List<HasMetadata> coordination(ThingWorxCluster cluster) {
         var spec = cluster.getSpec();
         var zkConnection = zookeeperConnection(cluster);
         var igniteConfig =
@@ -237,7 +244,7 @@ final class ThingWorxResources {
         return List.of(zookeeper(cluster), igniteConfig, igniteSts);
     }
 
-    static List<HasMetadata> platform(ThingWorxCluster cluster, int replicas) {
+    public static List<HasMetadata> platform(ThingWorxCluster cluster, int replicas) {
         var platform =
                 statefulSet(
                         cluster,
@@ -360,7 +367,7 @@ final class ThingWorxResources {
                 : List.of(ingress(cluster));
     }
 
-    static List<HasMetadata> optional(ThingWorxCluster cluster) {
+    public static List<HasMetadata> optional(ThingWorxCluster cluster) {
         var resources = new ArrayList<HasMetadata>();
         var spec = cluster.getSpec();
         if (spec.isKafkaEnabled()) {
@@ -392,16 +399,34 @@ final class ThingWorxResources {
         return resources;
     }
 
+    /**
+     * Builds a PVC for the ThingWorx shared or component storage.
+     *
+     * <p>Storage size is taken from {@code StorageSpec.sharedStorageSize} /
+     * {@code componentStorageSize}. Expansion (larger {@code requests.storage} on a subsequent
+     * reconcile) is supported when the StorageClass allows it; the reconciler will patch the
+     * existing PVC. Shrinking (smaller size) is disallowed and will be rejected by the
+     * reconciler with a warning Event/Condition — Kubernetes does not support decreasing
+     * {@code requests.storage} on a bound claim.
+     *
+     * <p>Backup hint: {@code StorageSpec.pvcAnnotations} (if set) is merged into
+     * {@code metadata.annotations}. Use for Velero or snapshot-controller annotations
+     * (e.g. {@code velero.io/exclude-from-backup}). See {@code
+     * charts/thingworx-operator/examples/backup-*.yaml} and the backup/restore docs.
+     */
     private static io.fabric8.kubernetes.api.model.PersistentVolumeClaim pvc(
             ThingWorxCluster cluster, String suffix, String size, List<String> modes) {
         var storage = cluster.getSpec().getStorage();
+        var metaBuilder =
+                new ObjectMetaBuilder()
+                        .withName(name(cluster, suffix))
+                        .withNamespace(cluster.getMetadata().getNamespace())
+                        .withLabels(labels(cluster, suffix));
+        if (storage.getPvcAnnotations() != null && !storage.getPvcAnnotations().isEmpty()) {
+            metaBuilder.withAnnotations(storage.getPvcAnnotations());
+        }
         return new PersistentVolumeClaimBuilder()
-                .withMetadata(
-                        new ObjectMetaBuilder()
-                                .withName(name(cluster, suffix))
-                                .withNamespace(cluster.getMetadata().getNamespace())
-                                .withLabels(labels(cluster, suffix))
-                                .build())
+                .withMetadata(metaBuilder.build())
                 .withNewSpec()
                 .withAccessModes(modes)
                 .withStorageClassName(storage.getStorageClassName())
@@ -703,7 +728,7 @@ final class ThingWorxResources {
                 .build();
     }
 
-    static String initializationJobName(ThingWorxCluster cluster, String component) {
+    public static String initializationJobName(ThingWorxCluster cluster, String component) {
         var image =
                 "database-init".equals(component)
                         ? cluster.getSpec().getImages().getDatabaseInit()

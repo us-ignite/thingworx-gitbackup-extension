@@ -1,6 +1,10 @@
 package org.us_ignite.thingworx.operator.api;
 
-/** Immutable image references. Production values should be pinned by digest. */
+/**
+ * Immutable image references. Production values should be pinned by versioned tag (and ideally digest).
+ * All images use {@code imagePullPolicy: IfNotPresent} (see ThingWorxResources / extension installer Job).
+ * {@code extensionInstaller} is pinned to {@code 10.1.2} to match {@code platform:10.1.2}; :latest is rejected by CRD and reconciler validation.
+ */
 public class ImageSet {
     private String platform = "ghcr.io/us-ignite/thingworx/platform-postgres:10.1.2";
     private String databaseInit = "ghcr.io/us-ignite/thingworx/postgres-init:10.1.2";
@@ -14,7 +18,7 @@ public class ImageSet {
     private String zookeeper = "zookeeper:3.8.4";
     private String kafka;
     private String otelCollector;
-    private String extensionInstaller = "ghcr.io/us-ignite/thingworx/extension-installer:latest";
+    private String extensionInstaller = "ghcr.io/us-ignite/thingworx/extension-installer:10.1.2";
 
     public String getPlatform() {
         return platform;

@@ -18,6 +18,7 @@ public class ThingWorxClusterSpec {
     private ExtensionContentPolicy extensionImportPolicy = new ExtensionContentPolicy();
     private boolean kafkaEnabled;
     private boolean otelEnabled;
+    private Integer jobTtlSecondsAfterFinished;
 
     public boolean isEnableHA() {
         return enableHA;
@@ -145,5 +146,13 @@ public class ThingWorxClusterSpec {
 
     public void setOtelEnabled(boolean value) {
         otelEnabled = value;
+    }
+
+    public Integer getJobTtlSecondsAfterFinished() {
+        return jobTtlSecondsAfterFinished;
+    }
+
+    public void setJobTtlSecondsAfterFinished(Integer value) {
+        jobTtlSecondsAfterFinished = value;
     }
 }

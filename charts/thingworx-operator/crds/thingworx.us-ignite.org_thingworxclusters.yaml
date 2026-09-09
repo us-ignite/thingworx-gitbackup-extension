@@ -34,6 +34,8 @@ spec:
                   message: "enableHA requires ignite, cxServer, zookeeper, and haProxy images"
                 - rule: "!self.enableHA || has(self.cxServerAppKey)"
                   message: "enableHA requires cxServerAppKey"
+                - rule: "!has(self.images.extensionInstaller) || !self.images.extensionInstaller.endsWith(':latest')"
+                  message: "spec.images.extensionInstaller must be pinned, not :latest"
               properties:
                 enableHA: {type: boolean, default: false}
                 images:
@@ -49,7 +51,7 @@ spec:
                     zookeeper: {type: string, default: "zookeeper:3.8.4"}
                     kafka: {type: string}
                     otelCollector: {type: string}
-                    extensionInstaller: {type: string, default: "ghcr.io/us-ignite/thingworx/extension-installer:latest"}
+                    extensionInstaller: {type: string, default: "ghcr.io/us-ignite/thingworx/extension-installer:10.1.2", pattern: "^.+:[^:]+$"}
                 database:
                   type: object
                   required: [database, schema, username, adminUsername, credentials, adminCredentials]
@@ -81,8 +83,11 @@ spec:
                   required: [storageClassName]
                   properties:
                     storageClassName: {type: string}
-                    sharedStorageSize: {type: string}
-                    componentStorageSize: {type: string}
+                    sharedStorageSize: {type: string, default: "20Gi"}
+                    componentStorageSize: {type: string, default: "10Gi"}
+                    pvcAnnotations:
+                      type: object
+                      additionalProperties: {type: string}
                 ingress:
                   type: object
                   properties:
@@ -136,6 +141,7 @@ spec:
                     webAppResources: {type: boolean, default: false}
                 kafkaEnabled: {type: boolean, default: false}
                 otelEnabled: {type: boolean, default: false}
+                jobTtlSecondsAfterFinished: {type: integer, minimum: 0, default: 3600}
             status:
               type: object
               properties:

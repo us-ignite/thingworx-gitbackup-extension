@@ -1,0 +1,169 @@
+plugins {
+    id 'java'
+    id 'eclipse'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs = ['src']
+            exclude '**/test/**'
+        }
+    }
+    test {
+        java {
+            srcDirs = ['src']
+            include '**/test/**/*.java'
+        }
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'io.javaoperatorsdk:operator-framework:5.4.0'
+    implementation 'io.fabric8:kubernetes-client:7.8.0'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.21.4'
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.21.4'
+    implementation 'org.slf4j:slf4j-api:2.0.18'
+    runtimeOnly 'org.slf4j:slf4j-simple:2.0.18'
+
+    testImplementation 'io.fabric8:kubernetes-server-mock:7.8.0'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
+    testImplementation 'org.assertj:assertj-core:3.27.3'
+    testImplementation 'org.awaitility:awaitility:4.2.2'
+    testImplementation 'org.testcontainers:junit-jupiter:1.21.0'
+    testImplementation 'org.testcontainers:k3s:1.21.0'
+    testImplementation 'org.testcontainers:postgresql:1.21.0'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 21
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+    maxParallelForks = Runtime.runtime.availableProcessors()
+    environment 'TESTCONTAINERS_REUSE_ENABLE', 'false'
+}
+
+tasks.named('test') {
+    description = 'Run operator unit tests.'
+    useJUnitPlatform {
+        excludeTags 'integration'
+    }
+}
+
+tasks.register('integrationTest', Test) {
+    description = 'Run operator integration tests tagged integration.'
+    group = 'verification'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    include '**/*IT.class'
+    shouldRunAfter tasks.named('test')
+    useJUnitPlatform {
+        includeTags 'integration'
+    }
+}
+
+tasks.register('verify') {
+    description = 'Run the operator integration-test suite.'
+    group = 'verification'
+    dependsOn tasks.named('integrationTest')
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('test')
+}
+
+tasks.named('javadoc') {
+    source = sourceSets.main.allJava.matching {
+        exclude '**/test/**'
+    }
+}
+
+tasks.named('jar') {
+    manifest {
+        attributes 'Main-Class': 'org.us_ignite.thingworx.operator.OperatorApplication'
+    }
+}
+
+tasks.register('fatJar', Jar) {
+    description = 'Assemble the executable operator JAR with runtime dependencies.'
+    group = 'build'
+    archiveFileName = 'thingworx-operator.jar'
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    manifest {
+        attributes 'Main-Class': 'org.us_ignite.thingworx.operator.OperatorApplication'
+    }
+    from sourceSets.main.output
+    from {
+        configurations.runtimeClasspath.collect { dependency ->
+            dependency.isDirectory() ? dependency : zipTree(dependency)
+        }
+    }
+    exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA'
+}
+
+tasks.named('assemble') {
+    dependsOn tasks.named('fatJar')
+}
+
+eclipse {
+    classpath {
+        testSourceSets = [project.sourceSets.test]
+        file {
+            whenMerged { cp ->
+                cp.entries.removeAll {
+                    it instanceof org.gradle.plugins.ide.eclipse.model.SourceFolder
+                }
+                def main = new org.gradle.plugins.ide.eclipse.model.SourceFolder('src', 'bin/main')
+                main.excludes = ['**/test/**']
+                cp.entries.add(main)
+                def test = new org.gradle.plugins.ide.eclipse.model.SourceFolder('src', 'bin/test')
+                test.includes = ['**/test/**/*.java']
+                test.entryAttributes['test'] = 'true'
+                test.entryAttributes['gradle_used_by_scope'] = 'test'
+                cp.entries.add(test)
+            }
+        }
+    }
+}
+
+tasks.register('testAll') {
+    group = 'verification'
+    description = "Run all unit tests for ${project.path}."
+    dependsOn tasks.named('test')
+}
+
+tasks.register('buildAll') {
+    group = 'build'
+    description = "Build all operator artifacts for ${project.path}."
+    dependsOn tasks.named('build')
+}
+
+tasks.register('installDist') {
+    group = 'build'
+    description = 'Legacy alias for assembling the executable operator JAR.'
+    dependsOn tasks.named('fatJar')
+}
+
+tasks.register('jibDockerBuild') {
+    group = 'images'
+    description = 'Legacy alias for :images:thingworx-operator:buildImage.'
+    dependsOn ':images:thingworx-operator:buildImage'
+}
+
+tasks.register('devSetup') {
+    group = 'development'
+    description = 'Build the operator image for local Helm development.'
+    dependsOn ':images:thingworx-operator:buildImage'
+}

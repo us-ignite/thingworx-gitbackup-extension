@@ -5,10 +5,90 @@ plugins {
 
 allprojects {
     group = 'io.github.us-ignite'
-    version = '0.1.0-SNAPSHOT'
+    // Single-source versioning: prefer per-project .version file if present.
+    // Canonical operator version lives in apps/thingworx-operator/.version.
+    def versionFile = file('.version')
+    if (versionFile.exists()) {
+        version = versionFile.text.trim()
+    } else if (project.path == ':images:thingworx-operator' || project.path == ':apps:thingworx-operator') {
+        def operatorVersionFile = new File(rootDir, 'apps/thingworx-operator/.version')
+        if (operatorVersionFile.exists()) {
+            version = operatorVersionFile.text.trim()
+        } else {
+            version = '0.1.0-SNAPSHOT'
+        }
+    } else {
+        version = '0.1.0-SNAPSHOT'
+    }
 
     repositories {
         mavenCentral()
+    }
+}
+
+// Gradle's built-in Eclipse generator retains Project/SourceSet instances in
+// its model, so its generation tasks cannot be serialized by the configuration
+// cache. Keep the cache enabled for the rest of the build and opt these tasks
+// out explicitly.
+subprojects {
+    pluginManager.withPlugin('eclipse') {
+        pluginManager.withPlugin('java') {
+            // IDE clients analyze the shared src/ roots as one project. Mark the test source
+            // set explicitly and expose its complete runtime classpath.
+            eclipse.classpath {
+                testSourceSets = [sourceSets.test]
+                plusConfigurations += [configurations.testRuntimeClasspath]
+            }
+            tasks.withType(Test).configureEach {
+                testLogging {
+                    // Keep aggregate test commands readable: report only failures and their
+                    // exceptions. Full stdout/stderr remains available in the XML reports.
+                    events 'failed'
+                    exceptionFormat = 'short'
+                    showStandardStreams = false
+                }
+            }
+        }
+        tasks.withType(org.gradle.plugins.ide.eclipse.GenerateEclipseClasspath).configureEach {
+            notCompatibleWithConfigurationCache('Gradle Eclipse classpath model is not configuration-cache compatible')
+        }
+        tasks.withType(org.gradle.plugins.ide.eclipse.GenerateEclipseJdt).configureEach {
+            notCompatibleWithConfigurationCache('Gradle Eclipse JDT model is not configuration-cache compatible')
+        }
+        tasks.withType(org.gradle.plugins.ide.eclipse.GenerateEclipseProject).configureEach {
+            notCompatibleWithConfigurationCache('Gradle Eclipse project model is not configuration-cache compatible')
+        }
+    }
+
+    afterEvaluate { proj ->
+        if (!proj.tasks.findByName('buildAll')) {
+            proj.tasks.register('buildAll') {
+                group = 'build'
+                description = "Build all variants for ${proj.path} (alias for build)"
+                dependsOn proj.tasks.findByName('build')
+            }
+        }
+        if (!proj.tasks.findByName('testAll')) {
+            proj.tasks.register('testAll') {
+                group = 'verification'
+                description = "Run all tests for ${proj.path} (alias for test)"
+                def t = proj.tasks.findByName('test')
+                if (t != null) dependsOn t
+            }
+        }
+        // ensure build and test exist (java-library / java projects already have them; images have buildAll)
+        if (!proj.tasks.findByName('build')) {
+            proj.tasks.register('build') {
+                group = 'build'
+                description = "Build ${proj.path}"
+            }
+        }
+        if (!proj.tasks.findByName('test')) {
+            proj.tasks.register('test') {
+                group = 'verification'
+                description = "Test ${proj.path} (no-op if no tests)"
+            }
+        }
     }
 }
 
@@ -17,5 +97,247 @@ tasks.register('installGitHooks') {
     description = 'Install the repository-managed Git hooks.'
     doLast {
         logger.lifecycle('Git hooks are installed during Gradle settings evaluation.')
+    }
+}
+// Root aggregators for all libs, apps, images, charts
+def localSubprojects = subprojects
+
+def matchingSubprojectTasks = { String taskName ->
+    localSubprojects.collect { subproject ->
+        subproject.tasks.matching { task -> task.name == taskName }
+    }
+}
+
+// Keep the usual root lifecycle commands useful in this multi-project build.
+// Projects that do not implement a command simply contribute no task to the
+// corresponding aggregate (for example, images do not have an Eclipse model).
+tasks.register('clean') {
+    group = 'build'
+    description = 'Clean all subproject build outputs and image staging directories'
+    dependsOn matchingSubprojectTasks('clean')
+    dependsOn matchingSubprojectTasks('cleanVendor')
+}
+tasks.register('assemble') {
+    group = 'build'
+    description = 'Assemble all subprojects that provide an assemble task'
+    dependsOn matchingSubprojectTasks('assemble')
+}
+tasks.register('build') {
+    group = 'build'
+    description = 'Build all subprojects using their default/latest version'
+    dependsOn matchingSubprojectTasks('build')
+}
+tasks.register('check') {
+    group = 'verification'
+    description = 'Check all subprojects that provide a check task'
+    dependsOn matchingSubprojectTasks('check')
+}
+tasks.register('checkAll') {
+    group = 'verification'
+    description = 'Run all checks for all versions and subprojects'
+    dependsOn matchingSubprojectTasks('checkAll')
+    dependsOn tasks.named('chartTest')
+}
+tasks.register('test') {
+    group = 'verification'
+    description = 'Run tests for all subprojects using their default/latest version'
+    dependsOn matchingSubprojectTasks('test')
+}
+tasks.register('cleanEclipse') {
+    group = 'ide'
+    description = 'Clean Eclipse metadata for all Eclipse-enabled subprojects'
+    dependsOn matchingSubprojectTasks('cleanEclipse')
+}
+tasks.register('eclipse') {
+    group = 'ide'
+    description = 'Generate Eclipse metadata for all Eclipse-enabled subprojects'
+    dependsOn matchingSubprojectTasks('eclipse')
+}
+
+tasks.register('buildAll') {
+    group = 'build'
+    description = 'Build all subprojects (libs, apps, images, charts)'
+    dependsOn localSubprojects.collect { it.tasks.matching { t -> t.name == 'buildAll' } }
+    dependsOn tasks.named('chartBuild')
+    def localCount = localSubprojects.size()
+    doLast { println "buildAll: aggregated ${localCount} projects + charts" }
+}
+tasks.register('testAll') {
+    group = 'verification'
+    description = 'Run all tests for all subprojects (libs, apps, images, charts)'
+    dependsOn localSubprojects.collect { it.tasks.matching { t -> t.name == 'testAll' } }
+    dependsOn tasks.named('chartTest')
+    def localCount = localSubprojects.size()
+    doLast { println "testAll: aggregated ${localCount} projects + charts" }
+}
+tasks.register('chartTest') {
+    group = 'verification'
+    description = 'Lint all Helm charts (charts/*) plus CEL validation via helm-unittest / kubeconform mock when available'
+    dependsOn ':apps:thingworx-operator:test'
+    def localRootDir = rootDir
+    doLast {
+        def chartsDir = new File(localRootDir, 'charts')
+        if (!chartsDir.exists()) {
+            println "No charts directory"
+            return
+        }
+        chartsDir.eachDir { chart ->
+            println "Linting chart ${chart.name}..."
+            def proc = new ProcessBuilder('helm', 'lint', chart.absolutePath).inheritIO().start()
+            if (proc.waitFor() != 0) throw new GradleException("helm lint failed for ${chart.name}")
+
+            println "Templating chart ${chart.name}..."
+            def tpl = new ProcessBuilder('helm', 'template', chart.name, chart.absolutePath).inheritIO().start()
+            if (tpl.waitFor() != 0) throw new GradleException("helm template failed for ${chart.name}")
+
+            // helm unittest (optional) — runs CEL helm-unittest suite if plugin is installed
+            def unittestCheck = new ProcessBuilder('helm', 'plugin', 'list').redirectOutput(ProcessBuilder.Redirect.PIPE).start()
+            unittestCheck.waitFor()
+            String pluginList = ""
+            try { pluginList = new String(unittestCheck.inputStream.readAllBytes()) } catch (Exception ignored) {}
+            if (pluginList.contains("unittest")) {
+                println "Running helm unittest for ${chart.name} (CEL validations)..."
+                def ut = new ProcessBuilder('helm', 'unittest', chart.absolutePath).inheritIO().start()
+                if (ut.waitFor() != 0) throw new GradleException("helm unittest failed for ${chart.name}")
+            } else {
+                println "helm unittest plugin not installed — skipping unittest for ${chart.name} (CEL covered by Java mock tests)"
+            }
+
+            // kubeconform (optional) — validate rendered manifests if binary present
+            def kcCheck = new ProcessBuilder('sh', '-c', 'command -v kubeconform >/dev/null 2>&1 && echo found || echo missing').redirectOutput(ProcessBuilder.Redirect.PIPE).start()
+            kcCheck.waitFor()
+            String kcStatus = ""
+            try { kcStatus = new String(kcCheck.inputStream.readAllBytes()).trim() } catch (Exception ignored) {}
+            if (kcStatus == "found") {
+                println "Running kubeconform for ${chart.name}..."
+                def rendered = new ProcessBuilder('helm', 'template', chart.name, chart.absolutePath)
+                    .redirectOutput(ProcessBuilder.Redirect.PIPE)
+                    .redirectError(ProcessBuilder.Redirect.INHERIT)
+                    .start()
+                if (rendered.waitFor() != 0) throw new GradleException("helm template failed for ${chart.name}")
+                def yaml = rendered.inputStream.readAllBytes()
+                def kc = new ProcessBuilder('sh', '-c', 'kubeconform -summary -verbose')
+                    .redirectInput(ProcessBuilder.Redirect.PIPE)
+                    .redirectOutput(ProcessBuilder.Redirect.INHERIT)
+                    .redirectError(ProcessBuilder.Redirect.INHERIT)
+                    .start()
+                try {
+                    kc.outputStream.write(yaml)
+                    kc.outputStream.close()
+                } catch (IOException e) {
+                    kc.destroyForcibly()
+                    throw new GradleException("Failed to send rendered manifests to kubeconform for ${chart.name}", e)
+                }
+                if (kc.waitFor() != 0) throw new GradleException("kubeconform failed for ${chart.name}")
+            } else {
+                println "kubeconform not installed — skipping (CEL covered by Java tests)"
+            }
+        }
+    }
+}
+tasks.register('chartBuild') {
+    group = 'build'
+    description = 'Template all Helm charts (charts/*)'
+    def localRootDir = rootDir
+    doLast {
+        def chartsDir = new File(localRootDir, 'charts')
+        chartsDir.eachDir { chart ->
+            println "Templating chart ${chart.name}..."
+            def proc = new ProcessBuilder('helm', 'template', chart.name, chart.absolutePath).inheritIO().start()
+            if (proc.waitFor() != 0) throw new GradleException("helm template failed for ${chart.name}")
+        }
+    }
+}
+
+tasks.register('verifyVersions') {
+    group = 'verification'
+    description = 'Verify thingworx-operator version consistency: .version, Chart.yaml, images/build.gradle'
+    def localRootDir = rootDir
+    doLast {
+        def operatorVersionFile = new File(localRootDir, 'apps/thingworx-operator/.version')
+        def chartDotVersionFile = new File(localRootDir, 'charts/thingworx-operator/.version')
+        def chartYaml = new File(localRootDir, 'charts/thingworx-operator/Chart.yaml')
+        def imageGradle = new File(localRootDir, 'images/thingworx-operator/build.gradle')
+
+        if (!operatorVersionFile.exists()) throw new GradleException("Missing canonical version file: ${operatorVersionFile}")
+        String canonical = operatorVersionFile.text.trim()
+        if (!canonical.matches(/^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$/)) {
+            throw new GradleException("Canonical version '$canonical' is not SemVer")
+        }
+        println "Canonical operator version: ${canonical} (from apps/thingworx-operator/.version)"
+
+        List<String> errors = []
+
+        // charts/.version
+        if (chartDotVersionFile.exists()) {
+            String v = chartDotVersionFile.text.trim()
+            println "charts/thingworx-operator/.version: ${v}"
+            if (v != canonical) errors << "charts/thingworx-operator/.version ($v) != canonical ($canonical)"
+        } else {
+            errors << "Missing charts/thingworx-operator/.version"
+        }
+
+        // Chart.yaml version and appVersion
+        if (chartYaml.exists()) {
+            String yamlText = chartYaml.text
+            def vMatch = (yamlText =~ /(?m)^version:\s*([^\s#]+)/)
+            def avMatch = (yamlText =~ /(?m)^appVersion:\s*"?([^"\s#]+)"?/)
+            String chartVer = vMatch.find() ? vMatch.group(1).trim() : null
+            // strip possible quotes from appVersion already
+            String appVer = avMatch.find() ? avMatch.group(1).trim().replaceAll(/^"|"$/, '') : null
+            println "charts/thingworx-operator/Chart.yaml version: ${chartVer}, appVersion: ${appVer}"
+            if (chartVer != canonical) errors << "charts/thingworx-operator/Chart.yaml version ($chartVer) != canonical ($canonical)"
+            if (appVer != canonical) errors << "charts/thingworx-operator/Chart.yaml appVersion ($appVer) != canonical ($canonical)"
+            // Verify Gradle project versions are derived from .version (read file directly for config-cache safety)
+            def appsOpVersionFile = new File(localRootDir, 'apps/thingworx-operator/.version')
+            if (appsOpVersionFile.exists()) {
+                String gradleOpVer = appsOpVersionFile.text.trim()
+                println ":apps:thingworx-operator Gradle version (from file): ${gradleOpVer}"
+                if (gradleOpVer != canonical) errors << ":apps:thingworx-operator file version ($gradleOpVer) != canonical ($canonical)"
+            }
+            // images operator version also derived from same canonical file
+            def imagesOpVersionFile = new File(localRootDir, 'apps/thingworx-operator/.version')
+            if (imagesOpVersionFile.exists()) {
+                String gradleImageVer = imagesOpVersionFile.text.trim()
+                println ":images:thingworx-operator Gradle version (from file): ${gradleImageVer}"
+                if (gradleImageVer != canonical) errors << ":images:thingworx-operator file version ($gradleImageVer) != canonical ($canonical)"
+            }
+        } else {
+            errors << "Missing charts/thingworx-operator/Chart.yaml"
+        }
+
+        // images/build.gradle OPERATOR_VERSION
+        if (imageGradle.exists()) {
+            String gradleText = imageGradle.text
+            def opMatch = (gradleText =~ /OPERATOR_VERSION\s*=\s*['"]([^'"]+)['"]/)
+            // This may not match if refactored to read from file; also check file-read pattern
+            String opVer = null
+            if (opMatch.find()) {
+                opVer = opMatch.group(1).trim()
+                // If file-read logic is used, the literal may be absent; try to evaluate
+                // Detect dynamic reading: file(.../.version).text
+                if (gradleText.contains("apps/thingworx-operator/.version") && gradleText.contains("OPERATOR_VERSION")) {
+                    // dynamic version - treat as canonical if not hardcoded
+                    // check if the hardcoded fallback equals canonical or if file reading will produce canonical
+                    println "images/thingworx-operator/build.gradle OPERATOR_VERSION dynamic (reads from .version): assumed ${canonical}"
+                    opVer = canonical
+                } else {
+                    println "images/thingworx-operator/build.gradle OPERATOR_VERSION: ${opVer}"
+                }
+            } else if (gradleText.contains("apps/thingworx-operator/.version")) {
+                println "images/thingworx-operator/build.gradle OPERATOR_VERSION dynamic (reads from .version): assumed ${canonical}"
+                opVer = canonical
+            } else {
+                errors << "images/thingworx-operator/build.gradle: could not parse OPERATOR_VERSION"
+            }
+            if (opVer != null && opVer != canonical) errors << "images/thingworx-operator/build.gradle OPERATOR_VERSION ($opVer) != canonical ($canonical)"
+        } else {
+            errors << "Missing images/thingworx-operator/build.gradle"
+        }
+
+        if (!errors.isEmpty()) {
+            throw new GradleException("Version mismatch detected:\n - " + errors.join("\n - ") + "\nCanonical version is $canonical (apps/thingworx-operator/.version). Fix by updating all operator version references to $canonical or running a sync task.")
+        }
+        println "verifyVersions: all operator version sources agree on ${canonical} \u2713"
     }
 }

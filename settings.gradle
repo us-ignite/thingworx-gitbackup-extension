@@ -10,11 +10,27 @@ rootProject.name = 'ThingWorxExtensions'
 
 include ':libraries:thingworx-dap'
 include ':libraries:thingworx-dap-runtime'
+include ':libraries:thingworx-testcontainers'
+include ':examples:thingworx-dap-usage'
+include ':examples:thingworx-operator-deployments'
 include ':apps:thingworx-jgit-extension'
 include ':apps:thingworx-operator'
 include ':images:platform'
 include ':images:security-tool'
 include ':images:connection-server'
+include ':images:thingworx-operator'
+
+project(':libraries:thingworx-dap').projectDir = file('libraries/thingworx-dap')
+project(':libraries:thingworx-dap-runtime').projectDir = file('libraries/thingworx-dap-runtime')
+project(':libraries:thingworx-testcontainers').projectDir = file('libraries/thingworx-testcontainers')
+project(':examples:thingworx-dap-usage').projectDir = file('examples/thingworx-dap-usage')
+project(':examples:thingworx-operator-deployments').projectDir = file('examples/thingworx-operator-deployments')
+project(':apps:thingworx-jgit-extension').projectDir = file('apps/thingworx-jgit-extension')
+project(':apps:thingworx-operator').projectDir = file('apps/thingworx-operator')
+project(':images:platform').projectDir = file('images/platform')
+project(':images:security-tool').projectDir = file('images/security-tool')
+project(':images:connection-server').projectDir = file('images/connection-server')
+project(':images:thingworx-operator').projectDir = file('images/thingworx-operator')
 
 // Pure Gradle hooks: .version is set at commit via prepareCommitMsg (JVM), build reads .version at build time (no smudge).
 gitHooks { extension ->

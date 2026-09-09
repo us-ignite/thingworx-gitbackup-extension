@@ -12,6 +12,15 @@ java {
     withJavadocJar()
 }
 
+sourceSets {
+    main {
+        java {
+            srcDirs = ['src']
+            exclude 'main/resources/**'
+        }
+    }
+}
+
 version = file('.version').text.trim()
 
 spotless {

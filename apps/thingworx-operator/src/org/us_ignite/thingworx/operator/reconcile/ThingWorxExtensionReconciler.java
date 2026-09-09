@@ -13,38 +13,84 @@ import io.javaoperatorsdk.operator.api.reconciler.ControllerConfiguration;
 import io.javaoperatorsdk.operator.api.reconciler.DeleteControl;
 import io.javaoperatorsdk.operator.api.reconciler.Reconciler;
 import io.javaoperatorsdk.operator.api.reconciler.UpdateControl;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
+import io.fabric8.kubernetes.api.model.EventBuilder;
+import io.fabric8.kubernetes.api.model.EventSourceBuilder;
+import io.fabric8.kubernetes.api.model.ObjectReferenceBuilder;
+import java.time.Instant;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.us_ignite.thingworx.operator.api.SecretKeyReference;
 import org.us_ignite.thingworx.operator.api.ThingWorxCluster;
 import org.us_ignite.thingworx.operator.api.ThingWorxExtension;
 import org.us_ignite.thingworx.operator.api.ThingWorxExtensionStatus;
+import org.us_ignite.thingworx.operator.metrics.OperatorMetrics;
 
 /** Imports one digest-pinned OCI extension at a time for each target cluster. */
 @ControllerConfiguration(finalizerName = "thingworx.us-ignite.org/extension-finalizer")
 public class ThingWorxExtensionReconciler
         implements Reconciler<ThingWorxExtension>, Cleaner<ThingWorxExtension> {
+    private static final Logger LOG = LoggerFactory.getLogger(ThingWorxExtensionReconciler.class);
     private static final String RESTART_ANNOTATION = "thingworx.us-ignite.org/extension-restart";
     private final KubernetesClient client;
+    private final ExtensionDependencyAnalyzer dependencyAnalyzer;
 
     public ThingWorxExtensionReconciler(KubernetesClient client) {
+        this(client, new ExtensionDependencyAnalyzer());
+    }
+
+    public ThingWorxExtensionReconciler(
+            KubernetesClient client, ExtensionDependencyAnalyzer dependencyAnalyzer) {
         this.client = client;
+        this.dependencyAnalyzer =
+                dependencyAnalyzer != null ? dependencyAnalyzer : new ExtensionDependencyAnalyzer();
     }
 
     @Override
     public UpdateControl<ThingWorxExtension> reconcile(
+            ThingWorxExtension extension, Context<ThingWorxExtension> context) {
+        long startNanos = System.nanoTime();
+        String extKey = extensionKey(extension);
+        String entryPhase = extension.getStatus() == null ? null : extension.getStatus().getPhase();
+        LOG.info(
+                "extension={} clusterRef={} phase={} event=reconcileStart generation={}",
+                extKey,
+                extension.getSpec() == null || extension.getSpec().getClusterRef() == null
+                        ? "unknown"
+                        : extension.getSpec().getClusterRef().getName(),
+                entryPhase,
+                extension.getMetadata() == null ? null : extension.getMetadata().getGeneration());
+        UpdateControl<ThingWorxExtension> result;
+        try {
+            var error = validate(extension);
+            if (error != null) {
+                result = status(extension, "Failed", "InvalidSpec", error, false);
+            } else {
+                result = reconcileInternal(extension, context);
+            }
+        } catch (Exception e) {
+            LOG.error("extension={} phase={} event=reconcileError error={}", extKey, entryPhase, e.toString(), e);
+            throw e;
+        } finally {
+            long durationNanos = System.nanoTime() - startNanos;
+            OperatorMetrics.recordReconcile("ThingWorxExtension", extKey, durationNanos);
+            LOG.info(
+                    "extension={} phase={} event=reconcileComplete durationMs={}",
+                    extKey,
+                    entryPhase,
+                    durationNanos / 1_000_000);
+        }
+        return result;
+    }
+
+    private UpdateControl<ThingWorxExtension> reconcileInternal(
             ThingWorxExtension extension, Context<ThingWorxExtension> context) {
         var error = validate(extension);
         if (error != null) return status(extension, "Failed", "InvalidSpec", error, false);
@@ -76,6 +122,44 @@ public class ThingWorxExtensionReconciler
                     "ImportCredentialMissing",
                     "Target cluster requires spec.extensionImportAppKey.",
                     false);
+        }
+        // 012: extensionInstaller must be pinned when extensions are used
+        var extensionImage =
+                cluster.getSpec().getImages() == null
+                        ? null
+                        : cluster.getSpec().getImages().getExtensionInstaller();
+        if (extensionImage == null || extensionImage.isBlank()) {
+            return status(
+                    extension,
+                    "Failed",
+                    "ExtensionInstallerMissing",
+                    "Target cluster spec.images.extensionInstaller is required when extensions are used (pin to 10.1.2).",
+                    false);
+        }
+        if (extensionImage.endsWith(":latest")) {
+            return status(
+                    extension,
+                    "Failed",
+                    "ExtensionInstallerNotPinned",
+                    "spec.images.extensionInstaller must be pinned, not :latest (use 10.1.2).",
+                    false);
+        }
+        var appKey = cluster.getSpec().getExtensionImportAppKey();
+        var missingAppKeySecret = missingSecret(appKey.getName(), namespace);
+        if (missingAppKeySecret != null) {
+            return status(extension, "Failed", "ImportCredentialMissing", missingAppKeySecret, false);
+        }
+        var imagePull = cluster.getSpec().getImagePullSecret();
+        if (imagePull != null && !imagePull.isBlank()) {
+            var missingPull = missingSecret(imagePull, namespace);
+            if (missingPull != null) return status(extension, "Failed", "MissingSecret", missingPull, false);
+        }
+        if (extension.getSpec().getArtifactPullSecret() != null
+                && !extension.getSpec().getArtifactPullSecret().isBlank()) {
+            var missingArtifactPull =
+                    missingSecret(extension.getSpec().getArtifactPullSecret(), namespace);
+            if (missingArtifactPull != null)
+                return status(extension, "Failed", "MissingSecret", missingArtifactPull, false);
         }
         if (extension.getStatus() != null
                 && "Restarting".equals(extension.getStatus().getPhase())) {
@@ -200,6 +284,15 @@ public class ThingWorxExtensionReconciler
             ThingWorxExtension extension, Context<ThingWorxExtension> context) {
         var namespace = extension.getMetadata().getNamespace();
         var name = extension.getMetadata().getName();
+        String extKey = extensionKey(extension);
+        LOG.warn(
+                "extension={} event=cleanup message=\"Deleting extension jobs; manual ThingWorx entity cleanup required\"",
+                extKey);
+        emitExtensionEvent(
+                extension,
+                "ExtensionDeleted",
+                "ThingWorxExtension " + namespace + "/" + name + " deleted; imported ThingWorx entities remain and require manual database cleanup.",
+                "Warning");
         client.batch()
                 .v1()
                 .jobs()
@@ -216,49 +309,11 @@ public class ThingWorxExtensionReconciler
     }
 
     private boolean isNextForCluster(ThingWorxExtension extension, List<ThingWorxExtension> all) {
-        return all.stream()
-                .filter(
-                        candidate ->
-                                candidate.getSpec() != null
-                                        && candidate.getSpec().getClusterRef() != null
-                                        && extension
-                                                .getSpec()
-                                                .getClusterRef()
-                                                .getName()
-                                                .equals(
-                                                        candidate
-                                                                .getSpec()
-                                                                .getClusterRef()
-                                                                .getName()))
-                .filter(
-                        candidate ->
-                                candidate.getStatus() == null
-                                        || !"Ready".equals(candidate.getStatus().getPhase())
-                                        || !Objects.equals(
-                                                fingerprint(candidate),
-                                                candidate.getStatus().getObservedFingerprint()))
-                .filter(candidate -> dependenciesReady(candidate, all))
-                .min(Comparator.comparing(candidate -> candidate.getMetadata().getName()))
-                .map(candidate -> candidate.getMetadata().getName())
-                .map(extension.getMetadata().getName()::equals)
-                .orElse(true);
+        return dependencyAnalyzer.isNextForCluster(extension, all);
     }
 
     private boolean dependenciesReady(ThingWorxExtension extension, List<ThingWorxExtension> all) {
-        var byName = new HashMap<String, ThingWorxExtension>();
-        all.forEach(candidate -> byName.put(candidate.getMetadata().getName(), candidate));
-        return dependencyNames(extension).stream()
-                .map(byName::get)
-                .allMatch(
-                        dependency ->
-                                dependency != null
-                                        && dependency.getStatus() != null
-                                        && "Ready".equals(dependency.getStatus().getPhase())
-                                        && dependency.getSpec() != null
-                                        && dependency.getSpec().getArtifact() != null
-                                        && Objects.equals(
-                                                fingerprint(dependency),
-                                                dependency.getStatus().getObservedFingerprint()));
+        return dependencyAnalyzer.dependenciesReady(extension, all);
     }
 
     private boolean dependenciesReady(ThingWorxExtension extension, String namespace) {
@@ -271,95 +326,9 @@ public class ThingWorxExtensionReconciler
                                 .getItems()));
     }
 
-    private DependencyAnalysis analyzeDependencies(
+    private ExtensionDependencyAnalyzer.DependencyAnalysis analyzeDependencies(
             ThingWorxExtension extension, List<ThingWorxExtension> all) {
-        var byName = new HashMap<String, ThingWorxExtension>();
-        all.forEach(candidate -> byName.put(candidate.getMetadata().getName(), candidate));
-        for (String dependency : dependencyNames(extension)) {
-            var resource = byName.get(dependency);
-            if (resource == null) return new DependencyAnalysis(dependency, null, null);
-            if (resource.getSpec() == null
-                    || resource.getSpec().getClusterRef() == null
-                    || !extension
-                            .getSpec()
-                            .getClusterRef()
-                            .getName()
-                            .equals(resource.getSpec().getClusterRef().getName())) {
-                return new DependencyAnalysis(null, dependency, null);
-            }
-        }
-
-        var graph = new HashMap<String, List<String>>();
-        for (var candidate : all) {
-            if (candidate.getSpec() != null
-                    && candidate.getSpec().getClusterRef() != null
-                    && extension
-                            .getSpec()
-                            .getClusterRef()
-                            .getName()
-                            .equals(candidate.getSpec().getClusterRef().getName())) {
-                graph.put(candidate.getMetadata().getName(), dependencyNames(candidate));
-            }
-        }
-        var cycle = findCycle(graph);
-        return new DependencyAnalysis(
-                null,
-                null,
-                cycle != null
-                                && reachesCycle(
-                                        extension.getMetadata().getName(),
-                                        graph,
-                                        new HashSet<>(cycle))
-                        ? cycle
-                        : null);
-    }
-
-    private boolean reachesCycle(String node, Map<String, List<String>> graph, Set<String> cycle) {
-        return reachesCycle(node, graph, cycle, new HashSet<>());
-    }
-
-    private boolean reachesCycle(
-            String node, Map<String, List<String>> graph, Set<String> cycle, Set<String> visited) {
-        if (cycle.contains(node)) return true;
-        if (!visited.add(node)) return false;
-        for (String dependency : graph.getOrDefault(node, List.of())) {
-            if (reachesCycle(dependency, graph, cycle, visited)) return true;
-        }
-        return false;
-    }
-
-    private List<String> findCycle(Map<String, List<String>> graph) {
-        var states = new HashMap<String, Integer>();
-        var path = new ArrayList<String>();
-        for (String node : graph.keySet().stream().sorted().toList()) {
-            var cycle = findCycle(node, graph, states, path);
-            if (cycle != null) return cycle;
-        }
-        return null;
-    }
-
-    private List<String> findCycle(
-            String node,
-            Map<String, List<String>> graph,
-            Map<String, Integer> states,
-            List<String> path) {
-        if (states.getOrDefault(node, 0) == 1) {
-            var start = path.indexOf(node);
-            var cycle = new ArrayList<>(path.subList(start, path.size()));
-            cycle.add(node);
-            return cycle;
-        }
-        if (states.getOrDefault(node, 0) == 2) return null;
-        states.put(node, 1);
-        path.add(node);
-        for (String dependency : graph.getOrDefault(node, List.of()).stream().sorted().toList()) {
-            if (!graph.containsKey(dependency)) continue;
-            var cycle = findCycle(dependency, graph, states, path);
-            if (cycle != null) return cycle;
-        }
-        path.removeLast();
-        states.put(node, 2);
-        return null;
+        return dependencyAnalyzer.analyze(extension, all);
     }
 
     private List<String> dependencyNames(ThingWorxExtension extension) {
@@ -367,9 +336,6 @@ public class ThingWorxExtensionReconciler
                 ? List.of()
                 : extension.getSpec().getDependsOn();
     }
-
-    private record DependencyAnalysis(
-            String missingDependency, String crossClusterDependency, List<String> cycle) {}
 
     private Job installerJob(
             ThingWorxExtension extension,
@@ -379,7 +345,7 @@ public class ThingWorxExtensionReconciler
         var spec = extension.getSpec();
         var appKey = cluster.getSpec().getExtensionImportAppKey();
         var environment =
-                List.of(
+                new ArrayList<>(List.of(
                         value("INSTALL_MODE", "apply-or-update"),
                         value("INSTALL_FINGERPRINT", desiredFingerprint),
                         value("OCI_ARTIFACT", spec.getArtifact().getRepository()),
@@ -391,7 +357,11 @@ public class ThingWorxExtensionReconciler
                         value(
                                 "THINGWORX_URL",
                                 "http://"
-                                        + ThingWorxResources.name(cluster, "haproxy")
+                                        + ThingWorxResources.name(
+                                                cluster,
+                                                cluster.getSpec().isEnableHA()
+                                                        ? "haproxy"
+                                                        : "platform")
                                         + ":8080/Thingworx"),
                         value(
                                 "ALLOW_ENTITIES",
@@ -414,7 +384,10 @@ public class ThingWorxExtensionReconciler
                         value(
                                 "ALLOW_WEBAPP_RESOURCES",
                                 String.valueOf(spec.getImportPolicy().isWebAppResources())),
-                        secret("THINGWORX_EXTENSION_APP_KEY", appKey));
+                        secret("THINGWORX_EXTENSION_APP_KEY", appKey)));
+        if (spec.getArtifactPullSecret() != null && !spec.getArtifactPullSecret().isBlank()) {
+            environment.add(value("DOCKER_CONFIG", "/registry-auth"));
+        }
         var metadata =
                 new ObjectMetaBuilder()
                         .withName(jobName)
@@ -441,6 +414,7 @@ public class ThingWorxExtensionReconciler
                 new JobBuilder()
                         .withMetadata(metadata.build())
                         .withNewSpec()
+                        .withTtlSecondsAfterFinished(ThingWorxResources.jobTtlSeconds(cluster))
                         .withBackoffLimit(3)
                         .withNewTemplate()
                         .withNewSpec()
@@ -448,6 +422,7 @@ public class ThingWorxExtensionReconciler
                         .addNewContainer()
                         .withName("installer")
                         .withImage(cluster.getSpec().getImages().getExtensionInstaller())
+                        .withImagePullPolicy("IfNotPresent")
                         .withEnv(environment)
                         .endContainer()
                         .endSpec()
@@ -471,6 +446,23 @@ public class ThingWorxExtensionReconciler
                     .addNewImagePullSecret()
                     .withName(spec.getArtifactPullSecret())
                     .endImagePullSecret()
+                    .addNewVolume()
+                    .withName("artifact-registry-auth")
+                    .withNewSecret()
+                    .withSecretName(spec.getArtifactPullSecret())
+                    .addNewItem()
+                    .withKey(".dockerconfigjson")
+                    .withPath("config.json")
+                    .endItem()
+                    .endSecret()
+                    .endVolume()
+                    .editFirstContainer()
+                    .addNewVolumeMount()
+                    .withName("artifact-registry-auth")
+                    .withMountPath("/registry-auth")
+                    .withReadOnly(true)
+                    .endVolumeMount()
+                    .endContainer()
                     .endSpec()
                     .endTemplate()
                     .endSpec();
@@ -501,24 +493,9 @@ public class ThingWorxExtensionReconciler
                         .inNamespace(cluster.getMetadata().getNamespace())
                         .withName(ThingWorxResources.name(cluster, "platform"))
                         .get();
-        if (statefulSet == null
-                || statefulSet.getSpec() == null
-                || statefulSet.getStatus() == null
-                || statefulSet.getSpec().getReplicas() == null) return false;
         var requestedRestart =
                 extension.getStatus() == null ? null : extension.getStatus().getRequestedRestart();
-        var annotations = statefulSet.getSpec().getTemplate().getMetadata().getAnnotations();
-        if (requestedRestart == null
-                || annotations == null
-                || !requestedRestart.equals(annotations.get(RESTART_ANNOTATION))) return false;
-        var desiredReplicas = statefulSet.getSpec().getReplicas();
-        var status = statefulSet.getStatus();
-        return desiredReplicas.equals(status.getReplicas())
-                && desiredReplicas.equals(status.getUpdatedReplicas())
-                && desiredReplicas.equals(status.getReadyReplicas())
-                && desiredReplicas.equals(status.getAvailableReplicas())
-                && status.getUpdateRevision() != null
-                && status.getUpdateRevision().equals(status.getCurrentRevision());
+        return PlatformReadinessChecker.isReady(statefulSet, requestedRestart);
     }
 
     private UpdateControl<ThingWorxExtension> ready(
@@ -537,6 +514,10 @@ public class ThingWorxExtensionReconciler
         status.setImportedName(extension.getSpec().getArtifact().getExpectedName());
         status.setImportedVersion(extension.getSpec().getArtifact().getExpectedVersion());
         extension.setStatus(status);
+        String extKey = extensionKey(extension);
+        OperatorMetrics.setPhase(extKey, "Ready");
+        LOG.info("extension={} phase=Ready fingerprint={} event=extensionReady", extKey, desiredFingerprint);
+        emitExtensionEvent(extension, "Installed", "Extension imported successfully: " + desiredFingerprint, "Normal");
         return UpdateControl.patchStatus(extension);
     }
 
@@ -546,7 +527,38 @@ public class ThingWorxExtensionReconciler
             String reason,
             String message,
             boolean immediate) {
+        var prevPhase = extension.getStatus() == null ? null : extension.getStatus().getPhase();
+        var prevMessage = extension.getStatus() == null ? null : extension.getStatus().getMessage();
+        var prevReason =
+                extension.getStatus() == null || extension.getStatus().getConditions() == null
+                        ? null
+                        : extension.getStatus().getConditions().stream()
+                                .filter(item -> "Error".equals(item.getType()))
+                                .map(Condition::getReason)
+                                .findFirst()
+                                .orElse(null);
         extension.setStatus(statusObject(extension, phase, reason, message));
+        String extKey = extensionKey(extension);
+        OperatorMetrics.setPhase(extKey, phase);
+        boolean changed =
+                !Objects.equals(prevPhase, phase)
+                        || !Objects.equals(prevReason, reason)
+                        || !Objects.equals(prevMessage, message);
+        if ("Failed".equals(phase)) {
+            if (changed) OperatorMetrics.incrementJobFailures(extKey, reason);
+            LOG.warn(
+                    "extension={} phase={} prevPhase={} reason={} message=\"{}\" event=statusUpdate",
+                    extKey, phase, prevPhase, reason, message);
+            if (changed)
+                emitExtensionEvent(extension, reason, phase + ": " + message, "Warning");
+        } else {
+            LOG.info(
+                    "extension={} phase={} prevPhase={} reason={} message=\"{}\" event=statusUpdate",
+                    extKey, phase, prevPhase, reason, message);
+            String eventType = "Failed".equals(phase) ? "Warning" : "Normal";
+            if (changed)
+                emitExtensionEvent(extension, reason, phase + ": " + message, eventType);
+        }
         var control = UpdateControl.patchStatus(extension);
         return immediate ? control : control.rescheduleAfter(Duration.ofSeconds(15));
     }
@@ -678,32 +690,18 @@ public class ThingWorxExtensionReconciler
     }
 
     private String fingerprint(ThingWorxExtension extension) {
-        var spec = extension.getSpec();
-        var artifact = spec.getArtifact();
-        var policy = spec.getImportPolicy();
-        var input =
-                String.join(
-                        "\u0000",
-                        artifact.getRepository(),
-                        artifact.getDigest(),
-                        String.valueOf(artifact.getExpectedName()),
-                        String.valueOf(artifact.getExpectedVersion()),
-                        String.valueOf(policy.isEntities()),
-                        String.valueOf(policy.isExtensibleEntities()),
-                        String.valueOf(policy.isJarResources()),
-                        String.valueOf(policy.isJavascriptResources()),
-                        String.valueOf(policy.isCssResources()),
-                        String.valueOf(policy.isJsonResources()),
-                        String.valueOf(policy.isWebAppResources()),
-                        String.valueOf(spec.getArtifactPullSecret()));
+        return FingerprintComputer.fingerprint(extension);
+    }
+
+    private String missingSecret(String name, String namespace) {
+        if (blank(name) || blank(namespace)) return null;
         try {
-            return HexFormat.of()
-                    .formatHex(
-                            MessageDigest.getInstance("SHA-256")
-                                    .digest(input.getBytes(StandardCharsets.UTF_8)));
-        } catch (java.security.NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 is required by the JRE", exception);
+            var secret = client.secrets().inNamespace(namespace).withName(name).get();
+            if (secret == null) return "Secret '" + name + "' not found in namespace '" + namespace + "'";
+        } catch (Exception exception) {
+            return "Secret '" + name + "' not found in namespace '" + namespace + "'";
         }
+        return null;
     }
 
     private boolean blank(String value) {
@@ -721,5 +719,60 @@ public class ThingWorxExtensionReconciler
                 .withNewSecretKeyRef(ref.getKey(), ref.getName(), false)
                 .endValueFrom()
                 .build();
+    }
+
+    private String extensionKey(ThingWorxExtension extension) {
+        if (extension == null || extension.getMetadata() == null) return "unknown/unknown";
+        String ns = extension.getMetadata().getNamespace();
+        String name = extension.getMetadata().getName();
+        if (ns == null || ns.isBlank()) ns = "default";
+        if (name == null || name.isBlank()) name = "unknown";
+        return ns + "/" + name;
+    }
+
+    private void emitExtensionEvent(ThingWorxExtension extension, String reason, String message, String type) {
+        try {
+            String namespace =
+                    extension.getMetadata() == null || blank(extension.getMetadata().getNamespace())
+                            ? "default"
+                            : extension.getMetadata().getNamespace();
+            String name = extension.getMetadata() == null ? "unknown" : extension.getMetadata().getName();
+            String uid = extension.getMetadata() == null ? "" : extension.getMetadata().getUid();
+            var now = Instant.now().toString();
+            var event =
+                    new EventBuilder()
+                            .withNewMetadata()
+                            .withGenerateName(name + "-")
+                            .withNamespace(namespace)
+                            .endMetadata()
+                            .withReason(reason)
+                            .withMessage(message)
+                            .withType(type)
+                            .withInvolvedObject(
+                                    new ObjectReferenceBuilder()
+                                            .withKind("ThingWorxExtension")
+                                            .withName(name)
+                                            .withNamespace(namespace)
+                                            .withUid(uid == null ? "" : uid)
+                                            .withApiVersion("thingworx.us-ignite.org/v1alpha1")
+                                            .build())
+                            .withSource(
+                                    new EventSourceBuilder().withComponent("thingworx-operator").build())
+                            .withFirstTimestamp(now)
+                            .withLastTimestamp(now)
+                            .withCount(1)
+                            .build();
+            try {
+                try {
+                    client.v1().events().inNamespace(namespace).resource(event).create();
+                } catch (Exception e1) {
+                    client.resource(event).inNamespace(namespace).create();
+                }
+            } catch (Exception nested) {
+                LOG.debug("Failed to create extension Event: {}", nested.getMessage());
+            }
+        } catch (Exception exception) {
+            LOG.debug("emitExtensionEvent failed: {}", exception.getMessage());
+        }
     }
 }

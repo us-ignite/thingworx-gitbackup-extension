@@ -1,0 +1,51 @@
+plugins {
+    id 'com.diffplug.spotless' version '7.0.2' apply false
+}
+
+def OPERATOR_VERSION = file("${rootDir}/apps/thingworx-operator/.version").text.trim()
+def IMG_BUILD_DIR = "${projectDir}/../build"
+def DOCKERFILE = "${projectDir}/Dockerfile"
+def SOURCE_DIR = "${rootDir}/apps/thingworx-operator"
+
+tasks.register('decryptVendor') {
+    description = 'Placeholder - operator has no vendor archives'
+    group = 'images'
+    doLast {
+        println 'Operator has no vendor archives to decrypt'
+    }
+}
+
+tasks.register('buildImage') {
+    description = "Build thingworx-operator Docker image"
+    group = 'images'
+    dependsOn ':apps:thingworx-operator:fatJar'
+    def localDockerfile = DOCKERFILE
+    def localRootDir = rootDir
+    def localVersion = OPERATOR_VERSION
+    doLast {
+        println "Building thingworx-operator image..."
+        def cmd = "docker build --progress=plain --network=host --build-arg 'OPERATOR_VERSION=${localVersion}' -f '${localDockerfile}' -t 'thingworx-operator:${localVersion}' -t 'thingworx-operator:dev' -t 'ghcr.io/us-ignite/thingworx/thingworx-operator:${localVersion}' -t 'ghcr.io/us-ignite/thingworx/thingworx-operator:latest' '${localRootDir}'"
+        def proc = new ProcessBuilder('bash', '-c', cmd).redirectErrorStream(true).start()
+        proc.inputStream.eachLine { line -> println "  [docker] ${line}" }
+        if (proc.waitFor() != 0) throw new GradleException('docker build failed for thingworx-operator')
+        println 'Done building thingworx-operator'
+    }
+}
+
+tasks.register('pushImage') {
+    description = 'Push thingworx-operator image to ghcr.io'
+    group = 'publishing'
+    dependsOn 'buildImage'
+    def localVersion = OPERATOR_VERSION
+    doLast {
+        def tags = [
+            "ghcr.io/us-ignite/thingworx/thingworx-operator:${localVersion}",
+            'ghcr.io/us-ignite/thingworx/thingworx-operator:latest',
+        ]
+        tags.each { tag ->
+            println "Pushing ${tag}..."
+            def proc = new ProcessBuilder('docker', 'push', tag).inheritIO().start()
+            if (proc.waitFor() != 0) throw new GradleException("docker push failed for ${tag}")
+        }
+    }
+}

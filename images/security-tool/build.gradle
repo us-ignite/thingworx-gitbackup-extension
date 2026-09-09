@@ -1,0 +1,219 @@
+plugins {
+    id 'com.diffplug.spotless' version '7.0.2' apply false
+}
+
+def ALL_TWX = [
+    '9.6': [
+        securityDockerFiles: 'MED-61282-CD-096_9-6-9_Security-Management-Tool-DockerFiles-1-7-2-309.gz',
+        baseImage: 'ubuntu:22.04',
+        securityToolArchive: 'security-common-cli-1.7.2.309.tar.gz',
+        templateProcessorArchive: 'template-processor-13.0.1.51-application.tar.gz',
+    ],
+    '9.7': [
+        securityDockerFiles: 'MED-61282-CD-097_9-7-3_Security-Management-Tool-DockerFiles-1-6-1-217.gz',
+        baseImage: 'ubuntu:22.04',
+        securityToolArchive: 'security-common-cli-1.6.1.217.tar.gz',
+        templateProcessorArchive: 'template-processor-12.4.0.34-application.tar.gz',
+    ],
+    '10.0': [
+        securityDockerFiles: 'MED-61282-CD-100_10-0-4_Security-Management-Tool-DockerFiles-1-7-2-309.gz',
+        baseImage: 'ubuntu:22.04',
+        securityToolArchive: 'security-common-cli-1.7.2.309.tar.gz',
+        templateProcessorArchive: 'template-processor-13.0.1.51-application.tar.gz',
+    ],
+    '10.1': [
+        securityDockerFiles: 'MED-61282-CD-101_10-1-2_Security-Management-Tool-DockerFiles-1-7-2-309.gz',
+        baseImage: 'ubuntu:24.04',
+        securityToolArchive: 'security-common-cli-1.7.2.309.tar.gz',
+        templateProcessorArchive: 'template-processor-13.0.1.51-application.tar.gz',
+    ],
+]
+
+def IMG_BUILD_DIR = "${projectDir}/../build"
+def IMG_VENDOR_ARCHIVE = "${rootDir}/vendor/twx-resources.tar.gz.gpg"
+
+def jdkCorretto11 = 'corretto-11-x64-linux-jdk.tar.gz'
+def jdkCorretto21 = 'amazon-corretto-21.0.2.13.1-linux-x64.tar.gz'
+
+tasks.register('decryptVendor') {
+    description = 'Decrypt and extract vendor security-tool DockerFiles for all TW versions'
+    group = 'images'
+    def localBuildDir = new File(IMG_BUILD_DIR).canonicalPath
+    def localArchive = IMG_VENDOR_ARCHIVE
+    def localTwx = ALL_TWX
+    doLast {
+        def passphrase = System.getenv('GPG_PASSPHRASE') ?: ''
+        localTwx.each { twxVersion, cfg ->
+            def dest = new File("${localBuildDir}/vendor-extracted/security-tool/${twxVersion}")
+            if (dest.listFiles()?.any { it.name == 'dockerfiles' }) {
+                println "Security-tool DockerFiles for ${twxVersion} already extracted"
+                return
+            }
+            dest.mkdirs()
+            println "Extracting security-tool DockerFiles for TW ${twxVersion}..."
+            def cmd = "gpg --decrypt --batch --passphrase '${passphrase}' '${localArchive}' 2>/dev/null | tar xzf - './${cfg.securityDockerFiles}' && gunzip -c '${cfg.securityDockerFiles}' | tar x && rm -f '${cfg.securityDockerFiles}'"
+            def proc = new ProcessBuilder('bash', '-c', cmd).directory(dest).inheritIO().start()
+            if (proc.waitFor() != 0) throw new GradleException("Failed to extract security-tool DockerFiles for TW ${twxVersion} - check GPG_PASSPHRASE and vendor archive")
+        }
+    }
+}
+
+tasks.register('fetchJdk') {
+    description = 'Fetch Corretto JDK for all TW versions into security-tool staging'
+    group = 'images'
+    dependsOn 'decryptVendor'
+    def localBuildDir = new File(IMG_BUILD_DIR).canonicalPath
+    def localArchive = IMG_VENDOR_ARCHIVE
+    def localTwx = ALL_TWX
+    doLast {
+        localTwx.each { twxVersion, cfg ->
+            def archiveName = twxVersion == '9.6' ? jdkCorretto11 : jdkCorretto21
+            def stage = new File("${localBuildDir}/vendor-extracted/security-tool/${twxVersion}/staging")
+            def jdkFile = new File(stage, archiveName)
+            if (jdkFile.exists()) {
+                println "JDK for security-tool ${twxVersion} already present"
+                return
+            }
+            stage.mkdirs()
+            def url = twxVersion == '9.6'
+                ? 'https://corretto.aws/downloads/latest/amazon-corretto-11-x64-linux-jdk.tar.gz'
+                : 'https://corretto.aws/downloads/latest/amazon-corretto-21-x64-linux-jdk.tar.gz'
+            println "Downloading JDK for security-tool TW ${twxVersion}: ${url}"
+            def proc = new ProcessBuilder('curl', '-fsSL', '-o', jdkFile.absolutePath, url).inheritIO().start()
+            if (proc.waitFor() != 0) throw new GradleException("curl failed for ${url}")
+        }
+    }
+}
+
+tasks.register('fetchTemplateProcessor') {
+    description = 'Copy template-processor archive into security-tool staging'
+    group = 'images'
+    dependsOn 'decryptVendor'
+    def localBuildDir = new File(IMG_BUILD_DIR).canonicalPath
+    def localArchive = IMG_VENDOR_ARCHIVE
+    def localTwx = ALL_TWX
+    doLast {
+        localTwx.each { twxVersion, cfg ->
+            def stage = new File("${localBuildDir}/vendor-extracted/security-tool/${twxVersion}/staging")
+            def dest = new File(stage, cfg.templateProcessorArchive)
+            if (dest.exists()) return
+            stage.mkdirs()
+            def platformStage = new File("${localBuildDir}/vendor-extracted/platform/${twxVersion}/staging")
+            def src = new File(platformStage, cfg.templateProcessorArchive)
+            if (src.exists()) {
+                def cp = new ProcessBuilder('cp', src.absolutePath, dest.absolutePath).inheritIO().start()
+                if (cp.waitFor() != 0) throw new GradleException("cp failed")
+            } else {
+                def passphrase = System.getenv('GPG_PASSPHRASE') ?: ''
+                def cmd = "gpg --decrypt --batch --passphrase '${passphrase}' '${localArchive}' 2>/dev/null | tar xzf - './${cfg.templateProcessorArchive}'"
+                def proc = new ProcessBuilder('bash', '-c', cmd).directory(stage).inheritIO().start()
+                if (proc.waitFor() != 0) {
+                    // already staged via decryptVendor
+                    return
+                }
+            }
+        }
+    }
+}
+
+tasks.register('fetchSecurityTool') {
+    description = 'Copy security-tool archive into staging'
+    group = 'images'
+    dependsOn 'decryptVendor'
+    def localBuildDir = new File(IMG_BUILD_DIR).canonicalPath
+    def localArchive = IMG_VENDOR_ARCHIVE
+    def localTwx = ALL_TWX
+    doLast {
+        localTwx.each { twxVersion, cfg ->
+            def stage = new File("${localBuildDir}/vendor-extracted/security-tool/${twxVersion}/staging")
+            def dest = new File(stage, cfg.securityToolArchive)
+            if (dest.exists()) return
+            stage.mkdirs()
+            def passphrase = System.getenv('GPG_PASSPHRASE') ?: ''
+            def cmd = "gpg --decrypt --batch --passphrase '${passphrase}' '${localArchive}' 2>/dev/null | tar xzf - './${cfg.securityToolArchive}'"
+            def proc = new ProcessBuilder('bash', '-c', cmd).directory(stage).inheritIO().start()
+            if (proc.waitFor() != 0) {
+                // staging already populated via decryptVendor (archive contains staging folder), so skip
+                return
+            }
+        }
+    }
+}
+
+tasks.register('stageAll') {
+    description = 'Stage all dependencies for security-tool builds'
+    group = 'images'
+    dependsOn 'fetchJdk', 'fetchTemplateProcessor', 'fetchSecurityTool'
+}
+
+ALL_TWX.each { twxVersion, cfg ->
+    def capturedVer = twxVersion
+    def capturedCfg = cfg
+    def localBuildDir = new File(IMG_BUILD_DIR).canonicalPath
+
+    tasks.register("buildSecurityTool_${capturedVer}") {
+        description = "Build security-tool image for TW ${capturedVer}"
+        group = 'images'
+        dependsOn 'stageAll'
+        doLast {
+            def jdkArchive = capturedVer == '9.6' ? jdkCorretto11 : jdkCorretto21
+            def workDir = new File("${localBuildDir}/vendor-extracted/security-tool/${capturedVer}")
+            def dockerDir = new File("${localBuildDir}/docker-context/security-tool/${capturedVer}")
+            def stage = new File("${localBuildDir}/vendor-extracted/security-tool/${capturedVer}/staging")
+            dockerDir.mkdirs()
+            def cp1 = new ProcessBuilder('cp', '-r', "${workDir}/dockerfiles/security-tool/imageFiles", dockerDir.absolutePath).inheritIO().start()
+            if (cp1.waitFor() != 0) throw new GradleException("cp failed")
+            def cp2 = new ProcessBuilder('cp', '-r', "${stage}", dockerDir.absolutePath).inheritIO().start()
+            if (cp2.waitFor() != 0) throw new GradleException("cp failed")
+            def versionTag = capturedCfg.baseImage == 'ubuntu:24.04' ? "${capturedVer}.2" : "${capturedVer}.9"
+            println "Building security-tool for TW ${capturedVer}..."
+            def proc = new ProcessBuilder('docker', 'build',
+                '--progress=plain', '--pull=false', '--network=host',
+                '--build-arg', "BASE_IMAGE=${capturedCfg.baseImage}",
+                '--build-arg', "JAVA_ARCHIVE=${jdkArchive}",
+                '--build-arg', "SECURITY_TOOL_ARCHIVE=${capturedCfg.securityToolArchive}",
+                '--build-arg', "TEMPLATE_PROCESSOR_ARCHIVE=${capturedCfg.templateProcessorArchive}",
+                '-t', "ghcr.io/us-ignite/thingworx/security-tool:${versionTag}",
+                '-t', "ghcr.io/us-ignite/thingworx/security-tool:latest",
+                '-f', "${workDir}/dockerfiles/security-tool/Dockerfile",
+                dockerDir.absolutePath
+            ).redirectErrorStream(true).start()
+            proc.inputStream.eachLine { line -> println "  [docker] ${line}" }
+            if (proc.waitFor() != 0) throw new GradleException("docker build failed for security-tool ${capturedVer}")
+        }
+    }
+}
+
+tasks.register('buildAll') {
+    description = 'Build security-tool images for all TW versions'
+    group = 'images'
+    dependsOn ALL_TWX.keySet().collect { twxVersion -> "buildSecurityTool_${twxVersion}" }
+}
+
+tasks.register('pushAll') {
+    description = 'Push all security-tool images to ghcr.io'
+    group = 'publishing'
+    dependsOn 'buildAll'
+    def localTwx = ALL_TWX
+    doLast {
+        localTwx.each { twxVersion, cfg ->
+            def versionTag = cfg.baseImage == 'ubuntu:24.04' ? "${twxVersion}.2" : "${twxVersion}.9"
+            def p = new ProcessBuilder('docker', 'push', "ghcr.io/us-ignite/thingworx/security-tool:${versionTag}").inheritIO().start()
+            if (p.waitFor() != 0) throw new GradleException("docker push failed")
+        }
+        def p = new ProcessBuilder('docker', 'push', 'ghcr.io/us-ignite/thingworx/security-tool:latest').inheritIO().start()
+        if (p.waitFor() != 0) throw new GradleException("docker push failed")
+    }
+}
+
+tasks.register('cleanImages', Delete) {
+    description = 'Delete all extracted vendor files and build contexts'
+    group = 'cleanup'
+    delete file("${projectDir}/../build")
+}
+
+tasks.register('cleanVendor') {
+    description = 'Clean build outputs (alias for cleanImages)'
+    group = 'cleanup'
+    dependsOn 'cleanImages'
+}

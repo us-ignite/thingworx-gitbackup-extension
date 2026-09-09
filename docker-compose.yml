@@ -22,7 +22,7 @@ services:
       - pgdata:/var/lib/postgresql/data
 
   db-init:
-    image: devopscadit/postgresql-init-twx:platform9.6.3
+    image: ghcr.io/us-ignite/thingworx/postgres-init:10.1.2
     container_name: twx-db-init
     entrypoint: ["/bin/bash", "/scripts/db-init-wrapper.sh"]
     environment:
@@ -41,14 +41,13 @@ services:
       postgres:
         condition: service_healthy
     volumes:
-      - ./extensions/jgit/scripts/db-init-wrapper.sh:/scripts/db-init-wrapper.sh:ro
+      - ./apps/thingworx-jgit-extension/scripts/db-init-wrapper.sh:/scripts/db-init-wrapper.sh:ro
 
   thingworx:
-    image: devopscadit/platform-postgres:platform9.6.3
+    image: ghcr.io/us-ignite/thingworx/platform-postgres:10.1.2-openjdk
     container_name: twx-platform
     ports:
       - "8080:8080"
-    entrypoint: ["sh", "-c", "rm -rf /opt/jdk && ln -sf /mnt/jdk21 /opt/jdk && exec /docker-entrypoint.sh run"]
     environment:
       DATABASE_HOST: postgresql
       DATABASE_PORT: "5432"
@@ -80,8 +79,7 @@ services:
       LS_PASSWORD: ${LS_PASSWORD:-}
       USE_TRIAL_LICENSE: "true"
     volumes:
-      - ./extensions/jgit/.cache/jdk21:/mnt/jdk21:ro
-      - ./extensions/jgit/vendor/license.bin:/opt/trial.bin:ro
+      - ./apps/thingworx-jgit-extension/vendor/license.bin:/opt/trial.bin:ro
     networks:
       twx-network:
         aliases:
@@ -133,7 +131,7 @@ services:
     networks:
       - twx-network
     volumes:
-      - ./extensions/jgit/scripts/gitea-init.sh:/scripts/gitea-init.sh:ro
+      - ./apps/thingworx-jgit-extension/scripts/gitea-init.sh:/scripts/gitea-init.sh:ro
       - gitea-data:/data
 
   extension-init:
@@ -152,8 +150,8 @@ services:
     networks:
       - twx-network
     volumes:
-      - ./extensions/jgit/scripts/install-extension.sh:/scripts/install-extension.sh:ro
-      - ./extensions/jgit/build/distributions:/distributions:ro
+      - ./apps/thingworx-jgit-extension/scripts/install-extension.sh:/scripts/install-extension.sh:ro
+      - ./apps/thingworx-jgit-extension/build/distributions:/distributions:ro
 
 networks:
   twx-network:

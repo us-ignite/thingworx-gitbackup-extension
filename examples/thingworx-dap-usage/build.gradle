@@ -1,0 +1,89 @@
+plugins {
+    id 'java'
+    id 'eclipse'
+    id 'com.diffplug.spotless'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+sourceSets {
+    main {
+        java.srcDirs = ['src']
+    }
+}
+
+def twxVersion = project.findProperty('twxVersion') ?: '9.6'
+def sdkZipNames = [
+    '9.6': 'MED-61098-CD-096_9-6-0_ThingWorx-Extension-SDK-9-6-0.zip',
+    '9.7': 'MED-61098-CD-097_9-7-0_ThingWorx-Extension-SDK-9-7-0.zip',
+    '10.0': 'MED-61098-CD-100_10-0-0_ThingWorx-Extension-SDK-10-0-0.zip',
+    '10.1': 'MED-61098-CD-101_10-1-0_ThingWorx-Extension-SDK-10-1-0.zip'
+]
+def sdkZipName = sdkZipNames[twxVersion]
+if (sdkZipName == null) {
+    throw new GradleException("Unknown twxVersion '${twxVersion}'. Valid values: ${sdkZipNames.keySet()}")
+}
+def sdkZip = file("${rootDir}/vendor/${sdkZipName}")
+def sdkExtractDir = file("${buildDir}/sdk-${twxVersion}")
+
+tasks.register('unpackSdk', Copy) {
+    from zipTree(sdkZip)
+    into sdkExtractDir
+    exclude '**/thingworx-javadocs*'
+    exclude 'Common/'
+}
+
+dependencies {
+    implementation project(':libraries:thingworx-dap-runtime')
+    implementation project(':libraries:thingworx-dap')
+    compileOnly fileTree(dir: sdkExtractDir, include: '*.jar')
+    annotationProcessor project(':libraries:thingworx-dap')
+}
+
+def dapExampleOutputDir = file("${buildDir}/generated/dap-example")
+def localDapExampleOutputDirCC = dapExampleOutputDir
+def localDapAPCC = configurations.annotationProcessor
+tasks.named('compileJava') {
+    dependsOn tasks.named('unpackSdk')
+    def localOutputDir = localDapExampleOutputDirCC
+    def localAP = localDapAPCC
+    outputs.dir localOutputDir
+    doFirst {
+        def directory = new File(localOutputDir.absolutePath)
+        if (directory.exists()) directory.deleteDir()
+    }
+    options.annotationProcessorPath = localAP
+    options.compilerArgs += [
+        "-Adap.output=${localOutputDir.absolutePath}",
+        '-Adap.packageVersion=1.0.0',
+        '-Adap.minimumThingWorxVersion=9.6.0'
+    ]
+}
+
+tasks.register('verifyDapExample') {
+    description = 'Compile the DAP example and verify its generated ThingWorx XML'
+    group = 'verification'
+    dependsOn tasks.named('compileJava')
+    def localOutputDir = dapExampleOutputDir
+    doLast {
+        def shape = new XmlSlurper().parse(new File("${localOutputDir}/DataShapes/GIT.ExampleCommit.DataShape.xml")).DataShapes.DataShape
+        assert shape.@name.text() == 'GIT.ExampleCommit.DataShape'
+        assert shape.FieldDefinitions.FieldDefinition*.@name*.text() == ['CommitID', 'Message']
+        def wrapper = new XmlSlurper().parse(new File("${localOutputDir}/DataShapes/GIT.ExampleCommit.ServiceResult.DataShape.xml")).DataShapes.DataShape
+        assert wrapper.FieldDefinitions.FieldDefinition.find { it.@name.text() == 'Result' }.@'aspect.dataShape'.text() == 'GIT.ExampleCommit.DataShape'
+    }
+}
+
+spotless {
+    java {
+        target 'src/**/*.java'
+        googleJavaFormat().aosp()
+        removeUnusedImports()
+        trimTrailingWhitespace()
+        endWithNewline()
+    }
+    groovyGradle { target 'build.gradle' }
+}

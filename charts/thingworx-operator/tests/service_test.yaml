@@ -1,0 +1,24 @@
+suite: thingworx-operator metrics service
+templates:
+  - service.yaml
+tests:
+  - it: exposes the named operator HTTP port
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.type
+          value: ClusterIP
+      - equal:
+          path: spec.ports[0].port
+          value: 8080
+      - equal:
+          path: spec.ports[0].targetPort
+          value: http
+
+  - it: can be disabled
+    set:
+      service.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
