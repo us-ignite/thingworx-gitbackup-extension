@@ -1,0 +1,200 @@
+name: Publish Images
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Force publish even without diff detection.
+        required: false
+        default: false
+        type: boolean
+      image:
+        description: Which image family to publish.
+        required: false
+        default: all
+        type: choice
+        options: [all, thingworx-operator, platform, security-tool, connection-server]
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      operator: ${{ steps.detect.outputs.operator }}
+      platform: ${{ steps.detect.outputs.platform }}
+      security_tool: ${{ steps.detect.outputs.security_tool }}
+      connection_server: ${{ steps.detect.outputs.connection_server }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.publish }}" = "true" ]; then
+            sel="${{ inputs.image }}"
+            case "$sel" in
+              all) echo 'operator=true' >> "$GITHUB_OUTPUT"; echo 'platform=true' >> "$GITHUB_OUTPUT"; echo 'security_tool=true' >> "$GITHUB_OUTPUT"; echo 'connection_server=true' >> "$GITHUB_OUTPUT" ;;
+              thingworx-operator) echo 'operator=true' >> "$GITHUB_OUTPUT"; echo 'platform=false' >> "$GITHUB_OUTPUT"; echo 'security_tool=false' >> "$GITHUB_OUTPUT"; echo 'connection_server=false' >> "$GITHUB_OUTPUT" ;;
+              platform) echo 'operator=false' >> "$GITHUB_OUTPUT"; echo 'platform=true' >> "$GITHUB_OUTPUT"; echo 'security_tool=false' >> "$GITHUB_OUTPUT"; echo 'connection_server=false' >> "$GITHUB_OUTPUT" ;;
+              security-tool) echo 'operator=false' >> "$GITHUB_OUTPUT"; echo 'platform=false' >> "$GITHUB_OUTPUT"; echo 'security_tool=true' >> "$GITHUB_OUTPUT"; echo 'connection_server=false' >> "$GITHUB_OUTPUT" ;;
+              connection-server) echo 'operator=false' >> "$GITHUB_OUTPUT"; echo 'platform=false' >> "$GITHUB_OUTPUT"; echo 'security_tool=false' >> "$GITHUB_OUTPUT"; echo 'connection_server=true' >> "$GITHUB_OUTPUT" ;;
+            esac
+            exit 0
+          fi
+
+          if [ "${{ github.event_name }}" != "push" ]; then
+            echo 'operator=false' >> "$GITHUB_OUTPUT"
+            echo 'platform=false' >> "$GITHUB_OUTPUT"
+            echo 'security_tool=false' >> "$GITHUB_OUTPUT"
+            echo 'connection_server=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          diff="$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" || true)"
+          echo "$diff"
+
+          if echo "$diff" | grep -Eq '^(apps/thingworx-operator/\.version|charts/thingworx-operator/\.version|charts/thingworx-operator/Chart\.yaml|apps/thingworx-operator/|images/thingworx-operator/)'; then
+            echo 'operator=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'operator=false' >> "$GITHUB_OUTPUT"
+          fi
+
+          if echo "$diff" | grep -Eq '^(images/platform/|vendor/(MED-61268|MED-61111).*|images/build/vendor-extracted/platform/)'; then
+            echo 'platform=true' >> "$GITHUB_OUTPUT"
+          elif echo "$diff" | grep -Eq '^(vendor/|images/platform/build\.gradle)'; then
+            echo 'platform=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'platform=false' >> "$GITHUB_OUTPUT"
+          fi
+
+          if echo "$diff" | grep -Eq '^(images/security-tool/|vendor/MED-61282)'; then
+            echo 'security_tool=true' >> "$GITHUB_OUTPUT"
+          elif echo "$diff" | grep -Eq '^(vendor/|images/security-tool/build\.gradle)'; then
+            echo 'security_tool=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'security_tool=false' >> "$GITHUB_OUTPUT"
+          fi
+
+          if echo "$diff" | grep -Eq '^(images/connection-server/|vendor/MED-61352)'; then
+            echo 'connection_server=true' >> "$GITHUB_OUTPUT"
+          elif echo "$diff" | grep -Eq '^(vendor/|images/connection-server/build\.gradle)'; then
+            echo 'connection_server=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'connection_server=false' >> "$GITHUB_OUTPUT"
+          fi
+
+          # Fallback: vendor tarball re-encrypted triggers all vendor images
+          if echo "$diff" | grep -Eq '^vendor/twx-resources\.tar\.gz\.gpg$'; then
+            echo 'platform=true' >> "$GITHUB_OUTPUT"
+            echo 'security_tool=true' >> "$GITHUB_OUTPUT"
+            echo 'connection_server=true' >> "$GITHUB_OUTPUT"
+          fi
+
+  publish-operator:
+    if: github.ref == 'refs/heads/main' && needs.changes.outputs.operator == 'true'
+    needs: changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: corretto
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Verify operator version
+        run: ./gradlew verifyVersions --console=plain
+      - name: Build operator image
+        run: ./gradlew :images:thingworx-operator:buildImage --console=plain
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Push operator image
+        run: ./gradlew :images:thingworx-operator:pushImage --console=plain
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create and push release tag
+        shell: bash
+        run: |
+          VERSION=$(tr -d '[:space:]' < apps/thingworx-operator/.version)
+          TAG="operator-v${VERSION}"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if ! git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            git tag --annotate "$TAG" "$GITHUB_SHA" --message "ThingWorx Operator $VERSION"
+            git push origin "$TAG"
+          fi
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+
+  publish-platform:
+    if: github.ref == 'refs/heads/main' && needs.changes.outputs.platform == 'true'
+    needs: changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: corretto
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Build platform images (ALL_TWX × ALL_VARIANTS)
+        run: ./gradlew :images:platform:buildAll --console=plain
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+      - name: Push platform images
+        run: ./gradlew :images:platform:pushAll --console=plain
+
+  publish-security-tool:
+    if: github.ref == 'refs/heads/main' && needs.changes.outputs.security_tool == 'true'
+    needs: changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: corretto
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Build security-tool images
+        run: ./gradlew :images:security-tool:buildAll --console=plain
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+      - name: Push security-tool images
+        run: ./gradlew :images:security-tool:pushAll --console=plain
+
+  publish-connection-server:
+    if: github.ref == 'refs/heads/main' && needs.changes.outputs.connection_server == 'true'
+    needs: changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: corretto
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Build connection-server images
+        run: ./gradlew :images:connection-server:buildAll --console=plain
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+      - name: Push connection-server images
+        run: ./gradlew :images:connection-server:pushAll --console=plain

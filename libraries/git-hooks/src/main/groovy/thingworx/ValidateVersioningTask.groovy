@@ -66,13 +66,14 @@ abstract class ValidateVersioningTask extends DefaultTask {
             diffProc.waitFor()
             paths = diffOut.toString().trim().split('\n').findAll { it }
 
-            boolean jgit = false, dap = false
+            boolean jgit = false, dap = false, operator = false
             for (p in paths) {
-                if (p in ['apps/thingworx-jgit-extension/.version','extensions/jgit/.version','libraries/thingworx-dap/.version','libraries/thingworx-dap-runtime/.version']) continue
+                if (p in ['apps/thingworx-jgit-extension/.version','extensions/jgit/.version','libraries/thingworx-dap/.version','libraries/thingworx-dap-runtime/.version','apps/thingworx-operator/.version','charts/thingworx-operator/.version']) continue
                 else if (p.startsWith('apps/thingworx-jgit-extension/') || p.startsWith('extensions/jgit/')) jgit = true
                 else if (p.startsWith('libraries/thingworx-dap/') || p.startsWith('libraries/thingworx-dap-runtime/')) dap = true
+                else if (p.startsWith('apps/thingworx-operator/') || p.startsWith('charts/thingworx-operator/') || p.startsWith('images/thingworx-operator/')) operator = true
             }
-            if (!jgit && !dap) continue
+            if (!jgit && !dap && !operator) continue
             if (!(header ==~ conventionalHeader)) throw new GradleException("$commit has component changes but an invalid Conventional Commit header: $header")
             String bump = 'none'
             if ((header =~ /!:/) || (message =~ /(?m)^BREAKING[ \t-]+CHANGE:\s+/)) bump = 'major'
@@ -82,19 +83,25 @@ abstract class ValidateVersioningTask extends DefaultTask {
             List<String> targets = []
             if (jgit) targets << 'apps/thingworx-jgit-extension/.version'
             if (dap) targets.addAll(['libraries/thingworx-dap/.version','libraries/thingworx-dap-runtime/.version'])
+            if (operator) targets << 'apps/thingworx-operator/.version'
 
             for (target in targets) {
                 boolean changed = paths.contains(target)
                 String legacy = 'extensions/jgit/.version'
+                String chartVersion = 'charts/thingworx-operator/.version'
                 if (target == 'apps/thingworx-jgit-extension/.version' && paths.contains(legacy)) changed = true
+                // operator: charts/.version co-varies with canonical
+                if (target == 'apps/thingworx-operator/.version' && paths.contains(chartVersion)) changed = true
 
                 boolean hasParentVersion = false
                 if (target == 'apps/thingworx-jgit-extension/.version') hasParentVersion = VersionUtils.hasJgitVersionAt(root, parent)
+                else if (target == 'apps/thingworx-operator/.version') hasParentVersion = VersionUtils.hasOperatorVersionAt(root, parent)
                 else hasParentVersion = VersionUtils.gitCatFileExists(root, "$parent:$target")
 
                 if (!hasParentVersion) {
                     if (!changed) throw new GradleException("$commit is missing bootstrap $target.")
                     String newVer = VersionUtils.gitShow(root, "$commit:$target") ?: (target == 'apps/thingworx-jgit-extension/.version' ? VersionUtils.gitShow(root, "$commit:$legacy") : null)
+                    if (newVer == null && target == 'apps/thingworx-operator/.version') newVer = VersionUtils.gitShow(root, "$commit:$chartVersion")
                     if (newVer == null) throw new GradleException("$commit is missing $target content.")
                     newVer = newVer.replaceAll(/\s+/, '')
                     String baseVer = VersionUtils.hasJgitVersionAt(root, parent) ? VersionUtils.resolveJgitVersionAt(root, parent) : VersionUtils.bootstrapVersion(target)
@@ -103,9 +110,19 @@ abstract class ValidateVersioningTask extends DefaultTask {
                     if (target == 'apps/thingworx-jgit-extension/.version') {
                         baseVer = VersionUtils.resolveJgitVersionAt(root, parent) ?: VersionUtils.bootstrapVersion(target)
                     }
+                    if (target == 'apps/thingworx-operator/.version') {
+                        baseVer = VersionUtils.resolveOperatorVersionAt(root, parent) ?: VersionUtils.bootstrapVersion(target)
+                    }
                     String expected = baseVer
                     if (bump != 'none') expected = VersionUtils.nextVersion(baseVer, bump)
                     if (newVer != expected) throw new GradleException("$commit bootstraps $target as $newVer; expected $expected.")
+                    // operator bootstrap must also have charts/.version in sync
+                    if (target == 'apps/thingworx-operator/.version' && bump != 'none' && !paths.contains(chartVersion)) {
+                        throw new GradleException("$commit is missing required $chartVersion update (must mirror canonical).")
+                    }
+                    if (target == 'apps/thingworx-operator/.version' && bump == 'none' && paths.contains(chartVersion)) {
+                        throw new GradleException("$commit changes $chartVersion for a non-releasing type.")
+                    }
                     continue
                 }
 
@@ -118,17 +135,39 @@ abstract class ValidateVersioningTask extends DefaultTask {
                         if (old != null) old = old.replaceAll(/\s+/, '')
                         if (newVer == old) isRenameOnly = true
                     }
+                    if (target == 'apps/thingworx-operator/.version' && changed) {
+                        String old = VersionUtils.resolveOperatorVersionAt(root, parent)
+                        String newVer = VersionUtils.gitShow(root, "$commit:$target") ?: VersionUtils.gitShow(root, "$commit:$chartVersion")
+                        if (newVer != null) newVer = newVer.replaceAll(/\s+/, '')
+                        if (old != null) old = old.replaceAll(/\s+/, '')
+                        if (newVer == old) isRenameOnly = true
+                    }
                     if (isRenameOnly) continue
                     if (changed) throw new GradleException("$commit changes $target for a non-releasing type.")
+                    // charts/.version must not diverge on operator non-releasing
+                    if (target == 'apps/thingworx-operator/.version' && paths.contains(chartVersion)) {
+                        throw new GradleException("$commit changes $chartVersion for a non-releasing type.")
+                    }
                 } else {
                     if (!changed) throw new GradleException("$commit is missing required $target update.")
                     String old = VersionUtils.resolveJgitVersionAt(root, parent)
                     if (target != 'apps/thingworx-jgit-extension/.version') old = VersionUtils.gitShow(root, "$parent:$target")?.replaceAll(/\s+/, '')
                     else old = old?.replaceAll(/\s+/, '')
+                    if (target == 'apps/thingworx-operator/.version') {
+                        old = VersionUtils.resolveOperatorVersionAt(root, parent)?.replaceAll(/\s+/, '')
+                    }
                     String newVer = VersionUtils.gitShow(root, "$commit:$target") ?: (target == 'apps/thingworx-jgit-extension/.version' ? VersionUtils.gitShow(root, "$commit:$legacy") : null)
+                    if (newVer == null && target == 'apps/thingworx-operator/.version') newVer = VersionUtils.gitShow(root, "$commit:$chartVersion")
                     newVer = newVer?.replaceAll(/\s+/, '')
                     String expected = VersionUtils.nextVersion(old, bump)
                     if (newVer != expected) throw new GradleException("$commit has $target=$newVer; expected $expected.")
+                    if (target == 'apps/thingworx-operator/.version' && !paths.contains(chartVersion)) {
+                        throw new GradleException("$commit is missing required $chartVersion update (must mirror canonical).")
+                    }
+                    if (target == 'apps/thingworx-operator/.version') {
+                        String chartVer = VersionUtils.gitShow(root, "$commit:$chartVersion")?.replaceAll(/\s+/, '')
+                        if (chartVer != expected) throw new GradleException("$commit has $chartVersion=$chartVer; expected $expected.")
+                    }
                 }
             }
             if (dap) {

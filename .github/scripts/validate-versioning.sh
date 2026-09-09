@@ -28,6 +28,7 @@ bootstrap_version() {
   case "$1" in
     apps/thingworx-jgit-extension/.version|extensions/jgit/.version) printf '6.0.6' ;;
     libraries/thingworx-dap/.version|libraries/thingworx-dap-runtime/.version) printf '0.1.0' ;;
+    apps/thingworx-operator/.version|charts/thingworx-operator/.version) printf '0.1.0' ;;
     *) fail "no bootstrap version is defined for $1" ;;
   esac
 }
@@ -51,11 +52,34 @@ has_jgit_version_at() {
     || git cat-file -e "$1:.version" 2>/dev/null
 }
 
+resolve_operator_version_at() {
+  local ref=$1
+  if git cat-file -e "$ref:apps/thingworx-operator/.version" 2>/dev/null; then
+    git show "$ref:apps/thingworx-operator/.version" | tr -d '[:space:]'
+  elif git cat-file -e "$ref:charts/thingworx-operator/.version" 2>/dev/null; then
+    git show "$ref:charts/thingworx-operator/.version" | tr -d '[:space:]'
+  else
+    return 1
+  fi
+}
+
+has_operator_version_at() {
+  git cat-file -e "$1:apps/thingworx-operator/.version" 2>/dev/null \
+    || git cat-file -e "$1:charts/thingworx-operator/.version" 2>/dev/null
+}
+
 baseline_version() {
   case "$1" in
     apps/thingworx-jgit-extension/.version|extensions/jgit/.version)
       if resolve_jgit_version_at "$parent" >/dev/null; then
         resolve_jgit_version_at "$parent"
+      else
+        bootstrap_version "$1"
+      fi
+      ;;
+    apps/thingworx-operator/.version|charts/thingworx-operator/.version)
+      if resolve_operator_version_at "$parent" >/dev/null; then
+        resolve_operator_version_at "$parent"
       else
         bootstrap_version "$1"
       fi
@@ -70,24 +94,26 @@ for commit in "${commits[@]}"; do
   header=$(git log -1 --format=%s "$commit")
   message=$(git log -1 --format=%B "$commit")
   mapfile -t paths < <(git diff-tree --no-commit-id --name-only -r "$parent" "$commit")
-  jgit=false; dap=false
+  jgit=false; dap=false; operator=false
   for path in "${paths[@]}"; do
     case "$path" in
-      apps/thingworx-jgit-extension/.version|extensions/jgit/.version|libraries/thingworx-dap/.version|libraries/thingworx-dap-runtime/.version) ;;
+      apps/thingworx-jgit-extension/.version|extensions/jgit/.version|libraries/thingworx-dap/.version|libraries/thingworx-dap-runtime/.version|apps/thingworx-operator/.version|charts/thingworx-operator/.version) ;;
       apps/thingworx-jgit-extension/*|extensions/jgit/*) jgit=true ;;
       libraries/thingworx-dap/*|libraries/thingworx-dap-runtime/*) dap=true ;;
+      apps/thingworx-operator/*|charts/thingworx-operator/*|images/thingworx-operator/*) operator=true ;;
     esac
   done
-  $jgit || $dap || continue
+  $jgit || $dap || $operator || continue
   [[ $header =~ $conventional_header ]] || fail "$commit has component changes but an invalid Conventional Commit header: $header"
   bump=none
   if [[ $header =~ !: ]] || grep -qE '^BREAKING([[:space:]-])CHANGE:[[:space:]]+' <<<"$message"; then bump=major
   elif [[ $header =~ $feat_header ]]; then bump=minor
   elif [[ $header =~ $patch_header ]]; then bump=patch; fi
-  targets=(); $jgit && targets+=(apps/thingworx-jgit-extension/.version); $dap && targets+=(libraries/thingworx-dap/.version libraries/thingworx-dap-runtime/.version)
+  targets=(); $jgit && targets+=(apps/thingworx-jgit-extension/.version); $dap && targets+=(libraries/thingworx-dap/.version libraries/thingworx-dap-runtime/.version); $operator && targets+=(apps/thingworx-operator/.version)
   for target in "${targets[@]}"; do
     changed=false
     legacy="extensions/jgit/.version"
+    chartVersion="charts/thingworx-operator/.version"
     for path in "${paths[@]}"; do [[ $path == "$target" ]] && changed=true; done
     # For jgit, also consider legacy path renames as change
     if [[ $target == "apps/thingworx-jgit-extension/.version" ]]; then
@@ -95,10 +121,15 @@ for commit in "${commits[@]}"; do
       # If target is new path but only legacy changed (rename), treat as changed
       # Need to handle first commit after refactor where file moved
     fi
-    # Determine if parent had any jgit version (new, legacy, or root)
+    if [[ $target == "apps/thingworx-operator/.version" ]]; then
+      for path in "${paths[@]}"; do [[ $path == "$chartVersion" ]] && changed=true; done
+    fi
+    # Determine if parent had any version (new, legacy, or root)
     has_parent_version=false
     if [[ $target == "apps/thingworx-jgit-extension/.version" ]]; then
       has_jgit_version_at "$parent" && has_parent_version=true
+    elif [[ $target == "apps/thingworx-operator/.version" ]]; then
+      has_operator_version_at "$parent" && has_parent_version=true
     else
       git cat-file -e "$parent:$target" 2>/dev/null && has_parent_version=true
     fi
@@ -110,6 +141,8 @@ for commit in "${commits[@]}"; do
         new=$(git show "$commit:$target" | tr -d '[:space:]')
       elif [[ $target == "apps/thingworx-jgit-extension/.version" ]] && git cat-file -e "$commit:$legacy" 2>/dev/null; then
         new=$(git show "$commit:$legacy" | tr -d '[:space:]')
+      elif [[ $target == "apps/thingworx-operator/.version" ]] && git cat-file -e "$commit:$chartVersion" 2>/dev/null; then
+        new=$(git show "$commit:$chartVersion" | tr -d '[:space:]')
       else
         fail "$commit is missing $target content."
       fi
@@ -117,6 +150,15 @@ for commit in "${commits[@]}"; do
       expected=$base
       [[ $bump == none ]] || expected=$(next_version "$base" "$bump")
       [[ $new == "$expected" ]] || fail "$commit bootstraps $target as $new; expected $expected."
+      if [[ $target == "apps/thingworx-operator/.version" ]]; then
+        # bootstrap must also mirror charts/.version
+        if [[ $bump != "none" ]] && ! printf '%s\n' "${paths[@]}" | grep -qx "$chartVersion"; then
+          fail "$commit is missing required $chartVersion update (must mirror canonical)."
+        fi
+        if [[ $bump == "none" ]] && printf '%s\n' "${paths[@]}" | grep -qx "$chartVersion"; then
+          fail "$commit changes $chartVersion for a non-releasing type."
+        fi
+      fi
       continue
     fi
     if [[ $bump == none ]]; then
@@ -136,18 +178,43 @@ for commit in "${commits[@]}"; do
           fi
         fi
       fi
+      if [[ $target == "apps/thingworx-operator/.version" ]] && $changed; then
+        old=$(resolve_operator_version_at "$parent" | tr -d '[:space:]' || true)
+        new=""
+        if git cat-file -e "$commit:$target" 2>/dev/null; then new=$(git show "$commit:$target" | tr -d '[:space:]')
+        elif git cat-file -e "$commit:$chartVersion" 2>/dev/null; then new=$(git show "$commit:$chartVersion" | tr -d '[:space:]'); fi
+        if [[ $new == "$old" ]]; then is_rename_only=true; fi
+      fi
       if $is_rename_only; then
         continue
       fi
       $changed && fail "$commit changes $target for a non-releasing type."
+      if [[ $target == "apps/thingworx-operator/.version" ]] && printf '%s\n' "${paths[@]}" | grep -qx "$chartVersion"; then
+        fail "$commit changes $chartVersion for a non-releasing type."
+      fi
     else
       $changed || fail "$commit is missing required $target update."
-      old=$(resolve_jgit_version_at "$parent" | tr -d '[:space:]')
+      old=""
+      if [[ $target == "apps/thingworx-jgit-extension/.version" ]]; then
+        old=$(resolve_jgit_version_at "$parent" | tr -d '[:space:]')
+      elif [[ $target == "apps/thingworx-operator/.version" ]]; then
+        old=$(resolve_operator_version_at "$parent" | tr -d '[:space:]')
+      else
+        old=$(git show "$parent:$target" | tr -d '[:space:]')
+      fi
       new=""
       if git cat-file -e "$commit:$target" 2>/dev/null; then new=$(git show "$commit:$target" | tr -d '[:space:]')
-      elif [[ $target == "apps/thingworx-jgit-extension/.version" ]] && git cat-file -e "$commit:$legacy" 2>/dev/null; then new=$(git show "$commit:$legacy" | tr -d '[:space:]'); fi
+      elif [[ $target == "apps/thingworx-jgit-extension/.version" ]] && git cat-file -e "$commit:$legacy" 2>/dev/null; then new=$(git show "$commit:$legacy" | tr -d '[:space:]')
+      elif [[ $target == "apps/thingworx-operator/.version" ]] && git cat-file -e "$commit:$chartVersion" 2>/dev/null; then new=$(git show "$commit:$chartVersion" | tr -d '[:space:]'); fi
       expected=$(next_version "$old" "$bump")
       [[ $new == "$expected" ]] || fail "$commit has $target=$new; expected $expected."
+      if [[ $target == "apps/thingworx-operator/.version" ]]; then
+        if ! printf '%s\n' "${paths[@]}" | grep -qx "$chartVersion"; then
+          fail "$commit is missing required $chartVersion update (must mirror canonical)."
+        fi
+        chartVer=$(git show "$commit:$chartVersion" | tr -d '[:space:]')
+        [[ $chartVer == "$expected" ]] || fail "$commit has $chartVersion=$chartVer; expected $expected."
+      fi
     fi
   done
   if $dap; then

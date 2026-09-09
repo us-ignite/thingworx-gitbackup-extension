@@ -1,0 +1,90 @@
+name: Publish Charts
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the committed chart version.
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      chart_version: ${{ steps.version.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - id: version
+        shell: bash
+        run: |
+          if { [ "${{ github.event_name }}" = "workflow_dispatch" ] \
+              && [ "${{ inputs.publish }}" = "true" ]; }; then
+            echo 'changed=true' >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "push" ] \
+              && git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" \
+                | grep -Eq '^(apps/thingworx-operator/\.version|charts/thingworx-operator/(\.version|Chart\.yaml))$'; then
+            echo 'changed=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
+          fi
+
+  publish:
+    if: github.ref == 'refs/heads/main' && needs.changes.outputs.chart_version == 'true'
+    needs: changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: corretto
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Verify operator version + chart
+        run: ./gradlew verifyVersions chartTest --console=plain
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+      - name: Package chart
+        shell: bash
+        run: |
+          VERSION=$(tr -d '[:space:]' < apps/thingworx-operator/.version)
+          helm package charts/thingworx-operator --version "$VERSION" --app-version "$VERSION" --destination /tmp/charts
+          ls -lh /tmp/charts
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "CHART_TGZ=/tmp/charts/thingworx-operator-${VERSION}.tgz" >> "$GITHUB_ENV"
+      - name: Upload chart artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: thingworx-operator-chart-${{ env.VERSION }}
+          path: /tmp/charts/*.tgz
+          if-no-files-found: error
+      - name: Create and push release tag
+        shell: bash
+        run: |
+          TAG="chart-v${VERSION}"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if ! git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            git tag --annotate "$TAG" "$GITHUB_SHA" --message "ThingWorx Operator Chart $VERSION"
+            git push origin "$TAG"
+          fi
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+      - name: Create GitHub Release
+        run: |
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" \
+              --title "$TAG" \
+              --generate-notes \
+              "$CHART_TGZ"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

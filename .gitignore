@@ -1,6 +1,8 @@
 # Gradle
 .gradle/
 build*/
+target/
+dependency-reduced-pom.xml
 public/
 site/
 issues/
@@ -46,3 +48,8 @@ handoff/
 
 # Node.js
 node_modules/
+
+# act (local GitHub Actions runner)
+act
+act_*.tar.gz
+/tmp/act/

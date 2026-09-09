@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  versioning:
+    name: Validate Conventional Commit versioning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Replay versioning policy
+        shell: bash
+        run: .github/scripts/validate-versioning.sh 'HEAD^..HEAD'
+
+  operator-consistency:
+    name: Verify operator version + chart
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: corretto
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Verify operator versions
+        run: ./gradlew verifyVersions --console=plain
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+      - name: Helm lint + chartTest
+        run: ./gradlew chartTest --console=plain
+      - name: Operator unit tests
+        run: ./gradlew :apps:thingworx-operator:check --console=plain
+
+  build:
+    name: Build (PR)
+    needs: [versioning, operator-consistency]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Configure git filters
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          git config filter.twx-resources.smudge '.gitfilters/twx-resources-smudge'
+          git config filter.twx-resources.clean '.gitfilters/twx-resources-clean'
+          git checkout HEAD -- apps/thingworx-jgit-extension/gradle.properties vendor/twx-resources.tar.gz.gpg || git checkout HEAD -- extensions/jgit/gradle.properties extensions/jgit/vendor/twx-resources.tar.gz.gpg
+          .gitfilters/twx-resources-smudge < vendor/twx-resources.tar.gz.gpg 2>/dev/null || .gitfilters/twx-resources-smudge < extensions/jgit/vendor/twx-resources.tar.gz.gpg > /dev/null
+      - uses: actions/setup-java@v5
+        with:
+          distribution: corretto
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Build all extension variants
+        run: ./gradlew :apps:thingworx-jgit-extension:buildAll
+      - name: Verify DAP + example
+        run: ./gradlew :libraries:thingworx-dap:check :examples:thingworx-dap-usage:verifyDapExample
+      - name: Upload extension artifacts (PR)
+        uses: actions/upload-artifact@v7
+        with:
+          name: JGitExtension-All
+          path: apps/thingworx-jgit-extension/build/distributions/
+          if-no-files-found: error

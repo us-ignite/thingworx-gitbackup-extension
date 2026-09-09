@@ -52,21 +52,27 @@ abstract class PrepareCommitMsgTask extends DefaultTask {
         List<String> staged = VersionUtils.stagedPaths(root)
         boolean jgitChanged = false
         boolean dapChanged = false
+        boolean operatorChanged = false
         for (p in staged) {
-            if (p in ['apps/thingworx-jgit-extension/.version','extensions/jgit/.version','libraries/thingworx-dap/.version','libraries/thingworx-dap-runtime/.version']) {
+            if (p in ['apps/thingworx-jgit-extension/.version','extensions/jgit/.version','libraries/thingworx-dap/.version','libraries/thingworx-dap-runtime/.version','apps/thingworx-operator/.version','charts/thingworx-operator/.version']) {
                 continue
             } else if (p.startsWith('apps/thingworx-jgit-extension/') || p.startsWith('extensions/jgit/')) {
                 jgitChanged = true
             } else if (p.startsWith('libraries/thingworx-dap/') || p.startsWith('libraries/thingworx-dap-runtime/')) {
                 dapChanged = true
+            } else if (p.startsWith('apps/thingworx-operator/') || p.startsWith('charts/thingworx-operator/') || p.startsWith('images/thingworx-operator/')) {
+                // images/thingworx-operator is.version-derived (OPERATOR_VERSION = file(.../.version) in images/.../build.gradle:5);
+                // docs/vendored images (platform/security-tool/connection-server) are pin-based (ALL_TWX) and exempt.
+                operatorChanged = true
             }
         }
 
         List<String> targets = []
         if (jgitChanged) targets << 'apps/thingworx-jgit-extension/.version'
         if (dapChanged) targets.addAll(['libraries/thingworx-dap/.version','libraries/thingworx-dap-runtime/.version'])
+        if (operatorChanged) targets << 'apps/thingworx-operator/.version'
 
-        List<String> allVersionFiles = ['apps/thingworx-jgit-extension/.version','extensions/jgit/.version','libraries/thingworx-dap/.version','libraries/thingworx-dap-runtime/.version']
+        List<String> allVersionFiles = ['apps/thingworx-jgit-extension/.version','extensions/jgit/.version','libraries/thingworx-dap/.version','libraries/thingworx-dap-runtime/.version','apps/thingworx-operator/.version','charts/thingworx-operator/.version']
         if (!targets.isEmpty() && !conventional) {
             throw new GradleException('versioning hook: component changes require a Conventional Commit header (for example: fix: repair clone handling).')
         }
@@ -108,15 +114,32 @@ abstract class PrepareCommitMsgTask extends DefaultTask {
         if (bump == 'none') {
             for (target in targets) {
                 boolean hasHead = VersionUtils.gitCatFileExists(root, "HEAD:$target") || VersionUtils.gitCatFileExists(root, "HEAD:extensions/jgit/.version")
+                // operator targets also check charts/.version as alternate source
+                if (target == 'apps/thingworx-operator/.version') {
+                    hasHead = hasHead || VersionUtils.gitCatFileExists(root, "HEAD:charts/thingworx-operator/.version")
+                }
                 if (hasHead) {
                     if (!VersionUtils.gitCatFileExists(root, "HEAD:$target")) {
                         // legacy exists but new not yet - rename transition, allow non-releasing without new file
+                        // for operator, charts/.version may be the legacy
+                        if (target == 'apps/thingworx-operator/.version' && VersionUtils.gitCatFileExists(root, "HEAD:charts/thingworx-operator/.version")) {
+                            // allow if staging the canonical from charts legacy
+                            continue
+                        }
                         continue
                     }
                     def proc = new ProcessBuilder(['git','diff','--cached','--quiet','--',target]).directory(root).start()
                     proc.waitFor()
                     if (proc.exitValue() != 0) {
                         throw new GradleException("$target must not change for a non-releasing commit type.")
+                    }
+                    // charts/.version must stay in sync with canonical; check it too for non-releasing
+                    if (target == 'apps/thingworx-operator/.version') {
+                        def chartProc = new ProcessBuilder(['git','diff','--cached','--quiet','--','charts/thingworx-operator/.version']).directory(root).start()
+                        chartProc.waitFor()
+                        if (chartProc.exitValue() != 0) {
+                            throw new GradleException("charts/thingworx-operator/.version must not change for a non-releasing commit type (keep in sync with canonical).")
+                        }
                     }
                 } else {
                     String stagedContent = VersionUtils.gitShow(root, ":$target")
@@ -137,6 +160,7 @@ abstract class PrepareCommitMsgTask extends DefaultTask {
         boolean needsRetry = false
         for (target in targets) {
             String legacy = 'extensions/jgit/.version'
+            String chartLegacy = 'charts/thingworx-operator/.version'
             boolean hasHead = false
             String current = null
             if (VersionUtils.gitCatFileExists(root, "HEAD:$target")) {
@@ -148,6 +172,9 @@ abstract class PrepareCommitMsgTask extends DefaultTask {
             } else if (target == 'apps/thingworx-jgit-extension/.version' && VersionUtils.gitCatFileExists(root, 'HEAD:.version')) {
                 hasHead = true
                 current = VersionUtils.gitShow(root, 'HEAD:.version')
+            } else if (target == 'apps/thingworx-operator/.version' && VersionUtils.gitCatFileExists(root, "HEAD:$chartLegacy")) {
+                hasHead = true
+                current = VersionUtils.gitShow(root, "HEAD:$chartLegacy")
             }
 
             if (!hasHead) {
@@ -164,9 +191,27 @@ abstract class PrepareCommitMsgTask extends DefaultTask {
                         f.setText(expected + '\n', 'UTF-8')
                         execGitAdd(root, target)
                         needsRetry = true
+                        // keep charts/.version in sync with canonical operator version
+                        if (target == 'apps/thingworx-operator/.version') {
+                            File cf = new File(root, 'charts/thingworx-operator/.version')
+                            cf.parentFile.mkdirs()
+                            cf.setText(expected + '\n', 'UTF-8')
+                            execGitAdd(root, 'charts/thingworx-operator/.version')
+                        }
                     }
                 } else {
                     logger.lifecycle("versioning hook: $target already staged at $expected")
+                    if (!isDryRun && target == 'apps/thingworx-operator/.version') {
+                        String chartStaged = VersionUtils.gitShow(root, ":charts/thingworx-operator/.version")
+                        chartStaged = chartStaged ? chartStaged.replaceAll(/\s+/, '') : ''
+                        if (chartStaged != expected) {
+                            File cf = new File(root, 'charts/thingworx-operator/.version')
+                            cf.parentFile.mkdirs()
+                            cf.setText(expected + '\n', 'UTF-8')
+                            execGitAdd(root, 'charts/thingworx-operator/.version')
+                            needsRetry = true
+                        }
+                    }
                 }
                 continue
             }
@@ -183,9 +228,26 @@ abstract class PrepareCommitMsgTask extends DefaultTask {
                     f.setText(proposed + '\n', 'UTF-8')
                     execGitAdd(root, target)
                     needsRetry = true
+                    if (target == 'apps/thingworx-operator/.version') {
+                        File cf = new File(root, 'charts/thingworx-operator/.version')
+                        cf.parentFile.mkdirs()
+                        cf.setText(proposed + '\n', 'UTF-8')
+                        execGitAdd(root, 'charts/thingworx-operator/.version')
+                    }
                 }
             } else {
                 logger.lifecycle("versioning hook: $target already staged at $proposed")
+                if (!isDryRun && target == 'apps/thingworx-operator/.version') {
+                    String chartStaged = VersionUtils.gitShow(root, ":charts/thingworx-operator/.version")
+                    chartStaged = chartStaged ? chartStaged.replaceAll(/\s+/, '') : ''
+                    if (chartStaged != proposed) {
+                        File cf = new File(root, 'charts/thingworx-operator/.version')
+                        cf.parentFile.mkdirs()
+                        cf.setText(proposed + '\n', 'UTF-8')
+                        execGitAdd(root, 'charts/thingworx-operator/.version')
+                        needsRetry = true
+                    }
+                }
             }
         }
 
@@ -243,6 +305,11 @@ abstract class PrepareCommitMsgTask extends DefaultTask {
         // for jgit variants, try HEAD apps, then extensions, then .version
         if (target in ['apps/thingworx-jgit-extension/.version','extensions/jgit/.version']) {
             String v = VersionUtils.resolveJgitVersionAt(root, 'HEAD')
+            if (v != null) return v
+            return VersionUtils.bootstrapVersion(target)
+        }
+        if (target in ['apps/thingworx-operator/.version','charts/thingworx-operator/.version']) {
+            String v = VersionUtils.resolveOperatorVersionAt(root, 'HEAD')
             if (v != null) return v
             return VersionUtils.bootstrapVersion(target)
         }

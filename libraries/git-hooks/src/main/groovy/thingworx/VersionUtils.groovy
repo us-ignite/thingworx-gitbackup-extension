@@ -28,6 +28,9 @@ class VersionUtils {
             case 'libraries/thingworx-dap/.version':
             case 'libraries/thingworx-dap-runtime/.version':
                 return '0.1.0'
+            case 'apps/thingworx-operator/.version':
+            case 'charts/thingworx-operator/.version':
+                return '0.1.0'
             default:
                 throw new GradleException("no bootstrap version is defined for $target")
         }
@@ -124,5 +127,22 @@ class VersionUtils {
 
     static boolean hasJgitVersionAt(File dir, String ref) {
         return resolveJgitVersionAt(dir, ref) != null
+    }
+
+    static String resolveOperatorVersionAt(File dir, String ref) {
+        def cands = [
+                "${ref}:apps/thingworx-operator/.version",
+                "${ref}:charts/thingworx-operator/.version",
+        ]
+        for (c in cands) {
+            if (gitCatFileExists(dir, c)) {
+                return gitShow(dir, c)
+            }
+        }
+        return null
+    }
+
+    static boolean hasOperatorVersionAt(File dir, String ref) {
+        return resolveOperatorVersionAt(dir, ref) != null
     }
 }

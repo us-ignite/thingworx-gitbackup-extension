@@ -1,6 +1,8 @@
-name: Build and Publish
+name: Publish Extensions
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       publish:
@@ -8,27 +10,8 @@ on:
         required: false
         default: false
         type: boolean
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
 
 jobs:
-  versioning:
-    name: Validate Conventional Commit versioning
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
-      - name: Replay versioning policy
-        shell: bash
-        run: |
-          # Validate only the commit that triggered this run. This avoids
-          # replaying older, already-pushed history when new work is added.
-          .github/scripts/validate-versioning.sh 'HEAD^..HEAD'
-
   changes:
     runs-on: ubuntu-latest
     outputs:
@@ -37,7 +20,6 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-
       - id: version
         name: Detect JGit version change
         shell: bash
@@ -53,13 +35,13 @@ jobs:
           fi
 
   build:
-    needs: versioning
+    if: needs.changes.outputs.jgit_version == 'true'
+    needs: changes
     permissions:
       contents: read
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-
       - name: Configure git filters
         env:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
@@ -68,18 +50,14 @@ jobs:
           git config filter.twx-resources.clean '.gitfilters/twx-resources-clean'
           git checkout HEAD -- apps/thingworx-jgit-extension/gradle.properties vendor/twx-resources.tar.gz.gpg || git checkout HEAD -- extensions/jgit/gradle.properties extensions/jgit/vendor/twx-resources.tar.gz.gpg
           .gitfilters/twx-resources-smudge < vendor/twx-resources.tar.gz.gpg 2>/dev/null || .gitfilters/twx-resources-smudge < extensions/jgit/vendor/twx-resources.tar.gz.gpg > /dev/null
-
       - uses: actions/setup-java@v5
         with:
           distribution: corretto
           java-version: 21
-
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v5
-
       - name: Build all extension variants
         run: ./gradlew :apps:thingworx-jgit-extension:buildAll
-
       - name: Upload all artifacts
         uses: actions/upload-artifact@v7
         with:
@@ -88,24 +66,14 @@ jobs:
           if-no-files-found: error
 
   test:
-    if: github.ref == 'refs/heads/main' && needs.changes.outputs.jgit_version == 'true'
+    if: needs.changes.outputs.jgit_version == 'true'
     needs: [build, changes]
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        include:
-          - twx: 9.6
-            dbInit: devopscadit/postgresql-init-twx:platform9.6.3
-            platform: devopscadit/platform-postgres:platform9.6.3
-          - twx: 9.7
-            dbInit: devopscadit/postgresql-init-twx:platform9.7.5
-            platform: devopscadit/platform-postgres:platform9.7.5
-          - twx: 10.1
-            dbInit: devopscadit/postgresql-init-twx:platform10.1.0
-            platform: devopscadit/platform-postgres:platform10.1.0
+        twx: ['9.6', '9.7', '10.1']
     steps:
       - uses: actions/checkout@v6
-
       - name: Configure git filters
         env:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
@@ -114,23 +82,19 @@ jobs:
           git config filter.twx-resources.clean '.gitfilters/twx-resources-clean'
           git checkout HEAD -- apps/thingworx-jgit-extension/gradle.properties vendor/twx-resources.tar.gz.gpg || git checkout HEAD -- extensions/jgit/gradle.properties extensions/jgit/vendor/twx-resources.tar.gz.gpg
           .gitfilters/twx-resources-smudge < vendor/twx-resources.tar.gz.gpg 2>/dev/null || .gitfilters/twx-resources-smudge < extensions/jgit/vendor/twx-resources.tar.gz.gpg > /dev/null
-
       - uses: actions/setup-java@v5
         with:
           distribution: corretto
           java-version: 21
-
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v5
-
       - name: Verify Docker
         run: docker info
-
       - name: Run integration tests
         env:
           DOCKER_HOST: unix:///var/run/docker.sock
           TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE: /var/run/docker.sock
-        run: ./gradlew :apps:thingworx-jgit-extension:test -PtwxVersion=${{ matrix.twx }} -Dtest.dbInitImage='${{ matrix.dbInit }}' -Dtest.platformImage='${{ matrix.platform }}'
+        run: ./gradlew :apps:thingworx-jgit-extension:test -PtwxVersion=${{ matrix.twx }}
         timeout-minutes: 45
 
   publish:
@@ -142,12 +106,10 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v6
-
       - uses: actions/download-artifact@v7
         with:
           name: JGitExtension-All
           path: artifacts
-
       - name: Create and push release tag
         shell: bash
         run: |
@@ -160,7 +122,6 @@ jobs:
             git push origin "$TAG"
           fi
           echo "TAG=$TAG" >> "$GITHUB_ENV"
-
       - name: Create GitHub Release
         run: |
           RELEASE_FILES=$(ls artifacts/*.zip 2>/dev/null | tr '\n' ' ')
