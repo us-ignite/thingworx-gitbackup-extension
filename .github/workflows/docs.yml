@@ -15,15 +15,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          lfs: true
 
-      - name: Configure git filters
+      - name: Extract ThingWorx SDK archives
         env:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
-          git config filter.twx-resources.smudge '.gitfilters/twx-resources-smudge'
-          git config filter.twx-resources.clean '.gitfilters/twx-resources-clean'
-          git checkout HEAD -- apps/thingworx-jgit-extension/gradle.properties vendor/twx-resources.tar.gz.gpg || git checkout HEAD -- extensions/jgit/gradle.properties extensions/jgit/vendor/twx-resources.tar.gz.gpg
-          .gitfilters/twx-resources-smudge < vendor/twx-resources.tar.gz.gpg > /dev/null 2>/dev/null || .gitfilters/twx-resources-smudge < extensions/jgit/vendor/twx-resources.tar.gz.gpg > /dev/null 2>/dev/null
+          .gitfilters/twx-resources-smudge < vendor/twx-resources.tar.gz.gpg > /dev/null
 
       - uses: actions/setup-java@v5
         with:
