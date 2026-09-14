@@ -49,7 +49,7 @@ tasks.register('decryptVendor') {
             }
             dest.mkdirs()
             println "Extracting connection-server DockerFiles for TW ${twxVersion}..."
-            def cmd = "gpg --decrypt --batch --passphrase '${passphrase}' '${localArchive}' 2>/dev/null | tar xzf - './${cfg.cxServerDockerFiles}' && tar xzf './${cfg.cxServerDockerFiles}' && rm -f './${cfg.cxServerDockerFiles}'"
+            def cmd = "gpg --decrypt --batch --pinentry-mode loopback --passphrase '${passphrase}' '${localArchive}' 2>/dev/null | tar xzf - './${cfg.cxServerDockerFiles}' && tar xzf './${cfg.cxServerDockerFiles}' && rm -f './${cfg.cxServerDockerFiles}'"
             def proc = new ProcessBuilder('bash', '-c', cmd).directory(dest).inheritIO().start()
             if (proc.waitFor() != 0) throw new GradleException("Failed to extract connection-server DockerFiles for TW ${twxVersion} - check GPG_PASSPHRASE and vendor archive")
         }

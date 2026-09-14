@@ -51,7 +51,7 @@ tasks.register('decryptVendor') {
             }
             dest.mkdirs()
             println "Extracting security-tool DockerFiles for TW ${twxVersion}..."
-            def cmd = "gpg --decrypt --batch --passphrase '${passphrase}' '${localArchive}' 2>/dev/null | tar xzf - './${cfg.securityDockerFiles}' && gunzip -c '${cfg.securityDockerFiles}' | tar x && rm -f '${cfg.securityDockerFiles}'"
+            def cmd = "gpg --decrypt --batch --pinentry-mode loopback --passphrase '${passphrase}' '${localArchive}' 2>/dev/null | tar xzf - './${cfg.securityDockerFiles}' && gunzip -c '${cfg.securityDockerFiles}' | tar x && rm -f '${cfg.securityDockerFiles}'"
             def proc = new ProcessBuilder('bash', '-c', cmd).directory(dest).inheritIO().start()
             if (proc.waitFor() != 0) throw new GradleException("Failed to extract security-tool DockerFiles for TW ${twxVersion} - check GPG_PASSPHRASE and vendor archive")
         }
@@ -105,7 +105,7 @@ tasks.register('fetchTemplateProcessor') {
                 if (cp.waitFor() != 0) throw new GradleException("cp failed")
             } else {
                 def passphrase = System.getenv('GPG_PASSPHRASE') ?: ''
-                def cmd = "gpg --decrypt --batch --passphrase '${passphrase}' '${localArchive}' 2>/dev/null | tar xzf - './${cfg.templateProcessorArchive}'"
+                def cmd = "gpg --decrypt --batch --pinentry-mode loopback --passphrase '${passphrase}' '${localArchive}' 2>/dev/null | tar xzf - './${cfg.templateProcessorArchive}'"
                 def proc = new ProcessBuilder('bash', '-c', cmd).directory(stage).inheritIO().start()
                 if (proc.waitFor() != 0) {
                     // already staged via decryptVendor
@@ -130,7 +130,7 @@ tasks.register('fetchSecurityTool') {
             if (dest.exists()) return
             stage.mkdirs()
             def passphrase = System.getenv('GPG_PASSPHRASE') ?: ''
-            def cmd = "gpg --decrypt --batch --passphrase '${passphrase}' '${localArchive}' 2>/dev/null | tar xzf - './${cfg.securityToolArchive}'"
+            def cmd = "gpg --decrypt --batch --pinentry-mode loopback --passphrase '${passphrase}' '${localArchive}' 2>/dev/null | tar xzf - './${cfg.securityToolArchive}'"
             def proc = new ProcessBuilder('bash', '-c', cmd).directory(stage).inheritIO().start()
             if (proc.waitFor() != 0) {
                 // staging already populated via decryptVendor (archive contains staging folder), so skip

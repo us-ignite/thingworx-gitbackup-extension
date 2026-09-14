@@ -54,7 +54,7 @@ tasks.register('decryptVendor') {
             }
             dest.mkdirs()
             println "Extracting platform DockerFiles for TW ${ver}..."
-            def cmd = "gpg --decrypt --batch --passphrase '${passphrase}' '${localArchive}' 2>/dev/null | tar xzf - './${cfg.platformDockerFiles}' && gunzip -c '${cfg.platformDockerFiles}' | tar x && rm -f '${cfg.platformDockerFiles}'"
+            def cmd = "gpg --decrypt --batch --pinentry-mode loopback --passphrase '${passphrase}' '${localArchive}' 2>/dev/null | tar xzf - './${cfg.platformDockerFiles}' && gunzip -c '${cfg.platformDockerFiles}' | tar x && rm -f '${cfg.platformDockerFiles}'"
             def proc = new ProcessBuilder('bash', '-c', cmd).directory(dest).inheritIO().start()
             if (proc.waitFor() != 0) throw new GradleException("Failed to extract platform DockerFiles for TW ${ver} - check GPG_PASSPHRASE and vendor archive")
         }
@@ -79,7 +79,7 @@ tasks.register('extractPlatformPostgres') {
             }
             stage.mkdirs()
             println "Extracting platform-postgres WAR for TW ${ver}..."
-            def cmd = "gpg --decrypt --batch --passphrase '${passphrase}' '${localArchive}' 2>/dev/null | tar xzf - './${cfg.platformPostgres}'"
+            def cmd = "gpg --decrypt --batch --pinentry-mode loopback --passphrase '${passphrase}' '${localArchive}' 2>/dev/null | tar xzf - './${cfg.platformPostgres}'"
             def proc = new ProcessBuilder('bash', '-c', cmd).directory(stage).inheritIO().start()
             if (proc.waitFor() != 0) throw new GradleException("Failed to extract platform WAR for TW ${ver} - check GPG_PASSPHRASE and vendor archive")
         }
