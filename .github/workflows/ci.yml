@@ -22,7 +22,13 @@ jobs:
           java-version: 21
       - uses: gradle/actions/setup-gradle@v5
       - name: Replay versioning policy
-        run: ./gradlew validateVersioning -Prange=HEAD^..HEAD --console=plain
+        run: |
+          if [ "$(git rev-list --parents -n 1 HEAD | wc -w)" -gt 2 ]; then
+            RANGE="HEAD^1..HEAD^2"
+          else
+            RANGE="HEAD^..HEAD"
+          fi
+          ./gradlew validateVersioning -Prange="$RANGE" --console=plain
       - name: Test release preflight
         run: python3 .github/scripts/test_release_status.py
 
