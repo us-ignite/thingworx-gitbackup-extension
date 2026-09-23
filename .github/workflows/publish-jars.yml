@@ -11,11 +11,15 @@ on:
         default: false
         type: boolean
 
+concurrency:
+  group: publish-jars
+  cancel-in-progress: false
+
 jobs:
   changes:
     runs-on: ubuntu-latest
     outputs:
-      dap_version: ${{ steps.version.outputs.changed }}
+      dap_version: ${{ steps.version.outputs.changed == 'true' && steps.release.outputs.published == 'false' }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -35,6 +39,10 @@ jobs:
             echo 'changed=false' >> "$GITHUB_OUTPUT"
           fi
 
+      - id: release
+        name: Check published version
+        run: bash .github/scripts/release-status.sh dap libraries/thingworx-dap/.version
+
   publish:
     if: github.ref == 'refs/heads/main' && needs.changes.outputs.dap_version == 'true'
     needs: changes
@@ -46,11 +54,12 @@ jobs:
       - uses: actions/checkout@v6
         with:
           lfs: true
-      - name: Extract ThingWorx SDK archives
+      - name: Register twx-file filter + decrypt vendor archives
         env:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
-          .gitfilters/twx-resources-smudge < vendor/twx-resources.tar.gz.gpg > /dev/null
+          .gitfilters/setup-twx-file
+          git checkout --force HEAD -- vendor/
       - uses: actions/setup-java@v5
         with:
           distribution: corretto

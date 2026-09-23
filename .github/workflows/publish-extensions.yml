@@ -11,11 +11,15 @@ on:
         default: false
         type: boolean
 
+concurrency:
+  group: publish-extensions
+  cancel-in-progress: false
+
 jobs:
   changes:
     runs-on: ubuntu-latest
     outputs:
-      jgit_version: ${{ steps.version.outputs.changed }}
+      jgit_version: ${{ steps.version.outputs.changed == 'true' && steps.release.outputs.published == 'false' }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -34,6 +38,10 @@ jobs:
             echo 'changed=false' >> "$GITHUB_OUTPUT"
           fi
 
+      - id: release
+        name: Check published version
+        run: bash .github/scripts/release-status.sh jgit apps/thingworx-jgit-extension/.version
+
   build:
     if: needs.changes.outputs.jgit_version == 'true'
     needs: changes
@@ -44,11 +52,12 @@ jobs:
       - uses: actions/checkout@v6
         with:
           lfs: true
-      - name: Extract ThingWorx SDK archives
+      - name: Register twx-file filter + decrypt vendor archives
         env:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
-          .gitfilters/twx-resources-smudge < vendor/twx-resources.tar.gz.gpg > /dev/null
+          .gitfilters/setup-twx-file
+          git checkout --force HEAD -- vendor/
       - uses: actions/setup-java@v5
         with:
           distribution: corretto
@@ -69,17 +78,19 @@ jobs:
     needs: [build, changes]
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         twx: ['9.6', '9.7', '10.1']
     steps:
       - uses: actions/checkout@v6
         with:
           lfs: true
-      - name: Extract ThingWorx SDK archives
+      - name: Register twx-file filter + decrypt vendor archives
         env:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
-          .gitfilters/twx-resources-smudge < vendor/twx-resources.tar.gz.gpg > /dev/null
+          .gitfilters/setup-twx-file
+          git checkout --force HEAD -- vendor/
       - uses: actions/setup-java@v5
         with:
           distribution: corretto
@@ -90,10 +101,21 @@ jobs:
         run: docker info
       - name: Run integration tests
         env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          TWX_LICENSE_B64: ${{ secrets.TWX_LICENSE_B64 }}
           DOCKER_HOST: unix:///var/run/docker.sock
           TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE: /var/run/docker.sock
         run: ./gradlew :apps:thingworx-jgit-extension:test -PtwxVersion=${{ matrix.twx }}
         timeout-minutes: 45
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: integration-tests-${{ matrix.twx }}
+          path: |
+            apps/thingworx-jgit-extension/build/reports/tests/
+            apps/thingworx-jgit-extension/build/test-results/
+          if-no-files-found: warn
 
   publish:
     if: github.ref == 'refs/heads/main' && needs.changes.outputs.jgit_version == 'true'

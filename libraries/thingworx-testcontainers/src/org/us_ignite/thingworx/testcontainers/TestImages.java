@@ -3,7 +3,7 @@ package org.us_ignite.thingworx.testcontainers;
 /** Image names used by the local Testcontainers integration stack. */
 public final class TestImages {
     private static final String DEFAULT_DB_INIT_IMAGE =
-            "ghcr.io/us-ignite/thingworx/postgres-init:10.1.2";
+            "ghcr.io/us-ignite/thingworx/postgres-init:10.1.2-openjdk";
     private static final String DEFAULT_PLATFORM_IMAGE =
             "ghcr.io/us-ignite/thingworx/platform-postgres:10.1.2-openjdk";
     private static final String DEFAULT_POSTGRES_IMAGE = "postgres:16";

@@ -1,0 +1,28 @@
+#!/bin/bash
+# twx-file clean filter: working-tree plaintext -> repo object.
+# Chain: openssl AES-256-CBC (PBKDF2, per-file deterministic salt)
+#        | git-lfs clean (ciphertext stored in LFS, pointer committed).
+# Invoked by git as: twx-file-clean %f   (filename arrives as $1)
+#
+# Determinism is load-bearing: password-based ciphers with random salts
+# (e.g. gpg --symmetric) produce fresh ciphertext on every run, which makes
+# `git status` perpetually dirty and re-uploads every blob on every commit.
+# The salt is derived from the repo-relative path: unique per file, stable
+# across runs, so unchanged files keep stable LFS OIDs.
+set -euo pipefail
+
+FILENAME="${1:-}"
+
+if [ -z "${GPG_PASSPHRASE:-}" ]; then
+  printf 'twx-file clean: GPG_PASSPHRASE is not set; refusing to store vendor plaintext for %s.\n' "${FILENAME:-<stdin>}" >&2
+  exit 1
+fi
+
+SALT=$(printf '%s' "${FILENAME:-vendor-blob}" | sha256sum | cut -c1-16)
+ENCRYPT=(openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -pass env:GPG_PASSPHRASE -S "$SALT")
+
+if [ -n "$FILENAME" ]; then
+  "${ENCRYPT[@]}" 2>/dev/null | git-lfs clean -- "$FILENAME"
+else
+  "${ENCRYPT[@]}" 2>/dev/null | git-lfs clean
+fi

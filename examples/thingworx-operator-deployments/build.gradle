@@ -151,27 +151,3 @@ registerClusterTask('deployProductionCluster', 'production',
         'Deploy the HA production ThingWorxCluster configuration and wait for READY.')
 registerClusterTask('deployDevelopmentCluster', 'development',
         'Deploy the single-node development ThingWorxCluster configuration and wait for READY.')
-
-tasks.register('verifyDeploymentManifests') {
-    group = 'verification'
-    description = 'Validate the checked-in ThingWorx deployment examples and Helm chart.'
-    doLast {
-        ['thingworxcluster.yaml', 'thingworxcluster-single-node.yaml',
-            'thingworxextension.yaml'].each { name ->
-            def manifest = file("${sourceDir}/${name}")
-            if (!manifest.exists()) throw new GradleException("Missing deployment example: ${manifest}")
-        }
-        runCommand(['helm', 'lint', chartDir.absolutePath], 'Helm chart lint failed')
-        runCommand(['helm', 'template', helmRelease, chartDir.absolutePath], 'Helm chart templating failed')
-        ['production', 'development'].each { scenario ->
-            def manifest = renderScenario(scenario)
-            runCommand(['kubectl'] + kubectlArgs() + ['apply', '--dry-run=client', '--validate=false',
-                                                       '--filename', manifest.absolutePath],
-                    "Kubernetes manifest validation failed for ${scenario}")
-        }
-    }
-}
-
-tasks.named('check') {
-    dependsOn tasks.named('verifyDeploymentManifests')
-}

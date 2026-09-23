@@ -50,6 +50,44 @@ public class ThingWorxContainer extends GenericContainer<ThingWorxContainer> {
 
     private static final Map<String, String> ENV = loadEnvFile();
 
+    /**
+     * Resolve the trial license file: explicit {@code test.licenseFile} system
+     * property first, then {@code vendor/license.bin} under the working
+     * directory, then the {@code TWX_LICENSE_B64} environment variable
+     * (base64-encoded content, decoded to a temp file). Returns {@code null}
+     * when none is available (trial fallback).
+     */
+    static Path resolveLicenseFile() {
+        String licenseProp = System.getProperty("test.licenseFile");
+        if (licenseProp != null && !licenseProp.isBlank()) {
+            Path licenseFile = Path.of(licenseProp).toAbsolutePath();
+            if (!Files.exists(licenseFile) || !Files.isReadable(licenseFile)) {
+                throw new IllegalStateException(
+                        "Explicit license file is unreadable: " + licenseFile);
+            }
+            return licenseFile;
+        }
+        Path absoluteDefault =
+                Path.of(System.getProperty("user.dir"), "vendor", "license.bin").toAbsolutePath();
+        if (Files.exists(absoluteDefault) && Files.isReadable(absoluteDefault)) {
+            return absoluteDefault;
+        }
+        String encoded = System.getenv("TWX_LICENSE_B64");
+        if (encoded != null && !encoded.isBlank()) {
+            try {
+                Path tmp = Files.createTempFile("twx-license-", ".bin");
+                Files.write(tmp, Base64.getDecoder().decode(encoded.trim()));
+                tmp.toFile().deleteOnExit();
+                return tmp;
+            } catch (IOException | IllegalArgumentException e) {
+                throw new IllegalStateException(
+                        "TWX_LICENSE_B64 is not valid base64 or the temp file could not be written",
+                        e);
+            }
+        }
+        return null;
+    }
+
     private String authHeader;
 
     public ThingWorxContainer(
@@ -129,25 +167,14 @@ public class ThingWorxContainer extends GenericContainer<ThingWorxContainer> {
         withEnv("LS_PASSWORD", ENV.getOrDefault("LS_PASSWORD", ""));
         withEnv("USE_TRIAL_LICENSE", "true");
 
-        String licenseProp = System.getProperty("test.licenseFile");
-        if (licenseProp != null && !licenseProp.isBlank()) {
-            Path licenseFile = Path.of(licenseProp).toAbsolutePath();
-            if (!Files.exists(licenseFile) || !Files.isReadable(licenseFile)) {
-                throw new IllegalStateException(
-                        "Explicit license file is unreadable: " + licenseFile);
-            }
+        Path licenseFile = resolveLicenseFile();
+        if (licenseFile != null) {
             withFileSystemBind(licenseFile.toString(), "/opt/trial.bin", BindMode.READ_ONLY);
         } else {
-            Path defaultLicense = Path.of(System.getProperty("user.dir"), "vendor", "license.bin");
-            Path absoluteDefault = defaultLicense.toAbsolutePath();
-            if (Files.exists(absoluteDefault) && Files.isReadable(absoluteDefault)) {
-                withFileSystemBind(absoluteDefault.toString(), "/opt/trial.bin", BindMode.READ_ONLY);
-            } else {
-                System.out.println(
-                        "[ThingWorxContainer] No license file at "
-                                + absoluteDefault
-                                + " - using trial fallback");
-            }
+            System.out.println(
+                    "[ThingWorxContainer] No license file found (test.licenseFile,"
+                            + " vendor/license.bin, TWX_LICENSE_B64 all absent)"
+                            + " - using trial fallback");
         }
 
         withLogConsumer(
