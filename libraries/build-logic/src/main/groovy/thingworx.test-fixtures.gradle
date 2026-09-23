@@ -1,0 +1,20 @@
+// Shared container-test system properties: db init script + license file.
+// Image names remain per-project (different defaults per consumer).
+tasks.withType(Test).configureEach {
+    def explicitDbInit = System.getProperty('test.dbInitScript') ?: project.findProperty('test.dbInitScript')
+    def dbInitPath = explicitDbInit != null
+        ? new File(explicitDbInit.toString()).absolutePath
+        : new File(rootDir, 'apps/thingworx-jgit-extension/scripts/db-init-wrapper.sh').absolutePath
+    systemProperty 'test.dbInitScript', dbInitPath
+
+    def explicitLicense = System.getProperty('test.licenseFile') ?: project.findProperty('test.licenseFile')
+    if (explicitLicense != null) {
+        systemProperty 'test.licenseFile', new File(explicitLicense.toString()).absolutePath
+        systemProperty 'test.licenseFile.explicit', 'true'
+    } else {
+        def defaultLicense = new File(rootDir, 'vendor/license.bin')
+        if (defaultLicense.exists() && defaultLicense.canRead()) {
+            systemProperty 'test.licenseFile', defaultLicense.absolutePath
+        }
+    }
+}

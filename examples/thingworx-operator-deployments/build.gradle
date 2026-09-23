@@ -1,5 +1,6 @@
 plugins {
     id 'base'
+    id 'thingworx.base'
 }
 
 def chartDir = file("${rootDir}/charts/thingworx-operator")

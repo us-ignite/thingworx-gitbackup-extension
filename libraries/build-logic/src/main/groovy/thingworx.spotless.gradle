@@ -1,0 +1,15 @@
+// Shared spotless formatting (google-java-format AOSP + gradle files).
+plugins {
+    id 'com.diffplug.spotless'
+}
+
+spotless {
+    java {
+        target 'src/**/*.java'
+        googleJavaFormat().aosp()
+        removeUnusedImports()
+        trimTrailingWhitespace()
+        endWithNewline()
+    }
+    groovyGradle { target 'build.gradle' }
+}

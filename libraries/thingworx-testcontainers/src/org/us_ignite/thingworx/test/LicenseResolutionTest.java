@@ -1,4 +1,4 @@
-package org.us_ignite.thingworx.testcontainers;
+package org.us_ignite.thingworx.test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.us_ignite.thingworx.testcontainers.ThingWorxContainer;
 
 /** Unit tests for license file resolution (no containers started). */
 class LicenseResolutionTest {

@@ -1,0 +1,23 @@
+// Shared Java 21 conventions for all java / java-library projects.
+plugins {
+    id 'java'
+    id 'thingworx.base'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 21
+    options.compilerArgs += ['-Xlint:deprecation']
+}
+
+// Keep published API reference focused on implementation classes.
+tasks.named('javadoc') {
+    source = sourceSets.main.allJava.matching {
+        exclude '**/test/**'
+    }
+}

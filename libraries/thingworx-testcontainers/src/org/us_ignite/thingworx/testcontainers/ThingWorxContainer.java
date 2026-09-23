@@ -56,8 +56,12 @@ public class ThingWorxContainer extends GenericContainer<ThingWorxContainer> {
      * directory, then the {@code TWX_LICENSE_B64} environment variable
      * (base64-encoded content, decoded to a temp file). Returns {@code null}
      * when none is available (trial fallback).
+     *
+     * <p>Public so test-support consumers outside this package (e.g.
+     * {@code org.us_ignite.thingworx.test}) can exercise license resolution
+     * directly.
      */
-    static Path resolveLicenseFile() {
+    public static Path resolveLicenseFile() {
         String licenseProp = System.getProperty("test.licenseFile");
         if (licenseProp != null && !licenseProp.isBlank()) {
             Path licenseFile = Path.of(licenseProp).toAbsolutePath();

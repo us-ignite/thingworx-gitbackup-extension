@@ -1,0 +1,23 @@
+// Shared Eclipse model tweaks for the shared-src layout.
+// The GenerateEclipse* tasks retain Project/SourceSet instances and are not
+// configuration-cache compatible, so they are opted out explicitly.
+plugins {
+    id 'eclipse'
+}
+
+pluginManager.withPlugin('java') {
+    eclipse.classpath {
+        testSourceSets = [sourceSets.test]
+        plusConfigurations += [configurations.testRuntimeClasspath]
+    }
+}
+
+tasks.withType(org.gradle.plugins.ide.eclipse.GenerateEclipseClasspath).configureEach {
+    notCompatibleWithConfigurationCache('Gradle Eclipse classpath model is not configuration-cache compatible')
+}
+tasks.withType(org.gradle.plugins.ide.eclipse.GenerateEclipseJdt).configureEach {
+    notCompatibleWithConfigurationCache('Gradle Eclipse JDT model is not configuration-cache compatible')
+}
+tasks.withType(org.gradle.plugins.ide.eclipse.GenerateEclipseProject).configureEach {
+    notCompatibleWithConfigurationCache('Gradle Eclipse project model is not configuration-cache compatible')
+}

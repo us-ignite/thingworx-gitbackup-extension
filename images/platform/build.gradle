@@ -1,5 +1,6 @@
 plugins {
-    id 'com.diffplug.spotless' version '7.0.2' apply false
+    id 'thingworx.base'
+    id 'thingworx.docker'
 }
 
 def ALL_TWX = [
@@ -35,26 +36,10 @@ def ALL_TWX = [
 
 def ALL_VARIANTS = ['openjdk', 'corretto', 'graalvm']
 
-def IMG_BUILD_DIR = "${projectDir}/../build"
-def IMG_VENDOR_DIR = "${rootDir}/vendor"
-
-// Vendor archives are stored per-file in git, transparently decrypted by the
-// twx-file filter at checkout (see .gitattributes + .gitfilters/setup-twx-file).
-// These guards fail fast when the working tree still holds ciphertext
-// (e.g. checkout without GPG_PASSPHRASE).
-def requireVendorArchive = { File f ->
-    if (!f.isFile()) {
-        throw new GradleException("Missing required vendor file: ${f} (twx-file filter + GPG_PASSPHRASE required at checkout)")
-    }
-    def header = new byte[4]
-    new FileInputStream(f).withCloseable { it.read(header) }
-    def isZip = header[0] == 0x50 && header[1] == 0x4B
-    def isGzip = (header[0] & 0xFF) == 0x1F && (header[1] & 0xFF) == 0x8B
-    if (!isZip && !isGzip) {
-        throw new GradleException("Vendor file is not plaintext (still encrypted?): ${f} - re-checkout with GPG_PASSPHRASE set and the twx-file filter registered")
-    }
-    return f
-}
+// Shared via thingworx.docker plugin (single implementation in build-logic).
+def IMG_BUILD_DIR = project.ext.imgBuildDir
+def IMG_VENDOR_DIR = project.ext.imgVendorDir
+def requireVendorArchive = project.ext.requireVendorArchive
 
 // Keep this in sync with the vendor build.sh tag calculation. The source images
 // are tagged from the Java version embedded in the archive name, not the full
@@ -70,12 +55,7 @@ def vendorJavaVersion = { archiveName ->
     throw new GradleException("Unable to determine Java version from archive: ${archiveName}")
 }
 
-def tagImage = { source, target ->
-    def process = new ProcessBuilder('docker', 'tag', source, target).inheritIO().start()
-    if (process.waitFor() != 0) {
-        throw new GradleException("docker tag failed: ${source} -> ${target}")
-    }
-}
+def tagImage = project.ext.dockerTag
 
 tasks.register('decryptVendor') {
     description = 'Stage vendor platform DockerFiles for all TW versions'
@@ -408,14 +388,4 @@ tasks.register('pushAll') {
     }
 }
 
-tasks.register('cleanImages', Delete) {
-    description = 'Delete all extracted vendor files and build contexts'
-    group = 'cleanup'
-    delete file("${projectDir}/../build")
-}
-
-tasks.register('cleanVendor') {
-    description = 'Clean build outputs (alias for cleanImages)'
-    group = 'cleanup'
-    dependsOn 'cleanImages'
-}
+// cleanImages / cleanVendor provided by thingworx.docker plugin.

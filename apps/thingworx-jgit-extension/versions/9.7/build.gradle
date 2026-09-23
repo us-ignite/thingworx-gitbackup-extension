@@ -1,0 +1,5 @@
+// ThingWorx 9.7 extension build. Version comes from this directory's name;
+// shared sources and all logic live in the thingworx.jgit-extension plugin.
+plugins {
+    id 'thingworx.jgit-extension'
+}
