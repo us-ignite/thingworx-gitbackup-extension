@@ -14,7 +14,9 @@ issues/
 .settings/
 bin/
 vendor/*
-!vendor/twx-resources.tar.gz.gpg
+!vendor/*.zip
+!vendor/*.tar.gz
+!vendor/*.gz
 
 # IDE
 *.iml

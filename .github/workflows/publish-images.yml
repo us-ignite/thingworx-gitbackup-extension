@@ -17,11 +17,15 @@ on:
         type: choice
         options: [all, thingworx-operator, platform, security-tool, connection-server]
 
+concurrency:
+  group: publish-images
+  cancel-in-progress: false
+
 jobs:
   changes:
     runs-on: ubuntu-latest
     outputs:
-      operator: ${{ steps.detect.outputs.operator }}
+      operator: ${{ steps.detect.outputs.operator == 'true' && steps.release.outputs.published == 'false' }}
       platform: ${{ steps.detect.outputs.platform }}
       security_tool: ${{ steps.detect.outputs.security_tool }}
       connection_server: ${{ steps.detect.outputs.connection_server }}
@@ -86,12 +90,12 @@ jobs:
             echo 'connection_server=false' >> "$GITHUB_OUTPUT"
           fi
 
-          # Fallback: vendor tarball re-encrypted triggers all vendor images
-          if echo "$diff" | grep -Eq '^vendor/twx-resources\.tar\.gz\.gpg$'; then
-            echo 'platform=true' >> "$GITHUB_OUTPUT"
-            echo 'security_tool=true' >> "$GITHUB_OUTPUT"
-            echo 'connection_server=true' >> "$GITHUB_OUTPUT"
-          fi
+          # Vendor archives are tracked per-file (vendor/MED-* via twx-file
+          # filter), so the family detections above already cover them.
+
+      - id: release
+        name: Check published operator version
+        run: bash .github/scripts/release-status.sh operator apps/thingworx-operator/.version
 
   publish-operator:
     if: github.ref == 'refs/heads/main' && needs.changes.outputs.operator == 'true'
@@ -124,7 +128,15 @@ jobs:
           TAG="operator-v${VERSION}"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          if ! git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+          if git ls-remote --exit-code --refs origin "refs/tags/$TAG" >/dev/null; then
+            git fetch --no-tags origin "refs/tags/$TAG:refs/tags/$TAG"
+            TAG_COMMIT=$(git rev-list -n 1 "$TAG")
+            if [ "$TAG_COMMIT" != "$GITHUB_SHA" ]; then
+              echo "Release tag $TAG already points to $TAG_COMMIT, not $GITHUB_SHA" >&2
+              exit 1
+            fi
+            echo "Release tag $TAG already points to this commit"
+          else
             git tag --annotate "$TAG" "$GITHUB_SHA" --message "ThingWorx Operator $VERSION"
             git push origin "$TAG"
           fi
@@ -141,6 +153,12 @@ jobs:
       - uses: actions/checkout@v6
         with:
           lfs: true
+      - name: Register twx-file filter + decrypt vendor archives
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          .gitfilters/setup-twx-file
+          git checkout --force HEAD -- vendor/
       - uses: actions/setup-java@v5
         with:
           distribution: corretto
@@ -150,8 +168,6 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
       - name: Build platform images (ALL_TWX × ALL_VARIANTS)
         run: ./gradlew :images:platform:buildAll --console=plain
-        env:
-          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
       - name: Push platform images
         run: ./gradlew :images:platform:pushAll --console=plain
 
@@ -166,6 +182,12 @@ jobs:
       - uses: actions/checkout@v6
         with:
           lfs: true
+      - name: Register twx-file filter + decrypt vendor archives
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          .gitfilters/setup-twx-file
+          git checkout --force HEAD -- vendor/
       - uses: actions/setup-java@v5
         with:
           distribution: corretto
@@ -175,8 +197,6 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
       - name: Build security-tool images
         run: ./gradlew :images:security-tool:buildAll --console=plain
-        env:
-          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
       - name: Push security-tool images
         run: ./gradlew :images:security-tool:pushAll --console=plain
 
@@ -191,6 +211,12 @@ jobs:
       - uses: actions/checkout@v6
         with:
           lfs: true
+      - name: Register twx-file filter + decrypt vendor archives
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          .gitfilters/setup-twx-file
+          git checkout --force HEAD -- vendor/
       - uses: actions/setup-java@v5
         with:
           distribution: corretto
@@ -200,7 +226,5 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
       - name: Build connection-server images
         run: ./gradlew :images:connection-server:buildAll --console=plain
-        env:
-          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
       - name: Push connection-server images
         run: ./gradlew :images:connection-server:pushAll --console=plain

@@ -1,0 +1,13 @@
+#!/bin/bash
+# Register the twx-file git filter in the local repo config.
+# Git does not propagate filter.* config on clone, so every fresh
+# clone (dev machine or CI runner) must run this once before checkout
+# of vendor/* materializes plaintext. Run:  .gitfilters/setup-twx-file
+set -euo pipefail
+
+ROOT=$(git rev-parse --show-toplevel)
+git -C "$ROOT" config filter.twx-file.clean ".gitfilters/twx-file-clean %f"
+git -C "$ROOT" config filter.twx-file.smudge ".gitfilters/twx-file-smudge %f"
+git -C "$ROOT" config filter.twx-file.required true
+printf 'twx-file filter registered.\n'
+git -C "$ROOT" check-attr -a vendor/MED-61098-CD-096_9-6-0_ThingWorx-Extension-SDK-9-6-0.zip || true

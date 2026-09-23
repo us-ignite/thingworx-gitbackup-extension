@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.us_ignite.thingworx.jgit.test.containers.JGitExtensionTestStack;
-import org.us_ignite.thingworx.jgit.test.util.TestingCredentials;
+import org.us_ignite.thingworx.testcontainers.TestingCredentials;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @Testcontainers

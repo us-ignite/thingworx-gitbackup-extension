@@ -40,6 +40,16 @@ subprojects {
                 plusConfigurations += [configurations.testRuntimeClasspath]
             }
             tasks.withType(Test).configureEach {
+                // Repo rule: tests (unit, integration, containerized) only run on
+                // explicit test invocations (`test`/`testAll`/`integrationTest`/`verify`).
+                // `build`/`check`/`checkAll` are assemble/package only and must not
+                // stand up containers, clusters, or image builds.
+                def testInvocation = gradle.startParameter.taskNames.any { taskName ->
+                    ['test', 'testAll', 'integrationTest', 'verify'].any { lifecycle ->
+                        taskName == lifecycle || taskName.endsWith(":${lifecycle}")
+                    }
+                }
+                enabled = testInvocation
                 testLogging {
                     // Keep aggregate test commands readable: report only failures and their
                     // exceptions. Full stdout/stderr remains available in the XML reports.
@@ -111,47 +121,96 @@ def matchingSubprojectTasks = { String taskName ->
 // Keep the usual root lifecycle commands useful in this multi-project build.
 // Projects that do not implement a command simply contribute no task to the
 // corresponding aggregate (for example, images do not have an Eclipse model).
-tasks.register('clean') {
-    group = 'build'
-    description = 'Clean all subproject build outputs and image staging directories'
-    dependsOn matchingSubprojectTasks('clean')
-    dependsOn matchingSubprojectTasks('cleanVendor')
+// Use findByName guards: Gradle's Tooling API / Eclipse Buildship and the
+// eclipse plugin both synthesize lifecycle tasks (clean, build, check,
+// cleanEclipse, eclipse, etc.). Unconditional register() throws
+// "Cannot add task 'xyz' as a task with that name already exists" during
+// phased actions / IDE syncs. Defer to afterEvaluate so any plugin that
+// adds these tasks (eclipse, base) has already run, and also handle the
+// case where Buildship's phased action applies the eclipse plugin to the
+// root after this script has evaluated.
+def registerOrAttachDeferred = { String name, String group, String desc ->
+    def reason = "Root aggregator '${name}' holds Project references (matchingSubprojectTasks) not serializable"
+    // Defer creation/configuration until after all plugins have been applied
+    afterEvaluate {
+        def deps = matchingSubprojectTasks(name)
+        if (tasks.findByName(name) != null) {
+            tasks.named(name).configure {
+                notCompatibleWithConfigurationCache(reason)
+                dependsOn deps
+            }
+        } else {
+            tasks.register(name) {
+                notCompatibleWithConfigurationCache(reason)
+                group = group
+                description = desc
+                dependsOn deps
+            }
+        }
+    }
 }
-tasks.register('assemble') {
-    group = 'build'
-    description = 'Assemble all subprojects that provide an assemble task'
-    dependsOn matchingSubprojectTasks('assemble')
+registerOrAttachDeferred('clean', 'build', 'Clean all subproject build outputs and image staging directories')
+afterEvaluate { tasks.named('clean').configure { dependsOn matchingSubprojectTasks('cleanVendor') } }
+registerOrAttachDeferred('assemble', 'build', 'Assemble all subprojects that provide an assemble task')
+registerOrAttachDeferred('build', 'build', 'Build all subprojects using their default/latest version')
+registerOrAttachDeferred('check', 'verification', 'Check all subprojects that provide a check task')
+registerOrAttachDeferred('test', 'verification', 'Run tests for all subprojects using their default/latest version')
+// For eclipse lifecycle tasks, avoid eager creation that conflicts with
+// Buildship's phased EclipseProject model which applies the eclipse plugin
+// to the root *after* afterEvaluate. Create aggregators only if eclipse
+// plugin is NOT present at afterEvaluate time; otherwise configure the
+// plugin's tasks.
+afterEvaluate {
+    def reason = "Root aggregator holds Project references not serializable"
+    if (!pluginManager.hasPlugin('eclipse')) {
+        if (!tasks.findByName('cleanEclipse')) {
+            tasks.register('cleanEclipse') {
+                notCompatibleWithConfigurationCache(reason)
+                group = 'ide'
+                description = 'Clean Eclipse metadata for all Eclipse-enabled subprojects'
+                dependsOn matchingSubprojectTasks('cleanEclipse')
+            }
+        }
+        if (!tasks.findByName('eclipse')) {
+            tasks.register('eclipse') {
+                notCompatibleWithConfigurationCache(reason)
+                group = 'ide'
+                description = 'Generate Eclipse metadata for all Eclipse-enabled subprojects'
+                dependsOn matchingSubprojectTasks('eclipse')
+            }
+        }
+    } else {
+        // eclipse plugin already created cleanEclipse/eclipse for the root (empty project);
+        // make them aggregate subprojects as well
+        tasks.named('cleanEclipse').configure { dependsOn matchingSubprojectTasks('cleanEclipse') }
+        tasks.named('eclipse').configure { dependsOn matchingSubprojectTasks('eclipse') }
+    }
 }
-tasks.register('build') {
-    group = 'build'
-    description = 'Build all subprojects using their default/latest version'
-    dependsOn matchingSubprojectTasks('build')
+pluginManager.withPlugin('eclipse') {
+    // Handles the Buildship case where eclipse is applied after afterEvaluate
+    def reason = "Root aggregator holds Project references not serializable"
+    tasks.named('cleanEclipse').configure {
+        notCompatibleWithConfigurationCache(reason)
+        dependsOn matchingSubprojectTasks('cleanEclipse')
+    }
+    tasks.named('eclipse').configure {
+        notCompatibleWithConfigurationCache(reason)
+        dependsOn matchingSubprojectTasks('eclipse')
+    }
 }
-tasks.register('check') {
-    group = 'verification'
-    description = 'Check all subprojects that provide a check task'
-    dependsOn matchingSubprojectTasks('check')
-}
-tasks.register('checkAll') {
-    group = 'verification'
-    description = 'Run all checks for all versions and subprojects'
-    dependsOn matchingSubprojectTasks('checkAll')
-    dependsOn tasks.named('chartTest')
-}
-tasks.register('test') {
-    group = 'verification'
-    description = 'Run tests for all subprojects using their default/latest version'
-    dependsOn matchingSubprojectTasks('test')
-}
-tasks.register('cleanEclipse') {
-    group = 'ide'
-    description = 'Clean Eclipse metadata for all Eclipse-enabled subprojects'
-    dependsOn matchingSubprojectTasks('cleanEclipse')
-}
-tasks.register('eclipse') {
-    group = 'ide'
-    description = 'Generate Eclipse metadata for all Eclipse-enabled subprojects'
-    dependsOn matchingSubprojectTasks('eclipse')
+// checkAll is custom (not a standard lifecycle task) — guard anyway for consistency
+if (tasks.findByName('checkAll') != null) {
+    tasks.named('checkAll').configure {
+        dependsOn matchingSubprojectTasks('checkAll')
+        dependsOn tasks.named('chartTest')
+    }
+} else {
+    tasks.register('checkAll') {
+        group = 'verification'
+        description = 'Run all checks for all versions and subprojects'
+        dependsOn matchingSubprojectTasks('checkAll')
+        dependsOn tasks.named('chartTest')
+    }
 }
 
 tasks.register('buildAll') {

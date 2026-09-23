@@ -14,7 +14,7 @@ import org.junit.jupiter.api.TestInstance;
 import org.testcontainers.containers.Network;
 import org.us_ignite.thingworx.jgit.test.containers.GiteaInit;
 import org.us_ignite.thingworx.jgit.test.containers.GiteaRepo;
-import org.us_ignite.thingworx.jgit.test.util.TestingCredentials;
+import org.us_ignite.thingworx.testcontainers.TestingCredentials;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class GiteaInitSmokeTest {

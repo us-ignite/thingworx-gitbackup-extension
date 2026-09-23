@@ -22,7 +22,7 @@ import org.junit.jupiter.api.TestMethodOrder;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.us_ignite.thingworx.jgit.test.containers.JGitExtensionTestStack;
 import org.us_ignite.thingworx.jgit.test.util.GPGGenerator;
-import org.us_ignite.thingworx.jgit.test.util.TestingCredentials;
+import org.us_ignite.thingworx.testcontainers.TestingCredentials;
 
 /**
  * Integration tests for {@code VerifyGpgKey} covering all valid calling conventions.
@@ -138,12 +138,16 @@ public class VerifyGpgKeyConventionsTest {
         body.addProperty("GpgPrivateKey", encryptedKeyArmored);
         body.addProperty("GpgKeyPassphrase", "wrong-passphrase");
         var res = verifyResponse(body);
-        // Valid is derived from fingerprint; wrong passphrase should still derive? Bouncy may still
+        // Valid is derived from fingerprint; wrong passphrase should still derive?
+        // Bouncy may still
         // get fingerprint?
-        // PastedKeyGpgSigner loads without passphrase for fingerprint; but signing would fail.
-        // Our implementation marks Valid based on getFingerprint() != blank, so it will be true
+        // PastedKeyGpgSigner loads without passphrase for fingerprint; but signing
+        // would fail.
+        // Our implementation marks Valid based on getFingerprint() != blank, so it will
+        // be true
         // even with wrong passphrase.
-        // This documents current behavior: fingerprint derivation does not require passphrase.
+        // This documents current behavior: fingerprint derivation does not require
+        // passphrase.
         var row = responseRows(res.toString()).get(0).getAsJsonObject();
         assertNotNull(row.get("GpgKeyFingerprint").getAsString());
         // We assert Stored false regardless
@@ -343,9 +347,11 @@ public class VerifyGpgKeyConventionsTest {
         body.addProperty("GpgKeyPassphrase", "");
         var res = verifyResponse(body);
         var row = responseRows(res.toString()).get(0).getAsJsonObject();
-        // Current impl: getFingerprint() returns null -> "Unable to derive fingerprint",
+        // Current impl: getFingerprint() returns null -> "Unable to derive
+        // fingerprint",
         // Valid=false
-        // But PastedKeyGpgSigner may still throw; we assert Valid=false if fingerprint is
+        // But PastedKeyGpgSigner may still throw; we assert Valid=false if fingerprint
+        // is
         // placeholder
         // If service returns Valid=false, Stored false
         assertTrue(row.has("Valid"));

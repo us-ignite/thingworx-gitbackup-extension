@@ -23,7 +23,7 @@ import org.junit.jupiter.api.TestMethodOrder;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.us_ignite.thingworx.jgit.test.containers.JGitExtensionTestStack;
 import org.us_ignite.thingworx.jgit.test.util.GPGGenerator;
-import org.us_ignite.thingworx.jgit.test.util.TestingCredentials;
+import org.us_ignite.thingworx.testcontainers.TestingCredentials;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -106,7 +106,8 @@ public class GiteaGitOperationsTest {
         json.addProperty("content", content);
         var req = stack.thingworx.serviceRequest(repoName, "SaveText", json.toString()).build();
         var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-        // FileRepository's inherited SaveText service returns an empty JSON object on success,
+        // FileRepository's inherited SaveText service returns an empty JSON object on
+        // success,
         // rather than the extension's one-row ServiceResult envelope.
         assertTrue(
                 res.statusCode() == 200 || res.statusCode() == 201,

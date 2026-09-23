@@ -231,33 +231,31 @@ class ThingWorxResourcesTest {
     }
 
     @Test
-    void databaseJobsHaveTtlSecondsAfterFinished() {
+    void databaseJobsRetainInitializationCompletionRecords() {
         var cluster = cluster();
 
         var jobs = ThingWorxResources.database(cluster);
         for (var resource : jobs) {
             var job = (Job) resource;
-            assertThat(job.getSpec().getTtlSecondsAfterFinished())
-                    .isEqualTo(ThingWorxResources.DEFAULT_JOB_TTL_SECONDS_AFTER_FINISHED);
-            assertThat(job.getSpec().getTtlSecondsAfterFinished()).isEqualTo(3600);
+            assertThat(job.getSpec().getTtlSecondsAfterFinished()).isNull();
         }
     }
 
     @Test
-    void databaseJobsRespectConfigurableTtl() {
+    void installerTtlDoesNotExpireDatabaseInitializationRecords() {
         var cluster = cluster();
         cluster.getSpec().setJobTtlSecondsAfterFinished(7200);
 
         var jobs = ThingWorxResources.database(cluster);
         for (var resource : jobs) {
             var job = (Job) resource;
-            assertThat(job.getSpec().getTtlSecondsAfterFinished()).isEqualTo(7200);
+            assertThat(job.getSpec().getTtlSecondsAfterFinished()).isNull();
         }
 
         cluster.getSpec().setJobTtlSecondsAfterFinished(null);
         var defaultJobs = ThingWorxResources.database(cluster);
         assertThat(((Job) defaultJobs.getFirst()).getSpec().getTtlSecondsAfterFinished())
-                .isEqualTo(3600);
+                .isNull();
     }
 
     @Test

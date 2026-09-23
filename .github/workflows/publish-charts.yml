@@ -11,11 +11,15 @@ on:
         default: false
         type: boolean
 
+concurrency:
+  group: publish-charts
+  cancel-in-progress: false
+
 jobs:
   changes:
     runs-on: ubuntu-latest
     outputs:
-      chart_version: ${{ steps.version.outputs.changed }}
+      chart_version: ${{ steps.version.outputs.changed == 'true' && steps.release.outputs.published == 'false' }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -34,6 +38,10 @@ jobs:
             echo 'changed=false' >> "$GITHUB_OUTPUT"
           fi
 
+      - id: release
+        name: Check published version
+        run: bash .github/scripts/release-status.sh chart charts/thingworx-operator/.version
+
   publish:
     if: github.ref == 'refs/heads/main' && needs.changes.outputs.chart_version == 'true'
     needs: changes
@@ -48,11 +56,11 @@ jobs:
           distribution: corretto
           java-version: 21
       - uses: gradle/actions/setup-gradle@v5
-      - name: Verify operator version + chart
-        run: ./gradlew verifyVersions chartTest --console=plain
       - uses: azure/setup-helm@v4
         with:
           version: v3.14.0
+      - name: Verify operator version + chart
+        run: ./gradlew verifyVersions chartTest --console=plain
       - name: Package chart
         shell: bash
         run: |

@@ -31,10 +31,10 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.us_ignite.thingworx.jgit.test.containers.GiteaInit;
 import org.us_ignite.thingworx.jgit.test.containers.GiteaRepo;
 import org.us_ignite.thingworx.jgit.test.containers.JGitExtensionInstaller;
-import org.us_ignite.thingworx.jgit.test.util.TestingCredentials;
 import org.us_ignite.thingworx.testcontainers.DBInit;
 import org.us_ignite.thingworx.testcontainers.Postgres;
 import org.us_ignite.thingworx.testcontainers.TestImages;
+import org.us_ignite.thingworx.testcontainers.TestingCredentials;
 import org.us_ignite.thingworx.testcontainers.ThingWorxContainer;
 
 @Testcontainers
@@ -1060,8 +1060,10 @@ public class EntitySyncTest {
         String malformedThing = "CrossSync.MalformedThing";
         String commitMessage = "Commit malformed entity for failure test";
 
-        // Create a Thing via ThingWorx API with an invalid template (via DAP export path)
-        // This Thing will be exported to Git and then cause import to fail on the other side
+        // Create a Thing via ThingWorx API with an invalid template (via DAP export
+        // path)
+        // This Thing will be exported to Git and then cause import to fail on the other
+        // side
         JsonObject thingBody = new JsonObject();
         thingBody.addProperty("name", malformedThing);
         thingBody.addProperty("description", "malformed for failure test");
@@ -1094,7 +1096,8 @@ public class EntitySyncTest {
                                 .build(),
                         HttpResponse.BodyHandlers.ofString());
         // CreateThing may fail for non-existent template (expected for malformed test)
-        // If it fails, we directly create the XML file via the FileRepository and commit
+        // If it fails, we directly create the XML file via the FileRepository and
+        // commit
         if (thingRes.statusCode() != 200 && thingRes.statusCode() != 201) {
             // Fallback: directly create the Thing XML via DAP-style file in the repo
             // Use JGit to create the file in the shared repo

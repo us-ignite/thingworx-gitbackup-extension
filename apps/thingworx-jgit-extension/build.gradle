@@ -5,6 +5,7 @@ plugins {
 }
 
 evaluationDependsOn(':libraries:thingworx-dap-runtime')
+evaluationDependsOn(':libraries:thingworx-testcontainers')
 
 defaultTasks 'clean', 'packageExtension'
 
@@ -19,7 +20,7 @@ ext {
             sdkZip: "${rootDir}/vendor/MED-61098-CD-096_9-6-0_ThingWorx-Extension-SDK-9-6-0.zip",
             minTwVersion: '9.6.0',
             outputSuffix: '9.6.x',
-            dbInitImage: 'ghcr.io/us-ignite/thingworx/postgres-init:9.6.9',
+            dbInitImage: 'ghcr.io/us-ignite/thingworx/postgres-init:9.6.9-openjdk',
             platformImage: 'ghcr.io/us-ignite/thingworx/platform-postgres:9.6.9-openjdk',
             postgresImage: 'postgres:15',
             postgresHostAuth: 'trust',
@@ -29,7 +30,7 @@ ext {
             sdkZip: "${rootDir}/vendor/MED-61098-CD-097_9-7-0_ThingWorx-Extension-SDK-9-7-0.zip",
             minTwVersion: '9.7.0',
             outputSuffix: '9.7.x',
-            dbInitImage: 'ghcr.io/us-ignite/thingworx/postgres-init:9.7.6',
+            dbInitImage: 'ghcr.io/us-ignite/thingworx/postgres-init:9.7.6-openjdk',
             platformImage: 'ghcr.io/us-ignite/thingworx/platform-postgres:9.7.6-openjdk',
             postgresImage: 'postgres:15',
             postgresHostAuth: 'trust',
@@ -39,7 +40,7 @@ ext {
             sdkZip: "${rootDir}/vendor/MED-61098-CD-100_10-0-0_ThingWorx-Extension-SDK-10-0-0.zip",
             minTwVersion: '10.0.0',
             outputSuffix: '10.0.x',
-            dbInitImage: 'ghcr.io/us-ignite/thingworx/postgres-init:10.0.4',
+            dbInitImage: 'ghcr.io/us-ignite/thingworx/postgres-init:10.0.4-openjdk',
             platformImage: 'ghcr.io/us-ignite/thingworx/platform-postgres:10.0.4-openjdk',
             postgresImage: 'postgres:16',
             postgresHostAuth: 'trust',
@@ -49,7 +50,7 @@ ext {
             sdkZip: "${rootDir}/vendor/MED-61098-CD-101_10-1-0_ThingWorx-Extension-SDK-10-1-0.zip",
             minTwVersion: '10.1.0',
             outputSuffix: '10.1.x',
-            dbInitImage: 'ghcr.io/us-ignite/thingworx/postgres-init:10.1.2',
+            dbInitImage: 'ghcr.io/us-ignite/thingworx/postgres-init:10.1.2-openjdk',
             platformImage: 'ghcr.io/us-ignite/thingworx/platform-postgres:10.1.2-openjdk',
             postgresImage: 'postgres:16',
             postgresHostAuth: 'trust',
@@ -118,27 +119,6 @@ sourceSets {
 eclipse {
     classpath {
         testSourceSets = [project.sourceSets.test]
-        file {
-            whenMerged { cp ->
-                cp.entries.removeAll {
-                    it instanceof org.gradle.plugins.ide.eclipse.model.SourceFolder
-                }
-                def main = new org.gradle.plugins.ide.eclipse.model.SourceFolder('src', 'bin/main')
-                main.includes = []
-                main.excludes = ['**/test/**']
-                cp.entries.add(main)
-                def test = new org.gradle.plugins.ide.eclipse.model.SourceFolder('src', 'bin/test')
-                test.includes = ['org/us_ignite/thingworx/jgit/test/**/*.java']
-                test.entryAttributes['test'] = 'true'
-                test.entryAttributes['gradle_used_by_scope'] = 'test'
-                cp.entries.add(test)
-                def generated = new org.gradle.plugins.ide.eclipse.model.SourceFolder(
-                        'build/generated/sources/annotationProcessor/java/main', null)
-                generated.entryAttributes['optional'] = 'true'
-                generated.entryAttributes['ignore_optional_problems'] = 'true'
-                cp.entries.add(generated)
-            }
-        }
     }
 }
 
@@ -249,12 +229,21 @@ test {
     enabled = false
 
     if (gradle.startParameter.taskNames.any { taskName ->
-        ['test', 'check', 'build'].any { lifecycle -> taskName == lifecycle || taskName.endsWith(":${lifecycle}") }
+        ['test', 'testAll', 'integrationTest', 'verify'].any { lifecycle -> taskName == lifecycle || taskName.endsWith(":${lifecycle}") }
     }) {
         enabled = true
     }
 
-    dependsOn 'packageExtension', ":images:platform:build${twxVersion.replace('.', '')}"
+    dependsOn 'packageExtension'
+    // Image builds are test-only: Gradle still runs `dependsOn` tasks even when
+    // this test is disabled, so the image dep must be conditional too. Otherwise
+    // plain `./gradlew build` would build Docker images via check -> test.
+    if (gradle.startParameter.taskNames.any { taskName ->
+        ['test', 'testAll', 'integrationTest', 'verify'].any { lifecycle -> taskName == lifecycle || taskName.endsWith(":${lifecycle}") }
+    }) {
+        dependsOn ":images:platform:build${twxVersion.replace('.', '')}"
+        dependsOn ":images:security-tool:buildSecurityTool_${twxVersion}"
+    }
     systemProperty "test.extensionZip", "${buildDir}/distributions/${packageName}.zip"
     systemProperty "test.dbInitImage", System.getProperty('test.dbInitImage') ?: sdkCfg.dbInitImage
     systemProperty "test.platformImage", System.getProperty('test.platformImage') ?: sdkCfg.platformImage

@@ -25,7 +25,17 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
-    dependsOn(':images:platform:build101')
+    // Repo rule: containerized tests (and their image builds) only run on
+    // explicit test invocations, never as part of `build`/`check`. Gradle runs
+    // `dependsOn` tasks even when this test is disabled, so both must be gated.
+    def isTestInvocation = gradle.startParameter.taskNames.any { taskName ->
+        ['test', 'testAll', 'integrationTest', 'verify'].any { lifecycle -> taskName == lifecycle || taskName.endsWith(":${lifecycle}") }
+    }
+    enabled = isTestInvocation
+    if (isTestInvocation) {
+        dependsOn(':images:platform:build101')
+        dependsOn(':images:security-tool:buildSecurityTool_10.1')
+    }
     def explicitDbInit = System.getProperty('test.dbInitScript') ?: project.findProperty('test.dbInitScript')
     def dbInitPath = explicitDbInit != null ? new File(explicitDbInit.toString()).absolutePath : new File(rootDir, 'apps/thingworx-jgit-extension/scripts/db-init-wrapper.sh').absolutePath
     systemProperty 'test.dbInitScript', dbInitPath
@@ -40,7 +50,7 @@ tasks.named('test') {
             systemProperty 'test.licenseFile', defaultLicense.absolutePath
         }
     }
-    systemProperty 'test.dbInitImage', System.getProperty('test.dbInitImage') ?: 'ghcr.io/us-ignite/thingworx/postgres-init:10.1.2'
+    systemProperty 'test.dbInitImage', System.getProperty('test.dbInitImage') ?: 'ghcr.io/us-ignite/thingworx/postgres-init:10.1.2-openjdk'
     systemProperty 'test.platformImage', System.getProperty('test.platformImage') ?: 'ghcr.io/us-ignite/thingworx/platform-postgres:10.1.2-openjdk'
     systemProperty 'test.postgresImage', System.getProperty('test.postgresImage') ?: 'postgres:16'
     testLogging { events 'passed', 'skipped', 'failed'; exceptionFormat = 'full' }

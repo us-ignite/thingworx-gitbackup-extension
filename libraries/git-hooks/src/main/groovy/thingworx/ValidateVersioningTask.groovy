@@ -29,13 +29,13 @@ abstract class ValidateVersioningTask extends DefaultTask {
         if (!r.contains('..')) throw new GradleException("range must be base..head: $r")
         String base = r.split('\\.\\.')[0]
         String head = r.split('\\.\\.')[1]
-        if (VersionUtils.execGit(root, 'rev-parse','--verify','-q', "${base}^{commit}") == null) {
+        if (VersionUtils.execGit(root, 'rev-parse','--verify','-q', "${base}^{commit}".toString()) == null) {
             // exec returns null on failure? check via cat-file
-            def proc = new ProcessBuilder(['git','rev-parse','--verify','-q', "${base}^{commit}"]).directory(root).start()
+            def proc = new ProcessBuilder(['git','rev-parse','--verify','-q', "${base}^{commit}".toString()]).directory(root).start()
             proc.waitFor()
             if (proc.exitValue()!=0) throw new GradleException("unknown range base: $base")
         }
-        def procHead = new ProcessBuilder(['git','rev-parse','--verify','-q', "${head}^{commit}"]).directory(root).start()
+        def procHead = new ProcessBuilder(['git','rev-parse','--verify','-q', "${head}^{commit}".toString()]).directory(root).start()
         procHead.waitFor()
         if (procHead.exitValue()!=0) throw new GradleException("unknown range head: $head")
 

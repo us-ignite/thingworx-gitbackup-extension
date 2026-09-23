@@ -18,11 +18,12 @@ jobs:
         with:
           lfs: true
 
-      - name: Extract ThingWorx SDK archives
+      - name: Register twx-file filter + decrypt vendor archives
         env:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
-          .gitfilters/twx-resources-smudge < vendor/twx-resources.tar.gz.gpg > /dev/null
+          .gitfilters/setup-twx-file
+          git checkout --force HEAD -- vendor/
 
       - uses: actions/setup-java@v5
         with:
@@ -51,7 +52,7 @@ jobs:
           cp -R apps/thingworx-jgit-extension/build/docs/javadoc/. apps/thingworx-jgit-extension/docs/api/javadoc/
 
       - name: Build documentation site
-        run: mkdocs build --strict --config-file apps/thingworx-jgit-extension/mkdocs.yml --site-dir public
+        run: mkdocs build --strict --config-file apps/thingworx-jgit-extension/mkdocs.yml --site-dir "$GITHUB_WORKSPACE/public"
 
       - name: Add generated Javadocs to Pages artifact
         run: |

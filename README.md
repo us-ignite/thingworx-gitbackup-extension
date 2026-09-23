@@ -112,8 +112,9 @@ Commit all changed files together with a Conventional Commit.
 These images are **not** SemVer-bumped via `.version` or the `thingworx.git-hooks` hook. Their
 version is the **upstream vendor artifact + base image** pinned in code. To change the ThingWorx
 version you edit the `ALL_TWX` maps in the `build.gradle` and supply the matching vendor archive
-in `vendor/` (encrypted as `vendor/twx-resources.tar.gz.gpg` — `.gitignore` keeps `vendor/*`
-out of git, `.gitattributes` filters it, decrypted at build time with `GPG_PASSPHRASE`).
+in `vendor/` (each `vendor/*.zip|*.tar.gz|*.gz` is individually encrypted via the `twx-file`
+git filter — `.gitattributes` + `.gitfilters/setup-twx-file` — into LFS, decrypted at checkout
+time with `GPG_PASSPHRASE`).
 
 | Image | Pin source (`images/*/build.gradle:5`) | Vendor artifact(s) | Effective image tag |
 |-------|----------------------------------------|--------------------|---------------------|
@@ -132,9 +133,9 @@ Builds are driven by explicit tasks, not `.version`:
 ```
 
 Bumping a vendor-pinned image: edit the `ALL_TWX` entry, add the new `MED-*`
-archive to `vendor/` and `vendor/twx-resources.tar.gz.gpg` (re-encrypt with
-`gpg --symmetric`), run the `decryptVendor`/`buildAll` chain locally, then commit
-the `build.gradle` + `vendor/*.gpg` diff with a Conventional Commit — no `.version`
+archive to `vendor/` (it is auto-encrypted into LFS on `git add` while `GPG_PASSPHRASE`
+is set), run the `decryptVendor`/`buildAll` chain locally, then commit
+the `build.gradle` + `vendor/*` diff with a Conventional Commit — no `.version`
 change expected (CI does **not** require a version bump for `images/platform/**`).
 
 Contrast: `images/thingworx-operator` has **no** vendor pin (`decryptVendor` is a
@@ -148,6 +149,6 @@ placeholder `build.gradle:10`). Its tag **is** `OPERATOR_VERSION` from
 | `publish-extensions.yml` | `apps/thingworx-jgit-extension/.version` diff | `:apps:thingworx-jgit-extension:buildAll` + matrix `test` 9.6/9.7/10.1 → `jgit-v<version>` tag + GH Release zips |
 | `publish-jars.yml` (ex `publish-dap.yml:23`) | `libraries/thingworx-dap(-runtime)/.version` diff | `:libraries:thingworx-dap:check` + `publish` → `GH Packages` + `dap-v<version>` tag |
 | `publish-charts.yml` | `apps/thingworx-operator/.version` or `charts/thingworx-operator/.version` or `Chart.yaml` diff | `verifyVersions` + `chartTest` → `helm package` → artifact `thingworx-operator-chart-<version>` + `chart-v<version>` tag + Release |
-| `publish-images.yml` (+ `workflow_dispatch` `inputs.image`) | `apps/thingworx-operator/.version|images/thingworx-operator/**|Chart.yaml` → operator; `images/platform/**|vendor/MED-61268|61111` → platform; `MED-61282` → security-tool; `MED-61352` → connection-server; `vendor/twx-resources.tar.gz.gpg` → all vendor | Operator: `verifyVersions` → `:images:thingworx-operator:buildImage` → `ghcr.io/.../thingworx-operator:<version>` + `operator-v*` tag; Vendor: `decryptVendor` (needs `GPG_PASSPHRASE`) → `:images:platform:buildAll` etc. → `ghcr.io/...` vendor tags (no `.version`) |
+| `publish-images.yml` (+ `workflow_dispatch` `inputs.image`) | `apps/thingworx-operator/.version|images/thingworx-operator/**|Chart.yaml` → operator; `images/platform/**|vendor/MED-61268|61111` → platform; `MED-61282` → security-tool; `MED-61352` → connection-server | Operator: `verifyVersions` → `:images:thingworx-operator:buildImage` → `ghcr.io/.../thingworx-operator:<version>` + `operator-v*` tag; Vendor: `setup-twx-file` + re-checkout (needs `GPG_PASSPHRASE`) → `:images:platform:buildAll` etc. → `ghcr.io/...` vendor tags (no `.version`) |
 
 PRs run `ci.yml` only (`pull_request:main`): `validate-versioning.sh`, `verifyVersions`+`chartTest`+`:apps:thingworx-operator:check`, `buildAll`+`verifyDapExample` — no `ghcr` push, no tags. See `.github/workflows/*.yml` `on:`.

@@ -18,7 +18,7 @@ import org.junit.jupiter.api.TestInstance;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.us_ignite.thingworx.jgit.test.containers.JGitExtensionTestStack;
 import org.us_ignite.thingworx.jgit.test.util.GPGGenerator;
-import org.us_ignite.thingworx.jgit.test.util.TestingCredentials;
+import org.us_ignite.thingworx.testcontainers.TestingCredentials;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @Testcontainers
@@ -318,7 +318,8 @@ public class GpgKeyVisibilityTest {
         assertTrue(ds.has("fieldDefinitions"), "dataShape should have fieldDefinitions: " + ds);
 
         var fields = ds.getAsJsonObject("fieldDefinitions");
-        // When 0 rows, ThingWorx may return empty fieldDefinitions; be lenient and only check when
+        // When 0 rows, ThingWorx may return empty fieldDefinitions; be lenient and only
+        // check when
         // present
         if (fields.size() == 0) {
             System.out.println(

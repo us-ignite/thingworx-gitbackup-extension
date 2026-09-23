@@ -79,7 +79,7 @@ services:
       LS_PASSWORD: ${LS_PASSWORD:-}
       USE_TRIAL_LICENSE: "true"
     volumes:
-      - ./apps/thingworx-jgit-extension/vendor/license.bin:/opt/trial.bin:ro
+      - ./vendor/license.bin:/opt/trial.bin:ro
     networks:
       twx-network:
         aliases:

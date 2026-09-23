@@ -709,6 +709,7 @@ public final class ThingWorxResources {
                                 .withLabels(labels(cluster, component))
                                 .build())
                 .withNewSpec()
+                // Keep initialization completion records until upgrade cleanup removes them.
                 .withBackoffLimit(3)
                 .withNewTemplate()
                 .withMetadata(

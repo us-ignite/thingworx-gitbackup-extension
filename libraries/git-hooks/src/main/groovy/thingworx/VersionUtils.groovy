@@ -37,7 +37,9 @@ class VersionUtils {
     }
 
     static String execGit(File dir, String... args) {
-        def proc = new ProcessBuilder(['git'] + args.toList())
+        // GString interpolation ("${x}") is not a String; ProcessBuilder's
+        // List.toArray(new String[0]) throws arraycopy type mismatch on it.
+        def proc = new ProcessBuilder((['git'] + args.toList())*.toString())
                 .directory(dir)
                 .redirectErrorStream(false)
                 .start()

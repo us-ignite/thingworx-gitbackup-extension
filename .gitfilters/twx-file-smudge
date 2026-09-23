@@ -1,0 +1,41 @@
+#!/bin/bash
+# twx-file smudge filter: repo object -> working-tree plaintext.
+# Chain: git-lfs smudge (pointer -> ciphertext) | openssl/gpg decrypt.
+# Invoked by git as: twx-file-smudge %f   (filename arrives as $1)
+#
+# Format dispatch: current blobs are raw openssl ciphertext (this openssl
+# omits the Salted__ header when -S is explicit, so dispatch by trial) and
+# legacy blobs are gpg packets.
+set -euo pipefail
+
+FILENAME="${1:-}"
+
+TMP=$(mktemp)
+trap 'rm -f "$TMP"' EXIT
+cat > "$TMP"
+
+lfs_smudge() {
+  if [ -n "$FILENAME" ]; then
+    git-lfs smudge -- "$FILENAME" < "$TMP"
+  else
+    git-lfs smudge < "$TMP"
+  fi
+}
+
+if [ -z "${GPG_PASSPHRASE:-}" ]; then
+  lfs_smudge
+  exit 0
+fi
+
+SALT=$(printf '%s' "${FILENAME:-vendor-blob}" | sha256sum | cut -c1-16)
+CIPHER=$(mktemp)
+trap 'rm -f "$TMP" "$CIPHER"' EXIT
+lfs_smudge > "$CIPHER"
+if openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass env:GPG_PASSPHRASE -S "$SALT" -in "$CIPHER" 2>/dev/null; then
+  exit 0
+fi
+if gpg --decrypt --batch --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" < "$CIPHER" 2>/dev/null; then
+  exit 0
+fi
+printf 'twx-file smudge: failed to LFS-fetch or decrypt %s; check GPG_PASSPHRASE.\n' "${FILENAME:-<stdin>}" >&2
+exit 1
