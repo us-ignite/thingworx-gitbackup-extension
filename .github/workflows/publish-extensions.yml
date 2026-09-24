@@ -80,7 +80,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        twx: ['9.6', '9.7', '10.1']
+        include:
+          - twx: '9.6'
+            task: v96
+            platform_task: build96
+            security_task: buildSecurityTool_9.6
+          - twx: '9.7'
+            task: v97
+            platform_task: build97
+            security_task: buildSecurityTool_9.7
+          - twx: '10.1'
+            task: v101
+            platform_task: build101
+            security_task: buildSecurityTool_10.1
     steps:
       - uses: actions/checkout@v6
         with:
@@ -105,7 +117,11 @@ jobs:
           TWX_LICENSE_B64: ${{ secrets.TWX_LICENSE_B64 }}
           DOCKER_HOST: unix:///var/run/docker.sock
           TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE: /var/run/docker.sock
-        run: ./gradlew :apps:thingworx-jgit-extension:test -PtwxVersion=${{ matrix.twx }}
+        run: >-
+          ./gradlew :apps:thingworx-jgit-extension:${{ matrix.task }}:test
+          -x :images:platform:${{ matrix.platform_task }}
+          -x :images:security-tool:${{ matrix.security_task }}
+          --console=plain
         timeout-minutes: 45
       - name: Upload test reports
         if: always()
