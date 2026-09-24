@@ -1,0 +1,26 @@
+// Shared SDK unpack helper. Consuming projects declare:
+//   ext.sdkTwxVersion = project.findProperty('twxVersion') ?: '<default>'
+//   ext.sdkZipName = thingworx.TwxVersions.SDK_ZIPS[ext.sdkTwxVersion]
+// and get an `unpackSdk` Copy task + `sdkExtractDir` file reference.
+import thingworx.TwxVersions
+
+def twxVersion = project.ext.has('sdkTwxVersion')
+    ? project.ext.sdkTwxVersion.toString()
+    : (project.findProperty('twxVersion')?.toString() ?: TwxVersions.RUNTIME_DEFAULT)
+ext.sdkTwxVersion = twxVersion
+
+def zipName = project.ext.has('sdkZipName')
+    ? project.ext.sdkZipName.toString()
+    : TwxVersions.SDK_ZIPS[twxVersion]
+if (zipName == null) {
+    throw new GradleException("Unknown twxVersion '${twxVersion}'. Valid values: ${TwxVersions.SDK_ZIPS.keySet()}")
+}
+ext.sdkZip = file("${rootDir}/vendor/${zipName}")
+ext.sdkExtractDir = file("${buildDir}/sdk-${twxVersion}")
+
+tasks.register('unpackSdk', Copy) {
+    from zipTree(project.ext.sdkZip)
+    into project.ext.sdkExtractDir
+    exclude '**/thingworx-javadocs*'
+    exclude 'Common/'
+}

@@ -1,0 +1,62 @@
+# Declared home for shared dependency versions. Dependency blocks still
+# reference versions inline; migrate them to `libs.` aliases incrementally
+# (note the intentional splits, e.g. junit-jupiter vs junit-jupiter-operator).
+[versions]
+spotless = "7.0.2"
+junit-jupiter = "5.8.2"
+junit-jupiter-operator = "5.11.4"
+junit-platform-launcher = "1.8.2"
+testcontainers = "2.0.5"
+testcontainers-postgresql = "1.21.4"
+testcontainers-operator = "1.21.0"
+slf4j = "1.7.36"
+slf4j-operator = "2.0.18"
+jgit = "7.6.0.202603022253-r"
+jsch = "0.1.55"
+bcprov = "1.72"
+javaewah = "1.2.3"
+commons-codec = "1.22.0"
+commons-io = "2.18.0"
+commons-lang3 = "3.14.0"
+gson = "2.10.1"
+json = "20231013"
+operator-framework = "5.4.0"
+kubernetes-client = "7.8.0"
+jackson = "2.21.4"
+assertj = "3.27.3"
+awaitility = "4.2.2"
+lemminx = "0.31.1"
+
+[libraries]
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit-jupiter" }
+junit-jupiter-operator = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit-jupiter-operator" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junit-platform-launcher" }
+testcontainers = { module = "org.testcontainers:testcontainers", version.ref = "testcontainers" }
+testcontainers-junit-jupiter = { module = "org.testcontainers:testcontainers-junit-jupiter", version.ref = "testcontainers" }
+testcontainers-postgresql = { module = "org.testcontainers:postgresql", version.ref = "testcontainers-postgresql" }
+testcontainers-postgresql-legacy = { module = "org.testcontainers:postgresql", version = "1.21.4" }
+testcontainers-k3s = { module = "org.testcontainers:k3s", version.ref = "testcontainers-operator" }
+testcontainers-junit5 = { module = "org.testcontainers:junit-jupiter", version.ref = "testcontainers-operator" }
+slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }
+slf4j-simple-operator = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j-operator" }
+slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j-operator" }
+jgit = { module = "org.eclipse.jgit:org.eclipse.jgit", version.ref = "jgit" }
+jsch = { module = "com.jcraft:jsch", version.ref = "jsch" }
+bcpg = { module = "org.bouncycastle:bcpg-jdk18on", version.ref = "bcprov" }
+bcprov = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bcprov" }
+javaewah = { module = "com.googlecode.javaewah:JavaEWAH", version.ref = "javaewah" }
+commons-codec = { module = "commons-codec:commons-codec", version.ref = "commons-codec" }
+commons-io = { module = "commons-io:commons-io", version.ref = "commons-io" }
+commons-lang3 = { module = "org.apache.commons:commons-lang3", version.ref = "commons-lang3" }
+gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
+json = { module = "org.json:json", version.ref = "json" }
+operator-framework = { module = "io.javaoperatorsdk:operator-framework", version.ref = "operator-framework" }
+kubernetes-client = { module = "io.fabric8:kubernetes-client", version.ref = "kubernetes-client" }
+kubernetes-server-mock = { module = "io.fabric8:kubernetes-server-mock", version.ref = "kubernetes-client" }
+jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "jackson" }
+jackson-jsr310 = { module = "com.fasterxml.jackson.datatype:jackson-datatype-jsr310", version.ref = "jackson" }
+assertj = { module = "org.assertj:assertj-core", version.ref = "assertj" }
+awaitility = { module = "org.awaitility:awaitility", version.ref = "awaitility" }
+
+[plugins]
+spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }

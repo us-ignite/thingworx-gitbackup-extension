@@ -1,30 +1,7 @@
 plugins {
-    id 'java'
-    id 'eclipse'
-}
-
-java {
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
-}
-
-sourceSets {
-    main {
-        java {
-            srcDirs = ['src']
-            exclude '**/test/**'
-        }
-    }
-    test {
-        java {
-            srcDirs = ['src']
-            include '**/test/**/*.java'
-        }
-    }
-}
-
-repositories {
-    mavenCentral()
+    id 'thingworx.java'
+    id 'thingworx.eclipse'
+    id 'thingworx.testing'
 }
 
 dependencies {
@@ -42,11 +19,6 @@ dependencies {
     testImplementation 'org.testcontainers:junit-jupiter:1.21.0'
     testImplementation 'org.testcontainers:k3s:1.21.0'
     testImplementation 'org.testcontainers:postgresql:1.21.0'
-}
-
-tasks.withType(JavaCompile).configureEach {
-    options.encoding = 'UTF-8'
-    options.release = 21
 }
 
 tasks.withType(Test).configureEach {
@@ -84,12 +56,6 @@ tasks.named('check') {
     dependsOn tasks.named('test')
 }
 
-tasks.named('javadoc') {
-    source = sourceSets.main.allJava.matching {
-        exclude '**/test/**'
-    }
-}
-
 tasks.named('jar') {
     manifest {
         attributes 'Main-Class': 'org.us_ignite.thingworx.operator.OperatorApplication'
@@ -115,27 +81,6 @@ tasks.register('fatJar', Jar) {
 
 tasks.named('assemble') {
     dependsOn tasks.named('fatJar')
-}
-
-eclipse {
-    classpath {
-        testSourceSets = [project.sourceSets.test]
-        file {
-            whenMerged { cp ->
-                cp.entries.removeAll {
-                    it instanceof org.gradle.plugins.ide.eclipse.model.SourceFolder
-                }
-                def main = new org.gradle.plugins.ide.eclipse.model.SourceFolder('src', 'bin/main')
-                main.excludes = ['**/test/**']
-                cp.entries.add(main)
-                def test = new org.gradle.plugins.ide.eclipse.model.SourceFolder('src', 'bin/test')
-                test.includes = ['**/test/**/*.java']
-                test.entryAttributes['test'] = 'true'
-                test.entryAttributes['gradle_used_by_scope'] = 'test'
-                cp.entries.add(test)
-            }
-        }
-    }
 }
 
 tasks.register('testAll') {

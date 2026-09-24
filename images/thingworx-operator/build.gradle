@@ -1,9 +1,9 @@
 plugins {
-    id 'com.diffplug.spotless' version '7.0.2' apply false
+    id 'thingworx.base'
+    id 'thingworx.docker'
 }
 
 def OPERATOR_VERSION = file("${rootDir}/apps/thingworx-operator/.version").text.trim()
-def IMG_BUILD_DIR = "${projectDir}/../build"
 def DOCKERFILE = "${projectDir}/Dockerfile"
 def SOURCE_DIR = "${rootDir}/apps/thingworx-operator"
 
@@ -32,6 +32,12 @@ tasks.register('buildImage') {
     }
 }
 
+tasks.register('buildAll') {
+    description = 'Build all thingworx-operator image artifacts (alias for buildImage)'
+    group = 'build'
+    dependsOn 'buildImage'
+}
+
 tasks.register('pushImage') {
     description = 'Push thingworx-operator image to ghcr.io'
     group = 'publishing'
@@ -44,8 +50,7 @@ tasks.register('pushImage') {
         ]
         tags.each { tag ->
             println "Pushing ${tag}..."
-            def proc = new ProcessBuilder('docker', 'push', tag).inheritIO().start()
-            if (proc.waitFor() != 0) throw new GradleException("docker push failed for ${tag}")
+            project.ext.dockerPush(tag)
         }
     }
 }

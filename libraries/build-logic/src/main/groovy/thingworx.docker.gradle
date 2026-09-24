@@ -1,0 +1,65 @@
+// Shared helpers for image projects (vendor staging, docker exec, cleanup).
+// Per-image build files keep only their ALL_TWX deltas + docker build args.
+plugins {
+    // Plugin-owned lifecycle tasks (clean/assemble/check) so image projects
+    // participate in standard lifecycle without hand-rolled task names.
+    id 'base'
+    id 'thingworx.base'
+}
+
+ext.imgBuildDir = "${projectDir}/../build"
+ext.imgVendorDir = "${rootDir}/vendor"
+
+// Fail fast when the working tree still holds ciphertext (checkout without
+// GPG_PASSPHRASE) instead of failing obscurely inside tar/unzip.
+ext.requireVendorArchive = { File f ->
+    if (!f.isFile()) {
+        throw new GradleException("Missing required vendor file: ${f} (twx-file filter + GPG_PASSPHRASE required at checkout)")
+    }
+    def header = new byte[4]
+    new FileInputStream(f).withCloseable { it.read(header) }
+    def isZip = header[0] == 0x50 && header[1] == 0x4B
+    def isGzip = (header[0] & 0xFF) == 0x1F && (header[1] & 0xFF) == 0x8B
+    if (!isZip && !isGzip) {
+        throw new GradleException("Vendor file is not plaintext (still encrypted?): ${f} - re-checkout with GPG_PASSPHRASE set and the twx-file filter registered")
+    }
+    return f
+}
+
+// Retried: parallel image builds contend on dockerd and a single
+// `docker tag` can fail transiently (seen under workers.max=3).
+ext.dockerTag = { String source, String target ->
+    def attempt = 0
+    while (true) {
+        attempt++
+        def proc = new ProcessBuilder('docker', 'tag', source, target).inheritIO().start()
+        if (proc.waitFor() == 0) {
+            return
+        }
+        if (attempt >= 3) {
+            throw new GradleException("docker tag failed after 3 attempts: ${source} -> ${target}")
+        }
+        println "docker tag failed (attempt ${attempt}/3), retrying in 5s: ${source} -> ${target}"
+        Thread.sleep(5000)
+    }
+}
+
+ext.dockerPush = { String tag ->
+    def proc = new ProcessBuilder('docker', 'push', tag).inheritIO().start()
+    if (proc.waitFor() != 0) {
+        throw new GradleException("docker push failed: ${tag}")
+    }
+}
+
+// Shared `build/` staging cleanup. Root `clean` aggregates `cleanVendor`.
+tasks.register('cleanImages', Delete) {
+    description = 'Delete all extracted vendor files and build contexts'
+    group = 'cleanup'
+    delete file("${projectDir}/../build")
+}
+
+tasks.register('cleanVendor') {
+    description = 'Clean build outputs (alias for cleanImages)'
+    group = 'cleanup'
+    dependsOn 'cleanImages'
+}

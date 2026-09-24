@@ -1,0 +1,22 @@
+// Shared group, version-from-.version, and repository defaults.
+// Version resolution: per-project `.version` wins; otherwise fall back to
+// the canonical operator version; otherwise a SNAPSHOT default.
+group = 'io.github.us-ignite'
+
+def versionFile = file('.version')
+if (versionFile.exists()) {
+    version = versionFile.text.trim()
+} else {
+    def operatorVersionFile = new File(rootDir, 'apps/thingworx-operator/.version')
+    if ((project.path == ':apps:thingworx-operator'
+            || project.path == ':images:thingworx-operator')
+            && operatorVersionFile.exists()) {
+        version = operatorVersionFile.text.trim()
+    } else {
+        version = '0.1.0-SNAPSHOT'
+    }
+}
+
+repositories {
+    mavenCentral()
+}

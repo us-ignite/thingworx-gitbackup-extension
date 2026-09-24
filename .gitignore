@@ -1,6 +1,9 @@
 # Gradle
 .gradle/
-build*/
+# Build outputs (any dir literally named `build`). NOTE: this must stay
+# narrow — `build-logic/` / `libraries/build-logic` are tracked sources.
+build/
+!libraries/build-logic
 target/
 dependency-reduced-pom.xml
 public/

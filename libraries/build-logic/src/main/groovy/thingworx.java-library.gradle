@@ -1,0 +1,10 @@
+// java-library variant: shared jars + java conventions.
+plugins {
+    id 'java-library'
+    id 'thingworx.java'
+}
+
+java {
+    withSourcesJar()
+    withJavadocJar()
+}
