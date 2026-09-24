@@ -5,12 +5,6 @@ plugins {
     id 'thingworx.sdk'
 }
 
-sourceSets {
-    main {
-        java.srcDirs = ['src']
-    }
-}
-
 dependencies {
     implementation project(':libraries:thingworx-dap-runtime')
     implementation project(':libraries:thingworx-dap')
@@ -31,6 +25,12 @@ tasks.named('compileJava') {
         '-Adap.packageVersion=1.0.0',
         '-Adap.minimumThingWorxVersion=9.6.0'
     ]
+}
+
+eclipse.classpath.file.whenMerged { classpath ->
+    classpath.entries.add(
+            new org.gradle.plugins.ide.eclipse.model.SourceFolder(
+                    'build/generated/sources/annotationProcessor/java/main', 'bin/main'))
 }
 
 tasks.register('verifyDapExample') {

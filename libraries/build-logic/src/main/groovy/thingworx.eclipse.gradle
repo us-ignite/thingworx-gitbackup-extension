@@ -7,8 +7,19 @@ plugins {
 
 pluginManager.withPlugin('java') {
     eclipse.classpath {
-        testSourceSets = [sourceSets.test]
-        plusConfigurations += [configurations.testRuntimeClasspath]
+        testConfigurations = testConfigurations.get() + [configurations.testRuntimeClasspath]
+        file.whenMerged { classpath ->
+            sourceSets.main.java.srcDirs.each { sourceDir ->
+                def sourcePath = project.relativePath(sourceDir)
+                if (!classpath.entries.any { it instanceof org.gradle.plugins.ide.eclipse.model.SourceFolder && it.path == sourcePath && it.entryAttributes['test'] != 'true' }) {
+                    def main = new org.gradle.plugins.ide.eclipse.model.SourceFolder(sourcePath, 'bin/main')
+                    main.excludes = sourceSets.main.java.excludes.toList()
+                    main.entryAttributes['gradle_scope'] = 'main'
+                    main.entryAttributes['gradle_used_by_scope'] = 'main,test'
+                    classpath.entries.add(main)
+                }
+            }
+        }
     }
 }
 

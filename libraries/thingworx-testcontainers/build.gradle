@@ -5,11 +5,6 @@ plugins {
     id 'thingworx.test-fixtures'
 }
 
-sourceSets {
-    main { java.srcDirs = ['src']; java.exclude '**/test/**/*.java' }
-    test { java.srcDirs = ['src']; java.include '**/test/**/*.java' }
-}
-
 dependencies {
     api 'org.testcontainers:testcontainers:2.0.5'
     api 'org.testcontainers:postgresql:1.21.4'

@@ -9,11 +9,3 @@ ext.publishingArtifactId = 'thingworx-dap'
 ext.publishingName = 'ThingWorx DAP'
 ext.publishingDescription = 'Declarative annotation processor for ThingWorx entity XML.'
 
-sourceSets {
-    main {
-        java {
-            srcDirs = ['src']
-            exclude 'main/resources/**'
-        }
-    }
-}

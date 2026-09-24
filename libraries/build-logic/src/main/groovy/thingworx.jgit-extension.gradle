@@ -13,20 +13,20 @@ plugins {
     id 'thingworx.test-fixtures'
 }
 
-import thingworx.TwxVersions
+def twxVersions = this.class.classLoader.loadClass('thingworx.TwxVersions')
 
 evaluationDependsOn(':libraries:thingworx-dap-runtime')
 evaluationDependsOn(':libraries:thingworx-testcontainers')
 
 def ver = project.projectDir.name
-def sdkEntry = TwxVersions.SDK_CONFIGS[ver]
+def sdkEntry = twxVersions.SDK_CONFIGS[ver]
 if (sdkEntry == null) {
     throw new GradleException(
         "thingworx.jgit-extension applied to unexpected directory '${project.projectDir}'. " +
-        "Expected versions/<one of ${TwxVersions.ALL}>.")
+    "Expected versions/<one of ${twxVersions.ALL}>.")
 }
-def cfg = sdkEntry + [sdkZip: "${rootDir}/vendor/${TwxVersions.SDK_ZIPS[ver]}"]
-def sanitized = TwxVersions.sanitize(ver)
+def cfg = sdkEntry + [sdkZip: "${rootDir}/vendor/${twxVersions.SDK_ZIPS[ver]}"]
+def sanitized = twxVersions.sanitize(ver)
 def sharedDir = new File(rootDir, 'apps/thingworx-jgit-extension')
 def sharedSrcDir = new File(sharedDir, 'src')
 
@@ -42,6 +42,26 @@ ext {
 eclipse {
     project {
         name = "thingworx-jgit-extension-${ver}"
+    }
+    classpath {
+        file {
+            whenMerged { classpath ->
+                classpath.entries.removeAll {
+                    it instanceof org.gradle.plugins.ide.eclipse.model.SourceFolder
+                }
+                def main = new org.gradle.plugins.ide.eclipse.model.SourceFolder('../../src', 'bin/main')
+                main.excludes = ['**/test/**']
+                main.entryAttributes['gradle_scope'] = 'main'
+                main.entryAttributes['gradle_used_by_scope'] = 'main,test'
+                classpath.entries.add(main)
+                def test = new org.gradle.plugins.ide.eclipse.model.SourceFolder('../../src', 'bin/test')
+                test.includes = ['org/us_ignite/thingworx/jgit/test/**/*.java']
+                test.entryAttributes['gradle_scope'] = 'test'
+                test.entryAttributes['gradle_used_by_scope'] = 'test'
+                test.entryAttributes['test'] = 'true'
+                classpath.entries.add(test)
+            }
+        }
     }
 }
 
@@ -111,6 +131,13 @@ tasks.register('unpackSdk', Copy) {
 }
 
 def dapOutputDir = file("${buildDir}/generated/dap")
+
+eclipse.classpath.file.whenMerged { classpath ->
+    classpath.entries.add(
+        new org.gradle.plugins.ide.eclipse.model.SourceFolder(
+            'build/generated/sources/annotationProcessor/java/main', 'bin/main'))
+}
+
 tasks.named('compileJava') {
     dependsOn tasks.named('unpackSdk')
     dependsOn ':libraries:thingworx-dap:jar'

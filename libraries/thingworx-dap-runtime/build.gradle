@@ -10,18 +10,6 @@ ext.publishingArtifactId = 'thingworx-dap-runtime'
 ext.publishingName = 'ThingWorx DAP Runtime'
 ext.publishingDescription = 'ThingWorx runtime helpers for ThingWorx DAP.'
 
-sourceSets {
-    main {
-        java {
-            srcDirs = ['src']
-            exclude 'test/**'
-        }
-    }
-    test {
-        java.srcDirs = []
-    }
-}
-
 dependencies {
     api project(':libraries:thingworx-dap')
     compileOnly fileTree(dir: project.ext.sdkExtractDir, include: '*.jar')

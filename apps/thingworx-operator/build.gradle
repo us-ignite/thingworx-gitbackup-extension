@@ -4,21 +4,6 @@ plugins {
     id 'thingworx.testing'
 }
 
-sourceSets {
-    main {
-        java {
-            srcDirs = ['src']
-            exclude '**/test/**'
-        }
-    }
-    test {
-        java {
-            srcDirs = ['src']
-            include '**/test/**/*.java'
-        }
-    }
-}
-
 dependencies {
     implementation 'io.javaoperatorsdk:operator-framework:5.4.0'
     implementation 'io.fabric8:kubernetes-client:7.8.0'
@@ -96,26 +81,6 @@ tasks.register('fatJar', Jar) {
 
 tasks.named('assemble') {
     dependsOn tasks.named('fatJar')
-}
-
-eclipse {
-    classpath {
-        file {
-            whenMerged { cp ->
-                cp.entries.removeAll {
-                    it instanceof org.gradle.plugins.ide.eclipse.model.SourceFolder
-                }
-                def main = new org.gradle.plugins.ide.eclipse.model.SourceFolder('src', 'bin/main')
-                main.excludes = ['**/test/**']
-                cp.entries.add(main)
-                def test = new org.gradle.plugins.ide.eclipse.model.SourceFolder('src', 'bin/test')
-                test.includes = ['**/test/**/*.java']
-                test.entryAttributes['test'] = 'true'
-                test.entryAttributes['gradle_used_by_scope'] = 'test'
-                cp.entries.add(test)
-            }
-        }
-    }
 }
 
 tasks.register('testAll') {
