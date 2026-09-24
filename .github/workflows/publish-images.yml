@@ -113,8 +113,6 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
       - name: Verify operator version
         run: ./gradlew verifyVersions --console=plain
-      - name: Build operator image
-        run: ./gradlew :images:thingworx-operator:buildImage --console=plain
       - name: Log in to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
       - name: Push operator image
@@ -166,8 +164,6 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
       - name: Log in to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-      - name: Build platform images (ALL_TWX × ALL_VARIANTS)
-        run: ./gradlew :images:platform:buildAll --console=plain
       - name: Push platform images
         run: ./gradlew :images:platform:pushAll --console=plain
 
@@ -195,8 +191,6 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
       - name: Log in to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-      - name: Build security-tool images
-        run: ./gradlew :images:security-tool:buildAll --console=plain
       - name: Push security-tool images
         run: ./gradlew :images:security-tool:pushAll --console=plain
 
@@ -224,7 +218,5 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
       - name: Log in to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-      - name: Build connection-server images
-        run: ./gradlew :images:connection-server:buildAll --console=plain
       - name: Push connection-server images
         run: ./gradlew :images:connection-server:pushAll --console=plain
