@@ -51,10 +51,16 @@ tasks.register('javadoc', Sync) {
     into layout.buildDirectory.dir('docs/javadoc')
 }
 
-tasks.register('buildAll') {
+tasks.register('buildAll', Sync) {
     description = 'Build extension packages for all ThingWorx versions (9.6.x, 9.7.x, 10.0.x, 10.1.x) in one daemon'
     group = 'build'
     dependsOn TwxVersions.ALL.collect { ver -> ":apps:thingworx-jgit-extension:v${TwxVersions.sanitize(ver)}:packageExtension" }
+    TwxVersions.ALL.each { ver ->
+        from(project(":apps:thingworx-jgit-extension:v${TwxVersions.sanitize(ver)}").layout.buildDirectory.dir('distributions')) {
+            include "JGitExtension-v${project.ext.packageVersion}-${TwxVersions.SDK_CONFIGS[ver].outputSuffix}.zip"
+        }
+    }
+    into layout.buildDirectory.dir('distributions')
 }
 
 tasks.register('testAll') {
