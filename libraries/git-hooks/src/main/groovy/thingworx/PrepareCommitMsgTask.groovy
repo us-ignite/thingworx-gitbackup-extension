@@ -151,6 +151,13 @@ abstract class PrepareCommitMsgTask extends DefaultTask {
                     }
                 }
             }
+            if (operatorChanged) {
+                String version = VersionUtils.gitShow(root, ':apps/thingworx-operator/.version') ?:
+                        VersionUtils.gitShow(root, ':charts/thingworx-operator/.version')
+                if (version != null && syncChartYaml(root, version, isDryRun)) {
+                    throw new GradleException('version files were updated and staged; rerun git commit with the same message.')
+                }
+            }
             if (!targets.isEmpty()) {
                 logger.lifecycle("versioning hook: no release version update ($header).")
             }
@@ -181,6 +188,9 @@ abstract class PrepareCommitMsgTask extends DefaultTask {
                 String base = baselineVersion(root, target, 'HEAD')
                 String expected = base
                 if (bump != 'none') expected = VersionUtils.nextVersion(base, bump)
+                if (target == 'apps/thingworx-operator/.version') {
+                    needsRetry = syncChartYaml(root, expected, isDryRun) || needsRetry
+                }
                 String stagedVer = VersionUtils.gitShow(root, ":$target")
                 stagedVer = stagedVer ? stagedVer.replaceAll(/\s+/, '') : ''
                 if (stagedVer != expected) {
@@ -218,6 +228,9 @@ abstract class PrepareCommitMsgTask extends DefaultTask {
 
             current = current.replaceAll(/\s+/, '')
             String proposed = VersionUtils.nextVersion(current, bump)
+            if (target == 'apps/thingworx-operator/.version') {
+                needsRetry = syncChartYaml(root, proposed, isDryRun) || needsRetry
+            }
             String stagedVer2 = VersionUtils.gitShow(root, ":$target")
             stagedVer2 = stagedVer2 ? stagedVer2.replaceAll(/\s+/, '') : ''
             if (stagedVer2 != proposed) {
@@ -254,6 +267,31 @@ abstract class PrepareCommitMsgTask extends DefaultTask {
         if (needsRetry) {
             throw new GradleException('version files were updated and staged; rerun git commit with the same message.')
         }
+    }
+
+    private boolean syncChartYaml(File root, String version, boolean isDryRun) {
+        String path = 'charts/thingworx-operator/Chart.yaml'
+        String staged = VersionUtils.gitShowRaw(root, ":$path")
+        if (staged == null) throw new GradleException("Missing staged $path")
+        String updated = staged
+        for (field in ['version', 'appVersion']) {
+            def pattern = java.util.regex.Pattern.compile(/(?m)^(${field}:[ \t]*)([^\r\n#]*?)([ \t]*(?:#[^\r\n]*)?)$/)
+            def matcher = pattern.matcher(updated)
+            if (!matcher.find()) throw new GradleException("Missing $field in $path")
+            String value = field == 'appVersion' ? "\"$version\"" : version
+            updated = matcher.replaceFirst(java.util.regex.Matcher.quoteReplacement(matcher.group(1) + value + matcher.group(3)))
+        }
+        if (updated == staged) return false
+        logger.lifecycle("versioning hook: $path version/appVersion -> $version")
+        if (isDryRun) return false
+        File chart = new File(root, path)
+        // Do not accidentally include unrelated unstaged chart edits in the commit.
+        if (!chart.exists() || chart.getText('UTF-8') != staged) {
+            throw new GradleException("$path has unstaged changes; stage or stash them before retrying the commit.")
+        }
+        chart.setText(updated, 'UTF-8')
+        execGitAdd(root, path)
+        return true
     }
 
     private boolean checkDryRun(File root) {

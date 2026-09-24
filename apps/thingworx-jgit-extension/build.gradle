@@ -43,6 +43,14 @@ tasks.register('packageExtension') {
     dependsOn defaultProjectPath + ':packageExtension'
 }
 
+tasks.register('javadoc', Sync) {
+    description = "Generate Javadocs for default ThingWorx version (${defaultTwx})"
+    group = 'documentation'
+    dependsOn defaultProjectPath + ':javadoc'
+    from project(defaultProjectPath).layout.buildDirectory.dir('docs/javadoc')
+    into layout.buildDirectory.dir('docs/javadoc')
+}
+
 tasks.register('buildAll') {
     description = 'Build extension packages for all ThingWorx versions (9.6.x, 9.7.x, 10.0.x, 10.1.x) in one daemon'
     group = 'build'
