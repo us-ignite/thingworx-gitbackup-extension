@@ -1,12 +1,15 @@
 package org.us_ignite.thingworx.test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermission;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.us_ignite.thingworx.testcontainers.ThingWorxContainer;
@@ -37,6 +40,27 @@ class LicenseResolutionTest {
                     IllegalStateException.class, ThingWorxContainer::resolveLicenseFile);
         } finally {
             restoreProperty(previous);
+        }
+    }
+
+    @Test
+    void base64LicenseIsReadableByContainerUser() throws Exception {
+        String encoded = System.getenv("TWX_LICENSE_B64");
+        assumeTrue(encoded != null && !encoded.isBlank());
+        String previousProp = System.getProperty("test.licenseFile");
+        String previousDir = System.getProperty("user.dir");
+        System.clearProperty("test.licenseFile");
+        System.setProperty("user.dir", tempDir.toString());
+        try {
+            Path license = ThingWorxContainer.resolveLicenseFile();
+            assertNotNull(license);
+            assertTrue(Files.isReadable(license));
+            assertTrue(
+                    Files.getPosixFilePermissions(license).contains(PosixFilePermission.OTHERS_READ),
+                    "Docker's ThingWorx user must be able to read the bind-mounted license");
+        } finally {
+            restoreProperty(previousProp);
+            System.setProperty("user.dir", previousDir);
         }
     }
 

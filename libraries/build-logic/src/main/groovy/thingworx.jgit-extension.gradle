@@ -207,10 +207,22 @@ test {
         }
         systemProperty 'junit.jupiter.execution.parallel.config.fixed.parallelism', parsed
     }
-    maxParallelForks = 4
+    def maxForksOverride = project.findProperty('testMaxParallelForks')
+    if (maxForksOverride != null) {
+        def parsed = maxForksOverride.toString().trim()
+        if (!parsed.matches(/^[1-9][0-9]*$/)) {
+            throw new GradleException("testMaxParallelForks must be a positive integer, got '${maxForksOverride}'")
+        }
+        maxParallelForks = parsed.toInteger()
+    } else {
+        maxParallelForks = 4
+    }
     useJUnitPlatform()
     testLogging {
         events 'passed', 'skipped', 'failed'
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+        showCauses = true
+        showStackTraces = true
     }
 }
 

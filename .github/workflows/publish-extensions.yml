@@ -83,16 +83,10 @@ jobs:
         include:
           - twx: '9.6'
             task: v96
-            platform_task: build96
-            security_task: buildSecurityTool_9.6
           - twx: '9.7'
             task: v97
-            platform_task: build97
-            security_task: buildSecurityTool_9.7
           - twx: '10.1'
             task: v101
-            platform_task: build101
-            security_task: buildSecurityTool_10.1
     steps:
       - uses: actions/checkout@v6
         with:
@@ -119,18 +113,29 @@ jobs:
           TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE: /var/run/docker.sock
         run: >-
           ./gradlew :apps:thingworx-jgit-extension:${{ matrix.task }}:test
-          -x :images:platform:${{ matrix.platform_task }}
-          -x :images:security-tool:${{ matrix.security_task }}
+          -PtestMaxParallelForks=1
+          -PtestParallelism=1
+          --max-workers=1
           --console=plain
         timeout-minutes: 45
+      - name: Summarize test failures
+        if: always()
+        shell: bash
+        run: |
+          result_dir="apps/thingworx-jgit-extension/versions/${{ matrix.twx }}/build/test-results/test"
+          if compgen -G "$result_dir/TEST-*.xml" > /dev/null; then
+            grep -H -E '<testsuite |<failure |<error ' "$result_dir"/TEST-*.xml || true
+          else
+            echo "No JUnit XML reports found in $result_dir"
+          fi
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: integration-tests-${{ matrix.twx }}
           path: |
-            apps/thingworx-jgit-extension/build/reports/tests/
-            apps/thingworx-jgit-extension/build/test-results/
+            apps/thingworx-jgit-extension/versions/${{ matrix.twx }}/build/reports/tests/test/
+            apps/thingworx-jgit-extension/versions/${{ matrix.twx }}/build/test-results/test/
           if-no-files-found: warn
 
   publish:

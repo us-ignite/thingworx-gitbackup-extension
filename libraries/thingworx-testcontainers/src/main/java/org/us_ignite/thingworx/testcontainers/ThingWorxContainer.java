@@ -6,9 +6,11 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.Builder;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermission;
 import java.time.Duration;
 import java.util.Base64;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.GenericContainer;
@@ -81,6 +83,18 @@ public class ThingWorxContainer extends GenericContainer<ThingWorxContainer> {
             try {
                 Path tmp = Files.createTempFile("twx-license-", ".bin");
                 Files.write(tmp, Base64.getDecoder().decode(encoded.trim()));
+                try {
+                    Files.setPosixFilePermissions(
+                            tmp,
+                            Set.of(
+                                    PosixFilePermission.OWNER_READ,
+                                    PosixFilePermission.GROUP_READ,
+                                    PosixFilePermission.OTHERS_READ));
+                } catch (UnsupportedOperationException e) {
+                    if (!tmp.toFile().setReadable(true, false)) {
+                        throw new IOException("Could not make the temporary license readable");
+                    }
+                }
                 tmp.toFile().deleteOnExit();
                 return tmp;
             } catch (IOException | IllegalArgumentException e) {
