@@ -1,0 +1,21 @@
+{
+  "name": "aggridwidget2-build",
+  "private": true,
+  "workspaces": [
+    "ide",
+    "runtime"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace @aggridwidget2/ide && npm run build --workspace @aggridwidget2/runtime && npm run smoke",
+    "smoke": "node scripts/smoke-bundles.cjs",
+    "verify:parity": "npm run build && node scripts/differential-bundles.cjs",
+    "typecheck": "npm run typecheck --workspace @aggridwidget2/ide && npm run typecheck --workspace @aggridwidget2/runtime"
+  },
+  "devDependencies": {
+    "@babel/core": "7.29.7",
+    "@babel/preset-env": "7.29.7",
+    "acorn": "8.19.0",
+    "typescript": "5.5.4",
+    "vite": "6.4.5"
+  }
+}

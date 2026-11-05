@@ -3,6 +3,7 @@ package org.us_ignite.thingworx.jgit.test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.us_ignite.thingworx.jgit.test.util.ServiceResultAssertions.assertServiceSuccess;
 import static org.us_ignite.thingworx.jgit.test.util.ServiceResultAssertions.assertSuccess;
@@ -11,8 +12,12 @@ import static org.us_ignite.thingworx.jgit.test.util.ServiceResultAssertions.res
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import java.net.URI;
+import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Base64;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.MethodOrderer;
@@ -114,8 +119,103 @@ public class GiteaGitOperationsTest {
                 "SaveText failed: " + res.statusCode() + " " + res.body());
     }
 
+    private void stageFile(String path) throws Exception {
+        JsonObject body = new JsonObject();
+        body.addProperty("File", repoRelativePath(path));
+        body.addProperty("All", false);
+        var req =
+                stack.thingworx
+                        .serviceRequest(GIT_THING_NAME, "Add", body.toString())
+                        .timeout(Duration.ofSeconds(10))
+                        .build();
+        var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, res.statusCode(), "Add " + path + " failed: " + res.body());
+        assertSuccess(res.body());
+    }
+
     private String giteaExternalBaseUrl() {
         return "http://" + stack.gitea.getHost() + ":" + stack.gitea.getMappedPort(3000);
+    }
+
+    private HttpResponse<String> callService(String service, JsonObject body) throws Exception {
+        var req =
+                stack.thingworx
+                        .serviceRequest(
+                                GIT_THING_NAME, service, body == null ? null : body.toString())
+                        .build();
+        return stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private JsonArray getStatusRows() throws Exception {
+        var res = callService("Status", null);
+        assertEquals(200, res.statusCode(), "Status failed: " + res.body());
+        return responseRows(res.body());
+    }
+
+    private JsonObject findWorkingTreeRow(JsonArray rows, String file, String area) {
+        for (int i = 0; i < rows.size(); i++) {
+            JsonObject row = rows.get(i).getAsJsonObject();
+            if (file.equals(row.get("File").getAsString())
+                    && area.equals(row.get("Area").getAsString())) {
+                return row;
+            }
+        }
+        return null;
+    }
+
+    private void applyFileAction(String action, String... files) throws Exception {
+        JsonObject statusRequest = new JsonObject();
+        statusRequest.addProperty("ShowUnchangedFiles", true);
+        var status = callService("Status", statusRequest);
+        assertEquals(200, status.statusCode(), "Status failed: " + status.body());
+        JsonObject payload =
+                JsonParser.parseString(status.body())
+                        .getAsJsonObject()
+                        .getAsJsonArray("rows")
+                        .get(0)
+                        .getAsJsonObject()
+                        .getAsJsonObject("Result");
+        JsonObject changes = new JsonObject();
+        changes.add("dataShape", payload.getAsJsonObject("dataShape").deepCopy());
+        JsonArray rows = new JsonArray();
+        for (String file : files) {
+            String relativePath = repoRelativePath(file);
+            JsonObject row = null;
+            for (var candidate : payload.getAsJsonArray("rows")) {
+                JsonObject current = candidate.getAsJsonObject();
+                if (relativePath.equals(current.get("File").getAsString())) {
+                    row = current;
+                    break;
+                }
+            }
+            assertNotNull(row, "File missing from working-tree status: " + relativePath);
+            rows.add(row.deepCopy());
+        }
+        changes.add("rows", rows);
+
+        JsonObject body = new JsonObject();
+        body.add("Changes", changes);
+        body.addProperty("Action", action);
+        var res = callService("ApplyFileAction", body);
+        assertEquals(200, res.statusCode(), "ApplyFileAction failed: " + res.body());
+        assertSuccess(res.body());
+    }
+
+    private String repoRelativePath(String path) {
+        return path.startsWith("/") ? path.substring(1) : path;
+    }
+
+    private void assertServiceFailure(HttpResponse<String> response, String operation) {
+        assertEquals(
+                200,
+                response.statusCode(),
+                operation + " transport failed: " + response.statusCode() + " " + response.body());
+        JsonObject table = JsonParser.parseString(response.body()).getAsJsonObject();
+        assertTrue(table.has("rows"), operation + " must return an InfoTable: " + response.body());
+        JsonObject row = table.getAsJsonArray("rows").get(0).getAsJsonObject();
+        assertTrue(
+                row.get("Error").getAsBoolean(),
+                operation + " should report Error=true: " + response.body());
     }
 
     private void registerGpgKeyWithGitea(String privateKey) throws Exception {
@@ -198,6 +298,7 @@ public class GiteaGitOperationsTest {
                 GIT_THING_NAME,
                 GIT_THING_PATH + "/" + TEST_FILE,
                 "Hello from ThingWorx JGit extension integration test!");
+        stageFile(GIT_THING_PATH + "/" + TEST_FILE);
 
         JsonObject body = new JsonObject();
         body.addProperty("Message", "Integration test: initial commit");
@@ -305,6 +406,26 @@ public class GiteaGitOperationsTest {
         assertTrue(
                 statusRes.body().contains("rows"),
                 "Status should return infotable JSON: " + statusRes.body());
+        assertFalse(
+                statusRes.body().contains("Unchanged"),
+                "Unchanged files should be hidden by default: " + statusRes.body());
+
+        JsonObject showUnchanged = new JsonObject();
+        showUnchanged.addProperty("ShowUnchangedFiles", true);
+        var allStatusReq =
+                stack.thingworx
+                        .serviceRequest(GIT_THING_NAME, "Status", showUnchanged.toString())
+                        .build();
+        var allStatusRes =
+                stack.httpClient.send(allStatusReq, HttpResponse.BodyHandlers.ofString());
+        assertEquals(
+                200,
+                allStatusRes.statusCode(),
+                "Status with unchanged files failed: " + allStatusRes.body());
+        assertTrue(
+                allStatusRes.body().contains("README.md")
+                        && allStatusRes.body().contains("Unchanged"),
+                "A committed README should be listed as unchanged: " + allStatusRes.body());
     }
 
     @Test
@@ -371,6 +492,7 @@ public class GiteaGitOperationsTest {
 
         editFileInRepoViaThingworxAPI(
                 GIT_THING_NAME, GIT_THING_PATH + "/feature-file.txt", "Feature branch content");
+        stageFile(GIT_THING_PATH + "/feature-file.txt");
 
         var commitBody = new JsonObject();
         commitBody.addProperty("Message", "Feature branch commit");
@@ -628,6 +750,7 @@ public class GiteaGitOperationsTest {
 
         editFileInRepoViaThingworxAPI(
                 GIT_THING_NAME, GIT_THING_PATH + "/signed-test.txt", "Signed commit test content");
+        stageFile(GIT_THING_PATH + "/signed-test.txt");
 
         JsonObject commitBody = new JsonObject();
         commitBody.addProperty("Message", "Integration test: signed commit");
@@ -770,6 +893,7 @@ public class GiteaGitOperationsTest {
 
         editFileInRepoViaThingworxAPI(
                 GIT_THING_NAME, GIT_THING_PATH + "/merge-test.txt", "Merge branch content");
+        stageFile(GIT_THING_PATH + "/merge-test.txt");
 
         JsonObject pushBody = new JsonObject();
         pushBody.addProperty("Message", "Commit on merge branch");
@@ -818,6 +942,7 @@ public class GiteaGitOperationsTest {
 
         editFileInRepoViaThingworxAPI(
                 GIT_THING_NAME, GIT_THING_PATH + "/rebase-main.txt", "Main branch advancement");
+        stageFile(GIT_THING_PATH + "/rebase-main.txt");
         JsonObject pushBody = new JsonObject();
         pushBody.addProperty("Message", "Advance main for rebase test");
         var commitReq =
@@ -852,6 +977,220 @@ public class GiteaGitOperationsTest {
         assertEquals(200, rebaseRes.statusCode(), "Rebase failed: " + rebaseRes.body());
         String body = rebaseRes.body();
         assertSuccess(body);
+    }
+
+    @Test
+    @Order(31)
+    void testWorkingTreeChangesFlow() throws Exception {
+        String fileA = GIT_THING_PATH + "/changes-flow-a.txt";
+        String fileB = GIT_THING_PATH + "/changes-flow-b.txt";
+        editFileInRepoViaThingworxAPI(GIT_THING_NAME, fileA, "Changes flow A");
+        editFileInRepoViaThingworxAPI(GIT_THING_NAME, fileB, "Changes flow B");
+        editFileInRepoViaThingworxAPI(
+                GIT_THING_NAME, GIT_THING_PATH + "/.gitignore", "ignored-status.txt\n");
+        editFileInRepoViaThingworxAPI(
+                GIT_THING_NAME, GIT_THING_PATH + "/ignored-status.txt", "ignored");
+
+        String relA = repoRelativePath(fileA);
+        String relB = repoRelativePath(fileB);
+
+        JsonArray rows = getStatusRows();
+        assertNotNull(
+                findWorkingTreeRow(rows, relA, "Changes"),
+                "Unstaged file A should be listed: " + rows);
+        assertEquals(
+                "Untracked", findWorkingTreeRow(rows, relA, "Changes").get("Status").getAsString());
+        assertNotNull(
+                findWorkingTreeRow(rows, relB, "Changes"),
+                "Unstaged file B should be listed: " + rows);
+        String ignoredPath = repoRelativePath(GIT_THING_PATH + "/ignored-status.txt");
+        JsonObject ignored = findWorkingTreeRow(rows, ignoredPath, "Ignored");
+        assertNotNull(ignored, "Legacy status should include ignored paths");
+        assertEquals("Ignored", ignored.get("Status").getAsString());
+
+        JsonObject filters = new JsonObject();
+        filters.addProperty("ShowUnchangedFiles", true);
+        filters.addProperty("HideUntracked", true);
+        filters.addProperty("HideUnchanged", true);
+        filters.addProperty("HideIgnored", true);
+        var filtered = callService("Status", filters);
+        assertEquals(200, filtered.statusCode(), filtered.body());
+        for (var item : responseRows(filtered.body())) {
+            String changeType = item.getAsJsonObject().get("ChangeType").getAsString();
+            assertFalse("Untracked".equals(changeType));
+            assertFalse("Unchanged".equals(changeType));
+            assertFalse("Ignored".equals(changeType));
+        }
+        assertNull(findWorkingTreeRow(responseRows(filtered.body()), relA, "Changes"));
+
+        applyFileAction("stage", fileA);
+        rows = getStatusRows();
+        JsonObject stagedA = findWorkingTreeRow(rows, relA, "Staged Changes");
+        assertNotNull(stagedA, "Staged file A should be listed: " + rows);
+        assertEquals("Added", stagedA.get("Status").getAsString());
+        assertTrue(stagedA.get("Staged").getAsBoolean(), "File A should be staged: " + stagedA);
+        assertNotNull(
+                findWorkingTreeRow(rows, relB, "Changes"),
+                "File B should remain unstaged: " + rows);
+
+        applyFileAction("unstage", fileA);
+        rows = getStatusRows();
+        assertNotNull(
+                findWorkingTreeRow(rows, relA, "Changes"),
+                "File A should return to unstaged changes: " + rows);
+
+        applyFileAction("stage", fileA, fileB);
+        rows = getStatusRows();
+        assertNotNull(
+                findWorkingTreeRow(rows, relA, "Staged Changes"),
+                "File A should be staged again: " + rows);
+        assertNotNull(
+                findWorkingTreeRow(rows, relB, "Staged Changes"),
+                "File B should be staged: " + rows);
+
+        applyFileAction("untrack", fileB);
+        rows = getStatusRows();
+        JsonObject untrackedB = findWorkingTreeRow(rows, relB, "Changes");
+        assertNotNull(untrackedB, "Untracked file B should remain on disk: " + rows);
+        assertEquals(
+                "Untracked",
+                untrackedB.get("ChangeType").getAsString(),
+                "File B should be untracked after untrack: " + untrackedB);
+        assertFalse(
+                untrackedB.get("Tracked").getAsBoolean(),
+                "File B should report Tracked=false: " + untrackedB);
+
+        applyFileAction("stage", fileB);
+        JsonObject commitBody = new JsonObject();
+        commitBody.addProperty("Message", "Integration test: working tree changes flow");
+        var commitRes = callService("CommitStaged", commitBody);
+        assertEquals(200, commitRes.statusCode(), "CommitStaged failed: " + commitRes.body());
+        assertSuccess(commitRes.body());
+
+        rows = getStatusRows();
+        assertNull(
+                findWorkingTreeRow(rows, relA, "Staged Changes"),
+                "File A should be committed: " + rows);
+        assertNull(
+                findWorkingTreeRow(rows, relB, "Changes"), "File B should be committed: " + rows);
+
+        applyFileAction("untrack", fileB);
+        rows = getStatusRows();
+        JsonObject removedB = findWorkingTreeRow(rows, relB, "Staged Changes");
+        assertNotNull(removedB, "Untracking a committed file stages its removal: " + rows);
+        assertEquals("Removed", removedB.get("Status").getAsString());
+        assertFalse(
+                removedB.get("Tracked").getAsBoolean(), "Removed file is no longer in the index");
+        untrackedB = findWorkingTreeRow(rows, relB, "Changes");
+        assertNotNull(untrackedB, "Untracked file should remain on disk: " + rows);
+        assertFalse(untrackedB.get("Tracked").getAsBoolean());
+        applyFileAction("stage", fileB);
+    }
+
+    @Test
+    @Order(32)
+    void testCommitRequiresStagedChanges() throws Exception {
+        JsonObject unstageAll = new JsonObject();
+        unstageAll.addProperty("All", true);
+        var unstageRes = callService("Unstage", unstageAll);
+        assertEquals(200, unstageRes.statusCode(), "Unstage all failed: " + unstageRes.body());
+        assertSuccess(unstageRes.body());
+
+        JsonObject body = new JsonObject();
+        body.addProperty("Message", "Integration test: no staged changes");
+        assertServiceFailure(callService("CommitStaged", body), "CommitStaged");
+        assertServiceFailure(callService("Commit", body), "Commit");
+    }
+
+    @Test
+    @Order(34)
+    void testStatusSynchronizesDeletedThingWithoutStagingIt() throws Exception {
+        String thing = "StatusSync.DeletedThing";
+        JsonObject create = new JsonObject();
+        create.addProperty("name", thing);
+        create.addProperty("thingTemplateName", "GenericThing");
+        create.addProperty("projectName", "GiteaGitOperationsProject");
+        assertEquals(200, callEntityService("CreateThing", create).statusCode());
+
+        var firstStatus = callService("Status", null);
+        assertSuccess(firstStatus.body());
+        String file = GIT_THING_PATH + "/GiteaGitOperationsProject/Things/" + thing + ".xml";
+        String relative = repoRelativePath(file);
+        stageFile(file);
+        JsonObject commit = new JsonObject();
+        commit.addProperty("Message", "Add status sync fixture");
+        assertSuccess(callService("CommitStaged", commit).body());
+
+        JsonObject delete = new JsonObject();
+        delete.addProperty("name", thing);
+        assertEquals(200, callEntityService("DeleteThing", delete).statusCode());
+        var refreshed = callService("Status", null);
+        assertSuccess(refreshed.body());
+        boolean foundMissing = false;
+        for (var value : responseRows(refreshed.body())) {
+            JsonObject row = value.getAsJsonObject();
+            if (relative.equals(row.get("File").getAsString())) {
+                foundMissing =
+                        "Missing".equals(row.get("Status").getAsString())
+                                && !row.get("Staged").getAsBoolean();
+            }
+        }
+        assertTrue(
+                foundMissing,
+                "Status should report the tracked entity as an unstaged deletion: "
+                        + refreshed.body());
+        JsonObject row = findWorkingTreeRow(getStatusRows(), relative, "Changes");
+        assertNotNull(row, "Changes status should retain the deletion");
+        assertEquals("Deleted", row.get("ChangeType").getAsString());
+        assertFalse(row.get("Staged").getAsBoolean());
+    }
+
+    private HttpResponse<String> callEntityService(String service, JsonObject body)
+            throws Exception {
+        String encoded =
+                Base64.getEncoder()
+                        .encodeToString(
+                                (credentials.thingworxAdminUser
+                                                + ":"
+                                                + credentials.thingworxAdminPass)
+                                        .getBytes(StandardCharsets.UTF_8));
+        HttpRequest request =
+                HttpRequest.newBuilder()
+                        .uri(
+                                URI.create(
+                                        stack.thingworx.getExternalUrl()
+                                                + "/Thingworx/Resources/EntityServices/Services/"
+                                                + service))
+                        .header("Authorization", "Basic " + encoded)
+                        .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
+                        .header("X-Requested-By", "ThingWorx")
+                        .header("Content-Type", "application/json")
+                        .header("Accept", "application/json")
+                        .POST(HttpRequest.BodyPublishers.ofString(body.toString()))
+                        .build();
+        return stack.httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    @Test
+    @Order(33)
+    void testExportDoesNotStageProjectFiles() throws Exception {
+        String file = GIT_THING_PATH + "/GiteaGitOperationsProject/export-not-staged-test.txt";
+        editFileInRepoViaThingworxAPI(GIT_THING_NAME, file, "Export must not stage this file");
+
+        String rel = repoRelativePath(file);
+        JsonArray rows = getStatusRows();
+        JsonObject row = findWorkingTreeRow(rows, rel, "Changes");
+        assertNotNull(row, "Exported project file should be listed as an unstaged change: " + rows);
+        assertFalse(
+                row.get("Staged").getAsBoolean(),
+                "Project export must not stage files automatically: " + row);
+
+        applyFileAction("stage", file);
+        JsonObject body = new JsonObject();
+        body.addProperty("Message", "Integration test: export does not auto-stage");
+        var commitRes = callService("CommitStaged", body);
+        assertEquals(200, commitRes.statusCode(), "CommitStaged failed: " + commitRes.body());
+        assertSuccess(commitRes.body());
     }
 
     @Test

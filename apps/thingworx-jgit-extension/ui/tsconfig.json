@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "target": "ES2015",
+    "module": "none",
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "lib": ["ES2015", "DOM"]
+  },
+  "include": ["src/**/*.ts"]
+}

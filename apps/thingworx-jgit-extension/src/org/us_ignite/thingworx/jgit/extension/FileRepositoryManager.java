@@ -95,11 +95,17 @@ final class FileRepositoryManager {
     }
 
     /**
-     * Exports the configured project, removes volatile metadata, and stages its tree. Private -
-     * invisible to users.
+     * Exports the configured project and removes volatile metadata. Private - invisible to users.
+     * Exported files are intentionally left unstaged; callers stage only the paths they want to
+     * commit.
      */
     // intentionally not a ThingWorx service; sync is automatic via Pull/Push/Commit etc.
     void exportProjectEntities() throws Exception {
+        exportProjectEntitiesTo(repositoryPath());
+        sanitizeExportedXml(projectName());
+    }
+
+    private void exportProjectEntitiesTo(String path) throws Exception {
         if (projectName().isBlank()) {
             throw new Exception(Const.ERR_PREFIX_CONFIG + Const.ERR_PROJECT_NAME_REQUIRED);
         }
@@ -113,12 +119,40 @@ final class FileRepositoryManager {
 
         ValueCollection params = new ValueCollection();
         params.put("repositoryName", new StringPrimitive(fileRepository.getName()));
-        params.put("path", new StringPrimitive(repositoryPath()));
+        params.put("path", new StringPrimitive(path));
         params.put("projectName", new StringPrimitive(projectName()));
         params.put("includeDependents", new BooleanPrimitive(false));
         sourceControlFunctions.processServiceRequest("ExportSourceControlledEntities", params);
-        sanitizeExportedXml(projectName());
-        stagePath(normalizeRepositoryRelativePath(projectRepositoryPath()));
+    }
+
+    /**
+     * Refreshes the working tree from a separate project export without modifying the Git index.
+     */
+    void syncStatusFromThingWorx() throws Exception {
+        synchronized (StatusExportReconciler.class) {
+            syncStatusFromThingWorxLocked();
+        }
+    }
+
+    private void syncStatusFromThingWorxLocked() throws Exception {
+        java.nio.file.Path base = new File(fileRepository.getRootPath()).toPath().toRealPath();
+        java.nio.file.Path temporary = Files.createTempDirectory(base, ".jgit-status-");
+        try {
+            exportProjectEntitiesTo("/" + temporary.getFileName());
+            java.nio.file.Path project = temporary.resolve(projectName()).normalize();
+            if (!project.startsWith(temporary) || !Files.isDirectory(project)) {
+                throw new IOException("ThingWorx did not produce the expected project export.");
+            }
+            sanitizeXmlIn(project.toFile());
+            StatusExportReconciler.reconcile(git, project, repositoryPath(), projectName());
+        } finally {
+            try (var paths = Files.walk(temporary)) {
+                for (java.nio.file.Path path :
+                        paths.sorted(java.util.Comparator.reverseOrder()).toList()) {
+                    Files.deleteIfExists(path);
+                }
+            }
+        }
     }
 
     /**
@@ -162,13 +196,24 @@ final class FileRepositoryManager {
     }
 
     private void sanitizeExportedXml(String exportedProjectName) throws IOException {
-        removeXmlAttributes(exportedProjectName, "\\s+lastModifiedDate=\"[^\"]*\"");
-        removeXmlAttributes(exportedProjectName, "\\s+modelPersistenceProviderPackage=\"[^\"]*\"");
+        File root = repositoryRoot();
+        if (exportedProjectName != null && !exportedProjectName.isBlank())
+            root = new File(root, exportedProjectName);
+        sanitizeXmlIn(root);
+    }
+
+    private void sanitizeXmlIn(File root) throws IOException {
+        removeXmlAttributesIn(root, "\\s+lastModifiedDate=\"[^\"]*\"");
+        removeXmlAttributesIn(root, "\\s+modelPersistenceProviderPackage=\"[^\"]*\"");
     }
 
     private void removeXmlAttributes(String project, String attributePattern) throws IOException {
         File root = repositoryRoot();
         if (project != null && !project.isBlank()) root = new File(root, project);
+        removeXmlAttributesIn(root, attributePattern);
+    }
+
+    private void removeXmlAttributesIn(File root, String attributePattern) throws IOException {
         if (!root.exists()) return;
         List<File> files = new ArrayList<>();
         collectXmlFilesOnDisk(root, files);
@@ -217,20 +262,66 @@ final class FileRepositoryManager {
         return false;
     }
 
-    private String projectRepositoryPath() {
-        return (repositoryPath().isBlank() ? "" : repositoryPath()) + "/" + projectName();
-    }
-
-    private String normalizeRepositoryRelativePath(String path) {
-        String clean = path.replaceAll("^/+|/+$", "");
+    String normalizeRepositoryRelativePath(String path) {
+        if (path == null) throw new IllegalArgumentException("File is required.");
+        String clean = path.trim().replace('\\', '/');
+        if (clean.matches("^[A-Za-z]:/.*")) {
+            throw new IllegalArgumentException("Invalid file path: " + path);
+        }
+        // ThingWorx FileRepository paths may start with '/' but still resolve below its root.
+        clean = clean.replaceAll("^/+|/+$", "");
         if (clean.isBlank()) throw new IllegalArgumentException("File is required.");
-        return clean;
+        if (".".equals(clean)) return ".";
+        if (clean.indexOf('\0') >= 0) throw new IllegalArgumentException("Invalid file path.");
+        try {
+            java.nio.file.Path normalized = java.nio.file.Paths.get(clean).normalize();
+            String result = normalized.toString().replace('\\', '/');
+            if (normalized.isAbsolute()
+                    || result.equals("..")
+                    || result.startsWith("../")
+                    || result.isBlank()) {
+                throw new IllegalArgumentException("Invalid file path: " + path);
+            }
+            return result;
+        } catch (java.nio.file.InvalidPathException e) {
+            throw new IllegalArgumentException("Invalid file path: " + path, e);
+        }
     }
 
     void stagePath(String path) throws Exception {
-        git.add().addFilepattern(path).setUpdate(true).call();
-        File workTreePath = new File(git.getRepository().getWorkTree(), path);
-        if (workTreePath.exists()) git.add().addFilepattern(path).call();
+        String clean = normalizeRepositoryRelativePath(path);
+        git.add().addFilepattern(clean).setUpdate(true).call();
+        File workTreePath = new File(git.getRepository().getWorkTree(), clean);
+        if (workTreePath.exists()) git.add().addFilepattern(clean).call();
+    }
+
+    void unstagePath(String path) throws Exception {
+        String clean = normalizeRepositoryRelativePath(path);
+        try {
+            git.reset().addPath(clean).call();
+        } catch (org.eclipse.jgit.api.errors.NoHeadException e) {
+            git.rm().setCached(true).addFilepattern(clean).call();
+        }
+    }
+
+    void unstageAll() throws Exception {
+        try {
+            git.reset().call();
+        } catch (org.eclipse.jgit.api.errors.NoHeadException e) {
+            org.eclipse.jgit.dircache.DirCache index = git.getRepository().readDirCache();
+            List<String> paths = new ArrayList<>();
+            for (int i = 0; i < index.getEntryCount(); i++) {
+                paths.add(index.getEntry(i).getPathString());
+            }
+            for (String path : paths) {
+                git.rm().setCached(true).addFilepattern(path).call();
+            }
+        }
+    }
+
+    void untrackPath(String path) throws Exception {
+        String clean = normalizeRepositoryRelativePath(path);
+        git.rm().setCached(true).addFilepattern(clean).call();
     }
 
     private String propertyString(String name, String defaultValue) {

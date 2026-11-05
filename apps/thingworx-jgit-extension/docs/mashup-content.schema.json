@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/thingworx-jgit/mashup-content.schema.json",
+  "title": "Observed ThingWorx mashupContent structure",
+  "description": "Repository-local structural profile of two ThingWorx mashups; not a vendor schema. Unknown fields are allowed.",
+  "type": "object",
+  "required": ["Data", "DataBindings", "Events", "UI"],
+  "properties": {
+    "CustomMashupCss": {"type": "string"},
+    "Data": {"type": "object"},
+    "DataBindings": {"type": "array", "items": {"$ref": "#/$defs/dataBinding"}},
+    "Events": {"type": "array", "items": {"$ref": "#/$defs/eventBinding"}},
+    "Reminders": {"type": "array"},
+    "UI": {"$ref": "#/$defs/widget"},
+    "mashupType": {"type": "string"}
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "dataBinding": {
+      "type": "object",
+      "required": ["Id", "SourceArea", "SourceId", "TargetArea", "TargetId", "PropertyMaps"],
+      "properties": {
+        "Id": {"type": "string"},
+        "SourceArea": {"type": "string"},
+        "SourceId": {"type": "string"},
+        "SourceSection": {"type": "string"},
+        "SourceDetails": {"type": "string"},
+        "TargetArea": {"type": "string"},
+        "TargetId": {"type": "string"},
+        "TargetSection": {"type": "string"},
+        "PropertyMaps": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/propertyMap"}}
+      },
+      "additionalProperties": true
+    },
+    "propertyMap": {
+      "type": "object",
+      "required": ["SourceProperty", "SourcePropertyBaseType", "TargetProperty", "TargetPropertyBaseType"],
+      "properties": {
+        "SourceProperty": {"type": "string"},
+        "SourcePropertyBaseType": {"type": "string"},
+        "SourcePropertyType": {"type": "string"},
+        "TargetProperty": {"type": "string"},
+        "TargetPropertyBaseType": {"type": "string"},
+        "TargetPropertyType": {"type": "string"},
+        "SubProperty": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "eventBinding": {
+      "type": "object",
+      "required": ["Id", "EventTriggerArea", "EventTriggerId", "EventTriggerEvent", "EventHandlerArea", "EventHandlerId", "EventHandlerService"],
+      "properties": {
+        "Id": {"type": "string"},
+        "EventTriggerArea": {"type": "string"},
+        "EventTriggerId": {"type": "string"},
+        "EventTriggerEvent": {"type": "string"},
+        "EventTriggerSection": {"type": "string"},
+        "EventHandlerArea": {"type": "string"},
+        "EventHandlerId": {"type": "string"},
+        "EventHandlerService": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "widget": {
+      "type": "object",
+      "required": ["Properties", "Widgets"],
+      "properties": {
+        "Properties": {"type": "object"},
+        "Widgets": {"type": "array", "items": {"$ref": "#/$defs/widget"}}
+      },
+      "additionalProperties": true
+    }
+  }
+}

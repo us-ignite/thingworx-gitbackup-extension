@@ -42,6 +42,7 @@ graalvm-jdk-21*
 
 # Integration test credentials
 .env
+docker-compose.override.yml
 private-signing-key.asc
 private-signing-key.b64
 

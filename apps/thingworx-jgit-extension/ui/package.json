@@ -1,0 +1,7 @@
+{
+  "name": "thingworx-jgit-ui-build",
+  "private": true,
+  "devDependencies": {
+    "typescript": "5.5.4"
+  }
+}

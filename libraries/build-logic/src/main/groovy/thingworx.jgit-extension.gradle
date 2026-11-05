@@ -242,6 +242,11 @@ tasks.register('prepPackage', Copy) {
             into 'Entities'
         }
     }
+    // Static (pre-built) UI entities shipped verbatim, e.g. mashups and menus.
+    from(file("${project.parent.projectDir}/ui")) {
+        include '*.xml'
+        into 'Entities'
+    }
     doFirst { delete zipStage }
     // Rewrite JarResources in the staged metadata to match resolved artifacts.
     doLast {

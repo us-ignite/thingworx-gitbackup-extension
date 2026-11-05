@@ -1,6 +1,7 @@
 package org.us_ignite.thingworx.jgit.extension;
 
 import com.thingworx.data.util.InfoTableInstanceFactory;
+import com.thingworx.entities.interfaces.IServiceProvider;
 import com.thingworx.entities.utils.EntityUtilities;
 import com.thingworx.entities.utils.UserUtilities;
 import com.thingworx.logging.LogUtilities;
@@ -21,6 +22,7 @@ import com.thingworx.types.primitives.BooleanPrimitive;
 import com.thingworx.types.primitives.IPrimitiveType;
 import com.thingworx.types.primitives.InfoTablePrimitive;
 import com.thingworx.types.primitives.IntegerPrimitive;
+import com.thingworx.types.primitives.NumberPrimitive;
 import com.thingworx.types.primitives.PasswordPrimitive;
 import com.thingworx.types.primitives.StringPrimitive;
 import java.io.PrintWriter;
@@ -30,6 +32,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import org.joda.time.DateTime;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.us_ignite.thingworx.dap.DapBaseType;
@@ -37,8 +40,10 @@ import org.us_ignite.thingworx.dap.DapProperty;
 import org.us_ignite.thingworx.dap.DapServicePayload;
 import org.us_ignite.thingworx.dap.DapThingShape;
 import org.us_ignite.thingworx.dap.runtime.DapResults;
+import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.GitLogSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.GpgKeySpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.GpgKeyVerificationSpec;
+import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.OperationListSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.RepositoryConfigurationSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.RepositoryListSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.StringResultSpec;
@@ -208,10 +213,21 @@ public class GitUtilityThingShape extends Thing {
                     GitCommitterFullName,
                     RepoName,
                     "");
+            gitActionLog("RepositoryCreate", RepoName, "Repository created.");
             return DapResults.success(
                     "RepositoryCreate", "Repository created.", StringResultContract.SERVICE_RESULT);
         } catch (Exception e) {
+            gitActionLog(
+                    "RepositoryCreate", RepoName, e == null ? "" : String.valueOf(e.getMessage()));
             return DapResults.failure("RepositoryCreate", e, StringResultContract.SERVICE_RESULT);
+        }
+    }
+
+    /** Writes a repository lifecycle entry to the ScriptLog; failures never break the service. */
+    private void gitActionLog(String action, String repoName, String message) {
+        try {
+            GitActionLogger.logAction(action, repoName, message);
+        } catch (Exception ignored) {
         }
     }
 
@@ -330,9 +346,12 @@ public class GitUtilityThingShape extends Thing {
                     "GIT Repository Thing "
                             + RepoName
                             + " (self-hosted FileRepository) was deleted successfully.");
+            gitActionLog("RepositoryDelete", RepoName, "Repository deleted.");
             return DapResults.success(
                     "RepositoryDelete", "Repository deleted.", StringResultContract.SERVICE_RESULT);
         } catch (Exception e) {
+            gitActionLog(
+                    "RepositoryDelete", RepoName, e == null ? "" : String.valueOf(e.getMessage()));
             return DapResults.failure("RepositoryDelete", e, StringResultContract.SERVICE_RESULT);
         }
     }
@@ -1585,4 +1604,179 @@ public class GitUtilityThingShape extends Thing {
     private void validateGpgKeyOwnership(User user, String fingerprint) throws Exception {
         new GitUserContextManager().validateGpgKeyOwnership(fingerprint);
     }
+
+    /**
+     * Returns the Git operation tab list used by the ManagementConsole mashup.
+     *
+     * <p>The returned rows carry the tab value ({@code Value}) and display label ({@code
+     * Description}) consumed by the operations dropdown and tab set. Kept as its own service so the
+     * Operation names stay data-driven rather than hard-coded in the mashup.
+     */
+    @DapServicePayload(OperationListSpec.class)
+    @ThingworxServiceDefinition(
+            name = "GetOperations",
+            description = "Returns the Git operations tab list for the ManagementConsole mashup",
+            category = "",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {
+                "isEntityDataShape:true",
+                "dataShape:GIT.OperationList.ServiceResult.DataShape"
+            })
+    public InfoTable GetOperations() {
+        try {
+            OperationListTable operations = OperationListTable.create();
+            operations.add(
+                    OperationListRow.create()
+                            .value("Commit")
+                            .description("Commit & Push")
+                            .ordinal(1));
+            operations.add(OperationListRow.create().value("Pull").description("Pull").ordinal(2));
+            operations.add(
+                    OperationListRow.create().value("Branch").description("Branch").ordinal(3));
+            operations.add(
+                    OperationListRow.create().value("Settings").description("Settings").ordinal(4));
+            operations.add(OperationListRow.create().value("Log").description("Log").ordinal(5));
+            operations.add(
+                    OperationListRow.create().value("New Repo").description("New Repo").ordinal(6));
+            operations.add(
+                    OperationListRow.create()
+                            .value("Delete")
+                            .description("Delete Repo")
+                            .ordinal(7));
+            return DapResults.success(
+                    "GetOperations", OperationListTable.SERVICE_RESULT, operations);
+        } catch (Exception e) {
+            return DapResults.failure("GetOperations", e, OperationListTable.SERVICE_RESULT);
+        }
+    }
+
+    /**
+     * Returns recent Git action entries recorded by {@link GitActionLogger} in the ScriptLog.
+     *
+     * <p>Entries are the interim storage surface for the Git Log MashUp; a dedicated Git action log
+     * stream may replace the storage later without changing this row contract.
+     */
+    @DapServicePayload(GitLogSpec.class)
+    @ThingworxServiceDefinition(
+            name = "GetGitLog",
+            description = "Returns recent Git action entries recorded in the ScriptLog",
+            category = "",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.GitLog.ServiceResult.DataShape"})
+    public InfoTable GetGitLog(
+            @ThingworxServiceParameter(
+                            name = "MaxEntries",
+                            description = "Maximum number of log entries to return; default 100",
+                            baseType = "NUMBER")
+                    Double MaxEntries) {
+        try {
+            int maxEntries =
+                    MaxEntries == null || MaxEntries < 1
+                            ? 100
+                            : (int) Math.min(MaxEntries.doubleValue(), 1000.0);
+            Object logEntity =
+                    EntityUtilities.findEntity("ScriptLog", ThingworxRelationshipTypes.Log);
+            if (logEntity == null)
+                throw new IllegalArgumentException("ScriptLog entity is not available");
+            // QueryLogEntries searchExpression does not reliably match file-backed log entries,
+            // so request broadly and filter to Git action entries here.
+            ValueCollection params = new ValueCollection();
+            params.put("maxItems", new NumberPrimitive(Math.min(maxEntries * 20.0, 2000.0)));
+            params.put("oldestFirst", new BooleanPrimitive(false));
+            InfoTable entries =
+                    ((IServiceProvider) logEntity).processServiceRequest("QueryLogEntries", params);
+            GitLogTable log = GitLogTable.create();
+            for (int i = 0;
+                    i < entries.getRowCount() && log.toInfoTable().getRowCount() < maxEntries;
+                    i++) {
+                ValueCollection row = entries.getRow(i);
+                String content =
+                        row.getStringValue("content") == null ? "" : row.getStringValue("content");
+                if (!content.startsWith(GitActionLogger.ACTION_PREFIX)) continue;
+                // Content format: "GIT.ACTION | action | repoName | message | user"
+                String rest =
+                        content.length() > GitActionLogger.ACTION_PREFIX.length()
+                                ? content.substring(GitActionLogger.ACTION_PREFIX.length()).trim()
+                                : "";
+                if (rest.startsWith("|")) rest = rest.substring(1).trim();
+                String front = rest;
+                String loggedUser = row.getStringValue("user");
+                int lastSep = rest.lastIndexOf(" | ");
+                if (lastSep > 0) {
+                    front = rest.substring(0, lastSep).trim();
+                    String tailUser = rest.substring(lastSep + 3).trim();
+                    if (!tailUser.isEmpty()) loggedUser = tailUser;
+                }
+                String[] parts = front.split("\\s*\\|\\s*", 3);
+                String action = parts.length > 0 ? parts[0] : "";
+                String repoName = parts.length > 1 ? parts[1] : "";
+                String message = parts.length > 2 ? parts[2] : "";
+                Object timestamp =
+                        row.getPrimitive("timestamp") == null
+                                ? null
+                                : row.getPrimitive("timestamp").getValue();
+                log.add(
+                        GitLogRow.create()
+                                .timestamp(new DateTime(timestamp))
+                                .user(loggedUser)
+                                .action(action)
+                                .repoName(repoName)
+                                .level(row.getStringValue("level"))
+                                .message(message));
+            }
+            return DapResults.success("GetGitLog", GitLogTable.SERVICE_RESULT, log);
+        } catch (Exception e) {
+            _logger.error("GetGitLog failed", e);
+            return DapResults.failure("GetGitLog", e, GitLogTable.SERVICE_RESULT);
+        }
+    }
+
+    /**
+     * Returns the AG Grid column configuration for the entity grid used by the Commit/Push mashup.
+     * Ported from the Sabel Git.ThingShape.ReleaseManager script implementation so the mashup no
+     * longer depends on app-owned entities.
+     */
+    @DapServicePayload(StringResultSpec.class)
+    @ThingworxServiceDefinition(
+            name = "GetAllEntitiesGridConfig",
+            description = "Returns the AG Grid column configuration for the entity grid",
+            category = "",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
+    public InfoTable GetAllEntitiesGridConfig() {
+        return DapResults.success(
+                "GetAllEntitiesGridConfig",
+                ALL_ENTITIES_GRID_CONFIG_JSON,
+                StringResultContract.SERVICE_RESULT);
+    }
+
+    private static final String ALL_ENTITIES_GRID_CONFIG_JSON =
+            "{\"ColumnConfig\":{"
+                    + "\"name\":{\"field\":\"name\",\"headerName\":\"Name\",\"filter\":\"agTextColumnFilter\",\"editable\":false,\"hide\":false,\"enableRowGroup\":true,\"headerCheckboxSelectionFilteredOnly\":true,\"headerCheckboxSelection\":true,\"minWidth\":300,\"suppressHeaderMenuButton\":true},"
+                    + "\"type\":{\"field\":\"type\",\"headerName\":\"Type\",\"filter\":\"agSetColumnFilter\",\"editable\":false,\"hide\":false,\"enableRowGroup\":true,\"width\":95,\"suppressHeaderMenuButton\":true},"
+                    + "\"changeAction\":{\"suppressHeaderMenuButton\":true,\"field\":\"changeAction\",\"headerName\":\"Change Action\",\"filter\":\"agSetColumnFilter\",\"editable\":false,\"hide\":false,\"enableRowGroup\":true,\"width\":128},"
+                    + "\"changeReason\":{\"suppressHeaderMenuButton\":true,\"field\":\"changeReason\",\"headerName\":\"Change Reason\",\"filter\":\"agTextColumnFilter\",\"editable\":false,\"hide\":false,\"enableRowGroup\":true,\"flex\":1},"
+                    + "\"user\":{\"suppressHeaderMenuButton\":true,\"field\":\"user\",\"headerName\":\"Modified By\",\"filter\":\"agSetColumnFilter\",\"editable\":false,\"hide\":false,\"enableRowGroup\":true,\"minWidth\":200},"
+                    + "\"timestamp\":{\"suppressHeaderMenuButton\":true,\"field\":\"timestamp\",\"headerName\":\"Modified\",\"filter\":\"agDateColumnFilter\",\"editable\":false,\"hide\":false,\"enableRowGroup\":true,\"width\":150,\"sort\":\"desc\"},"
+                    + "\"project\":{\"suppressHeaderMenuButton\":true,\"field\":\"project\",\"headerName\":\"Project\",\"filter\":\"agSetColumnFilter\",\"editable\":false,\"hide\":false,\"enableRowGroup\":true,\"minWidth\":200},"
+                    + "\"id\":{\"suppressHeaderMenuButton\":true,\"field\":\"id\",\"headerName\":\"ID\",\"filter\":\"agSetColumnFilter\",\"editable\":false,\"hide\":true,\"enableRowGroup\":true},"
+                    + "\"parentId\":{\"suppressHeaderMenuButton\":true,\"field\":\"parentId\",\"headerName\":\"Parent ID\",\"filter\":\"agSetColumnFilter\",\"editable\":false,\"hide\":true,\"enableRowGroup\":true},"
+                    + "\"link\":{\"suppressHeaderMenuButton\":true,\"field\":\"link\",\"headerName\":\"Link\",\"cellRenderer\":\"CustomHyperlinkRenderer\",\"editable\":false,\"hide\":false,\"width\":68},"
+                    + "\"committed\":{\"suppressHeaderMenuButton\":true,\"field\":\"committed\",\"headerName\":\"Committed\",\"filter\":\"agSetColumnFilter\",\"cellRenderer\":\"CustomCheckboxRenderer\",\"editable\":false,\"hide\":false,\"width\":110}"
+                    + "},\"GridOptions\":{\"statusBar\":{\"statusPanels\":[{\"statusPanel\":\"agTotalAndFilteredRowCountComponent\",\"align\":\"left\"}]}}}";
 }

@@ -15,7 +15,8 @@ be entered through the current user’s `UserExtensions` properties and must not
 
 | Service | Arguments | Result / purpose |
 |---|---|---|
-| `Commit` | `Message: STRING` | Returns a commit status message. |
+| `Commit` | `Message: STRING` | Exports project entities without staging them, then commits the current index. Requires staged changes. |
+| `CommitStaged` | `Message: STRING` | Commits the current index without exporting project entities. Requires staged changes. |
 | `Push` | `Remote: STRING`, `BranchName: STRING`, `RemoteBranchName: STRING`, `SetUpstream: BOOLEAN` | Pushes the current/upstream branch or an explicit local branch to a remote branch. |
 | `Pull` | `Force: BOOLEAN` | Fetches and integrates remote changes and always imports the configured `ProjectName` (sync is automatic/invisible). |
 | `Fetch` | `Remote: STRING` | Fetches remote refs without integrating them. |
@@ -27,8 +28,11 @@ be entered through the current user’s `UserExtensions` properties and must not
 | `BranchDelete` | `BranchName: STRING`, `Remote: STRING`, `DeleteRemote: BOOLEAN`, `Force: BOOLEAN` | Deletes a local branch and optionally its remote branch. |
 | `GetLog` | `Ref: STRING`, `MaxEntries: INTEGER` | Returns `GIT.CommitLog`. |
 | `GetReflog` | `Ref: STRING`, `MaxEntries: INTEGER` | Returns `GIT.ReflogEntry`. |
-| `Status` | — | Returns `GIT.Status` for the working tree. |
+| `Status` | `ShowUnchangedFiles: BOOLEAN`, `HideUntracked: BOOLEAN`, `HideUnchanged: BOOLEAN`, `HideIgnored: BOOLEAN` (all default `false`) | Synchronizes the project export and returns `GIT.Status` rows, optionally including unchanged paths and excluding untracked, unchanged, or ignored rows. The original `File`, `Status`, and `Staged` fields remain available, along with fields for the Changes view. |
 | `Add` | `File: STRING`, `All: BOOLEAN` | Stages one repository-relative file; with `All=true`, stages all non-ignored additions, modifications, and deletions. |
+| `Unstage` | `File: STRING`, `All: BOOLEAN` | Unstages one repository-relative file or, with `All=true`, every staged path. |
+| `ApplyFileAction` | `Changes: INFOTABLE<GIT.WorkingTreeDisplay.DataShape>`, `Action: STRING` | Applies `stage`, `unstage`, or `untrack` to the selected rows after checking current Git status. |
+| `RemoveEverywhere` | `Changes: INFOTABLE<GIT.WorkingTreeDisplay.DataShape>` | Deletes supported ThingWorx entities described by the selected XML exports and deletes the files, staging tracked deletions. Every file and entity is validated before removal; failures during deletion can still leave partial results and are reported. |
 | `Remove` | `File: STRING` | Removes a path from the index using cached semantics and preserves its working-tree file. |
 | `GetConflictFiles` | — | Returns conflicted files using `GIT.Status`. |
 | `ReadConflictFile` | `File: STRING` | Returns the content of a conflict file. |
@@ -51,6 +55,24 @@ be entered through the current user’s `UserExtensions` properties and must not
 `Push`, `Pull`, and `Fetch` use the repository’s configured remote and the current user’s Git
 credentials from `UserExtensions`. Normal signed commits use the stored per-user GPG key
 configuration.
+
+File arguments and `Status.File` values are relative to the Git working tree at the
+FileRepository root. They include the configured `RepoPath` folder when one is set. ThingWorx
+FileRepository paths with a leading slash are also accepted by the single-file services.
+
+The status service exports the configured project to a temporary directory and synchronizes its
+canonical exports into the working tree before reporting Git status. A tracked export that no
+longer belongs to the project is removed from the working tree and appears as an unstaged deletion.
+The Git index is not changed. Tracked exports are overwritten with the current ThingWorx content;
+existing untracked files and files that cannot be identified as canonical entity exports are
+preserved. Status refuses to synchronize while project export files have unresolved Git conflicts.
+
+`RemoveEverywhere` accepts one or more ThingWorx `Entities` XML files, including files with multiple
+entities. It supports Things, Thing Templates, Thing Shapes, Networks, Media Entities, Model and
+Data Tag Vocabularies, Style Definitions, and Notification Definitions and Contents. Other entity
+types, non-entity files, absent files, entities outside the configured project, and system or
+extension entities are rejected. The caller needs delete permission on every entity and invoke
+permission on the corresponding EntityServices deletion services. Deletion is not transactional.
 
 ## Utility services
 

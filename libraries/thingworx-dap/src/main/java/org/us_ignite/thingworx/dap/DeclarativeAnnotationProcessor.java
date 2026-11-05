@@ -448,13 +448,26 @@ public final class DeclarativeAnnotationProcessor extends AbstractProcessor {
                     continue;
                 }
                 Map<String, Object> parameterValues = values(parameterAnnotation);
+                String parameterBaseType = string(parameterValues, "baseType");
+                String parameterDataShape = aspect(parameterValues, "dataShape");
+                if ("INFOTABLE".equals(parameterBaseType)
+                        && !parameterDataShape.isBlank()
+                        && !shapes.containsKey(parameterDataShape)) {
+                    error(
+                            parameter,
+                            "INFOTABLE parameter "
+                                    + string(parameterValues, "name")
+                                    + " references unknown dataShape "
+                                    + parameterDataShape);
+                }
                 parameters.add(
                         new ParameterModel(
                                 string(parameterValues, "name"),
                                 string(parameterValues, "description"),
-                                string(parameterValues, "baseType"),
+                                parameterBaseType,
                                 ordinal++,
-                                aspect(parameterValues, "defaultValue")));
+                                aspect(parameterValues, "defaultValue"),
+                                parameterDataShape));
             }
             result.add(
                     new ServiceModel(
@@ -817,6 +830,8 @@ public final class DeclarativeAnnotationProcessor extends AbstractProcessor {
                 xml.append(" aspect.defaultValue=\"")
                         .append(escape(parameter.defaultValue))
                         .append("\"");
+            if (!parameter.dataShape.isBlank())
+                xml.append(" aspect.dataShape=\"").append(escape(parameter.dataShape)).append("\"");
             xml.append(" baseType=\"")
                     .append(escape(parameter.baseType))
                     .append("\"")
@@ -1106,7 +1121,12 @@ public final class DeclarativeAnnotationProcessor extends AbstractProcessor {
             List<FieldModel> fields) {}
 
     private record ParameterModel(
-            String name, String description, String baseType, int ordinal, String defaultValue) {}
+            String name,
+            String description,
+            String baseType,
+            int ordinal,
+            String defaultValue,
+            String dataShape) {}
 
     private record ServiceModel(
             String name,

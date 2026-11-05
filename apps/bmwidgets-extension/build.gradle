@@ -1,0 +1,72 @@
+// In-housed wrapper for the open-source BMCoreUIWidgets widget extension
+// (github.com/thingworx-field-work/BMCoreUIWidgets, MIT license).
+//
+// The upstream release zip is fetched by Gradle with a pinned URL and
+// checksum, and published unmodified as an installable ThingWorx extension.
+// This expresses the third-party widget dependency (BMTypescriptClassHost,
+// used by the GIT mashups) in the build graph without vendoring sources.
+
+import java.security.MessageDigest
+
+plugins {
+    id 'base'
+}
+
+def bmWidgetVersion = '2.9.3'
+def bmWidgetUrl = "https://github.com/thingworx-field-work/BMCoreUIWidgets/releases/download/${bmWidgetVersion}/BMCoreUIWidgets-min-${bmWidgetVersion}.zip"
+def bmWidgetSha256 = '7cb8d7a6a3a26c9ebd0423927feb72a56e922ff1866755402dc606bf5605aba2'
+def bmWidgetZipName = "BMCoreUIWidgets-min-${bmWidgetVersion}.zip"
+def bmWidgetReleaseZip = layout.buildDirectory.file("downloads/${bmWidgetZipName}")
+ext.bmWidgetReleaseZip = bmWidgetReleaseZip
+
+tasks.register('fetchWidgetRelease') {
+    description = "Download the pinned BMCoreUIWidgets ${bmWidgetVersion} release artifact"
+    group = 'build'
+    inputs.property('bmWidgetUrl', bmWidgetUrl)
+    outputs.file(bmWidgetReleaseZip)
+    doLast {
+        def target = outputs.files.singleFile
+        if (!target.parentFile.isDirectory() && !target.parentFile.mkdirs()) {
+            throw new GradleException("Could not create ${target.parentFile}")
+        }
+        if (target.isFile() && verifySha256(target, bmWidgetSha256)) {
+            return
+        }
+        target.withOutputStream { output ->
+            new URL(bmWidgetUrl).withInputStream { input ->
+                output.bytes = input.bytes
+            }
+        }
+        def actual = verifySha256(target, bmWidgetSha256)
+        if (actual == null || !actual.equals(bmWidgetSha256)) {
+            target.delete()
+            throw new GradleException("SHA-256 mismatch for ${bmWidgetUrl}: expected ${bmWidgetSha256}, got ${actual}")
+        }
+    }
+}
+
+def verifySha256(File file, String expected) {
+    if (!file.isFile() || file.length() == 0L) {
+        return null
+    }
+    def digest = MessageDigest.getInstance('SHA-256').digest(file.bytes)
+    return digest.collect { String.format('%02x', it) }.join()
+}
+
+tasks.register('packageExtension', Copy) {
+    description = 'Publish the installable BMCoreUIWidgets extension zip from the pinned upstream release'
+    group = 'build'
+    into layout.buildDirectory.dir('distributions')
+    from(tasks.named('fetchWidgetRelease')) {
+        // Publish the upstream artifact unmodified: it already contains a
+        // valid extension manifest (metadata.xml) and widget resources.
+    }
+}
+
+tasks.named('assemble') {
+    dependsOn tasks.named('packageExtension')
+}
+
+tasks.named('build') {
+    dependsOn tasks.named('packageExtension')
+}

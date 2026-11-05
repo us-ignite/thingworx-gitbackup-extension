@@ -211,6 +211,75 @@ public final class JGitEntityDeclarations {
                 ordinal = 3,
                 description = "Whether the change is currently staged in the Git index")
         private Boolean staged;
+
+        @DapField(name = "FileName", baseType = DapBaseType.STRING, ordinal = 4)
+        private String fileName;
+
+        @DapField(name = "Path", baseType = DapBaseType.STRING, ordinal = 5)
+        private String path;
+
+        @DapField(name = "Area", baseType = DapBaseType.STRING, ordinal = 6)
+        private String area;
+
+        @DapField(name = "ChangeType", baseType = DapBaseType.STRING, ordinal = 7)
+        private String changeType;
+
+        @DapField(name = "CanStage", baseType = DapBaseType.BOOLEAN, ordinal = 8)
+        private Boolean canStage;
+
+        @DapField(name = "Tracked", baseType = DapBaseType.BOOLEAN, ordinal = 9)
+        private Boolean tracked;
+    }
+
+    @DapDataShape(
+            name = "GIT.WorkingTreeDisplay.DataShape",
+            description = "A staged, unstaged, or conflicted working-tree change.",
+            serviceResultDescription = "Service result carrying working-tree status rows.",
+            payloadDescription = "Working-tree status payload")
+    public static final class WorkingTreeStatusSpec {
+        @DapField(name = "File", baseType = DapBaseType.STRING, ordinal = 1)
+        private String file;
+
+        @DapField(name = "FileName", baseType = DapBaseType.STRING, ordinal = 7)
+        private String fileName;
+
+        @DapField(name = "Path", baseType = DapBaseType.STRING, ordinal = 8)
+        private String path;
+
+        @DapField(
+                name = "Area",
+                baseType = DapBaseType.STRING,
+                ordinal = 2,
+                description = "Grouping area: Staged Changes, Changes, Conflicted, or Unchanged")
+        private String area;
+
+        @DapField(
+                name = "ChangeType",
+                baseType = DapBaseType.STRING,
+                ordinal = 3,
+                description = "Added, Modified, Deleted, Untracked, Conflicted, or Unchanged")
+        private String changeType;
+
+        @DapField(
+                name = "Staged",
+                baseType = DapBaseType.BOOLEAN,
+                ordinal = 4,
+                description = "Whether the change is currently staged in the Git index")
+        private Boolean staged;
+
+        @DapField(
+                name = "CanStage",
+                baseType = DapBaseType.BOOLEAN,
+                ordinal = 5,
+                description = "Whether the change can be staged from the working tree")
+        private Boolean canStage;
+
+        @DapField(
+                name = "Tracked",
+                baseType = DapBaseType.BOOLEAN,
+                ordinal = 6,
+                description = "Whether the path is tracked by Git")
+        private Boolean tracked;
     }
 
     @DapDataShape(name = "GIT.CommitChangedFiles.DataShape", generateServiceResult = false)
@@ -440,6 +509,83 @@ public final class JGitEntityDeclarations {
                 description =
                         "Fingerprint of the user's GPG key used for this repository; signing is enabled when this field is non-empty")
         private String gpgKeyFingerprint;
+    }
+
+    @DapDataShape(
+            name = "GIT.OperationList.DataShape",
+            description = "A Git operation tab descriptor.",
+            serviceResultDescription = "Service result carrying operation tab rows.",
+            payloadDescription = "Operation list payload")
+    public static final class OperationListSpec {
+        @DapField(
+                name = "Value",
+                baseType = DapBaseType.STRING,
+                ordinal = 1,
+                description = "Operation key matching the mashup tab value")
+        private String value;
+
+        @DapField(
+                name = "Description",
+                baseType = DapBaseType.STRING,
+                ordinal = 2,
+                description = "Display label for the operation")
+        private String description;
+
+        @DapField(
+                name = "Ordinal",
+                baseType = DapBaseType.INTEGER,
+                ordinal = 3,
+                description = "Display order")
+        private Integer ordinal;
+    }
+
+    @DapDataShape(
+            name = "GIT.GitLog.DataShape",
+            description = "A Git action log entry.",
+            serviceResultDescription = "Service result carrying Git log rows.",
+            payloadDescription = "Git log payload")
+    public static final class GitLogSpec {
+        @DapField(
+                name = "Timestamp",
+                baseType = DapBaseType.DATETIME,
+                ordinal = 1,
+                description = "Log entry timestamp")
+        private Object timestamp;
+
+        @DapField(
+                name = "User",
+                baseType = DapBaseType.STRING,
+                ordinal = 2,
+                description = "User that executed the action")
+        private String user;
+
+        @DapField(
+                name = "Action",
+                baseType = DapBaseType.STRING,
+                ordinal = 3,
+                description = "Git service that was executed")
+        private String action;
+
+        @DapField(
+                name = "RepoName",
+                baseType = DapBaseType.STRING,
+                ordinal = 4,
+                description = "Repository Thing the action was executed against")
+        private String repoName;
+
+        @DapField(
+                name = "Level",
+                baseType = DapBaseType.STRING,
+                ordinal = 5,
+                description = "Log level of the entry")
+        private String level;
+
+        @DapField(
+                name = "Message",
+                baseType = DapBaseType.STRING,
+                ordinal = 6,
+                description = "Log message")
+        private String message;
     }
 
     @DapProject(name = "GIT", packageVersion = "1.0.0")

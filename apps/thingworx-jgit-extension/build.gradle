@@ -40,7 +40,150 @@ spotless {
 tasks.register('packageExtension') {
     description = "Assemble extension zip for default ThingWorx version (${defaultTwx})"
     group = 'build'
+    dependsOn 'embedGitHelper'
     dependsOn defaultProjectPath + ':packageExtension'
+}
+
+tasks.register('installUiBuildDependencies', Exec) {
+    description = 'Install the pinned TypeScript compiler used to embed the mashup helper'
+    group = 'development'
+    workingDir file('ui')
+    commandLine 'npm', 'ci', '--ignore-scripts', '--no-audit', '--no-fund'
+    inputs.files file('ui/package.json'), file('ui/package-lock.json')
+    outputs.file file('ui/node_modules/typescript/lib/typescript.js')
+}
+
+def bmWidgetsProject = project(':apps:bmwidgets-extension')
+tasks.register('syncUiTypeDeclarations', Sync) {
+    description = 'Refresh ThingWorx and BMCoreUIWidgets TypeScript declarations from the pinned extension release'
+    group = 'development'
+    dependsOn bmWidgetsProject.tasks.named('fetchWidgetRelease')
+    from({ zipTree(bmWidgetsProject.ext.bmWidgetReleaseZip.get().asFile) }) {
+        include 'ui/BMCoreUIWidgets/TWRuntimeWidget.d.ts'
+        include 'ui/BMCoreUIWidgets/Thingworx.d.ts'
+        include 'ui/BMCoreUIWidgets/jquery.d.ts'
+        includeEmptyDirs = false
+        eachFile { details ->
+            if (details.name == 'TWRuntimeWidget.d.ts') {
+                details.path = 'BMCoreUIWidgets.d.ts'
+            } else {
+                details.path = details.name
+            }
+        }
+    }
+    into file('ui/src/types')
+}
+
+tasks.register('embedGitHelper') {
+    description = 'Embed UI TypeScript and CSS sources in the operations mashup export'
+    group = 'build'
+    dependsOn tasks.named('installUiBuildDependencies'), tasks.named('syncUiTypeDeclarations')
+    def uiDir = file('ui')
+    def helperSource = file('ui/src/GitHelper.ts')
+    def cssSource = file('ui/src/Operations.css')
+    def mashupXml = file('ui/Mashups_GIT.Mashup.Operations.xml')
+    inputs.files helperSource, cssSource, file('ui/package-lock.json')
+    outputs.file mashupXml
+
+    doLast {
+        def source = helperSource.getText('UTF-8').trim()
+        def transpiler = '''
+const ts = require('typescript');
+let source = '';
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', chunk => source += chunk);
+process.stdin.on('end', () => {
+  const result = ts.transpileModule(source, {
+    compilerOptions: {
+      target: ts.ScriptTarget.ES2015,
+      module: ts.ModuleKind.None,
+      experimentalDecorators: true,
+      useDefineForClassFields: false
+    },
+    reportDiagnostics: true
+  });
+  const errors = (result.diagnostics || []).filter(d => d.category === ts.DiagnosticCategory.Error);
+  if (errors.length) {
+    for (const d of errors) console.error(ts.flattenDiagnosticMessageText(d.messageText, '\\n'));
+    process.exitCode = 1;
+    return;
+  }
+  process.stdout.write(result.outputText);
+});
+'''
+        def transpiled = new ByteArrayOutputStream()
+        execOps.exec {
+            workingDir uiDir
+            commandLine 'node', '-e', transpiler
+            standardInput = new ByteArrayInputStream(source.getBytes('UTF-8'))
+            standardOutput = transpiled
+        }
+        def javascript = transpiled.toString('UTF-8')
+
+        def replaceJsonString = { String document, String key, String value ->
+            def field = '"' + key + '"'
+            def fieldStart = document.indexOf(field)
+            if (fieldStart < 0 || document.indexOf(field, fieldStart + field.length()) >= 0) {
+                throw new GradleException("Expected exactly one ${key} field in mashupContent")
+            }
+            def start = document.indexOf(':', fieldStart + field.length()) + 1
+            while (start < document.length() && Character.isWhitespace(document.charAt(start))) {
+                start++
+            }
+            if (start >= document.length() || document.charAt(start) != '"') {
+                throw new GradleException("Expected ${key} to have a JSON string value")
+            }
+            def end = start + 1
+            while (end < document.length()) {
+                def current = document.charAt(end)
+                if (current == '\\') {
+                    end += 2
+                } else if (current == '"') {
+                    end++
+                    break
+                } else {
+                    end++
+                }
+            }
+            if (end > document.length() || document.charAt(end - 1) != '"') {
+                throw new GradleException("Unterminated JSON string for ${key}")
+            }
+            def encoded = groovy.json.JsonOutput.toJson(value)
+                    .replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            return document.substring(0, start) + encoded + document.substring(end)
+        }
+
+        def xml = mashupXml.getText('UTF-8')
+        def contentTag = '<mashupContent>'
+        def contentStart = xml.indexOf(contentTag)
+        def contentEnd = contentStart < 0 ? -1 : xml.indexOf('</mashupContent>', contentStart + contentTag.length())
+        if (contentStart < 0 || contentEnd < 0) {
+            throw new GradleException("Could not locate mashupContent in ${mashupXml}")
+        }
+        contentStart += contentTag.length()
+        def content = xml.substring(contentStart, contentEnd)
+        content = replaceJsonString(content, 'TranspiledCode', javascript)
+        content = replaceJsonString(content, 'Exports', source)
+        content = replaceJsonString(content, 'Code', source)
+        content = replaceJsonString(content, 'CustomMashupCss', cssSource.getText('UTF-8').trim())
+        mashupXml.setText(xml.substring(0, contentStart) + content + xml.substring(contentEnd), 'UTF-8')
+        logger.lifecycle("Embedded UI sources into ${mashupXml.name}")
+    }
+}
+
+// The per-version projects can also be packaged directly, bypassing this
+// aggregator. Make sure those packages receive the same generated mashup.
+def rootEmbedGitHelper = tasks.named('embedGitHelper')
+gradle.projectsEvaluated {
+    TwxVersions.ALL.each { version ->
+        def versionPath = ":apps:thingworx-jgit-extension:v${TwxVersions.sanitize(version)}"
+        project(versionPath).tasks.matching { it.name == 'packageExtension' }.configureEach {
+            dependsOn rootEmbedGitHelper
+        }
+        project(versionPath).tasks.matching { it.name == 'prepPackage' }.configureEach {
+            dependsOn rootEmbedGitHelper
+        }
+    }
 }
 
 tasks.register('javadoc', Sync) {

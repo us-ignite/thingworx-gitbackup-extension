@@ -15,6 +15,8 @@ include ':libraries:thingworx-testcontainers'
 include ':examples:thingworx-dap-usage'
 include ':examples:thingworx-operator-deployments'
 include ':apps:thingworx-jgit-extension'
+include ':apps:aggridwidget2-extension'
+include ':apps:bmwidgets-extension'
 include ':apps:thingworx-jgit-extension:v96'
 include ':apps:thingworx-jgit-extension:v97'
 include ':apps:thingworx-jgit-extension:v100'
@@ -31,6 +33,8 @@ project(':libraries:thingworx-testcontainers').projectDir = file('libraries/thin
 project(':examples:thingworx-dap-usage').projectDir = file('examples/thingworx-dap-usage')
 project(':examples:thingworx-operator-deployments').projectDir = file('examples/thingworx-operator-deployments')
 project(':apps:thingworx-jgit-extension').projectDir = file('apps/thingworx-jgit-extension')
+project(':apps:aggridwidget2-extension').projectDir = file('apps/aggridwidget2-extension')
+project(':apps:bmwidgets-extension').projectDir = file('apps/bmwidgets-extension')
 project(':apps:thingworx-jgit-extension:v96').projectDir = file('apps/thingworx-jgit-extension/versions/9.6')
 project(':apps:thingworx-jgit-extension:v97').projectDir = file('apps/thingworx-jgit-extension/versions/9.7')
 project(':apps:thingworx-jgit-extension:v100').projectDir = file('apps/thingworx-jgit-extension/versions/10.0')
