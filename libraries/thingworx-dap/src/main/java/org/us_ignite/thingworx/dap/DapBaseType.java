@@ -10,6 +10,8 @@ public enum DapBaseType {
     INFOTABLE,
     /** Integer value. */
     INTEGER,
+    /** Long integer value. */
+    LONG,
     /** Password value. */
     PASSWORD,
     /** String value. */

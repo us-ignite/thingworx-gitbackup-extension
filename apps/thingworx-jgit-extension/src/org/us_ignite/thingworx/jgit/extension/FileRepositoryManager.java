@@ -338,25 +338,29 @@ final class FileRepositoryManager {
     }
 
     private Git openGit() throws Exception {
-        File directory = new File(fileRepository.getRootPath());
-        FileRepositoryBuilder builder = new FileRepositoryBuilder();
-        builder.addCeilingDirectory(directory);
-        builder.findGitDir(directory);
-        Git opened =
-                builder.getGitDir() == null
-                        ? Git.init()
-                                .setDirectory(directory)
-                                .setInitialBranch(initialBranch())
-                                .call()
-                        : new Git(builder.build());
-        StoredConfig config = opened.getRepository().getConfig();
-        config.setString("remote", "origin", "url", gitRepoUrl());
-        config.setString("remote", "origin", "fetch", "+refs/heads/*:refs/remotes/origin/*");
-        config.setString("remote", "origin", "prune", "true");
-        config.setString("core", null, "autocrlf", "input");
-        config.setBoolean("repack", null, "writeBitmaps", false);
-        config.save();
-        return opened;
+        // Each service creates its own manager. Serialize initialization so concurrent reads
+        // do not contend for the same .git/config.lock while applying repository settings.
+        synchronized (FileRepositoryManager.class) {
+            File directory = new File(fileRepository.getRootPath());
+            FileRepositoryBuilder builder = new FileRepositoryBuilder();
+            builder.addCeilingDirectory(directory);
+            builder.findGitDir(directory);
+            Git opened =
+                    builder.getGitDir() == null
+                            ? Git.init()
+                                    .setDirectory(directory)
+                                    .setInitialBranch(initialBranch())
+                                    .call()
+                            : new Git(builder.build());
+            StoredConfig config = opened.getRepository().getConfig();
+            config.setString("remote", "origin", "url", gitRepoUrl());
+            config.setString("remote", "origin", "fetch", "+refs/heads/*:refs/remotes/origin/*");
+            config.setString("remote", "origin", "prune", "true");
+            config.setString("core", null, "autocrlf", "input");
+            config.setBoolean("repack", null, "writeBitmaps", false);
+            config.save();
+            return opened;
+        }
     }
 
     /** Closes the JGit handle when a caller explicitly owns a Git operation. */

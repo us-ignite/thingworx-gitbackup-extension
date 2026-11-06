@@ -9,6 +9,7 @@ dependency-reduced-pom.xml
 public/
 site/
 issues/
+feedback/
 *javadoc*
 
 # Eclipse

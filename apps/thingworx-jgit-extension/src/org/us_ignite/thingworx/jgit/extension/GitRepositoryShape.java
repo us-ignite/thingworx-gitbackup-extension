@@ -17,6 +17,7 @@ import com.thingworx.types.collections.ValueCollection;
 import com.thingworx.types.primitives.BooleanPrimitive;
 import com.thingworx.types.primitives.DatetimePrimitive;
 import com.thingworx.types.primitives.InfoTablePrimitive;
+import com.thingworx.types.primitives.LongPrimitive;
 import com.thingworx.types.primitives.PasswordPrimitive;
 import com.thingworx.types.primitives.StringPrimitive;
 import com.thingworx.webservices.context.ThreadLocalContext;
@@ -27,6 +28,7 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -47,9 +49,13 @@ import org.eclipse.jgit.api.ResetCommand.ResetType;
 import org.eclipse.jgit.api.errors.RefNotFoundException;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffFormatter;
+import org.eclipse.jgit.diff.RawText;
 import org.eclipse.jgit.lib.CheckoutEntry;
+import org.eclipse.jgit.lib.Constants;
+import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.GpgConfig;
 import org.eclipse.jgit.lib.ObjectId;
+import org.eclipse.jgit.lib.ObjectLoader;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.Ref;
@@ -61,6 +67,7 @@ import org.eclipse.jgit.lib.Signers;
 import org.eclipse.jgit.lib.StoredConfig;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevObject;
+import org.eclipse.jgit.revwalk.RevSort;
 import org.eclipse.jgit.revwalk.RevTag;
 import org.eclipse.jgit.revwalk.RevTree;
 import org.eclipse.jgit.revwalk.RevWalk;
@@ -73,6 +80,7 @@ import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import org.eclipse.jgit.treewalk.AbstractTreeIterator;
 import org.eclipse.jgit.treewalk.CanonicalTreeParser;
 import org.eclipse.jgit.treewalk.EmptyTreeIterator;
+import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.treewalk.filter.PathFilter;
 import org.eclipse.jgit.util.FS.FileStoreAttributes;
 import org.eclipse.jgit.util.io.DisabledOutputStream;
@@ -86,7 +94,9 @@ import org.us_ignite.thingworx.dap.runtime.DapResults;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.BranchListSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.CommitInfoSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.CommitLogSpec;
+import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.CommitTreeEntrySpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.CurrentBranchStatusSpec;
+import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.FileContentSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.ReflogEntrySpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.StatusSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.StringResultSpec;
@@ -1139,6 +1149,7 @@ public class GitRepositoryShape extends Thing {
             var fileRepo = new FileRepositoryManager(resolveTargetThing());
             Git myGit = fileRepo.git();
             List<Ref> branches = myGit.branchList().setListMode(ListMode.ALL).call();
+            String headRef = myGit.getRepository().getFullBranch();
             for (Iterator<Ref> iterator = branches.iterator(); iterator.hasNext(); ) {
                 Ref ref = (Ref) iterator.next();
                 ValueCollection vc = new ValueCollection();
@@ -1157,6 +1168,8 @@ public class GitRepositoryShape extends Thing {
                 vc.put("BranchName", new StringPrimitive(LongBranchName));
                 vc.put("ShortBranchName", new StringPrimitive(ShortBranchName));
                 vc.put("BranchType", new StringPrimitive(BranchType));
+                vc.put("CommitID", new StringPrimitive(ref.getObjectId().getName()));
+                vc.put("IsHead", new BooleanPrimitive(LongBranchName.equals(headRef)));
                 BranchList.addRow(vc);
             }
             log.trace("Exiting Service: GetBranchList");
@@ -1309,6 +1322,7 @@ public class GitRepositoryShape extends Thing {
      *
      * @param Ref optional branch, tag, commit, or ref name
      * @param MaxEntries maximum number of rows; null or zero means no limit
+     * @param AllBranches when true, include commits reachable from all branches and tags
      * @return a {@code GIT.CommitLog.DataShape} table
      */
     public InfoTable GetLog(
@@ -1322,7 +1336,12 @@ public class GitRepositoryShape extends Thing {
                             description =
                                     "Maximum number of entries; zero or omitted means no limit",
                             baseType = "INTEGER")
-                    Integer MaxEntries) {
+                    Integer MaxEntries,
+            @ThingworxServiceParameter(
+                            name = "AllBranches",
+                            description = "Include commits from all branches and tags",
+                            baseType = "BOOLEAN")
+                    Boolean AllBranches) {
         log.trace("Entering Service: GetLog");
         try {
             InfoTable result =
@@ -1330,67 +1349,56 @@ public class GitRepositoryShape extends Thing {
                             Const.CommitLogDataShapeName);
             var fileRepo = new FileRepositoryManager(resolveTargetThing());
             Repository repository = fileRepo.git().getRepository();
-            String historyRef = Ref;
-            if (historyRef.isBlank()) {
-                String fullBranch = repository.getFullBranch();
-                historyRef =
-                        fullBranch != null && fullBranch.startsWith("refs/heads/")
-                                ? fullBranch.substring("refs/heads/".length())
-                                : null;
-            }
-            ObjectId objectId = repository.resolve(historyRef);
-            if (objectId == null && !historyRef.startsWith("refs/")) {
-                objectId = repository.resolve("refs/heads/" + historyRef);
-            }
-            if (objectId == null) {
-
-                return DapResults.success(
-                        "GetLog", CommitLogTable.SERVICE_RESULT, CommitLogTable.wrap(result));
-            }
-            Iterable<RevCommit> commits = fileRepo.git().log().add(objectId).call();
             int count = 0;
-            for (RevCommit commit : commits) {
-                if (MaxEntries != null && MaxEntries > 0 && count >= MaxEntries) break;
-                ValueCollection row = new ValueCollection();
-                row.put("CommitID", new StringPrimitive(commit.getId().name()));
-                row.put("CommitName", new StringPrimitive(commit.getShortMessage()));
-                row.put(
-                        "CommitTime",
-                        new DatetimePrimitive(new DateTime((long) commit.getCommitTime() * 1000)));
-                PersonIdent author = commit.getAuthorIdent();
-                row.put(
-                        "AuthorName",
-                        new StringPrimitive(
-                                author == null || author.getName() == null
-                                        ? ""
-                                        : author.getName()));
-                row.put(
-                        "AuthorEmail",
-                        new StringPrimitive(
-                                author == null || author.getEmailAddress() == null
-                                        ? ""
-                                        : author.getEmailAddress()));
-                PersonIdent committer = commit.getCommitterIdent();
-                row.put(
-                        "CommitterName",
-                        new StringPrimitive(
-                                committer == null || committer.getName() == null
-                                        ? ""
-                                        : committer.getName()));
-                row.put(
-                        "CommitterEmail",
-                        new StringPrimitive(
-                                committer == null || committer.getEmailAddress() == null
-                                        ? ""
-                                        : committer.getEmailAddress()));
-                StringBuilder parentIds = new StringBuilder();
-                for (RevCommit parent : commit.getParents()) {
-                    if (parentIds.length() > 0) parentIds.append(",");
-                    parentIds.append(parent.getId().name());
+            if (Boolean.TRUE.equals(AllBranches)) {
+                try (RevWalk walk = new RevWalk(repository)) {
+                    Set<ObjectId> marked = new HashSet<>();
+                    for (Ref ref : repository.getAllRefs().values()) {
+                        String refName = ref.getName();
+                        if (!refName.startsWith("refs/heads/")
+                                && !refName.startsWith("refs/remotes/")
+                                && !refName.startsWith("refs/tags/")) {
+                            continue;
+                        }
+                        Ref peeled = repository.getRefDatabase().peel(ref);
+                        ObjectId target =
+                                peeled.getPeeledObjectId() != null
+                                        ? peeled.getPeeledObjectId()
+                                        : peeled.getObjectId();
+                        if (target == null || !marked.add(target)) continue;
+                        try {
+                            walk.markStart(walk.parseCommit(target));
+                        } catch (Exception ignored) {
+                            // Skip refs that do not point at commits.
+                        }
+                    }
+                    walk.sort(RevSort.TOPO);
+                    for (RevCommit commit : walk) {
+                        if (MaxEntries != null && MaxEntries > 0 && count >= MaxEntries) break;
+                        addCommitLogRow(result, commit);
+                        count++;
+                    }
                 }
-                row.put("ParentCommitIDs", new StringPrimitive(parentIds.toString()));
-                result.addRow(row);
-                count++;
+            } else {
+                String historyRef = Ref;
+                if (historyRef == null || historyRef.isBlank()) {
+                    String fullBranch = repository.getFullBranch();
+                    historyRef =
+                            fullBranch != null && fullBranch.startsWith("refs/heads/")
+                                    ? fullBranch.substring("refs/heads/".length())
+                                    : "HEAD";
+                }
+                ObjectId objectId = repository.resolve(historyRef);
+                if (objectId == null && historyRef != null && !historyRef.startsWith("refs/")) {
+                    objectId = repository.resolve("refs/heads/" + historyRef);
+                }
+                if (objectId != null) {
+                    for (RevCommit commit : fileRepo.git().log().add(objectId).call()) {
+                        if (MaxEntries != null && MaxEntries > 0 && count >= MaxEntries) break;
+                        addCommitLogRow(result, commit);
+                        count++;
+                    }
+                }
             }
             return DapResults.success(
                     "GetLog", CommitLogTable.SERVICE_RESULT, CommitLogTable.wrap(result));
@@ -1398,6 +1406,46 @@ public class GitRepositoryShape extends Thing {
 
             return DapResults.failure("GetLog", ex, CommitLogTable.SERVICE_RESULT);
         }
+    }
+
+    private static void addCommitLogRow(InfoTable result, RevCommit commit) {
+        ValueCollection row = new ValueCollection();
+        row.put("CommitID", new StringPrimitive(commit.getId().name()));
+        row.put("CommitName", new StringPrimitive(commit.getShortMessage()));
+        row.put(
+                "CommitTime",
+                new DatetimePrimitive(new DateTime((long) commit.getCommitTime() * 1000)));
+        PersonIdent author = commit.getAuthorIdent();
+        row.put(
+                "AuthorName",
+                new StringPrimitive(
+                        author == null || author.getName() == null ? "" : author.getName()));
+        row.put(
+                "AuthorEmail",
+                new StringPrimitive(
+                        author == null || author.getEmailAddress() == null
+                                ? ""
+                                : author.getEmailAddress()));
+        PersonIdent committer = commit.getCommitterIdent();
+        row.put(
+                "CommitterName",
+                new StringPrimitive(
+                        committer == null || committer.getName() == null
+                                ? ""
+                                : committer.getName()));
+        row.put(
+                "CommitterEmail",
+                new StringPrimitive(
+                        committer == null || committer.getEmailAddress() == null
+                                ? ""
+                                : committer.getEmailAddress()));
+        StringBuilder parentIds = new StringBuilder();
+        for (RevCommit parent : commit.getParents()) {
+            if (parentIds.length() > 0) parentIds.append(",");
+            parentIds.append(parent.getId().name());
+        }
+        row.put("ParentCommitIDs", new StringPrimitive(parentIds.toString()));
+        result.addRow(row);
     }
 
     @DapServicePayload(ReflogEntrySpec.class)
@@ -2390,11 +2438,11 @@ public class GitRepositoryShape extends Thing {
                 RevCommit commitAgain = walk.parseCommit(commit);
                 ValueCollection vc = new ValueCollection();
                 vc.put("CommitID", new StringPrimitive(commitAgain.getId().name()));
-                String parents = "";
-                if (commitAgain.getParents() != null) {
-                    for (RevCommit parent : commitAgain.getParents()) parents += parent.getName();
+                List<String> parentIds = new ArrayList<>();
+                for (RevCommit parent : commitAgain.getParents()) {
+                    parentIds.add(parent.getName());
                 }
-                vc.put("Parents", new StringPrimitive(parents));
+                vc.put("Parents", new StringPrimitive(String.join(",", parentIds)));
                 vc.put(
                         "Author",
                         new StringPrimitive(
@@ -2426,6 +2474,7 @@ public class GitRepositoryShape extends Thing {
                                 Const.CommitChangedFiles);
                 DiffFormatter diffFormatter = new DiffFormatter(DisabledOutputStream.INSTANCE);
                 diffFormatter.setRepository(myGitRepository);
+                diffFormatter.setDetectRenames(true);
                 List<DiffEntry> entries;
                 if (commitAgain.getParentCount() != 0)
                     entries = diffFormatter.scan(commitAgain.getParent(0), commitAgain.getTree());
@@ -2433,8 +2482,15 @@ public class GitRepositoryShape extends Thing {
 
                 for (DiffEntry diffEntry : entries) {
                     ValueCollection v2 = new ValueCollection();
-                    v2.put("FileName", new StringPrimitive(diffEntry.getNewPath()));
+                    String displayPath =
+                            DiffEntry.DEV_NULL.equals(diffEntry.getNewPath())
+                                    ? diffEntry.getOldPath()
+                                    : diffEntry.getNewPath();
+                    v2.put("FileName", new StringPrimitive(displayPath));
                     v2.put("Status", new StringPrimitive(diffEntry.getChangeType().toString()));
+                    if (!DiffEntry.DEV_NULL.equals(diffEntry.getOldPath())) {
+                        v2.put("OldFileName", new StringPrimitive(diffEntry.getOldPath()));
+                    }
                     CommitChangedFiles.addRow(v2);
                 }
                 diffFormatter.close();
@@ -2451,6 +2507,191 @@ public class GitRepositoryShape extends Thing {
             ex.printStackTrace(new PrintWriter(errors));
             log.error("GetCommitInfo failed for CommitID '" + CommitID + "': " + errors.toString());
             return DapResults.failure("GetCommitInfo", ex, CommitInfoTable.SERVICE_RESULT);
+        }
+    }
+
+    @DapServicePayload(CommitTreeEntrySpec.class)
+    @ThingworxServiceDefinition(
+            name = "GetCommitTree",
+            description = "Returns the file entries present in a commit tree.",
+            category = "",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "Result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {
+                "isEntityDataShape:true",
+                "dataShape:GIT.CommitTreeEntry.ServiceResult.DataShape"
+            })
+    public InfoTable GetCommitTree(
+            @ThingworxServiceParameter(name = "CommitID", description = "", baseType = "STRING")
+                    String CommitID) {
+        log.trace("Entering Service: GetCommitTree");
+        if (CommitID == null || CommitID.isBlank()) {
+            return DapResults.failure(
+                    "GetCommitTree", "CommitID is required", CommitTreeEntryTable.SERVICE_RESULT);
+        }
+        try {
+            InfoTable result =
+                    InfoTableInstanceFactory.createInfoTableFromDataShape(
+                            Const.CommitTreeEntryDataShapeName);
+            var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            Repository repository = fileRepo.git().getRepository();
+            ObjectId objectId = repository.resolve(CommitID);
+            if (objectId == null) {
+                return DapResults.failure(
+                        "GetCommitTree",
+                        String.format(Const.ERR_COMMIT_NOT_FOUND, CommitID),
+                        CommitTreeEntryTable.SERVICE_RESULT);
+            }
+            try (RevWalk walk = new RevWalk(repository);
+                    ObjectReader reader = repository.newObjectReader()) {
+                RevCommit commit = walk.parseCommit(objectId);
+                try (TreeWalk treeWalk = new TreeWalk(repository)) {
+                    treeWalk.addTree(commit.getTree());
+                    treeWalk.setRecursive(true);
+                    while (treeWalk.next()) {
+                        String path = treeWalk.getPathString();
+                        int slash = path.lastIndexOf('/');
+                        String name = slash >= 0 ? path.substring(slash + 1) : path;
+                        String parentPath = slash >= 0 ? path.substring(0, slash) : "";
+                        FileMode mode = treeWalk.getFileMode(0);
+                        long size = 0;
+                        if (!FileMode.GITLINK.equals(mode)) {
+                            try {
+                                size =
+                                        reader.getObjectSize(
+                                                treeWalk.getObjectId(0), Constants.OBJ_BLOB);
+                            } catch (Exception ignored) {
+                                size = 0;
+                            }
+                        }
+                        ValueCollection row = new ValueCollection();
+                        row.put("Path", new StringPrimitive(path));
+                        row.put("Name", new StringPrimitive(name));
+                        row.put("ParentPath", new StringPrimitive(parentPath));
+                        row.put("Size", new LongPrimitive(size));
+                        row.put(
+                                "Mode",
+                                new StringPrimitive(
+                                        FileMode.GITLINK.equals(mode)
+                                                ? "SUBMODULE"
+                                                : mode.toString()));
+                        result.addRow(row);
+                    }
+                }
+            }
+            log.trace("Exiting Service: GetCommitTree");
+            return DapResults.success(
+                    "GetCommitTree",
+                    CommitTreeEntryTable.SERVICE_RESULT,
+                    CommitTreeEntryTable.wrap(result));
+        } catch (Exception ex) {
+            return DapResults.failure("GetCommitTree", ex, CommitTreeEntryTable.SERVICE_RESULT);
+        }
+    }
+
+    @DapServicePayload(FileContentSpec.class)
+    @ThingworxServiceDefinition(
+            name = "GetFileContent",
+            description = "Returns the content of a file at a commit.",
+            category = "",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "Result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {
+                "isEntityDataShape:true",
+                "dataShape:GIT.FileContent.ServiceResult.DataShape"
+            })
+    public InfoTable GetFileContent(
+            @ThingworxServiceParameter(name = "CommitID", description = "", baseType = "STRING")
+                    String CommitID,
+            @ThingworxServiceParameter(name = "Path", description = "", baseType = "STRING")
+                    String Path,
+            @ThingworxServiceParameter(
+                            name = "MaxBytes",
+                            description = "Maximum bytes to read; zero or omitted uses the default",
+                            baseType = "INTEGER")
+                    Integer MaxBytes) {
+        log.trace("Entering Service: GetFileContent");
+        if (CommitID == null || CommitID.isBlank()) {
+            return DapResults.failure(
+                    "GetFileContent", "CommitID is required", FileContentTable.SERVICE_RESULT);
+        }
+        if (Path == null || Path.isBlank()) {
+            return DapResults.failure(
+                    "GetFileContent", "Path is required", FileContentTable.SERVICE_RESULT);
+        }
+        try {
+            var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            Repository repository = fileRepo.git().getRepository();
+            ObjectId objectId = repository.resolve(CommitID);
+            if (objectId == null) {
+                return DapResults.failure(
+                        "GetFileContent",
+                        String.format(Const.ERR_COMMIT_NOT_FOUND, CommitID),
+                        FileContentTable.SERVICE_RESULT);
+            }
+            int maxBytes =
+                    MaxBytes == null || MaxBytes <= 0 ? 1000000 : Math.min(MaxBytes, 1000000);
+            try (RevWalk walk = new RevWalk(repository);
+                    ObjectReader reader = repository.newObjectReader()) {
+                RevCommit commit = walk.parseCommit(objectId);
+                TreeWalk treeWalk = TreeWalk.forPath(repository, Path, commit.getTree());
+                if (treeWalk == null) {
+                    return DapResults.failure(
+                            "GetFileContent",
+                            "File not found in commit: " + Path,
+                            FileContentTable.SERVICE_RESULT);
+                }
+                try (TreeWalk ignored = treeWalk) {
+                    FileMode mode = treeWalk.getFileMode(0);
+                    if (FileMode.TREE.equals(mode)) {
+                        return DapResults.failure(
+                                "GetFileContent",
+                                "Path is a directory: " + Path,
+                                FileContentTable.SERVICE_RESULT);
+                    }
+                    if (FileMode.GITLINK.equals(mode)) {
+                        return DapResults.failure(
+                                "GetFileContent",
+                                "Path is a submodule: " + Path,
+                                FileContentTable.SERVICE_RESULT);
+                    }
+                    ObjectLoader loader = reader.open(treeWalk.getObjectId(0));
+                    long fullSize = loader.getSize();
+                    byte[] bytes;
+                    try (var stream = loader.openStream()) {
+                        bytes = stream.readNBytes(maxBytes);
+                    }
+                    boolean truncated = fullSize > bytes.length;
+                    boolean binary = RawText.isBinary(bytes);
+                    InfoTable result =
+                            InfoTableInstanceFactory.createInfoTableFromDataShape(
+                                    Const.FileContentDataShapeName);
+                    ValueCollection row = new ValueCollection();
+                    row.put("Path", new StringPrimitive(Path));
+                    row.put(
+                            "Content",
+                            new StringPrimitive(
+                                    binary ? "" : new String(bytes, StandardCharsets.UTF_8)));
+                    row.put("Size", new LongPrimitive(fullSize));
+                    row.put("Binary", new BooleanPrimitive(binary));
+                    row.put("Truncated", new BooleanPrimitive(truncated));
+                    result.addRow(row);
+                    return DapResults.success(
+                            "GetFileContent",
+                            FileContentTable.SERVICE_RESULT,
+                            FileContentTable.wrap(result));
+                }
+            }
+        } catch (Exception ex) {
+            return DapResults.failure("GetFileContent", ex, FileContentTable.SERVICE_RESULT);
         }
     }
 
@@ -2725,6 +2966,7 @@ public class GitRepositoryShape extends Thing {
                     InfoTableInstanceFactory.createInfoTableFromDataShape("GIT.TagList.DataShape");
             List<Ref> tags = myGitFolder.tagList().call();
             for (Ref tagRef : tags) {
+                tagRef = repo.getRefDatabase().peel(tagRef);
                 ValueCollection vc = new ValueCollection();
                 String tagName = tagRef.getName().replace("refs/tags/", "");
                 vc.put("TagName", new StringPrimitive(tagName));

@@ -1074,6 +1074,7 @@ public final class DeclarativeAnnotationProcessor extends AbstractProcessor {
             case DATETIME -> "org.joda.time.DateTime";
             case INFOTABLE -> "com.thingworx.types.InfoTable";
             case INTEGER -> "java.lang.Integer";
+            case LONG -> "java.lang.Long";
             case PASSWORD, STRING, THINGNAME -> "java.lang.String";
         };
     }
@@ -1086,6 +1087,7 @@ public final class DeclarativeAnnotationProcessor extends AbstractProcessor {
             case DATETIME -> "Datetime";
             case INFOTABLE -> "InfoTable";
             case INTEGER -> "Integer";
+            case LONG -> "Long";
         };
     }
 

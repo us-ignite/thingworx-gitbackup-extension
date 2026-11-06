@@ -1,0 +1,1 @@
+{"name":"@githistory/runtime","private":true,"type":"module","scripts":{"build":"vite build","typecheck":"tsc --noEmit"}}

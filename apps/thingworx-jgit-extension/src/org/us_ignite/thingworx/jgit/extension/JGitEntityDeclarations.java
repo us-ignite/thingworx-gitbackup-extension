@@ -59,6 +59,20 @@ public final class JGitEntityDeclarations {
 
         @DapField(name = "BranchType", baseType = DapBaseType.STRING, ordinal = 3)
         private String branchType;
+
+        @DapField(
+                name = "CommitID",
+                baseType = DapBaseType.STRING,
+                ordinal = 4,
+                description = "Commit ID at the branch tip")
+        private String commitId;
+
+        @DapField(
+                name = "IsHead",
+                baseType = DapBaseType.BOOLEAN,
+                ordinal = 5,
+                description = "Whether this branch is the current HEAD")
+        private Boolean isHead;
     }
 
     @DapDataShape(
@@ -289,6 +303,57 @@ public final class JGitEntityDeclarations {
 
         @DapField(name = "Status", baseType = DapBaseType.STRING, ordinal = 2)
         private String status;
+
+        @DapField(
+                name = "OldFileName",
+                baseType = DapBaseType.STRING,
+                ordinal = 3,
+                description = "Previous path for a rename or delete")
+        private String oldFileName;
+    }
+
+    @DapDataShape(
+            name = "GIT.CommitTreeEntry.DataShape",
+            description = "A file entry in a commit tree.",
+            serviceResultDescription = "Service result carrying commit tree entries.",
+            payloadDescription = "Commit tree payload")
+    public static final class CommitTreeEntrySpec {
+        @DapField(name = "Path", baseType = DapBaseType.STRING, ordinal = 1)
+        private String path;
+
+        @DapField(name = "Name", baseType = DapBaseType.STRING, ordinal = 2)
+        private String name;
+
+        @DapField(name = "ParentPath", baseType = DapBaseType.STRING, ordinal = 3)
+        private String parentPath;
+
+        @DapField(name = "Size", baseType = DapBaseType.LONG, ordinal = 4)
+        private Long size;
+
+        @DapField(name = "Mode", baseType = DapBaseType.STRING, ordinal = 5)
+        private String mode;
+    }
+
+    @DapDataShape(
+            name = "GIT.FileContent.DataShape",
+            description = "Content of a file at a commit.",
+            serviceResultDescription = "Service result carrying file content.",
+            payloadDescription = "File content payload")
+    public static final class FileContentSpec {
+        @DapField(name = "Path", baseType = DapBaseType.STRING, ordinal = 1)
+        private String path;
+
+        @DapField(name = "Content", baseType = DapBaseType.STRING, ordinal = 2)
+        private String content;
+
+        @DapField(name = "Size", baseType = DapBaseType.LONG, ordinal = 3)
+        private Long size;
+
+        @DapField(name = "Binary", baseType = DapBaseType.BOOLEAN, ordinal = 4)
+        private Boolean binary;
+
+        @DapField(name = "Truncated", baseType = DapBaseType.BOOLEAN, ordinal = 5)
+        private Boolean truncated;
     }
 
     @DapDataShape(

@@ -206,6 +206,22 @@ tasks.register('buildAll', Sync) {
     into layout.buildDirectory.dir('distributions')
 }
 
+// Distribution archive contains installable extension zips, not nested ThingWorx resources.
+tasks.register('packageExtensionPack', Zip) {
+    description = 'Bundle the JGit extension and its separately installable widget dependencies'
+    group = 'build'
+    dependsOn tasks.named('packageExtension'), ':apps:git-history-widget-extension:packageExtension',
+            ':apps:aggridwidget2-extension:packageExtension', ':apps:bmwidgets-extension:packageExtension'
+    archiveFileName = "JGitExtension-pack-v${project.ext.packageVersion}-${defaultSdkCfg.outputSuffix}.zip"
+    destinationDirectory = layout.buildDirectory.dir('distributions')
+    from(project(defaultProjectPath).layout.buildDirectory.dir('distributions')) {
+        include "${project.ext.defaultPackageName}.zip"
+    }
+    from(project(':apps:git-history-widget-extension').layout.buildDirectory.dir('distributions')) { include 'GitHistoryWidget-1.0.1.zip' }
+    from(project(':apps:aggridwidget2-extension').layout.buildDirectory.dir('distributions')) { include 'agGridWidget2-extension-1.0.1.zip' }
+    from(project(':apps:bmwidgets-extension').layout.buildDirectory.dir('distributions')) { include 'BMCoreUIWidgets-min-2.9.3.zip' }
+}
+
 tasks.register('testAll') {
     description = 'Run tests for all ThingWorx versions in one daemon'
     group = 'verification'

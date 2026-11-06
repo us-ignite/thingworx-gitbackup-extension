@@ -1209,6 +1209,76 @@ public class GiteaGitOperationsTest {
     }
 
     @Test
+    @Order(16)
+    void testHistoryTreeAndTruncatedContent() throws Exception {
+        String fixtureName = "history-content-fixture.txt";
+        String fixturePath = GIT_THING_PATH + "/" + fixtureName;
+        String relativePath = repoRelativePath(fixturePath);
+        editFileInRepoViaThingworxAPI(GIT_THING_NAME, fixturePath, "History content fixture\n");
+        stageFile(fixturePath);
+        JsonObject commitRequest = new JsonObject();
+        commitRequest.addProperty("Message", "Integration test: history fixture");
+        assertServiceSuccess(callService("CommitStaged", commitRequest), "Commit history fixture");
+
+        var logResponse = callService("GetLog", new JsonObject());
+        assertServiceSuccess(logResponse, "GetLog without Ref");
+        String commitId = extractFirstCommitId(logResponse.body());
+        assertNotNull(commitId, "Expected a commit on the current branch");
+
+        JsonObject treeRequest = new JsonObject();
+        treeRequest.addProperty("CommitID", commitId);
+        var treeResponse = callService("GetCommitTree", treeRequest);
+        assertServiceSuccess(treeResponse, "GetCommitTree");
+        boolean found = false;
+        for (var entry : responseRows(treeResponse.body())) {
+            var row = entry.getAsJsonObject();
+            if (relativePath.equals(row.get("Path").getAsString())) {
+                found = true;
+                assertEquals(fixtureName, row.get("Name").getAsString());
+                assertTrue(row.get("Size").getAsLong() > 1);
+            }
+        }
+        assertTrue(found, "Expected the committed test file in the tree");
+
+        JsonObject contentRequest = new JsonObject();
+        contentRequest.addProperty("CommitID", commitId);
+        contentRequest.addProperty("Path", relativePath);
+        contentRequest.addProperty("MaxBytes", 1);
+        var contentResponse = callService("GetFileContent", contentRequest);
+        assertServiceSuccess(contentResponse, "GetFileContent");
+        var content = responseRows(contentResponse.body()).get(0).getAsJsonObject();
+        assertFalse(content.get("Binary").getAsBoolean());
+        assertTrue(content.get("Truncated").getAsBoolean());
+        assertEquals(1, content.get("Content").getAsString().length());
+    }
+
+    @Test
+    @Order(17)
+    void testConcurrentHistoryReads() throws Exception {
+        for (int attempt = 0; attempt < 5; attempt++) {
+            var log =
+                    stack.httpClient.sendAsync(
+                            stack.thingworx.serviceRequest(GIT_THING_NAME, "GetLog", "{}").build(),
+                            HttpResponse.BodyHandlers.ofString());
+            var branches =
+                    stack.httpClient.sendAsync(
+                            stack.thingworx
+                                    .serviceRequest(GIT_THING_NAME, "GetBranchList", "{}")
+                                    .build(),
+                            HttpResponse.BodyHandlers.ofString());
+            var tags =
+                    stack.httpClient.sendAsync(
+                            stack.thingworx
+                                    .serviceRequest(GIT_THING_NAME, "GetTagList", "{}")
+                                    .build(),
+                            HttpResponse.BodyHandlers.ofString());
+            assertServiceSuccess(log.get(), "GetLog");
+            assertServiceSuccess(branches.get(), "GetBranchList");
+            assertServiceSuccess(tags.get(), "GetTagList");
+        }
+    }
+
+    @Test
     @Order(23)
     void testGetReflog() throws Exception {
         JsonObject body = new JsonObject();

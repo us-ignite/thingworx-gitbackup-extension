@@ -17,6 +17,8 @@ public final class Const {
     public static final String ReflogEntryDataShapeName = "GIT.ReflogEntry.DataShape";
     public static final String CommitInfoDataShapeName = "GIT.CommitInfo.DataShape";
     public static final String CommitChangedFiles = "GIT.CommitChangedFiles.DataShape";
+    public static final String CommitTreeEntryDataShapeName = "GIT.CommitTreeEntry.DataShape";
+    public static final String FileContentDataShapeName = "GIT.FileContent.DataShape";
     public static final String UtilityThingName = "GIT.Utility.Thing";
     public static final String RepositoryThingTemplateName = "GIT.Repository.ThingTemplate";
     public static final String RepositoryProjectName = "GIT.Repositories";
