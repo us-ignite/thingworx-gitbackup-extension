@@ -448,6 +448,24 @@ public final class JGitEntityDeclarations {
     }
 
     @DapDataShape(
+            name = "GIT.GpgKeySummary.DataShape",
+            description = "Public metadata for a user's GPG key",
+            serviceResultName = "GIT.GpgKeySummary.ServiceResult.DataShape",
+            serviceResultDescription = "Service result carrying GPG key metadata",
+            payloadDescription = "GPG key metadata")
+    public static final class GpgKeySummarySpec {
+        @DapField(
+                name = "GpgKeyFingerprint",
+                baseType = DapBaseType.STRING,
+                ordinal = 1,
+                primaryKey = true)
+        private String fingerprint;
+
+        @DapField(name = "GpgKeyLabel", baseType = DapBaseType.STRING, ordinal = 2)
+        private String label;
+    }
+
+    @DapDataShape(
             name = "GIT.GpgKey.UserExtension.DataShape",
             description = "Encrypted GPG keys owned by a user and reusable across repositories",
             serviceResultName = "GIT.GpgKey.ServiceResult.DataShape",

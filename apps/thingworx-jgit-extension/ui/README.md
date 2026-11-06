@@ -1,5 +1,10 @@
 # Mashup sources
 
+`Mashups_GIT.Mashup.Home.xml` lists repository Things and links to Git User
+Settings. Selecting a repository opens its operations. It is
+the default item in the Git menu. `src/HomeNavigation.ts` is embedded during
+packaging by `embedHomeNavigation`.
+
 `Mashups_GIT.Mashup.Changes.xml` provides repository selection, working-tree
 status, selected-file stage/unstage/untrack actions, and staged commit. Its
 untrack action uses a confirmation dialog. The Git Changes menu item is in

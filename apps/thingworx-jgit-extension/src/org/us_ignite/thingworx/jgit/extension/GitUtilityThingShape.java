@@ -42,6 +42,7 @@ import org.us_ignite.thingworx.dap.DapThingShape;
 import org.us_ignite.thingworx.dap.runtime.DapResults;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.GitLogSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.GpgKeySpec;
+import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.GpgKeySummarySpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.GpgKeyVerificationSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.OperationListSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.RepositoryConfigurationSpec;
@@ -895,6 +896,50 @@ public class GitUtilityThingShape extends Thing {
         }
     }
 
+    @DapServicePayload(GpgKeySummarySpec.class)
+    @ThingworxServiceDefinition(
+            name = "GpgKeyListSummary",
+            description =
+                    "Lists the current user's GPG key labels and fingerprints without private key material",
+            category = "",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {
+                "isEntityDataShape:true",
+                "dataShape:GIT.GpgKeySummary.ServiceResult.DataShape"
+            })
+    public InfoTable GpgKeyListSummary() {
+        try {
+            InfoTable result =
+                    InfoTableInstanceFactory.createInfoTableFromDataShape(
+                            "GIT.GpgKeySummary.DataShape");
+            InfoTable keys = new GitUserContextManager().gpgKeys();
+            if (keys != null) {
+                for (int i = 0; i < keys.getRowCount(); i++) {
+                    ValueCollection key = keys.getRow(i);
+                    ValueCollection row = new ValueCollection();
+                    row.put(
+                            Const.GpgKeyFingerprint,
+                            new StringPrimitive(key.getStringValue(Const.GpgKeyFingerprint)));
+                    row.put(
+                            Const.GpgKeyLabel,
+                            new StringPrimitive(key.getStringValue(Const.GpgKeyLabel)));
+                    result.addRow(row);
+                }
+            }
+            return DapResults.success(
+                    "GpgKeyListSummary",
+                    GpgKeySummaryTable.SERVICE_RESULT,
+                    GpgKeySummaryTable.wrap(result));
+        } catch (Exception e) {
+            return DapResults.failure("GpgKeyListSummary", e, GpgKeySummaryTable.SERVICE_RESULT);
+        }
+    }
+
     /** Creates a reusable GPG key for the current user. */
     @DapServicePayload(StringResultSpec.class)
     @ThingworxServiceDefinition(
@@ -1472,6 +1517,67 @@ public class GitUtilityThingShape extends Thing {
         } catch (Exception e) {
             return DapResults.failure(
                     "GitCredentialGet", e, RepositoryConfigurationTable.SERVICE_RESULT);
+        }
+    }
+
+    @DapServicePayload(StringResultSpec.class)
+    @ThingworxServiceDefinition(
+            name = "GitCommitIdentityUpdate",
+            description =
+                    "Updates the current user's commit identity for a repository without changing credentials or signing settings",
+            category = "",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
+    public InfoTable GitCommitIdentityUpdate(
+            @ThingworxServiceParameter(
+                            name = "GitThing",
+                            description = "Repository Thing",
+                            baseType = "THINGNAME")
+                    String gitThing,
+            @ThingworxServiceParameter(
+                            name = "GitCommitterFullName",
+                            description = "Commit name",
+                            baseType = "STRING")
+                    String fullName,
+            @ThingworxServiceParameter(
+                            name = "GitCommitterEmail",
+                            description = "Commit email",
+                            baseType = "STRING")
+                    String email) {
+        try {
+            if (fullName == null || fullName.isBlank() || email == null || email.isBlank())
+                throw new IllegalArgumentException("Commit name and email are required.");
+            GitUserContextManager context = new GitUserContextManager();
+            InfoTable all = context.credentials();
+            ValueCollection row = null;
+            if (all != null && gitThing != null && !gitThing.isBlank()) {
+                for (int i = 0; i < all.getRowCount(); i++) {
+                    if (gitThing.equals(all.getRow(i).getStringValue("GitThing"))) {
+                        row = all.getRow(i);
+                        break;
+                    }
+                }
+            }
+            if (row == null)
+                throw new IllegalArgumentException(
+                        "Credentials not found for repository: " + gitThing);
+            row.put(Const.GitCommitterName, new StringPrimitive(fullName.trim()));
+            row.put(Const.GitCommitterEmail, new StringPrimitive(email.trim()));
+            context.requireUser()
+                    .setPropertyValue(
+                            Const.UserRepositoryConfiguration, new InfoTablePrimitive(all));
+            return DapResults.success(
+                    "GitCommitIdentityUpdate",
+                    "Commit identity saved.",
+                    StringResultContract.SERVICE_RESULT);
+        } catch (Exception e) {
+            return DapResults.failure(
+                    "GitCommitIdentityUpdate", e, StringResultContract.SERVICE_RESULT);
         }
     }
 

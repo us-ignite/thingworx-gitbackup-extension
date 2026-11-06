@@ -171,6 +171,15 @@ process.stdin.on('end', () => {
     }
 }
 
+tasks.register('embedHomeNavigation', Exec) {
+    description = 'Embed the Git Home navigation helper'
+    dependsOn tasks.named('installUiBuildDependencies')
+    workingDir file('ui')
+    commandLine 'node', 'embed-home-navigation.js'
+    inputs.files file('ui/src/HomeNavigation.ts'), file('ui/embed-home-navigation.js'), file('ui/package-lock.json')
+    outputs.file file('ui/Mashups_GIT.Mashup.Home.xml')
+}
+
 // The per-version projects can also be packaged directly, bypassing this
 // aggregator. Make sure those packages receive the same generated mashup.
 def rootEmbedGitHelper = tasks.named('embedGitHelper')
@@ -178,10 +187,10 @@ gradle.projectsEvaluated {
     TwxVersions.ALL.each { version ->
         def versionPath = ":apps:thingworx-jgit-extension:v${TwxVersions.sanitize(version)}"
         project(versionPath).tasks.matching { it.name == 'packageExtension' }.configureEach {
-            dependsOn rootEmbedGitHelper
+            dependsOn rootEmbedGitHelper, tasks.named('embedHomeNavigation')
         }
         project(versionPath).tasks.matching { it.name == 'prepPackage' }.configureEach {
-            dependsOn rootEmbedGitHelper
+            dependsOn rootEmbedGitHelper, tasks.named('embedHomeNavigation')
         }
     }
 }
@@ -415,7 +424,7 @@ task devSetup {
             Thread.sleep(3000)
         }
         if (!giteaReady) {
-            logger.warn("Gitea did not become ready. Create admin user and repo manually at http://localhost:3000")
+            throw new GradleException("Gitea did not become ready; cannot register the development GPG key")
         } else {
             execOps.exec {
                 commandLine 'docker', 'compose', 'exec', '-u', 'git', 'gitea', 'gitea', 'admin', 'user', 'create',
@@ -454,6 +463,11 @@ task devSetup {
                     Thread.sleep(3000)
                 }
             }
+        }
+
+        logger.lifecycle("Ensuring the development GPG key is registered with ThingWorx and Gitea...")
+        execOps.exec {
+            commandLine 'python3', file('scripts/setup-dev-gpg-key.py').absolutePath
         }
 
         logger.lifecycle("")

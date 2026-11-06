@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?><Entities build="b47" majorVersion="9" minorVersion="7" modelPersistenceProviderPackage="PostgresPersistenceProviderPackage" revision="0" schemaVersion="1171" universal=""><Mashups><Mashup aspect.isFlex="true" aspect.isResponsive="true" aspect.mashupType="mashup" columns="0.0" description="" documentationContent="" homeMashup="" lastModifiedDate="2026-09-24T18:11:37.847Z" name="GIT.Mashup.Settings" projectName="GIT" rows="0.0" tags=""><avatar/><DesignTimePermissions><Create/><Read/><Update/><Delete/><Metadata/></DesignTimePermissions><RunTimePermissions/><VisibilityPermissions><Visibility/></VisibilityPermissions><ConfigurationTableDefinitions/><ConfigurationTables><ConfigurationTable dataShapeName="" description="Mashup Mobile Settings" isHidden="true" isMultiRow="false" name="MobileSettings" ordinal="0"><DataShape><FieldDefinitions><FieldDefinition aspect.defaultValue="false" aspect.friendlyName="Disable Zoom" baseType="BOOLEAN" description="Disables zooming in and out within the mashup" name="disableZoom" ordinal="0"/><FieldDefinition aspect.defaultValue="true" aspect.friendlyName="Full Screen Mode" baseType="BOOLEAN" description="Open the mashup in full screen mode" name="fullScreenMode" ordinal="0"/><FieldDefinition aspect.friendlyName="Height" baseType="STRING" description="The height of the mashup page" name="height" ordinal="0"/><FieldDefinition aspect.defaultValue="device-height" aspect.friendlyName="Height Type" baseType="STRING" description="Use the height of the device display, or a custom height (in px)" name="heightType" ordinal="0"/><FieldDefinition aspect.defaultValue="1.0" aspect.friendlyName="Initial Scale" baseType="NUMBER" description="The initial zoom scale when the mashup is loaded for the first time" name="initialScale" ordinal="0"/><FieldDefinition aspect.friendlyName="Shortcut Icon Title" baseType="STRING" description="A title for the mashup shortcut on the iOS home screen" name="iosShortcutIconTitle" ordinal="0"/><FieldDefinition aspect.defaultValue="black-translucent" aspect.friendlyName="Status Bar Appearance" baseType="STRING" description="The style of the iOS status bar" name="iosStatusBarAppearance" ordinal="0"/><FieldDefinition aspect.defaultValue="10.0" aspect.friendlyName="Maximum Scale" baseType="NUMBER" description="The maximum scale that users can zoom out to" name="maximumScale" ordinal="0"/><FieldDefinition aspect.defaultValue="0.1" aspect.friendlyName="Minimum Scale" baseType="NUMBER" description="The minimum scale that users can zoom out to" name="minimumScale" ordinal="0"/><FieldDefinition aspect.friendlyName="Width" baseType="STRING" description="The width of the mashup page" name="width" ordinal="0"/><FieldDefinition aspect.defaultValue="device-width" aspect.friendlyName="Width Type" baseType="STRING" description="Use the width of the device display, or a custom width (in px)" name="widthType" ordinal="0"/></FieldDefinitions></DataShape><Rows><Row><disableZoom>false</disableZoom><fullScreenMode>true</fullScreenMode><height><![CDATA[device-height]]></height><heightType><![CDATA[device-height]]></heightType><initialScale>1.0</initialScale><iosShortcutIconTitle/><iosStatusBarAppearance><![CDATA[black-translucent]]></iosStatusBarAppearance><maximumScale>10.0</maximumScale><minimumScale>0.1</minimumScale><width><![CDATA[device-width]]></width><widthType><![CDATA[device-width]]></widthType></Row></Rows></ConfigurationTable></ConfigurationTables><ParameterDefinitions><FieldDefinition aspect.bindingDirection="BOTH" aspect.isMandatory="false" baseType="STRING" description="" name="repoName" ordinal="0"/></ParameterDefinitions><Things/><ThingShapes/><ThingTemplates/><mashupContent><![CDATA[{
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><Entities build="b47" majorVersion="9" minorVersion="7" modelPersistenceProviderPackage="PostgresPersistenceProviderPackage" revision="0" schemaVersion="1171" universal=""><Mashups><Mashup aspect.isFlex="true" aspect.isResponsive="true" aspect.mashupType="mashup" columns="0.0" description="" documentationContent="" homeMashup="" lastModifiedDate="2026-09-24T18:11:37.847Z" name="GIT.Mashup.Settings" projectName="GIT" rows="0.0" tags=""><avatar/><DesignTimePermissions><Create/><Read/><Update/><Delete/><Metadata/></DesignTimePermissions><RunTimePermissions/><VisibilityPermissions><Visibility/></VisibilityPermissions><ConfigurationTableDefinitions/><ConfigurationTables><ConfigurationTable dataShapeName="" description="Mashup Mobile Settings" isHidden="true" isMultiRow="false" name="MobileSettings" ordinal="0"><DataShape><FieldDefinitions><FieldDefinition aspect.defaultValue="false" aspect.friendlyName="Disable Zoom" baseType="BOOLEAN" description="Disables zooming in and out within the mashup" name="disableZoom" ordinal="0"/><FieldDefinition aspect.defaultValue="true" aspect.friendlyName="Full Screen Mode" baseType="BOOLEAN" description="Open the mashup in full screen mode" name="fullScreenMode" ordinal="0"/><FieldDefinition aspect.friendlyName="Height" baseType="STRING" description="The height of the mashup page" name="height" ordinal="0"/><FieldDefinition aspect.defaultValue="device-height" aspect.friendlyName="Height Type" baseType="STRING" description="Use the height of the device display, or a custom height (in px)" name="heightType" ordinal="0"/><FieldDefinition aspect.defaultValue="1.0" aspect.friendlyName="Initial Scale" baseType="NUMBER" description="The initial zoom scale when the mashup is loaded for the first time" name="initialScale" ordinal="0"/><FieldDefinition aspect.friendlyName="Shortcut Icon Title" baseType="STRING" description="A title for the mashup shortcut on the iOS home screen" name="iosShortcutIconTitle" ordinal="0"/><FieldDefinition aspect.defaultValue="black-translucent" aspect.friendlyName="Status Bar Appearance" baseType="STRING" description="The style of the iOS status bar" name="iosStatusBarAppearance" ordinal="0"/><FieldDefinition aspect.defaultValue="10.0" aspect.friendlyName="Maximum Scale" baseType="NUMBER" description="The maximum scale that users can zoom out to" name="maximumScale" ordinal="0"/><FieldDefinition aspect.defaultValue="0.1" aspect.friendlyName="Minimum Scale" baseType="NUMBER" description="The minimum scale that users can zoom out to" name="minimumScale" ordinal="0"/><FieldDefinition aspect.friendlyName="Width" baseType="STRING" description="The width of the mashup page" name="width" ordinal="0"/><FieldDefinition aspect.defaultValue="device-width" aspect.friendlyName="Width Type" baseType="STRING" description="Use the width of the device display, or a custom width (in px)" name="widthType" ordinal="0"/></FieldDefinitions></DataShape><Rows><Row><disableZoom>false</disableZoom><fullScreenMode>true</fullScreenMode><height><![CDATA[device-height]]></height><heightType><![CDATA[device-height]]></heightType><initialScale>1.0</initialScale><iosShortcutIconTitle/><iosStatusBarAppearance><![CDATA[black-translucent]]></iosStatusBarAppearance><maximumScale>10.0</maximumScale><minimumScale>0.1</minimumScale><width><![CDATA[device-width]]></width><widthType><![CDATA[device-width]]></widthType></Row></Rows></ConfigurationTable></ConfigurationTables><ParameterDefinitions><FieldDefinition aspect.bindingDirection="BOTH" aspect.isMandatory="false" baseType="STRING" description="" name="repoName" ordinal="0"/><FieldDefinition aspect.bindingDirection="BOTH" aspect.isMandatory="false" aspect.dataShape="GIT.GpgKeySummary.DataShape" baseType="INFOTABLE" description="Selected GPG key" name="SelectedGpgKey" ordinal="0"/></ParameterDefinitions><Things/><ThingShapes/><ThingTemplates/><mashupContent><![CDATA[{
   "CustomMashupCss" : "",
   "Data" : {
     "Session" : {
@@ -109,11 +109,26 @@
             "maxResultSets" : "10"
           },
           "Characteristic" : "Services",
-          "Id" : "7711493e-79f1-40de-937a-2fa7ea04a1a6",
-          "Name" : "GpgKeyList",
+          "Id" : "c646522f-8edb-4cf1-90c9-f7441d4bdfc9",
+          "Name" : "GpgKeyDelete",
           "Parameters" : {},
           "RefreshInterval" : 0,
-          "Target" : "GpgKeyList"
+          "Target" : "GpgKeyDelete"
+        },
+        {
+          "APIMethod" : "post",
+          "Caching" : {
+            "cache" : false,
+            "cacheKeyParams" : [],
+            "cacheStrategy" : "INSTANCE",
+            "maxResultSets" : "10"
+          },
+          "Characteristic" : "Services",
+          "Id" : "7711493e-79f1-40de-937a-2fa7ea04a1a6",
+          "Name" : "GpgKeyListSummary",
+          "Parameters" : {},
+          "RefreshInterval" : 0,
+          "Target" : "GpgKeyListSummary"
         }
       ]
     },
@@ -136,6 +151,46 @@
     }
   },
   "DataBindings" : [
+    {
+      "Id" : "5a064dbe-bdd7-4f37-87ff-e470a47bb640",
+      "SourceArea" : "UI",
+      "SourceId" : "gpg-keys-grid",
+      "SourceSection" : "",
+      "SourceDetails" : "",
+      "TargetArea" : "Mashup",
+      "TargetSection" : "",
+      "TargetId" : "mashup-root",
+      "PropertyMaps" : [
+        {
+          "SourceProperty" : "SelectedRows",
+          "SourcePropertyBaseType" : "INFOTABLE",
+          "SourcePropertyType" : "Property",
+          "TargetProperty" : "SelectedGpgKey",
+          "TargetPropertyBaseType" : "INFOTABLE",
+          "TargetPropertyType" : "Property"
+        }
+      ]
+    },
+    {
+      "Id" : "38eff0f7-dcda-4ba1-a882-5515f7e57b41",
+      "SourceArea" : "UI",
+      "SourceId" : "gpg-keys-grid",
+      "SourceSection" : "",
+      "SourceDetails" : "",
+      "TargetArea" : "UI",
+      "TargetSection" : "",
+      "TargetId" : "gpg-delete-button",
+      "PropertyMaps" : [
+        {
+          "SourceProperty" : "NoRowSelected",
+          "SourcePropertyBaseType" : "BOOLEAN",
+          "SourcePropertyType" : "Property",
+          "TargetProperty" : "Disabled",
+          "TargetPropertyBaseType" : "BOOLEAN",
+          "TargetPropertyType" : "property"
+        }
+      ]
+    },
     {
       "Id" : "e5034630-a56c-4abe-be83-6155e416baf7",
       "PropertyMaps" : [
@@ -397,6 +452,87 @@
       "TargetSection" : ""
     },
     {
+      "Id": "a0a15834-7be3-4220-85f9-0c6f56fb2907",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "Text",
+          "SourcePropertyBaseType": "STRING",
+          "SourcePropertyType": "Property",
+          "TargetProperty": "GpgKeyLabel",
+          "TargetPropertyBaseType": "STRING",
+          "TargetPropertyType": "Parameter"
+        }
+      ],
+      "SourceArea": "UI",
+      "SourceDetails": "",
+      "SourceId": "ptcstextfield-21",
+      "SourceSection": "",
+      "TargetArea": "Data",
+      "TargetId": "GpgKeyCreate",
+      "TargetSection": "Things_GIT.Utility.Thing"
+    },
+    {
+      "Id": "92a704ce-a28c-459d-ac93-c481ab0be86a",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "Text",
+          "SourcePropertyBaseType": "STRING",
+          "SourcePropertyType": "Property",
+          "TargetProperty": "GpgKeyLabel",
+          "TargetPropertyBaseType": "STRING",
+          "TargetPropertyType": "Parameter"
+        }
+      ],
+      "SourceArea": "UI",
+      "SourceDetails": "",
+      "SourceId": "ptcstextfield-21",
+      "SourceSection": "",
+      "TargetArea": "Data",
+      "TargetId": "GpgKeyUpdate",
+      "TargetSection": "Things_GIT.Utility.Thing"
+    },
+    {
+      "Id" : "92b42eea-b216-4258-9966-1fb22bdc1afe",
+      "PropertyMaps" : [
+        {
+          "SourceProperty" : "SelectedGpgKey",
+          "SourcePropertyBaseType" : "STRING",
+          "SourcePropertyType" : "Property",
+          "SubProperty" : "GpgKeyFingerprint",
+          "TargetProperty" : "GpgKeyFingerprint",
+          "TargetPropertyBaseType" : "STRING",
+          "TargetPropertyType" : "Parameter"
+        }
+      ],
+      "SourceArea" : "Mashup",
+      "SourceDetails" : "AllData",
+      "SourceId" : "mashup-root",
+      "SourceSection" : "",
+      "TargetArea" : "Data",
+      "TargetId" : "GpgKeyDelete",
+      "TargetSection" : "Things_GIT.Utility.Thing"
+    },
+    {
+      "Id" : "344bcc36-c46b-42b5-aaef-7df799d7984e",
+      "PropertyMaps" : [
+        {
+          "SourceProperty" : "Message",
+          "SourcePropertyBaseType" : "STRING",
+          "SourcePropertyType" : "Field",
+          "TargetProperty" : "LabelText",
+          "TargetPropertyBaseType" : "STRING",
+          "TargetPropertyType" : "property"
+        }
+      ],
+      "SourceArea" : "Data",
+      "SourceDetails" : "AllData",
+      "SourceId" : "GpgKeyDelete",
+      "SourceSection" : "Things_GIT.Utility.Thing",
+      "TargetArea" : "UI",
+      "TargetId" : "gpg-delete-result",
+      "TargetSection" : ""
+    },
+    {
       "Id" : "a0a0d88c-7514-42d1-bf4a-61fb581b3fe4",
       "PropertyMaps" : [
         {
@@ -410,15 +546,45 @@
       ],
       "SourceArea" : "Data",
       "SourceDetails" : "AllData",
-      "SourceId" : "GpgKeyList",
+      "SourceId" : "GpgKeyListSummary",
       "SourceSection" : "Things_GIT.Utility.Thing",
       "TargetArea" : "UI",
-      "TargetId" : "ptcslist-44",
+      "TargetId" : "gpg-keys-grid",
       "TargetSection" : ""
     }
   ],
   "DesignTimePermissions" : {},
   "Events" : [
+    {
+      "EventHandlerArea" : "UI",
+      "EventHandlerId" : "gpg-delete-confirm",
+      "EventHandlerService" : "OpenConfirmation",
+      "EventTriggerArea" : "UI",
+      "EventTriggerEvent" : "Clicked",
+      "EventTriggerId" : "gpg-delete-button",
+      "EventTriggerSection" : "",
+      "Id" : "e6967765-89fa-4307-a0d0-f2596023c86d"
+    },
+    {
+      "EventHandlerArea" : "Data",
+      "EventHandlerId" : "Things_GIT.Utility.Thing",
+      "EventHandlerService" : "GpgKeyDelete",
+      "EventTriggerArea" : "UI",
+      "EventTriggerEvent" : "ActionClick",
+      "EventTriggerId" : "gpg-delete-confirm",
+      "EventTriggerSection" : "",
+      "Id" : "00b330bc-54a2-4c31-8e54-bae6e7e1ca67"
+    },
+    {
+      "EventHandlerArea" : "Data",
+      "EventHandlerId" : "Things_GIT.Utility.Thing",
+      "EventHandlerService" : "GpgKeyListSummary",
+      "EventTriggerArea" : "Data",
+      "EventTriggerEvent" : "ServiceInvokeCompleted",
+      "EventTriggerId" : "GpgKeyDelete",
+      "EventTriggerSection" : "Things_GIT.Utility.Thing",
+      "Id" : "287859e1-6bb5-445f-88c5-9f98a72b1d48"
+    },
     {
       "EventHandlerArea" : "Data",
       "EventHandlerId" : "Things_GIT.Utility.Thing",
@@ -460,9 +626,29 @@
       "Id" : "a6b1cbbf-dc63-4329-927f-40269ce5463e"
     },
     {
+      "EventHandlerArea": "Data",
+      "EventHandlerId": "Things_GIT.Utility.Thing",
+      "EventHandlerService": "GpgKeyListSummary",
+      "EventTriggerArea": "Data",
+      "EventTriggerEvent": "ServiceInvokeCompleted",
+      "EventTriggerId": "GpgKeyCreate",
+      "EventTriggerSection": "Things_GIT.Utility.Thing",
+      "Id": "e079965b-257c-4548-b6bb-69abc816142e"
+    },
+    {
+      "EventHandlerArea": "Data",
+      "EventHandlerId": "Things_GIT.Utility.Thing",
+      "EventHandlerService": "GpgKeyListSummary",
+      "EventTriggerArea": "Data",
+      "EventTriggerEvent": "ServiceInvokeCompleted",
+      "EventTriggerId": "GpgKeyUpdate",
+      "EventTriggerSection": "Things_GIT.Utility.Thing",
+      "Id": "569e684f-471b-42a0-84ba-8785b4325a72"
+    },
+    {
       "EventHandlerArea" : "Data",
       "EventHandlerId" : "Things_GIT.Utility.Thing",
-      "EventHandlerService" : "GpgKeyList",
+      "EventHandlerService" : "GpgKeyListSummary",
       "EventTriggerArea" : "Mashup",
       "EventTriggerEvent" : "Loaded",
       "EventTriggerId" : "mashup-root",
@@ -958,6 +1144,15 @@
       "_baseVersion" : "9.7.0-b47",
       "_currentParameterDefs" : [
         {
+          "ParameterName" : "SelectedGpgKey",
+          "BaseType" : "INFOTABLE",
+          "Description" : "Selected GPG key",
+          "BindingDirection" : "BOTH",
+          "Aspects" : {
+            "dataShape" : "GIT.GpgKeySummary.DataShape"
+          }
+        },
+        {
           "Aspects" : {
             "bindingDirection" : "BOTH",
             "isMandatory" : false
@@ -972,6 +1167,41 @@
       "supportsAutoResize" : true
     },
     "Widgets" : [
+      {
+        "Properties" : {
+          "ActionButtonLabel" : "Delete Key",
+          "ActionButtonPosition" : "left",
+          "ActionButtonTooltipField" : "",
+          "ActionButtonType" : "danger",
+          "Area" : "UI",
+          "CancelButtonLabel" : "Cancel",
+          "CancelButtonTooltipField" : "",
+          "CloseButtonTooltipField" : "close",
+          "DialogHeight" : "260",
+          "DialogWidth" : "600",
+          "DisplayCloseButton" : false,
+          "DisplayName" : "ConfirmDeleteGpgKey",
+          "DisplaySecondaryAction" : false,
+          "Id" : "gpg-delete-confirm",
+          "LastContainer" : false,
+          "Left" : 0,
+          "Margin" : "5",
+          "MessageText" : "Delete the selected GPG key? This also clears its signing selection from repositories. This cannot be undone.",
+          "ResponsiveLayout" : false,
+          "SecondButtonLabel" : "Action",
+          "SecondButtonTooltipField" : "",
+          "ShowDataLoading" : true,
+          "TitleText" : "Delete selected GPG key?",
+          "Top" : 0,
+          "Type" : "ptcsconfirmation",
+          "UseTheme" : true,
+          "Visible" : true,
+          "Z-index" : 10,
+          "__TypeDisplayName" : "Confirmation",
+          "_baseVersion" : "9.7.0"
+        },
+        "Widgets" : []
+      },
       {
         "Properties" : {
           "Area" : "UI",
@@ -1285,9 +1515,9 @@
                       "__TypeDisplayName" : "Responsive Container",
                       "_baseVersion" : "9.7.0-b47",
                       "align-content" : "flex-start",
-                      "align-items" : "flex-start",
+                      "align-items" : "stretch",
                       "flex-basis" : "auto",
-                      "flex-direction" : "row",
+                      "flex-direction" : "column",
                       "flex-grow" : 1,
                       "flex-max-height" : "",
                       "flex-max-width" : "",
@@ -1335,24 +1565,54 @@
                           "__TypeDisplayName" : "Responsive Container",
                           "_baseVersion" : "9.7.0-b47",
                           "align-content" : "flex-start",
-                          "align-items" : "flex-start",
+                          "align-items" : "stretch",
                           "flex-basis" : "auto",
                           "flex-direction" : "column",
-                          "flex-grow" : 1,
+                          "flex-grow" : 0,
                           "flex-max-height" : "",
-                          "flex-max-width" : "400px",
-                          "flex-min-height" : "",
-                          "flex-min-width" : "400px",
-                          "flex-shrink" : 1,
-                          "flex-size" : "fixed",
+                          "flex-max-width" : "",
+                          "flex-min-height" : "260px",
+                          "flex-min-width" : "",
+                          "flex-shrink" : 0,
+                          "flex-size" : "default",
                           "flex-wrap" : "nowrap",
-                          "iconClass" : "widgets-flexcontainer-fixed",
+                          "iconClass" : "widgets-flexcontainer",
                           "isLocked" : false,
                           "justify-content" : "flex-start",
                           "positioning" : "responsive",
                           "userCannotRemove" : false
                         },
                         "Widgets" : [
+                          {
+                            "Properties" : {
+                              "Area" : "UI",
+                              "DisableLegacyCustomClassStyles" : false,
+                              "DisclosureControl" : "show-more",
+                              "DisplayName" : "ExistingGpgKeysTitle",
+                              "HorizontalAlignment" : "left",
+                              "Id" : "gpg-keys-title",
+                              "LabelText" : "Existing GPG Keys",
+                              "LabelType" : "title",
+                              "LastContainer" : false,
+                              "Left" : 84.47500610351562,
+                              "Margin" : "5",
+                              "MultiLine" : true,
+                              "PreserveWhiteSpace" : false,
+                              "ResponsiveLayout" : false,
+                              "ShowDataLoading" : true,
+                              "Top" : 35,
+                              "Type" : "ptcslabel",
+                              "UseTheme" : true,
+                              "VerticalAlignment" : "flex-start",
+                              "Visible" : true,
+                              "Z-index" : 10,
+                              "__TypeDisplayName" : "Label",
+                              "_baseVersion" : "9.7.0",
+                              "overflowShowLessTxt" : "[[showLess]]",
+                              "overflowShowMoreTxt" : "[[showMore]]"
+                            },
+                            "Widgets" : []
+                          },
                           {
                             "Properties" : {
                               "Area" : "UI",
@@ -1384,15 +1644,15 @@
                               "Z-index" : 10,
                               "__TypeDisplayName" : "Responsive Container",
                               "align-content" : "flex-start",
-                              "align-items" : "flex-start",
+                              "align-items" : "stretch",
                               "flex-basis" : "auto",
                               "flex-direction" : "row",
-                              "flex-grow" : 1,
+                              "flex-grow" : 0,
                               "flex-max-height" : "",
                               "flex-max-width" : "",
-                              "flex-min-height" : "",
+                              "flex-min-height" : "180px",
                               "flex-min-width" : "",
-                              "flex-shrink" : 1,
+                              "flex-shrink" : 0,
                               "flex-size" : "default",
                               "flex-wrap" : "nowrap",
                               "iconClass" : "widgets-flexcontainer",
@@ -1404,60 +1664,52 @@
                             "Widgets" : [
                               {
                                 "Properties" : {
-                                  "Alignment" : "left",
+                                  "AddNewRowInEditMode" : false,
+                                  "AllowEditing" : "no",
+                                  "AnyRowSelected" : false,
                                   "Area" : "UI",
-                                  "AutoSelectFirstRow" : false,
-                                  "ClearSelectedItemsLabel" : "[[clearSelectedItems]]",
-                                  "ClearSelectionItem" : true,
-                                  "ClearSelectionLabel" : "[[None]]",
-                                  "CriteriaMessage" : "",
-                                  "CriteriaMessageDetails" : "",
-                                  "DisableLegacyCustomClassStyles" : false,
-                                  "Disabled" : false,
-                                  "DisplayField" : "GpgKeyFingerprint",
-                                  "DisplayFieldBaseType" : "STRING",
-                                  "DisplayName" : "ptcs-list-44",
-                                  "FillContainer" : true,
-                                  "FilterHintText" : "[[filter]]",
-                                  "Height" : 170,
-                                  "Id" : "ptcslist-44",
-                                  "ItemMeta" : {
-                                    "type" : "text"
-                                  },
-                                  "Label" : "GPG Keys",
-                                  "LabelAlignment" : "left",
-                                  "LabelType" : "list-label",
+                                  "AutoOpenSideBar" : false,
+                                  "AutoSelectDescendantsInTree" : false,
+                                  "CheckBoxSelection" : false,
+                                  "DisplayName" : "ExistingGpgKeys",
+                                  "RowsToSelect" : "0",
+                                  "EmitDoubleClickEvent" : true,
+                                  "EnableCellTextSelection" : true,
+                                  "EnableRangeSelection" : true,
+                                  "EnableRowClickSelection" : true,
+                                  "FilterType" : "bytype",
+                                  "GridConfig" : "{\"ColumnConfig\":{\"GpgKeyLabel\":{\"headerName\":\"Label\",\"flex\":1},\"GpgKeyFingerprint\":{\"headerName\":\"Fingerprint\",\"flex\":2}}}",
+                                  "GridTheme" : "ag-theme-quartz",
+                                  "HideBorders" : false,
+                                  "Id" : "gpg-keys-grid",
                                   "LastContainer" : false,
-                                  "Left" : 194.27499389648438,
-                                  "ListFormat_StateParameters" : [],
+                                  "Left" : 296.67498779296875,
                                   "Margin" : "5",
-                                  "MultiSelect" : false,
-                                  "RadioButtonSelection" : false,
-                                  "RequiredMessage" : "[[Widgets.Validation.ListSelection.RequiredMessage]]",
+                                  "NoRowSelected" : true,
+                                  "ReorderColumns" : true,
+                                  "ResizeColumns" : true,
+                                  "ResizeGridWithParent" : true,
                                   "ResponsiveLayout" : true,
-                                  "RowHeight" : 34,
-                                  "SelectAllLabel" : "[[selectAll]]",
+                                  "RowHeight" : 38,
+                                  "RowSelection" : "single",
+                                  "ScrollPosition" : "top",
+                                  "ScrollToRowBy" : "Node Index",
                                   "ShowDataLoading" : true,
-                                  "ShowListFilter" : false,
-                                  "ShowValidationCriteria" : false,
-                                  "ShowValidationFailure" : false,
-                                  "ShowValidationSuccess" : false,
-                                  "SuccessMessage" : "",
-                                  "SuccessMessageDetails" : "",
-                                  "TabSequence" : 0,
-                                  "Top" : 77,
-                                  "Type" : "ptcslist",
-                                  "UseTheme" : true,
-                                  "ValidationCriteriaIcon" : "cds:icon_info",
-                                  "ValidationFailureIcon" : "cds:icon_error",
-                                  "ValidationState" : "undefined",
-                                  "ValidationSuccessIcon" : "cds:icon_success",
-                                  "ValueRequired" : false,
+                                  "ShowFloatingFilters" : false,
+                                  "ShowGridAsTree" : false,
+                                  "SideBarPanels" : "none",
+                                  "SingleClickEdit" : true,
+                                  "Sorting" : "none",
+                                  "Top" : 87.19998168945312,
+                                  "TreePathFieldDelimeter" : ",",
+                                  "Type" : "AgGridWidget2",
                                   "Visible" : true,
-                                  "Width" : 273,
+                                  "Width" : 650,
                                   "Z-index" : 10,
-                                  "__TypeDisplayName" : "List",
-                                  "_baseVersion" : "9.7.0"
+                                  "__TypeDisplayName" : "AG Grid 2",
+                                  "_baseVersion" : "9.7.0",
+                                  "flex-grow" : 1,
+                                  "flex-min-height" : "180px"
                                 },
                                 "Widgets" : []
                               }
@@ -1496,12 +1748,12 @@
                               "align-items" : "flex-start",
                               "flex-basis" : "auto",
                               "flex-direction" : "column",
-                              "flex-grow" : 1,
+                              "flex-grow" : 0,
                               "flex-max-height" : "",
                               "flex-max-width" : "",
                               "flex-min-height" : "",
                               "flex-min-width" : "",
-                              "flex-shrink" : 1,
+                              "flex-shrink" : 0,
                               "flex-size" : "default",
                               "flex-wrap" : "nowrap",
                               "iconClass" : "widgets-flexcontainer",
@@ -1510,7 +1762,70 @@
                               "positioning" : "responsive",
                               "userCannotRemove" : false
                             },
-                            "Widgets" : []
+                            "Widgets" : [
+                                {
+                                  "Properties" : {
+                                    "Area" : "UI",
+                                    "ButtonType" : "danger",
+                                    "ContextID" : "",
+                                    "DisableLegacyCustomClassStyles" : false,
+                                    "Disabled" : false,
+                                    "DisplayName" : "DeleteSelectedGpgKey",
+                                    "FocusOnLoad" : false,
+                                    "IconPosition" : "left",
+                                    "Id" : "gpg-delete-button",
+                                    "Label" : "Delete Selected Key",
+                                    "LabelAlignment" : "center",
+                                    "LastContainer" : false,
+                                    "Left" : 139.47500610351562,
+                                    "Margin" : "5",
+                                    "MultiLine" : false,
+                                    "ResponsiveLayout" : false,
+                                    "ShowDataLoading" : true,
+                                    "Size" : "standard",
+                                    "TabSequence" : 0,
+                                    "Top" : 280,
+                                    "Type" : "ptcsbutton",
+                                    "UseTheme" : true,
+                                    "Visible" : true,
+                                    "Width" : 180,
+                                    "Z-index" : 10,
+                                    "__TypeDisplayName" : "Button",
+                                    "_baseVersion" : "9.7.0"
+                                  },
+                                  "Widgets" : []
+                                },
+                                {
+                                  "Properties" : {
+                                    "Area" : "UI",
+                                    "DisableLegacyCustomClassStyles" : false,
+                                    "DisclosureControl" : "show-more",
+                                    "DisplayName" : "GpgDeleteResult",
+                                    "HorizontalAlignment" : "left",
+                                    "Id" : "gpg-delete-result",
+                                    "LabelText" : "",
+                                    "LabelType" : "label",
+                                    "LastContainer" : false,
+                                    "Left" : 109.47500610351562,
+                                    "Margin" : "5",
+                                    "MultiLine" : true,
+                                    "PreserveWhiteSpace" : false,
+                                    "ResponsiveLayout" : false,
+                                    "ShowDataLoading" : true,
+                                    "Top" : 23,
+                                    "Type" : "ptcslabel",
+                                    "UseTheme" : true,
+                                    "VerticalAlignment" : "flex-start",
+                                    "Visible" : true,
+                                    "Z-index" : 10,
+                                    "__TypeDisplayName" : "Label",
+                                    "_baseVersion" : "9.7.0",
+                                    "overflowShowLessTxt" : "[[showLess]]",
+                                    "overflowShowMoreTxt" : "[[showMore]]"
+                                  },
+                                  "Widgets" : []
+                                }
+                              ]
                           }
                         ]
                       },
@@ -1550,9 +1865,9 @@
                           "flex-grow" : 1,
                           "flex-max-height" : "",
                           "flex-max-width" : "",
-                          "flex-min-height" : "",
+                          "flex-min-height" : "440px",
                           "flex-min-width" : "",
-                          "flex-shrink" : 1,
+                          "flex-shrink" : 0,
                           "flex-size" : "default",
                           "flex-wrap" : "nowrap",
                           "iconClass" : "widgets-flexcontainer",

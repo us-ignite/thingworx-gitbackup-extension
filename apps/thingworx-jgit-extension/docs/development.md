@@ -16,7 +16,7 @@ The extension packages are written to `apps/thingworx-jgit-extension/build/distr
 ./gradlew :apps:thingworx-jgit-extension:devSetup
 ```
 
-This starts the local PostgreSQL, ThingWorx, and Gitea stack, installs the extension, and creates a test repository. Supply the required local license-server credentials through the project’s ignored environment file.
+This starts the local PostgreSQL, ThingWorx, and Gitea stack, installs the extension, and creates a test repository. It also creates a reusable GPG key labeled `Dev Setup Test Key` for the ThingWorx Administrator, if one does not already exist. Its public key is also registered with the local Gitea `giteauser` account. The key is generated locally with no passphrase and is intended only for development; it is not automatically selected for repository signing. A copy of the public key is kept in the extension build directory to support repeat setup runs. Python 3 and GnuPG (`gpg`) are required on the host. Supply the required local license-server credentials through the project’s ignored environment file.
 
 ## Tests
 
