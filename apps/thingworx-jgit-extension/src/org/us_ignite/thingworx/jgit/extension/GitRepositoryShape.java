@@ -17,7 +17,6 @@ import com.thingworx.types.collections.ValueCollection;
 import com.thingworx.types.primitives.BooleanPrimitive;
 import com.thingworx.types.primitives.DatetimePrimitive;
 import com.thingworx.types.primitives.InfoTablePrimitive;
-import com.thingworx.types.primitives.LongPrimitive;
 import com.thingworx.types.primitives.PasswordPrimitive;
 import com.thingworx.types.primitives.StringPrimitive;
 import com.thingworx.webservices.context.ThreadLocalContext;
@@ -92,6 +91,7 @@ import org.us_ignite.thingworx.dap.DapProperty;
 import org.us_ignite.thingworx.dap.DapServicePayload;
 import org.us_ignite.thingworx.dap.DapThingShape;
 import org.us_ignite.thingworx.dap.runtime.DapResults;
+import org.us_ignite.thingworx.dap.runtime.DapValues;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.BranchListSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.CommitInfoSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.CommitLogSpec;
@@ -1546,13 +1546,13 @@ public class GitRepositoryShape extends Thing {
             if (Boolean.TRUE.equals(AllBranches)) {
                 try (RevWalk walk = new RevWalk(repository)) {
                     Set<ObjectId> marked = new HashSet<>();
-                    for (Ref ref : repository.getAllRefs().values()) {
-                        String refName = ref.getName();
-                        if (!refName.startsWith("refs/heads/")
-                                && !refName.startsWith("refs/remotes/")
-                                && !refName.startsWith("refs/tags/")) {
-                            continue;
-                        }
+                    for (Ref ref :
+                            repository
+                                    .getRefDatabase()
+                                    .getRefsByPrefix(
+                                            Constants.R_HEADS,
+                                            Constants.R_REMOTES,
+                                            Constants.R_TAGS)) {
                         Ref peeled = repository.getRefDatabase().peel(ref);
                         ObjectId target =
                                 peeled.getPeeledObjectId() != null
@@ -3197,7 +3197,7 @@ public class GitRepositoryShape extends Thing {
                         row.put("Path", new StringPrimitive(path));
                         row.put("Name", new StringPrimitive(name));
                         row.put("ParentPath", new StringPrimitive(parentPath));
-                        row.put("Size", new LongPrimitive(size));
+                        DapValues.putLong(row, "Size", size);
                         row.put(
                                 "Mode",
                                 new StringPrimitive(
@@ -3305,7 +3305,7 @@ public class GitRepositoryShape extends Thing {
                             "Content",
                             new StringPrimitive(
                                     binary ? "" : new String(bytes, StandardCharsets.UTF_8)));
-                    row.put("Size", new LongPrimitive(fullSize));
+                    DapValues.putLong(row, "Size", fullSize);
                     row.put("Binary", new BooleanPrimitive(binary));
                     row.put("Truncated", new BooleanPrimitive(truncated));
                     result.addRow(row);
