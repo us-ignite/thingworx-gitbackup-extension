@@ -9,6 +9,7 @@
 #   TWX_PASSWORD   Admin password (required)
 #   EXTENSION_ZIP  Path to the extension ZIP, or a directory containing exactly
 #                  one *.zip to auto-select (default: /tmp/extension.zip)
+#   VERIFY_GIT_THING Set to false for extensions that do not provide GIT.Utility.Thing.
 
 set -uo pipefail
 
@@ -94,6 +95,7 @@ if [ "${UPLOAD_OK}" != "true" ]; then
     exit 1
 fi
 
+if [ "${VERIFY_GIT_THING:-true}" = "true" ]; then
 echo "Waiting for GIT.Utility.Thing to become available..."
 THING_AVAILABLE=false
 for i in $(seq 1 60); do
@@ -118,6 +120,7 @@ if [ "${THING_AVAILABLE}" != "true" ]; then
     echo "ERROR: GIT.Utility.Thing did not become available after upload" >&2
     echo "UPLOAD_FAILED"
     exit 1
+fi
 fi
 
 echo "UPLOAD_DONE"

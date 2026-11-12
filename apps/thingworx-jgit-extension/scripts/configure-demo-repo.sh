@@ -14,7 +14,7 @@ DEMO_REPO_NAME="${DEMO_REPO_NAME:-demo}"
 DEMO_REPO_PATH="${DEMO_REPO_PATH:-examples/thingworx-jgit-extension-export}"
 DEMO_PROJECT_NAME="${DEMO_PROJECT_NAME:-Example}"
 
-if [ ! -f /example/Projects/Example.xml ]; then
+if [ ! -f "/example/${DEMO_PROJECT_NAME}/Projects/${DEMO_PROJECT_NAME}.xml" ]; then
     echo "[demo-init] ERROR: The mounted ThingWorx example export is missing." >&2
     exit 1
 fi
@@ -52,10 +52,25 @@ call_service() {
         -d "$body"
 }
 
+# RepositoryCreate and AddTrackedProject only track existing projects.
+project_status=$(curl -sS -o /dev/null -w '%{http_code}' -u "${TWX_USERNAME}:${TWX_PASSWORD}" \
+    -H 'Accept: application/json' "${TWX_URL}/Thingworx/Projects/${DEMO_PROJECT_NAME}") || true
+if [ "$project_status" = "404" ]; then
+    curl -fsS -o /dev/null -u "${TWX_USERNAME}:${TWX_PASSWORD}" \
+        -H 'X-XSRF-TOKEN: TWX-XSRF-TOKEN-VALUE' \
+        -H 'X-Requested-By: ThingWorx' \
+        -H 'Content-Type: application/json' \
+        -X POST "${TWX_URL}/Thingworx/Resources/EntityServices/Services/CreateProject" \
+        -d "{\"name\":\"${DEMO_PROJECT_NAME}\"}" || {
+        echo "[demo-init] ERROR: Could not create project '${DEMO_PROJECT_NAME}'." >&2
+        exit 1
+    }
+fi
+
 thing_status=$(curl -sS -o /dev/null -w '%{http_code}' -u "${TWX_USERNAME}:${TWX_PASSWORD}" \
     -H 'Accept: application/json' "${TWX_URL}/Thingworx/Things/${DEMO_REPO_NAME}") || true
 if [ "$thing_status" = "404" ]; then
-    create_payload="{\"RepoName\":\"${DEMO_REPO_NAME}\",\"GitRepoURL\":\"${GITEA_URL}/${GITEA_USERNAME}/${GITEA_REPO_NAME}.git\",\"RepoPath\":\"${DEMO_REPO_PATH}\",\"BranchName\":\"main\",\"ProjectName\":\"${DEMO_PROJECT_NAME}\",\"UseProxy\":false,\"ProxyURL\":\"\",\"ProxyPort\":0,\"LocalizationTokensPrefix\":\"\",\"GitCommitterUser\":\"${GITEA_USERNAME}\",\"GitCommitterPassword\":\"${GITEA_PASSWORD}\",\"GitCommitterEmail\":\"test@example.com\",\"GitCommitterFullName\":\"Gitea Test User\"}"
+    create_payload="{\"RepoName\":\"${DEMO_REPO_NAME}\",\"GitRepoURL\":\"${GITEA_URL}/${GITEA_USERNAME}/${GITEA_REPO_NAME}.git\",\"RepoPath\":\"${DEMO_REPO_PATH}\",\"BranchName\":\"main\",\"TrackedProjects\":{\"dataShape\":{\"fieldDefinitions\":{\"ProjectName\":{\"name\":\"ProjectName\",\"baseType\":\"STRING\"}}},\"rows\":[{\"ProjectName\":\"${DEMO_PROJECT_NAME}\"}]},\"UseProxy\":false,\"ProxyURL\":\"\",\"ProxyPort\":0,\"LocalizationTokensPrefix\":\"\",\"GitCommitterUser\":\"${GITEA_USERNAME}\",\"GitCommitterPassword\":\"${GITEA_PASSWORD}\",\"GitCommitterEmail\":\"test@example.com\",\"GitCommitterFullName\":\"Gitea Test User\"}"
     create_response=$(call_service RepositoryCreate "$create_payload") || true
     if ! printf '%s' "$create_response" | grep -Eq '"Error"[[:space:]]*:[[:space:]]*false'; then
         echo "[demo-init] RepositoryCreate did not report success; checking whether the Thing was created." >&2
@@ -90,7 +105,18 @@ set_property() {
 set_property GitRepoURL "${GITEA_URL}/${GITEA_USERNAME}/${GITEA_REPO_NAME}.git"
 set_property RepoPath "$DEMO_REPO_PATH"
 set_property BranchName main
-set_property ProjectName "$DEMO_PROJECT_NAME"
+# Track the demo project on an existing repository; an "already tracked" reply is fine.
+track_response=$(curl -fsS -u "${TWX_USERNAME}:${TWX_PASSWORD}" \
+    -H 'X-XSRF-TOKEN: TWX-XSRF-TOKEN-VALUE' \
+    -H 'X-Requested-By: ThingWorx' \
+    -H 'Accept: application/json' \
+    -H 'Content-Type: application/json' \
+    -X POST "${TWX_URL}/Thingworx/Things/${DEMO_REPO_NAME}/Services/AddTrackedProject" \
+    -d "{\"ProjectName\":\"${DEMO_PROJECT_NAME}\"}") || true
+if ! printf '%s' "$track_response" | grep -Eq '"Error"[[:space:]]*:[[:space:]]*false|already tracked'; then
+    echo "[demo-init] ERROR: Could not track project '${DEMO_PROJECT_NAME}': ${track_response}" >&2
+    exit 1
+fi
 
 credential_payload="{\"GitCommitterUser\":\"${GITEA_USERNAME}\",\"GitCommitterPassword\":\"${GITEA_PASSWORD}\",\"GitCommitterEmail\":\"test@example.com\",\"GitCommitterFullName\":\"Gitea Test User\",\"GitThing\":\"${DEMO_REPO_NAME}\",\"GpgKeyFingerprint\":\"\"}"
 credential_response=$(call_service GitCredentialUpdate "$credential_payload") || true

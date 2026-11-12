@@ -39,8 +39,8 @@ these imported widgets:
 | `AgGridWidget2` | `apps/aggridwidget2-extension` | `src/metadata.xml` and the packaged IDE/runtime bundles; the source here is a vendored bundle. |
 | `BMTypescriptClassHost` | `apps/bmwidgets-extension` / BMCoreUIWidgets | `src/GitHelper.ts`, `src/types/`, and the pinned upstream release described in that extension's README. |
 
-The Operations mashup has three `AgGridWidget2` instances and one
-`BMTypescriptClassHost`. Settings uses only platform widgets. These are
+The Branches mashup has one `AgGridWidget2` instance and two
+`BMTypescriptClassHost` widgets. Settings uses only platform widgets. These are
 **package dependencies**, not Java services. Install the widget extensions
 before importing a mashup that names their widget types. A widget's property,
 service, and event definitions come from its extension's design-time code and
@@ -56,9 +56,9 @@ and any extension-specific properties when editing an existing instance.
 ## Editable sources and generated content
 
 - `src/GitHelper.ts` is the editable TypeScript for the class-host widget.
-- `src/Operations.css` is the editable Operations CSS.
-- `embedGitHelper` embeds those sources into the Operations mashup XML.
-- `Mashups_GIT.Mashup.Operations.xml` and `Mashups_GIT.Mashup.Settings.xml`
+- `src/<Name>.css` and `src/Shared.css` are the editable mashup CSS.
+- `embedGitHelper` embeds `GitHelper.ts` into the Branches mashup XML.
+- The `Mashups_GIT.Mashup.*.xml` exports
   hold layout, widgets, service instances, bindings, events, and parameters.
 - The XML `ParameterDefinitions` and embedded JSON
   `UI.Properties._currentParameterDefs` both represent mashup parameters.

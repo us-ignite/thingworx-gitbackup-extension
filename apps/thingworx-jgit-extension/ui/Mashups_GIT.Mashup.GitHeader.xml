@@ -1,0 +1,1934 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><Entities build="b471" majorVersion="10" minorVersion="1" modelPersistenceProviderPackage="PostgresPersistenceProviderPackage" revision="2" schemaVersion="1212" universal=""><Mashups><Mashup aspect.isEditableExtensionObject="true" aspect.isExtension="true" aspect.isFlex="true" aspect.isResponsive="true" aspect.mashupType="mashup" columns="0.0" description="Shared Git page header: breadcrumb, current branch, and page actions" documentationContent="" homeMashup="" lastModifiedDate="2026-11-12T16:58:13.454Z" name="GIT.Mashup.GitHeader" projectName="GIT" rows="0.0" tags=""><Owner name="Administrator" type="User"/><avatar/><DesignTimePermissions><Create/><Read/><Update/><Delete/><Metadata/></DesignTimePermissions><RunTimePermissions/><VisibilityPermissions><Visibility/></VisibilityPermissions><ConfigurationTableDefinitions/><ConfigurationTables><ConfigurationTable dataShapeName="" description="Mashup Mobile Settings" isHidden="true" isMultiRow="false" name="MobileSettings" ordinal="0"><DataShape><FieldDefinitions><FieldDefinition aspect.defaultValue="false" aspect.friendlyName="Disable Zoom" baseType="BOOLEAN" description="Disables zooming in and out within the mashup" name="disableZoom" ordinal="0"/><FieldDefinition aspect.defaultValue="true" aspect.friendlyName="Full Screen Mode" baseType="BOOLEAN" description="Open the mashup in full screen mode" name="fullScreenMode" ordinal="0"/><FieldDefinition aspect.friendlyName="Height" baseType="STRING" description="The height of the mashup page" name="height" ordinal="0"/><FieldDefinition aspect.defaultValue="device-height" aspect.friendlyName="Height Type" baseType="STRING" description="Use the height of the device display, or a custom height (in px)" name="heightType" ordinal="0"/><FieldDefinition aspect.defaultValue="1.0" aspect.friendlyName="Initial Scale" baseType="NUMBER" description="The initial zoom scale when the mashup is loaded for the first time" name="initialScale" ordinal="0"/><FieldDefinition aspect.friendlyName="Shortcut Icon Title" baseType="STRING" description="A title for the mashup shortcut on the iOS home screen" name="iosShortcutIconTitle" ordinal="0"/><FieldDefinition aspect.defaultValue="black-translucent" aspect.friendlyName="Status Bar Appearance" baseType="STRING" description="The style of the iOS status bar" name="iosStatusBarAppearance" ordinal="0"/><FieldDefinition aspect.defaultValue="10.0" aspect.friendlyName="Maximum Scale" baseType="NUMBER" description="The maximum scale that users can zoom out to" name="maximumScale" ordinal="0"/><FieldDefinition aspect.defaultValue="0.1" aspect.friendlyName="Minimum Scale" baseType="NUMBER" description="The minimum scale that users can zoom out to" name="minimumScale" ordinal="0"/><FieldDefinition aspect.friendlyName="Width" baseType="STRING" description="The width of the mashup page" name="width" ordinal="0"/><FieldDefinition aspect.defaultValue="device-width" aspect.friendlyName="Width Type" baseType="STRING" description="Use the width of the device display, or a custom width (in px)" name="widthType" ordinal="0"/></FieldDefinitions></DataShape><Rows><Row><disableZoom>false</disableZoom><fullScreenMode>true</fullScreenMode><height><![CDATA[device-height]]></height><heightType><![CDATA[device-height]]></heightType><initialScale>1.0</initialScale><iosShortcutIconTitle/><iosStatusBarAppearance><![CDATA[black-translucent]]></iosStatusBarAppearance><maximumScale>10.0</maximumScale><minimumScale>0.1</minimumScale><width><![CDATA[device-width]]></width><widthType><![CDATA[device-width]]></widthType></Row></Rows></ConfigurationTable></ConfigurationTables><ParameterDefinitions><FieldDefinition aspect.dataShape="GIT.CurrentBranchStatus.DataShape" baseType="INFOTABLE" description="Current branch result" name="CurrentBranchStatus" ordinal="0"/><FieldDefinition baseType="STRING" description="Current page name" name="pageName" ordinal="0"/><FieldDefinition baseType="STRING" description="Repository selected on Git Home; leave blank on pages without a repository" name="repoName" ordinal="0"/><FieldDefinition baseType="BOOLEAN" description="Show a User Settings crumb before the page name" name="showUserSettings" ordinal="0"/></ParameterDefinitions><Things/><ThingShapes/><ThingTemplates/><mashupContent><![CDATA[{
+  "CustomMashupCss": "/* Shared Git workspace tokens and layout.\n\n   Spacing rule: every visible widget keeps ThingWorx's default Margin of 5,\n   so neighbouring controls sit 10px apart. Card containers also use Margin 5\n   so their edges line up with text. Container padding and gaps below subtract\n   that 5px, so the visible insets are 24px at the page edge and 16px between\n   sections and inside cards. Do not give individual widgets other margins;\n   align rows with the container's align-items instead (flex-end for rows with\n   labelled inputs, center for buttons and checkboxes).\n\n   Contrast (WCAG): text 11.4:1 and muted text 5.2:1 on the canvas; muted text\n   5.9:1 on surfaces. Native widget colors and focus indicators stay with the\n   active ThingWorx theme. The theme's container style sets a white\n   background, so backgrounds and borders below need !important. */\n:root {\n  --git-text: #243746;\n  --git-muted: #536776;\n  --git-canvas: #eef1f4;\n  --git-surface: #ffffff;\n  --git-border: #c2cbd3;\n  --git-radius: 6px;\n  --git-page-inset: 19px;   /* + 5px widget margin = 24px */\n  --git-card-inset: 11px;   /* + 5px widget margin = 16px */\n  --git-section-gap: 6px;   /* + 5px + 5px margins = 16px */\n  --git-header-height: 64px;\n}\n\n/* Header band: the slot that holds GIT.Mashup.GitHeader on every page. The\n   runtime sizes a contained mashup to fill its slot, so GitHeader applies its\n   own horizontal inset (see GitHeader.css). */\n[id$=\"git-header-slot\"] {\n  min-height: var(--git-header-height);\n  background: var(--git-surface) !important;\n  border-bottom: 1px solid var(--git-border) !important;\n  color: var(--git-text);\n  box-sizing: border-box;\n}\n\n/* Page body. */\n[id$=\"home-main\"],\n[id$=\"changes-main\"],\n[id$=\"branches-main\"],\n[id$=\"history-main\"],\n[id$=\"log-main\"],\n[id$=\"reflog-main\"],\n[id$=\"extlog-main\"],\n[id$=\"settings-main\"],\n[id$=\"user-settings-content\"],\n[id$=\"operations-main\"],\n[id$=\"conflictresolution-main\"] {\n  padding: var(--git-page-inset);\n  gap: var(--git-section-gap);\n  align-items: stretch !important;\n  background: var(--git-canvas) !important;\n  color: var(--git-text);\n  box-sizing: border-box;\n}\n\n/* Layout containers inside the page stay transparent; only cards are white. */\n:is([id$=\"home-main\"], [id$=\"changes-main\"], [id$=\"branches-main\"], [id$=\"history-main\"], [id$=\"log-main\"], [id$=\"reflog-main\"], [id$=\"extlog-main\"], [id$=\"settings-main\"], [id$=\"user-settings-content\"], [id$=\"operations-main\"], [id$=\"conflictresolution-main\"]) .widget-flexcontainer { background: transparent !important; }\n\n/* Cards: white surfaces on the canvas. */\n:is([id$=\"home-main\"], [id$=\"changes-main\"], [id$=\"branches-main\"], [id$=\"history-main\"], [id$=\"log-main\"], [id$=\"reflog-main\"], [id$=\"extlog-main\"], [id$=\"settings-main\"], [id$=\"user-settings-content\"], [id$=\"operations-main\"], [id$=\"conflictresolution-main\"]) :is([id$=\"home-list-container\"], [id$=\"changes-sync-card\"], [id$=\"changes-worktree-card\"], [id$=\"changes-push-card\"], [id$=\"branches-list-card\"], [id$=\"branches-create-card\"], [id$=\"branches-merge-card\"], [id$=\"repository-settings-card\"], [id$=\"settings-projects\"], [id$=\"history-tree-card\"], [id$=\"history-log-card\"]),\n[id$=\"user-settings-content\"] :is([id$=\"flexcontainer-40\"], [id$=\"flexcontainer-41\"], [id$=\"extension-log-section\"]) {\n  background: var(--git-surface) !important;\n  border: 1px solid var(--git-border) !important;\n  border-radius: var(--git-radius) !important;\n  box-sizing: border-box;\n  min-width: 0;\n}\n/* User Settings sections use the shared card inset. */\n[id$=\"user-settings-content\"] :is([id$=\"flexcontainer-40\"], [id$=\"flexcontainer-41\"], [id$=\"extension-log-section\"]) { padding: var(--git-card-inset); }\n\n/* Grid areas: the grid draws its own border, so only size them. */\n[id$=\"changes-grid-area\"],\n[id$=\"branches-grid-area\"],\n[id$=\"log-grid-area\"],\n[id$=\"reflog-grid-area\"],\n[id$=\"extlog-grid-area\"] { min-height: 320px; min-width: 0; }\n[id$=\"changes-grid-bounding-box\"],\n[id$=\"log-grid-bounding-box\"],\n[id$=\"reflog-grid-bounding-box\"],\n[id$=\"extlog-grid-bounding-box\"] { position: relative; flex: 1 1 0%; min-width: 0; }\n\n/* Secondary text. */\n[id$=\"-intro\"],\n[id$=\"-status\"] { color: var(--git-muted); line-height: 1.5; }\n\n@media (max-width: 600px) {\n  :root { --git-page-inset: 11px; }   /* 16px visible */\n}\n\n/* The page's git-header-slot supplies the band and border; the header applies\n   its own horizontal inset. Hidden crumbs collapse, so the branch is pushed\n   right with an auto margin. */\n[id$=\"shared-header\"] { width: 100%; min-height: 48px; display: flex; align-items: center; justify-content: flex-start; flex-wrap: nowrap; box-sizing: border-box; overflow: hidden; padding: 0 var(--git-page-inset); }\n[id$=\"shared-header-bounding-box\"] { width: 100% !important; align-self: stretch !important; min-width: 0 !important; }\n[id$=\"flexcontainer-90-bounding-box\"] { margin-left: auto !important; }\n[id$=\"git-header-helper-bounding-box\"] { display: none !important; }",
+  "Data": {
+    "DynamicThingTemplates_GIT.Repository.ThingTemplate": {
+      "DataName": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "EntityName": "GIT.Repository.ThingTemplate",
+      "EntityType": "DynamicThingTemplates",
+      "Id": "ace7bdf7-cd18-4f12-88f6-4cc64bcdf999",
+      "RefreshInterval": 0,
+      "Services": [
+        {
+          "APIMethod": "post",
+          "Caching": {
+            "cache": false,
+            "cacheKeyParams": [],
+            "cacheStrategy": "INSTANCE",
+            "maxResultSets": "10"
+          },
+          "Characteristic": "Services",
+          "Id": "f840644a-12f3-4b10-8c97-ed4c9bff7bc5",
+          "Name": "GetCurrentBranch",
+          "Parameters": {},
+          "RefreshInterval": 0,
+          "Target": "GetCurrentBranch"
+        }
+      ]
+    }
+  },
+  "DataBindings": [
+    {
+      "Id": "d6e00039-4538-4d99-9469-ae56a0151b78",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "CurrentBranchStatus",
+          "SourcePropertyBaseType": "STRING",
+          "SourcePropertyType": "Property",
+          "SubProperty": "BranchName",
+          "TargetProperty": "LabelText",
+          "TargetPropertyBaseType": "STRING",
+          "TargetPropertyType": "property"
+        }
+      ],
+      "SourceArea": "Mashup",
+      "SourceDetails": "AllData",
+      "SourceId": "mashup-root",
+      "SourceSection": "",
+      "TargetArea": "UI",
+      "TargetId": "ptcslabel-92",
+      "TargetSection": ""
+    },
+    {
+      "Id": "current-branch-status-result",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "Result",
+          "SourcePropertyBaseType": "INFOTABLE",
+          "SourcePropertyType": "Field",
+          "TargetProperty": "CurrentBranchStatus",
+          "TargetPropertyBaseType": "INFOTABLE",
+          "TargetPropertyType": "Property"
+        }
+      ],
+      "SourceArea": "Data",
+      "SourceDetails": "AllData",
+      "SourceId": "GetCurrentBranch",
+      "SourceSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "TargetArea": "Mashup",
+      "TargetId": "mashup-root",
+      "TargetSection": ""
+    },
+    {
+      "Id": "680fcba1-4057-4fcd-8dbf-cdd8510747e3",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "repoName",
+          "SourcePropertyBaseType": "STRING",
+          "SourcePropertyType": "Property",
+          "TargetProperty": "LabelText",
+          "TargetPropertyBaseType": "STRING",
+          "TargetPropertyType": "property"
+        }
+      ],
+      "SourceArea": "Mashup",
+      "SourceDetails": "AllData",
+      "SourceId": "mashup-root",
+      "SourceSection": "",
+      "TargetArea": "UI",
+      "TargetId": "breadcrumb-repository",
+      "TargetSection": ""
+    },
+    {
+      "Id": "4a3a84ed-168a-42be-b233-778ee3177ae4",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "repoName",
+          "SourcePropertyBaseType": "STRING",
+          "SourcePropertyType": "Property",
+          "TargetProperty": "value",
+          "TargetPropertyBaseType": "THINGNAME",
+          "TargetPropertyType": "Entity"
+        }
+      ],
+      "SourceArea": "Mashup",
+      "SourceDetails": "AllData",
+      "SourceId": "mashup-root",
+      "SourceSection": "",
+      "TargetArea": "Data",
+      "TargetId": "EntityName",
+      "TargetSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate"
+    },
+    {
+      "Id": "ac0c77f3-f240-4855-9cde-52a4ad3d7cac",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "pageName",
+          "SourcePropertyBaseType": "STRING",
+          "SourcePropertyType": "Property",
+          "TargetProperty": "LabelText",
+          "TargetPropertyBaseType": "STRING",
+          "TargetPropertyType": "property"
+        }
+      ],
+      "SourceArea": "Mashup",
+      "SourceDetails": "AllData",
+      "SourceId": "mashup-root",
+      "SourceSection": "",
+      "TargetArea": "UI",
+      "TargetId": "breadcrumb-current",
+      "TargetSection": ""
+    },
+    {
+      "Id": "dc1fa8ed-4c6b-4486-a989-1592aa6b6498",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "repoName",
+          "SourcePropertyBaseType": "STRING",
+          "SourcePropertyType": "Property",
+          "TargetProperty": "repoName",
+          "TargetPropertyBaseType": "STRING",
+          "TargetPropertyType": "property"
+        }
+      ],
+      "SourceArea": "Mashup",
+      "SourceDetails": "AllData",
+      "SourceId": "mashup-root",
+      "SourceSection": "",
+      "TargetArea": "UI",
+      "TargetId": "git-header-helper",
+      "TargetSection": ""
+    },
+    {
+      "Id": "1de54d16-1d36-450f-aaf2-ceade2e77212",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "hasRepository",
+          "SourcePropertyBaseType": "BOOLEAN",
+          "SourcePropertyType": "Property",
+          "TargetProperty": "Visible",
+          "TargetPropertyBaseType": "BOOLEAN",
+          "TargetPropertyType": "property"
+        }
+      ],
+      "SourceArea": "UI",
+      "SourceDetails": "",
+      "SourceId": "git-header-helper",
+      "SourceSection": "",
+      "TargetArea": "UI",
+      "TargetId": "breadcrumb-separator-repo",
+      "TargetSection": ""
+    },
+    {
+      "Id": "518185f3-4b92-43ef-948d-43b8b111b3ef",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "hasRepository",
+          "SourcePropertyBaseType": "BOOLEAN",
+          "SourcePropertyType": "Property",
+          "TargetProperty": "Visible",
+          "TargetPropertyBaseType": "BOOLEAN",
+          "TargetPropertyType": "property"
+        }
+      ],
+      "SourceArea": "UI",
+      "SourceDetails": "",
+      "SourceId": "git-header-helper",
+      "SourceSection": "",
+      "TargetArea": "UI",
+      "TargetId": "breadcrumb-repository",
+      "TargetSection": ""
+    },
+    {
+      "Id": "4b2a1649-d798-4a96-a216-773f55caf08a",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "hasRepository",
+          "SourcePropertyBaseType": "BOOLEAN",
+          "SourcePropertyType": "Property",
+          "TargetProperty": "Visible",
+          "TargetPropertyBaseType": "BOOLEAN",
+          "TargetPropertyType": "property"
+        }
+      ],
+      "SourceArea": "UI",
+      "SourceDetails": "",
+      "SourceId": "git-header-helper",
+      "SourceSection": "",
+      "TargetArea": "UI",
+      "TargetId": "flexcontainer-90",
+      "TargetSection": ""
+    },
+    {
+      "Id": "964c2290-30cb-4b6c-8af1-c227aedc8d33",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "showUserSettings",
+          "SourcePropertyBaseType": "BOOLEAN",
+          "SourcePropertyType": "Property",
+          "TargetProperty": "Visible",
+          "TargetPropertyBaseType": "BOOLEAN",
+          "TargetPropertyType": "property"
+        }
+      ],
+      "SourceArea": "Mashup",
+      "SourceDetails": "AllData",
+      "SourceId": "mashup-root",
+      "SourceSection": "",
+      "TargetArea": "UI",
+      "TargetId": "breadcrumb-separator-settings",
+      "TargetSection": ""
+    },
+    {
+      "Id": "2d6bd888-22e3-4f40-9bda-3f675035ab96",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "showUserSettings",
+          "SourcePropertyBaseType": "BOOLEAN",
+          "SourcePropertyType": "Property",
+          "TargetProperty": "Visible",
+          "TargetPropertyBaseType": "BOOLEAN",
+          "TargetPropertyType": "property"
+        }
+      ],
+      "SourceArea": "Mashup",
+      "SourceDetails": "AllData",
+      "SourceId": "mashup-root",
+      "SourceSection": "",
+      "TargetArea": "UI",
+      "TargetId": "breadcrumb-settings",
+      "TargetSection": ""
+    }
+  ],
+  "DesignTimePermissions": {},
+  "Events": [
+    {
+      "EventHandlerArea": "Data",
+      "EventHandlerId": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "EventHandlerService": "GetCurrentBranch",
+      "EventTriggerArea": "UI",
+      "EventTriggerEvent": "repositoryChanged",
+      "EventTriggerId": "git-header-helper",
+      "EventTriggerSection": "",
+      "Id": "b7d326d8-2a11-406c-a66b-3cbb6516ab86"
+    },
+    {
+      "EventHandlerArea": "UI",
+      "EventHandlerId": "git-header-helper",
+      "EventHandlerService": "refresh",
+      "EventTriggerArea": "Mashup",
+      "EventTriggerEvent": "RefreshRequested",
+      "EventTriggerId": "mashup-root",
+      "EventTriggerSection": "",
+      "Id": "be48b096-691e-4e9b-8aca-721e8edb55d8"
+    },
+    {
+      "EventHandlerArea": "UI",
+      "EventHandlerId": "navigate-breadcrumb-home",
+      "EventHandlerService": "Navigate",
+      "EventTriggerArea": "UI",
+      "EventTriggerEvent": "Clicked",
+      "EventTriggerId": "breadcrumb-home",
+      "EventTriggerSection": "",
+      "Id": "45f025db-1969-441d-8bbb-93095429917d"
+    },
+    {
+      "EventHandlerArea": "UI",
+      "EventHandlerId": "navigate-breadcrumb-settings",
+      "EventHandlerService": "Navigate",
+      "EventTriggerArea": "UI",
+      "EventTriggerEvent": "Clicked",
+      "EventTriggerId": "breadcrumb-settings",
+      "EventTriggerSection": "",
+      "Id": "eb17b3bb-892b-40a9-a08c-30eebb89a514"
+    }
+  ],
+  "Reminders": [],
+  "RunTimePermissions": {},
+  "UI": {
+    "Properties": {
+      "AddToDashboardButton": "SimplePlus",
+      "AddToDashboardButtonStyle": "DefaultAddToDashboardButtonStyle",
+      "Area": "Mashup",
+      "BGImage": "",
+      "BGImageRepeat": "no-repeat",
+      "BGImageSize": "auto",
+      "Columns": 0,
+      "ConfigureGadgetButton": "SimpleGear",
+      "ConfigureGadgetButtonStyle": "DefaultConfigureGadgetButtonStyle",
+      "DisableLegacyCustomClassStyles": false,
+      "DisplayName": "Mashup",
+      "EnableParameterEditing": false,
+      "Height": 64,
+      "Id": "mashup-root",
+      "IgnoreWarningsInViewMashup": false,
+      "IsPrintLayout": false,
+      "Left": 0,
+      "LegacyFocus": false,
+      "Margin": "0",
+      "MashupResolution": "1280x1024",
+      "MashupToEditGadget": "DefaultMashupToEditGadget",
+      "MinHeight": 0,
+      "MinWidth": 0,
+      "ResponsiveLayout": true,
+      "Rows": 0,
+      "ShowDataLoading": true,
+      "Style": "DefaultMashupStyle",
+      "StyleProperties": {
+        "data": {
+          "flexcontainer-10": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-100": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-11": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "rgba(247,249,255,1)",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-110": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-117": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "rgba(247,249,255,1)"
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-119": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "rgba(247,249,255,1)"
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-138": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "rgba(247,249,255,1)"
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-139": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "rgba(247,249,255,1)"
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-148": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-149": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-172": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-173": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-19": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-2": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-28": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-29": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-3": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-30": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-31": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-32": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "rgba(247,249,255,1)",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-34": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-36": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-37": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-38": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-39": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-4": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "rgba(247,249,255,1)",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-40": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-41": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "rgba(247,249,255,1)",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-42": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-45": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-46": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "rgba(247,249,255,1)",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-47": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-48": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "rgba(247,249,255,1)",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-5": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-51": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-52": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "rgba(247,249,255,1)",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-53": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "rgba(247,249,255,1)",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-54": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "rgba(247,249,255,1)",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-59": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-6": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "rgba(247,249,255,1)",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-60": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-62": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-65": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-66": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "rgba(247,249,255,1)",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-67": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "rgba(247,249,255,1)",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-7": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-71": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-76": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-77": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-79": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-8": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "rgba(247,249,255,1)",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-80": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-82": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-83": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-87": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-88": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-89": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-9": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "rgba(247,249,255,1)",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-90": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          },
+          "flexcontainer-99": {
+            "parts": {
+              "$": {
+                "$": {
+                  "background": "#ffffff",
+                  "border-color": "inherit",
+                  "border-radius": "initial",
+                  "border-style": "none",
+                  "border-width": "0px",
+                  "padding-bottom": "",
+                  "padding-left": "",
+                  "padding-right": "",
+                  "padding-top": ""
+                }
+              }
+            },
+            "widget": "flex-container"
+          }
+        },
+        "meta": {
+          "type": "WidgetStyler",
+          "version": "1.0"
+        }
+      },
+      "StyleTheme": "PTC Convergence Theme",
+      "Title": "Git Header",
+      "TitleBar": false,
+      "TitleBarStyle": "DefaultTitleBarStyle",
+      "TitleBarText": "Gadget Title Here",
+      "Top": 0,
+      "Type": "mashup",
+      "UseMasterTheme": false,
+      "UseTheme": false,
+      "UseThemeForHybrids": false,
+      "Visible": true,
+      "Width": 1024,
+      "Z-index": 10,
+      "__TypeDisplayName": "Mashup",
+      "_baseVersion": "9.7.0-b47",
+      "_currentParameterDefs": [
+        {
+          "Aspects": {},
+          "BaseType": "STRING",
+          "BindingDirection": "IN",
+          "Description": "Repository selected on Git Home; leave blank on pages without a repository",
+          "ParameterName": "repoName"
+        },
+        {
+          "Aspects": {
+            "dataShape": "GIT.CurrentBranchStatus.DataShape"
+          },
+          "BaseType": "INFOTABLE",
+          "BindingDirection": "BOTH",
+          "Description": "Current branch result",
+          "ParameterName": "CurrentBranchStatus"
+        },
+        {
+          "BaseType": "STRING",
+          "DefaultValue": "",
+          "Description": "Current page name",
+          "ParameterName": "pageName",
+          "bindingDirection": "Both",
+          "bindingType": "Property",
+          "isBindingSource": true,
+          "isBindingTarget": true,
+          "shown": true
+        },
+        {
+          "Aspects": {},
+          "BaseType": "BOOLEAN",
+          "BindingDirection": "IN",
+          "Description": "Show a User Settings crumb before the page name",
+          "ParameterName": "showUserSettings"
+        }
+      ],
+      "id_index": 178,
+      "pageName": "",
+      "repoName": "",
+      "secureExpressionsOnly": true,
+      "supportsAutoResize": true,
+      "showUserSettings": false
+    },
+    "Widgets": [
+      {
+        "Properties": {
+          "Area": "UI",
+          "CollapseTabIcon": "",
+          "DisableLegacyCustomClassStyles": false,
+          "DisplayName": "shared-header",
+          "EnableContainerUnload": false,
+          "EnableExpandCollapse": false,
+          "ExpandCollapseTabLocation": "inside",
+          "ExpandTabIcon": "",
+          "Expanded": true,
+          "Id": "shared-header",
+          "LastContainer": false,
+          "LazyLoading": false,
+          "Left": 0,
+          "Margin": "",
+          "Overlay": false,
+          "OverrideChildrenAbsolute": false,
+          "ResponsiveLayout": true,
+          "ShowDataLoading": true,
+          "ShowExpandCollapseTab": false,
+          "ShowVerticalScrollbar": false,
+          "SourceURL": "",
+          "Style": "DefaultContainerStyle",
+          "StyleProperties": {},
+          "Top": 0,
+          "Type": "flexcontainer",
+          "UseTheme": true,
+          "Visible": true,
+          "Z-index": 10,
+          "__TypeDisplayName": "Responsive Container",
+          "_baseVersion": "9.7.0-b47",
+          "align-content": "flex-start",
+          "align-items": "center",
+          "flex-basis": "auto",
+          "flex-direction": "row",
+          "flex-grow": 0,
+          "flex-max-height": "48px",
+          "flex-max-width": "",
+          "flex-min-height": "48px",
+          "flex-min-width": "",
+          "flex-shrink": 0,
+          "flex-size": "fixed",
+          "flex-wrap": "nowrap",
+          "iconClass": "widgets-flexcontainer-fixed",
+          "isLocked": false,
+          "justify-content": "flex-start",
+          "positioning": "responsive",
+          "userCannotRemove": true
+        },
+        "Widgets": [
+          {
+            "Properties": {
+              "Area": "UI",
+              "ButtonType": "tertiary",
+              "ContextID": "",
+              "DisableLegacyCustomClassStyles": false,
+              "Disabled": false,
+              "DisplayName": "breadcrumb-home",
+              "FocusOnLoad": false,
+              "IconPosition": "left",
+              "Id": "breadcrumb-home",
+              "Label": "Home",
+              "LabelAlignment": "center",
+              "LastContainer": false,
+              "Left": 77.57498168945312,
+              "Margin": "5",
+              "MultiLine": false,
+              "ResponsiveLayout": false,
+              "ShowDataLoading": true,
+              "Size": "standard",
+              "TabSequence": 0,
+              "TooltipField": "Go to Git Home",
+              "Top": 31.199981689453125,
+              "Type": "ptcsbutton",
+              "UseTheme": true,
+              "Visible": true,
+              "Z-index": 10,
+              "__TypeDisplayName": "Button",
+              "_baseVersion": "9.7.0",
+              "isLocked": false
+            },
+            "Widgets": []
+          },
+          {
+            "Properties": {
+              "Area": "UI",
+              "DisableLegacyCustomClassStyles": false,
+              "DisclosureControl": "show-more",
+              "DisplayName": "breadcrumb-separator-settings",
+              "HorizontalAlignment": "left",
+              "Id": "breadcrumb-separator-settings",
+              "LabelText": "›",
+              "LabelType": "title",
+              "LastContainer": false,
+              "Left": 74.47500610351562,
+              "Margin": "5",
+              "MultiLine": true,
+              "PreserveWhiteSpace": false,
+              "ResponsiveLayout": false,
+              "ShowDataLoading": true,
+              "Top": 27,
+              "Type": "ptcslabel",
+              "UseTheme": true,
+              "VerticalAlignment": "flex-start",
+              "Visible": false,
+              "Z-index": 10,
+              "__TypeDisplayName": "Label",
+              "_baseVersion": "9.7.0",
+              "isLocked": false,
+              "overflowShowLessTxt": "[[showLess]]",
+              "overflowShowMoreTxt": "[[showMore]]"
+            },
+            "Widgets": []
+          },
+          {
+            "Properties": {
+              "Area": "UI",
+              "ButtonType": "tertiary",
+              "ContextID": "",
+              "DisableLegacyCustomClassStyles": false,
+              "Disabled": false,
+              "DisplayName": "breadcrumb-settings",
+              "FocusOnLoad": false,
+              "IconPosition": "left",
+              "Id": "breadcrumb-settings",
+              "Label": "User Settings",
+              "LabelAlignment": "center",
+              "LastContainer": false,
+              "Left": 77.57498168945312,
+              "Margin": "5",
+              "MultiLine": false,
+              "ResponsiveLayout": false,
+              "ShowDataLoading": true,
+              "Size": "standard",
+              "TabSequence": 0,
+              "TooltipField": "Go to Git User Settings",
+              "Top": 31.199981689453125,
+              "Type": "ptcsbutton",
+              "UseTheme": true,
+              "Visible": false,
+              "Z-index": 10,
+              "__TypeDisplayName": "Button",
+              "_baseVersion": "9.7.0",
+              "isLocked": false
+            },
+            "Widgets": []
+          },
+          {
+            "Properties": {
+              "Area": "UI",
+              "DisableLegacyCustomClassStyles": false,
+              "DisclosureControl": "show-more",
+              "DisplayName": "breadcrumb-separator-repo",
+              "HorizontalAlignment": "left",
+              "Id": "breadcrumb-separator-repo",
+              "LabelText": "›",
+              "LabelType": "title",
+              "LastContainer": false,
+              "Left": 74.47500610351562,
+              "Margin": "5",
+              "MultiLine": true,
+              "PreserveWhiteSpace": false,
+              "ResponsiveLayout": false,
+              "ShowDataLoading": true,
+              "Top": 27,
+              "Type": "ptcslabel",
+              "UseTheme": true,
+              "VerticalAlignment": "flex-start",
+              "Visible": true,
+              "Z-index": 10,
+              "__TypeDisplayName": "Label",
+              "_baseVersion": "9.7.0",
+              "isLocked": false,
+              "overflowShowLessTxt": "[[showLess]]",
+              "overflowShowMoreTxt": "[[showMore]]"
+            },
+            "Widgets": []
+          },
+          {
+            "Properties": {
+              "Area": "UI",
+              "DisableLegacyCustomClassStyles": false,
+              "DisclosureControl": "show-more",
+              "DisplayName": "breadcrumb-repository",
+              "HorizontalAlignment": "left",
+              "Id": "breadcrumb-repository",
+              "LabelText": "",
+              "LabelType": "title",
+              "LastContainer": false,
+              "Left": 74.47500610351562,
+              "Margin": "5",
+              "MultiLine": true,
+              "PreserveWhiteSpace": false,
+              "ResponsiveLayout": false,
+              "ShowDataLoading": true,
+              "Top": 27,
+              "Type": "ptcslabel",
+              "UseTheme": true,
+              "VerticalAlignment": "flex-start",
+              "Visible": true,
+              "Z-index": 10,
+              "__TypeDisplayName": "Label",
+              "_baseVersion": "9.7.0",
+              "isLocked": false,
+              "overflowShowLessTxt": "[[showLess]]",
+              "overflowShowMoreTxt": "[[showMore]]"
+            },
+            "Widgets": []
+          },
+          {
+            "Properties": {
+              "Area": "UI",
+              "DisableLegacyCustomClassStyles": false,
+              "DisclosureControl": "show-more",
+              "DisplayName": "breadcrumb-separator-page",
+              "HorizontalAlignment": "left",
+              "Id": "breadcrumb-separator-page",
+              "LabelText": "›",
+              "LabelType": "title",
+              "LastContainer": false,
+              "Left": 74.47500610351562,
+              "Margin": "5",
+              "MultiLine": true,
+              "PreserveWhiteSpace": false,
+              "ResponsiveLayout": false,
+              "ShowDataLoading": true,
+              "Top": 27,
+              "Type": "ptcslabel",
+              "UseTheme": true,
+              "VerticalAlignment": "flex-start",
+              "Visible": true,
+              "Z-index": 10,
+              "__TypeDisplayName": "Label",
+              "_baseVersion": "9.7.0",
+              "isLocked": false,
+              "overflowShowLessTxt": "[[showLess]]",
+              "overflowShowMoreTxt": "[[showMore]]"
+            },
+            "Widgets": []
+          },
+          {
+            "Properties": {
+              "Area": "UI",
+              "DisableLegacyCustomClassStyles": false,
+              "DisclosureControl": "show-more",
+              "DisplayName": "breadcrumb-current",
+              "HorizontalAlignment": "left",
+              "Id": "breadcrumb-current",
+              "LabelText": "Branches",
+              "LabelType": "title",
+              "LastContainer": false,
+              "Left": 74.47500610351562,
+              "Margin": "5",
+              "MultiLine": true,
+              "PreserveWhiteSpace": false,
+              "ResponsiveLayout": false,
+              "ShowDataLoading": true,
+              "Top": 27,
+              "Type": "ptcslabel",
+              "UseTheme": true,
+              "VerticalAlignment": "flex-start",
+              "Visible": true,
+              "Z-index": 10,
+              "__TypeDisplayName": "Label",
+              "_baseVersion": "9.7.0",
+              "isLocked": false,
+              "overflowShowLessTxt": "[[showLess]]",
+              "overflowShowMoreTxt": "[[showMore]]"
+            },
+            "Widgets": []
+          },
+          {
+            "Properties": {
+              "Area": "UI",
+              "CollapseTabIcon": "",
+              "DisableLegacyCustomClassStyles": false,
+              "DisplayName": "header-branch",
+              "EnableContainerUnload": false,
+              "EnableExpandCollapse": false,
+              "ExpandCollapseTabLocation": "inside",
+              "ExpandTabIcon": "",
+              "Expanded": true,
+              "Id": "flexcontainer-90",
+              "LastContainer": false,
+              "LazyLoading": false,
+              "Margin": "",
+              "Overlay": false,
+              "OverrideChildrenAbsolute": false,
+              "ResponsiveLayout": true,
+              "ShowDataLoading": true,
+              "ShowExpandCollapseTab": false,
+              "ShowVerticalScrollbar": false,
+              "SourceURL": "",
+              "Style": "DefaultContainerStyle",
+              "StyleProperties": {},
+              "Type": "flexcontainer",
+              "UseTheme": true,
+              "Visible": true,
+              "Z-index": 10,
+              "__TypeDisplayName": "Responsive Container",
+              "align-content": "flex-start",
+              "align-items": "center",
+              "flex-basis": "auto",
+              "flex-direction": "row",
+              "flex-grow": 2,
+              "flex-max-height": "",
+              "flex-max-width": "",
+              "flex-min-height": "",
+              "flex-min-width": "",
+              "flex-shrink": 1,
+              "flex-size": "fixed",
+              "flex-wrap": "nowrap",
+              "iconClass": "widgets-flexcontainer",
+              "isLocked": true,
+              "justify-content": "flex-end",
+              "positioning": "responsive",
+              "prev-align": "center",
+              "userCannotRemove": false
+            },
+            "Widgets": [
+              {
+                "Properties": {
+                  "Area": "UI",
+                  "DisableLegacyCustomClassStyles": false,
+                  "DisclosureControl": "show-more",
+                  "DisplayName": "ptcs-label-91",
+                  "HorizontalAlignment": "left",
+                  "Id": "ptcslabel-91",
+                  "LabelText": "Current branch: ",
+                  "LabelType": "label",
+                  "LastContainer": false,
+                  "Left": 74.47500610351562,
+                  "Margin": "5",
+                  "MultiLine": true,
+                  "PreserveWhiteSpace": false,
+                  "ResponsiveLayout": false,
+                  "ShowDataLoading": true,
+                  "Top": 27,
+                  "Type": "ptcslabel",
+                  "UseTheme": true,
+                  "VerticalAlignment": "flex-start",
+                  "Visible": true,
+                  "Z-index": 10,
+                  "__TypeDisplayName": "Label",
+                  "_baseVersion": "9.7.0",
+                  "overflowShowLessTxt": "[[showLess]]",
+                  "overflowShowMoreTxt": "[[showMore]]"
+                },
+                "Widgets": []
+              },
+              {
+                "Properties": {
+                  "Area": "UI",
+                  "DisableLegacyCustomClassStyles": false,
+                  "DisclosureControl": "show-more",
+                  "DisplayName": "ptcs-label-92",
+                  "HorizontalAlignment": "left",
+                  "Id": "ptcslabel-92",
+                  "LabelText": "[[Label]]",
+                  "LabelType": "label",
+                  "LastContainer": false,
+                  "Left": 169.77496337890625,
+                  "Margin": "5",
+                  "MultiLine": true,
+                  "PreserveWhiteSpace": false,
+                  "ResponsiveLayout": false,
+                  "ShowDataLoading": true,
+                  "Top": 21,
+                  "Type": "ptcslabel",
+                  "UseTheme": true,
+                  "VerticalAlignment": "flex-start",
+                  "Visible": true,
+                  "Z-index": 10,
+                  "__TypeDisplayName": "Label",
+                  "_baseVersion": "9.7.0",
+                  "overflowShowLessTxt": "[[showLess]]",
+                  "overflowShowMoreTxt": "[[showMore]]"
+                },
+                "Widgets": []
+              }
+            ]
+          },
+          {
+            "Properties": {
+              "Area": "UI",
+              "Code": "// Runtime helper for GIT.Mashup.GitHeader. It hides the repository crumb and\n// current branch on pages without a repository, and loads the branch only\n// when a repository is known, so the header can be used on every Git page.\n@TWWidgetDefinition\nclass GitHeader extends TypescriptWidget {\n  @property(bindingTarget, didBind(\"repositoryUpdated\")) repoName!: STRING;\n  @property(bindingSource) hasRepository: BOOLEAN = false;\n  @twevent repositoryChanged!: TWEvent;\n  private loadedRepository = \"\";\n  private timer?: number;\n\n  afterRender() {\n    this.schedule();\n  }\n\n  beforeDestroy() {\n    if (this.timer !== undefined) window.clearTimeout(this.timer);\n  }\n\n  private repositoryUpdated() {\n    this.schedule();\n  }\n\n  // Defer so the header's other repoName bindings, including the repository\n  // entity used by GetCurrentBranch, are applied before the event fires.\n  private schedule() {\n    if (this.timer !== undefined) window.clearTimeout(this.timer);\n    this.timer = window.setTimeout(() => {\n      this.timer = undefined;\n      const repository = this.repoName || \"\";\n      this.hasRepository = repository !== \"\";\n      if (repository && repository !== this.loadedRepository) {\n        this.loadedRepository = repository;\n        this.repositoryChanged();\n      }\n    }, 0);\n  }\n\n  // Reloads the current branch, for the header's RefreshRequested event.\n  @service refresh() {\n    if (this.repoName) this.repositoryChanged();\n  }\n}",
+              "ColumnPosition": 38,
+              "DirectLinkUUID": "",
+              "DisplayName": "git-header-helper",
+              "Exports": "// Runtime helper for GIT.Mashup.GitHeader. It hides the repository crumb and\n// current branch on pages without a repository, and loads the branch only\n// when a repository is known, so the header can be used on every Git page.\n@TWWidgetDefinition\nclass GitHeader extends TypescriptWidget {\n  @property(bindingTarget, didBind(\"repositoryUpdated\")) repoName!: STRING;\n  @property(bindingSource) hasRepository: BOOLEAN = false;\n  @twevent repositoryChanged!: TWEvent;\n  private loadedRepository = \"\";\n  private timer?: number;\n\n  afterRender() {\n    this.schedule();\n  }\n\n  beforeDestroy() {\n    if (this.timer !== undefined) window.clearTimeout(this.timer);\n  }\n\n  private repositoryUpdated() {\n    this.schedule();\n  }\n\n  // Defer so the header's other repoName bindings, including the repository\n  // entity used by GetCurrentBranch, are applied before the event fires.\n  private schedule() {\n    if (this.timer !== undefined) window.clearTimeout(this.timer);\n    this.timer = window.setTimeout(() => {\n      this.timer = undefined;\n      const repository = this.repoName || \"\";\n      this.hasRepository = repository !== \"\";\n      if (repository && repository !== this.loadedRepository) {\n        this.loadedRepository = repository;\n        this.repositoryChanged();\n      }\n    }, 0);\n  }\n\n  // Reloads the current branch, for the header's RefreshRequested event.\n  @service refresh() {\n    if (this.repoName) this.repositoryChanged();\n  }\n}",
+              "FullScreen": false,
+              "Height": 48,
+              "Id": "git-header-helper",
+              "LastContainer": false,
+              "Left": 674.6749877929688,
+              "Margin": "5",
+              "ResponsiveLayout": false,
+              "RuntimeProperties": "[{\"name\":\"repoName\",\"dataType\":\"STRING\",\"description\":\"Repository Thing name\",\"type\":\"property\",\"isBindingTarget\":true,\"isBindingSource\":false},{\"name\":\"hasRepository\",\"dataType\":\"BOOLEAN\",\"description\":\"True when repoName is set\",\"type\":\"property\",\"isBindingTarget\":false,\"isBindingSource\":true},{\"name\":\"refresh\",\"description\":\"Reload the current branch\",\"type\":\"service\"},{\"name\":\"repositoryChanged\",\"description\":\"Fired when a repository is set\",\"type\":\"event\"}]",
+              "ScrollPosition": 96,
+              "ShowDataLoading": true,
+              "Title": "GitHeader",
+              "Top": 22.199996948242188,
+              "TranspiledCode": "var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {\n    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;\n    if (typeof Reflect === \"object\" && typeof Reflect.decorate === \"function\") r = Reflect.decorate(decorators, target, key, desc);\n    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;\n    return c > 3 && r && Object.defineProperty(target, key, r), r;\n};\n// Runtime helper for GIT.Mashup.GitHeader. It hides the repository crumb and\n// current branch on pages without a repository, and loads the branch only\n// when a repository is known, so the header can be used on every Git page.\nlet GitHeader = class GitHeader extends TypescriptWidget {\n    constructor() {\n        super(...arguments);\n        this.hasRepository = false;\n        this.loadedRepository = \"\";\n    }\n    afterRender() {\n        this.schedule();\n    }\n    beforeDestroy() {\n        if (this.timer !== undefined)\n            window.clearTimeout(this.timer);\n    }\n    repositoryUpdated() {\n        this.schedule();\n    }\n    // Defer so the header's other repoName bindings, including the repository\n    // entity used by GetCurrentBranch, are applied before the event fires.\n    schedule() {\n        if (this.timer !== undefined)\n            window.clearTimeout(this.timer);\n        this.timer = window.setTimeout(() => {\n            this.timer = undefined;\n            const repository = this.repoName || \"\";\n            this.hasRepository = repository !== \"\";\n            if (repository && repository !== this.loadedRepository) {\n                this.loadedRepository = repository;\n                this.repositoryChanged();\n            }\n        }, 0);\n    }\n    // Reloads the current branch, for the header's RefreshRequested event.\n    refresh() {\n        if (this.repoName)\n            this.repositoryChanged();\n    }\n};\n__decorate([\n    property(bindingTarget, didBind(\"repositoryUpdated\"))\n], GitHeader.prototype, \"repoName\", void 0);\n__decorate([\n    property(bindingSource)\n], GitHeader.prototype, \"hasRepository\", void 0);\n__decorate([\n    twevent\n], GitHeader.prototype, \"repositoryChanged\", void 0);\n__decorate([\n    service\n], GitHeader.prototype, \"refresh\", null);\nGitHeader = __decorate([\n    TWWidgetDefinition\n], GitHeader);\n",
+              "Type": "BMTypescriptClassHost",
+              "Visible": true,
+              "Width": 148,
+              "Z-index": 10,
+              "_Height": 679,
+              "_Left": 0,
+              "_NavigationWidth": 256,
+              "_Top": 0,
+              "_Width": 1498,
+              "__TypeDisplayName": "Typescript Class",
+              "_baseVersion": "9.7.0"
+            },
+            "Widgets": []
+          }
+        ]
+      },
+      {
+        "Properties": {
+          "Area": "UI",
+          "ClickOutsideToClose": false,
+          "CloseButton": true,
+          "DisplayName": "navigate-breadcrumb-home",
+          "Id": "navigate-breadcrumb-home",
+          "IncludeLegacyHeightAdjustment": true,
+          "LastContainer": false,
+          "Left": 0,
+          "LegacyHeightAdjustmentEnabled": true,
+          "Margin": "5",
+          "MashupParameters": [],
+          "MissingMashupMessage": "Mashup must be selected",
+          "PopupHeight": 0,
+          "PopupScrollbar": "auto",
+          "PopupTitle": "",
+          "PopupWidth": 0,
+          "RedirectTo": "mashup",
+          "ReloadOnReplace": false,
+          "ResponsiveLayout": false,
+          "ShowDataLoading": true,
+          "TargetMashup": "GIT.Mashup.Home",
+          "TargetWindowType": "replace",
+          "Text": "tw.navigationfunction-ide.properties.text.default-value",
+          "Top": 0,
+          "Type": "navigationfunction",
+          "UseTheme": true,
+          "Visible": true,
+          "Z-index": 10,
+          "__TypeDisplayName": "Navigation",
+          "_currentParameterDefs": []
+        },
+        "Widgets": []
+      },
+      {
+        "Properties": {
+          "Area": "UI",
+          "ClickOutsideToClose": false,
+          "CloseButton": true,
+          "DisplayName": "navigate-breadcrumb-settings",
+          "Id": "navigate-breadcrumb-settings",
+          "IncludeLegacyHeightAdjustment": true,
+          "LastContainer": false,
+          "Left": 0,
+          "LegacyHeightAdjustmentEnabled": true,
+          "Margin": "5",
+          "MashupParameters": [],
+          "MissingMashupMessage": "Mashup must be selected",
+          "PopupHeight": 0,
+          "PopupScrollbar": "auto",
+          "PopupTitle": "",
+          "PopupWidth": 0,
+          "RedirectTo": "mashup",
+          "ReloadOnReplace": false,
+          "ResponsiveLayout": false,
+          "ShowDataLoading": true,
+          "TargetMashup": "GIT.Mashup.Settings",
+          "TargetWindowType": "replace",
+          "Text": "tw.navigationfunction-ide.properties.text.default-value",
+          "Top": 0,
+          "Type": "navigationfunction",
+          "UseTheme": true,
+          "Visible": true,
+          "Z-index": 10,
+          "__TypeDisplayName": "Navigation",
+          "_currentParameterDefs": []
+        },
+        "Widgets": []
+      }
+    ]
+  },
+  "mashupType": "mashup"
+}]]></mashupContent><preview/><ConfigurationChanges><ConfigurationChange changeAction="CREATE" changeReason="Importing Extension Package Metadata" timestamp="2026-11-12T16:04:48.631Z" user="SuperUser"/><ConfigurationChange changeAction="CREATE" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:12:25.690Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:30:00.943Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:32:22.708Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:33:13.480Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:37:36.322Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:38:28.690Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:39:51.273Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:42:53.999Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:45:59.358Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:47:44.641Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:50:30.102Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:52:55.945Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:57:09.362Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-12T14:20:44.837Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-12T14:25:35.014Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-12T15:19:54.654Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-12T15:30:45.996Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="" timestamp="2026-11-12T16:07:33.967Z" user="Administrator"/><ConfigurationChange changeAction="MODIFY" changeReason="Mashup : design : updated&#10;" timestamp="2026-11-12T16:08:17.962Z" user="Administrator"/><ConfigurationChange changeAction="MODIFY" changeReason="" timestamp="2026-11-12T16:09:59.428Z" user="Administrator"/><ConfigurationChange changeAction="MODIFY" changeReason="" timestamp="2026-11-12T16:11:13.970Z" user="Administrator"/><ConfigurationChange changeAction="MODIFY" changeReason="Mashup : design : updated&#10;" timestamp="2026-11-12T16:14:04.976Z" user="Administrator"/><ConfigurationChange changeAction="MODIFY" changeReason="Mashup : design : updated&#10;" timestamp="2026-11-12T16:57:25.351Z" user="Administrator"/><ConfigurationChange changeAction="MODIFY" changeReason="Mashup : design : updated&#10;" timestamp="2026-11-12T16:58:13.453Z" user="Administrator"/></ConfigurationChanges></Mashup></Mashups></Entities>

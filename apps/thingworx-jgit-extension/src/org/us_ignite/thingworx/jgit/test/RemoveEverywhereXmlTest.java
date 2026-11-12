@@ -21,11 +21,18 @@ class RemoveEverywhereXmlTest {
     }
 
     @Test
+    void acceptsMashupExport() throws Exception {
+        Path file = directory.resolve("mashup.xml");
+        Files.writeString(file, "<Entities><Mashups><Mashup name=\"Page\"/></Mashups></Entities>");
+        assertEquals(1, RemoveEverywhere.readTargets(file).size());
+    }
+
+    @Test
     void rejectsUnsupportedOrEmptyEntities() throws Exception {
         Path file = directory.resolve("unsupported.xml");
         Files.writeString(
                 file,
-                "<Entities><Things><Thing name=\"One\"/></Things><Mashups><Mashup name=\"Page\"/></Mashups></Entities>");
+                "<Entities><Things><Thing name=\"One\"/></Things><Unknowns><Unknown name=\"Page\"/></Unknowns></Entities>");
         assertThrows(IllegalArgumentException.class, () -> RemoveEverywhere.readTargets(file));
         Files.writeString(file, "<Entities><Things><Thing/></Things></Entities>");
         assertThrows(IllegalArgumentException.class, () -> RemoveEverywhere.readTargets(file));

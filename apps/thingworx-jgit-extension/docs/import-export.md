@@ -21,7 +21,7 @@ direct `ExportProjectEntities` service - sync is invisible.
 
 Import is internal and automatic: `Pull` (and other integrating operations) discover XML entities
 recursively below the configured repository path and import the configured `ProjectName` back into
-ThingWorx without user action. There is no direct `ImportProjectEntities` service.
+ThingWorx without user action. Use `SyncToThingWorx` (or the Changes mashup button) to import the current repository XML without pulling. This can overwrite ThingWorx entities and property values.
 Review ThingWorx logs after a `Pull`, especially when an entity depends on another entity that is not
 present in the same revision. `Pull` always imports the configured project.
 

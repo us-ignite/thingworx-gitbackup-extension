@@ -1,0 +1,280 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><Entities build="b471" majorVersion="10" minorVersion="1" modelPersistenceProviderPackage="PostgresPersistenceProviderPackage" revision="2" schemaVersion="1212" universal=""><Mashups><Mashup aspect.isEditableExtensionObject="true" aspect.isExtension="true" aspect.isFlex="true" aspect.isResponsive="true" aspect.mashupType="mashup" columns="0.0" description="Git MergeControls" documentationContent="" homeMashup="" lastModifiedDate="2026-11-12T15:31:20.815Z" name="GIT.Mashup.MergeControls" projectName="GIT" rows="0.0" tags=""><Owner name="Administrator" type="User"/><avatar/><DesignTimePermissions><Create/><Read/><Update/><Delete/><Metadata/></DesignTimePermissions><RunTimePermissions/><VisibilityPermissions><Visibility/></VisibilityPermissions><ConfigurationTableDefinitions/><ConfigurationTables><ConfigurationTable dataShapeName="" description="Mashup Mobile Settings" isHidden="true" isMultiRow="false" name="MobileSettings" ordinal="0"><DataShape><FieldDefinitions><FieldDefinition aspect.defaultValue="false" aspect.friendlyName="Disable Zoom" baseType="BOOLEAN" description="Disables zooming in and out within the mashup" name="disableZoom" ordinal="0"/><FieldDefinition aspect.defaultValue="true" aspect.friendlyName="Full Screen Mode" baseType="BOOLEAN" description="Open the mashup in full screen mode" name="fullScreenMode" ordinal="0"/><FieldDefinition aspect.friendlyName="Height" baseType="STRING" description="The height of the mashup page" name="height" ordinal="0"/><FieldDefinition aspect.defaultValue="device-height" aspect.friendlyName="Height Type" baseType="STRING" description="Use the height of the device display, or a custom height (in px)" name="heightType" ordinal="0"/><FieldDefinition aspect.defaultValue="1.0" aspect.friendlyName="Initial Scale" baseType="NUMBER" description="The initial zoom scale when the mashup is loaded for the first time" name="initialScale" ordinal="0"/><FieldDefinition aspect.friendlyName="Shortcut Icon Title" baseType="STRING" description="A title for the mashup shortcut on the iOS home screen" name="iosShortcutIconTitle" ordinal="0"/><FieldDefinition aspect.defaultValue="black-translucent" aspect.friendlyName="Status Bar Appearance" baseType="STRING" description="The style of the iOS status bar" name="iosStatusBarAppearance" ordinal="0"/><FieldDefinition aspect.defaultValue="10.0" aspect.friendlyName="Maximum Scale" baseType="NUMBER" description="The maximum scale that users can zoom out to" name="maximumScale" ordinal="0"/><FieldDefinition aspect.defaultValue="0.1" aspect.friendlyName="Minimum Scale" baseType="NUMBER" description="The minimum scale that users can zoom out to" name="minimumScale" ordinal="0"/><FieldDefinition aspect.friendlyName="Width" baseType="STRING" description="The width of the mashup page" name="width" ordinal="0"/><FieldDefinition aspect.defaultValue="device-width" aspect.friendlyName="Width Type" baseType="STRING" description="Use the width of the device display, or a custom width (in px)" name="widthType" ordinal="0"/></FieldDefinitions></DataShape><Rows><Row><disableZoom>false</disableZoom><fullScreenMode>true</fullScreenMode><height><![CDATA[device-height]]></height><heightType><![CDATA[device-height]]></heightType><initialScale>1.0</initialScale><iosShortcutIconTitle/><iosStatusBarAppearance><![CDATA[black-translucent]]></iosStatusBarAppearance><maximumScale>10.0</maximumScale><minimumScale>0.1</minimumScale><width><![CDATA[device-width]]></width><widthType><![CDATA[device-width]]></widthType></Row></Rows></ConfigurationTable></ConfigurationTables><ParameterDefinitions><FieldDefinition aspect.bindingDirection="IN" baseType="STRING" description="Repository Thing name" name="repoName" ordinal="0"/></ParameterDefinitions><Things/><ThingShapes/><ThingTemplates/><mashupContent><![CDATA[{
+  "CustomMashupCss": "/* Shared Git workspace tokens and layout.\n\n   Spacing rule: every visible widget keeps ThingWorx's default Margin of 5,\n   so neighbouring controls sit 10px apart. Card containers also use Margin 5\n   so their edges line up with text. Container padding and gaps below subtract\n   that 5px, so the visible insets are 24px at the page edge and 16px between\n   sections and inside cards. Do not give individual widgets other margins;\n   align rows with the container's align-items instead (flex-end for rows with\n   labelled inputs, center for buttons and checkboxes).\n\n   Contrast (WCAG): text 11.4:1 and muted text 5.2:1 on the canvas; muted text\n   5.9:1 on surfaces. Native widget colors and focus indicators stay with the\n   active ThingWorx theme. The theme's container style sets a white\n   background, so backgrounds and borders below need !important. */\n:root {\n  --git-text: #243746;\n  --git-muted: #536776;\n  --git-canvas: #eef1f4;\n  --git-surface: #ffffff;\n  --git-border: #c2cbd3;\n  --git-radius: 6px;\n  --git-page-inset: 19px;   /* + 5px widget margin = 24px */\n  --git-card-inset: 11px;   /* + 5px widget margin = 16px */\n  --git-section-gap: 6px;   /* + 5px + 5px margins = 16px */\n  --git-header-height: 64px;\n}\n\n/* Header band: the slot that holds GIT.Mashup.GitHeader on every page. The\n   runtime sizes a contained mashup to fill its slot, so GitHeader applies its\n   own horizontal inset (see GitHeader.css). */\n[id$=\"git-header-slot\"] {\n  min-height: var(--git-header-height);\n  background: var(--git-surface) !important;\n  border-bottom: 1px solid var(--git-border) !important;\n  color: var(--git-text);\n  box-sizing: border-box;\n}\n\n/* Page body. */\n[id$=\"home-main\"],\n[id$=\"changes-main\"],\n[id$=\"branches-main\"],\n[id$=\"history-main\"],\n[id$=\"log-main\"],\n[id$=\"reflog-main\"],\n[id$=\"extlog-main\"],\n[id$=\"settings-main\"],\n[id$=\"user-settings-content\"],\n[id$=\"operations-main\"],\n[id$=\"conflictresolution-main\"] {\n  padding: var(--git-page-inset);\n  gap: var(--git-section-gap);\n  align-items: stretch !important;\n  background: var(--git-canvas) !important;\n  color: var(--git-text);\n  box-sizing: border-box;\n}\n\n/* Layout containers inside the page stay transparent; only cards are white. */\n:is([id$=\"home-main\"], [id$=\"changes-main\"], [id$=\"branches-main\"], [id$=\"history-main\"], [id$=\"log-main\"], [id$=\"reflog-main\"], [id$=\"extlog-main\"], [id$=\"settings-main\"], [id$=\"user-settings-content\"], [id$=\"operations-main\"], [id$=\"conflictresolution-main\"]) .widget-flexcontainer { background: transparent !important; }\n\n/* Cards: white surfaces on the canvas. */\n:is([id$=\"home-main\"], [id$=\"changes-main\"], [id$=\"branches-main\"], [id$=\"history-main\"], [id$=\"log-main\"], [id$=\"reflog-main\"], [id$=\"extlog-main\"], [id$=\"settings-main\"], [id$=\"user-settings-content\"], [id$=\"operations-main\"], [id$=\"conflictresolution-main\"]) :is([id$=\"home-list-container\"], [id$=\"changes-sync-card\"], [id$=\"changes-worktree-card\"], [id$=\"changes-push-card\"], [id$=\"branches-list-card\"], [id$=\"branches-create-card\"], [id$=\"branches-merge-card\"], [id$=\"repository-settings-card\"], [id$=\"settings-projects\"], [id$=\"history-tree-card\"], [id$=\"history-log-card\"]),\n[id$=\"user-settings-content\"] :is([id$=\"flexcontainer-40\"], [id$=\"flexcontainer-41\"], [id$=\"extension-log-section\"]) {\n  background: var(--git-surface) !important;\n  border: 1px solid var(--git-border) !important;\n  border-radius: var(--git-radius) !important;\n  box-sizing: border-box;\n  min-width: 0;\n}\n/* User Settings sections use the shared card inset. */\n[id$=\"user-settings-content\"] :is([id$=\"flexcontainer-40\"], [id$=\"flexcontainer-41\"], [id$=\"extension-log-section\"]) { padding: var(--git-card-inset); }\n\n/* Grid areas: the grid draws its own border, so only size them. */\n[id$=\"changes-grid-area\"],\n[id$=\"branches-grid-area\"],\n[id$=\"log-grid-area\"],\n[id$=\"reflog-grid-area\"],\n[id$=\"extlog-grid-area\"] { min-height: 320px; min-width: 0; }\n[id$=\"changes-grid-bounding-box\"],\n[id$=\"log-grid-bounding-box\"],\n[id$=\"reflog-grid-bounding-box\"],\n[id$=\"extlog-grid-bounding-box\"] { position: relative; flex: 1 1 0%; min-width: 0; }\n\n/* Secondary text. */\n[id$=\"-intro\"],\n[id$=\"-status\"] { color: var(--git-muted); line-height: 1.5; }\n\n@media (max-width: 600px) {\n  :root { --git-page-inset: 11px; }   /* 16px visible */\n}\n\n[id$=\"mergecontrols-main\"] { align-items: stretch !important; }\n[id$=\"mergecontrols-helper-bounding-box\"] {\n  position: relative;\n  align-self: stretch;\n  width: 100% !important;\n  min-width: 0;\n  height: 180px !important;\n}\n.git-merge-controls { padding: 0.75rem; box-sizing: border-box; width: 100%; }\n.git-merge-controls select, .git-merge-controls button { margin: 0.25rem; padding: 0.5rem; max-width: 100%; }\n.git-merge-controls p { margin: 0.25rem; white-space: pre-wrap; overflow-wrap: anywhere; }\n@media (max-width: 700px) {\n  [id$=\"mergecontrols-helper-bounding-box\"] { height: 240px !important; }\n}\n\n.git-merge-controls h2 { margin: 0 0 0.5rem; font-size: 1.1rem; }\n.git-merge-controls button[hidden] { display: none; }\n\n/* Native controls do not inherit the mashup theme's typography by default. */\n.git-merge-controls {\n  color: var(--git-text);\n  font-family: Arial, Helvetica, sans-serif;\n  font-size: 14px;\n  line-height: 1.4;\n}\n.git-merge-controls select,\n.git-merge-controls button { font: inherit; }\n.git-merge-controls select {\n  min-height: 34px;\n  color: var(--git-text);\n  background: var(--git-surface);\n  border: 1px solid var(--git-border);\n  border-radius: 3px;\n}\n.git-merge-controls button {\n  min-height: 34px;\n  padding: 0.5rem 1rem;\n  color: #fff;\n  background: #0073aa;\n  border: 1px solid #0073aa;\n  border-radius: 3px;\n  cursor: pointer;\n}\n.git-merge-controls button:hover:not(:disabled) { background: #005d89; }\n.git-merge-controls button:disabled { opacity: 0.55; cursor: default; }\n.git-merge-controls button:focus-visible,\n.git-merge-controls select:focus-visible { outline: 2px solid #0073aa; outline-offset: 2px; }\n.git-merge-controls p { color: var(--git-muted); }",
+  "Data": {},
+  "DataBindings": [
+    {
+      "Id": "451c4df4-f359-42ee-a5cf-d7ba6c827889",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "repoName",
+          "SourcePropertyBaseType": "STRING",
+          "SourcePropertyType": "Property",
+          "TargetProperty": "repoName",
+          "TargetPropertyBaseType": "STRING",
+          "TargetPropertyType": "property"
+        }
+      ],
+      "SourceArea": "Mashup",
+      "SourceDetails": "AllData",
+      "SourceId": "mashup-root",
+      "SourceSection": "",
+      "TargetArea": "UI",
+      "TargetId": "mergecontrols-helper",
+      "TargetSection": ""
+    },
+    {
+      "Id": "a5c2354e-2135-4405-80a5-989ab711f6d0",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "repoName",
+          "SourcePropertyBaseType": "STRING",
+          "SourcePropertyType": "Property",
+          "TargetProperty": "repoName",
+          "TargetPropertyBaseType": "STRING",
+          "TargetPropertyType": "property"
+        }
+      ],
+      "SourceArea": "Mashup",
+      "SourceDetails": "AllData",
+      "SourceId": "mashup-root",
+      "SourceSection": "",
+      "TargetArea": "UI",
+      "TargetId": "navigate-conflict-resolution",
+      "TargetSection": ""
+    }
+  ],
+  "DesignTimePermissions": {},
+  "Events": [
+    {
+      "EventHandlerArea": "UI",
+      "EventHandlerId": "navigate-conflict-resolution",
+      "EventHandlerService": "Navigate",
+      "EventTriggerArea": "UI",
+      "EventTriggerEvent": "resolutionRequested",
+      "EventTriggerId": "mergecontrols-helper",
+      "EventTriggerSection": "",
+      "Id": "b5f17d6b-38da-4880-8a30-9bb69cf9a9ac"
+    }
+  ],
+  "Reminders": [],
+  "RunTimePermissions": {},
+  "UI": {
+    "Properties": {
+      "AddToDashboardButton": "SimplePlus",
+      "AddToDashboardButtonStyle": "DefaultAddToDashboardButtonStyle",
+      "Area": "Mashup",
+      "BGImage": "",
+      "BGImageRepeat": "no-repeat",
+      "BGImageSize": "auto",
+      "Columns": 0,
+      "ConfigureGadgetButton": "SimpleGear",
+      "ConfigureGadgetButtonStyle": "DefaultConfigureGadgetButtonStyle",
+      "DisableLegacyCustomClassStyles": false,
+      "DisplayName": "Mashup",
+      "EnableParameterEditing": false,
+      "Height": 618,
+      "Id": "mashup-root",
+      "IgnoreWarningsInViewMashup": false,
+      "IsPrintLayout": false,
+      "Left": 0,
+      "LegacyFocus": false,
+      "Margin": "0",
+      "MashupResolution": "FHD 1920x1080",
+      "MashupToEditGadget": "DefaultMashupToEditGadget",
+      "MinHeight": 0,
+      "MinWidth": 0,
+      "ResponsiveLayout": true,
+      "Rows": 0,
+      "ShowDataLoading": true,
+      "Style": "DefaultMashupStyle",
+      "StyleProperties": {
+        "data": {},
+        "meta": {
+          "type": "WidgetStyler",
+          "version": "1.0"
+        }
+      },
+      "StyleTheme": "PTC Convergence Theme",
+      "Title": "Git MergeControls",
+      "TitleBar": false,
+      "TitleBarStyle": "DefaultTitleBarStyle",
+      "TitleBarText": "Gadget Title Here",
+      "Top": 0,
+      "Type": "mashup",
+      "UseMasterTheme": false,
+      "UseTheme": false,
+      "UseThemeForHybrids": false,
+      "Visible": true,
+      "Width": 1024,
+      "Z-index": 10,
+      "__TypeDisplayName": "Mashup",
+      "_baseVersion": "9.7.0-b47",
+      "_currentParameterDefs": [
+        {
+          "Aspects": {},
+          "BaseType": "STRING",
+          "BindingDirection": "IN",
+          "Description": "Repository Thing name",
+          "ParameterName": "repoName"
+        }
+      ],
+      "id_index": 20,
+      "secureExpressionsOnly": true,
+      "supportsAutoResize": true
+    },
+    "Widgets": [
+      {
+        "Properties": {
+          "Area": "UI",
+          "CollapseTabIcon": "",
+          "DisableLegacyCustomClassStyles": false,
+          "DisplayName": "mergecontrols-main",
+          "EnableContainerUnload": false,
+          "EnableExpandCollapse": false,
+          "ExpandCollapseTabLocation": "inside",
+          "ExpandTabIcon": "",
+          "Expanded": true,
+          "Id": "mergecontrols-main",
+          "LastContainer": true,
+          "LazyLoading": false,
+          "Left": 0,
+          "Margin": "",
+          "Overlay": false,
+          "OverrideChildrenAbsolute": false,
+          "ResponsiveLayout": true,
+          "Scrolling": "none",
+          "ShowDataLoading": true,
+          "ShowExpandCollapseTab": false,
+          "ShowVerticalScrollbar": false,
+          "SourceURL": "",
+          "Style": "DefaultContainerStyle",
+          "StyleProperties": {},
+          "Top": 0,
+          "Type": "flexcontainer",
+          "UseTheme": true,
+          "Visible": true,
+          "Z-index": 10,
+          "__TypeDisplayName": "Responsive Container",
+          "_baseVersion": "9.7.0-b47",
+          "align-content": "flex-start",
+          "align-items": "stretch",
+          "flex-basis": "auto",
+          "flex-direction": "column",
+          "flex-grow": 0,
+          "flex-max-height": "",
+          "flex-max-width": "",
+          "flex-min-height": "",
+          "flex-min-width": "",
+          "flex-shrink": 0,
+          "flex-size": "default",
+          "flex-wrap": "nowrap",
+          "iconClass": "widgets-flexcontainer",
+          "isLocked": false,
+          "justify-content": "flex-start",
+          "positioning": "responsive",
+          "userCannotRemove": true
+        },
+        "Widgets": [
+          {
+            "Properties": {
+              "Area": "UI",
+              "Code": "@TWWidgetDefinition\nclass MergeControls extends TypescriptWidget {\n  @property(bindingTarget, didBind(\"repositoryChanged\")) repoName!: STRING;\n  @twevent resolutionRequested!: TWEvent;\n  private root?: HTMLElement;\n  private generation = 0;\n  private busy = false;\n  private stateTimer?: number;\n  private stateRequest = 0;\n\n  afterRender() {\n    this.root = this.jqElement[0] as HTMLElement;\n    this.root.innerHTML = '<div class=\"git-merge-controls\"><h2>Merge and rebase</h2><label>Branch <select aria-label=\"Branch\"><option value=\"\">Select a branch</option></select></label> <button type=\"button\" data-action=\"merge\">Merge Branch</button> <button type=\"button\" data-action=\"rebase\">Rebase onto Branch</button> <button type=\"button\" data-action=\"resolve\" hidden>Resolve Current Conflict</button><p role=\"status\"></p></div>';\n    this.root.querySelector('[data-action=\"merge\"]')!.addEventListener('click', () => this.run('Merge'));\n    this.root.querySelector('[data-action=\"rebase\"]')!.addEventListener('click', () => this.run('Rebase'));\n    this.root.querySelector('[data-action=\"resolve\"]')!.addEventListener('click', () => this.openResolution());\n    this.repositoryChanged();\n    this.stateTimer = window.setInterval(() => { if (!document.hidden && !this.busy) this.refreshConflictState(); }, 10000);\n  }\n  beforeDestroy() { this.generation++; this.stateRequest++; if (this.stateTimer !== undefined) window.clearInterval(this.stateTimer); }\n  private async invoke(service: string, body: object) {\n    const response = await fetch('/Thingworx/Things/' + encodeURIComponent(this.repoName) + '/Services/' + service, {method:'POST', credentials:'same-origin', headers:{'Accept':'application/json','Content-Type':'application/json','X-XSRF-TOKEN':'TWX-XSRF-TOKEN-VALUE','X-Requested-By':'ThingWorx'}, body:JSON.stringify(body)});\n    if (!response.ok) throw new Error('Request failed (HTTP ' + response.status + ')');\n    const row = (await response.json()).rows?.[0];\n    if (!row || typeof row.Error !== 'boolean') throw new Error('Invalid service response');\n    return row;\n  }\n  private message(value: string) { if (this.root) this.root.querySelector('p')!.textContent = value; }\n  private async repositoryChanged() {\n    if (!this.root) return;\n    const request = ++this.generation;\n    this.stateRequest++;\n    this.setConflictVisible(false);\n    if (!this.repoName) return;\n    this.refreshConflictState();\n    const select = this.root.querySelector('select')!;\n    select.replaceChildren(new Option('Select a branch', ''));\n    try {\n      const result = await this.invoke('GetBranchList', {});\n      if (request !== this.generation) return;\n      if (result.Error) throw new Error(result.Message);\n      for (const branch of result.Result?.rows || []) {\n        if (!branch.IsHead && branch.BranchName && !branch.BranchName.endsWith('/HEAD')) select.add(new Option(branch.ShortBranchName + ' (' + branch.BranchType.toLowerCase() + ')', branch.BranchName));\n      }\n    } catch (error) { if (request === this.generation) this.message((error as Error).message); }\n  }\n  private setConflictVisible(visible: boolean) {\n    if (this.root) (this.root.querySelector('[data-action=\"resolve\"]') as HTMLButtonElement).hidden = !visible;\n  }\n  private async refreshConflictState() {\n    if (!this.root || !this.repoName) return;\n    const request = ++this.stateRequest;\n    const repository = this.repoName;\n    try {\n      const result = await this.invoke('GetConflictState', {});\n      if (request !== this.stateRequest || repository !== this.repoName) return;\n      if (result.Error) throw new Error(result.Message || 'Could not check conflict state');\n      this.setConflictVisible(!!result.Result?.rows?.[0]?.InProgress);\n    } catch (error) {\n      if (request === this.stateRequest && repository === this.repoName) this.message((error as Error).message);\n    }\n  }\n  private openResolution() {\n    if (!this.repoName) return;\n    this.resolutionRequested();\n  }\n  private async run(service: 'Merge' | 'Rebase') {\n    if (!this.root || !this.repoName || this.busy) return;\n    const branch = this.root.querySelector('select')!.value;\n    if (!branch) { this.message('Select a branch first.'); return; }\n    this.busy = true;\n    this.root.querySelectorAll('button').forEach(button => button.disabled = true);\n    this.message(service + ' in progress…');\n    try {\n      const result = await this.invoke(service, service === 'Merge' ? {BranchName: branch} : {UpstreamBranch: branch});\n      this.message(result.Message || (result.Error ? service + ' failed.' : service + ' completed.'));\n      if ((result.Message || '').includes('[CONFLICT]')) this.setConflictVisible(true);\n      if (!result.Error) this.repositoryChanged();\n      else await this.refreshConflictState();\n    } catch (error) { this.message((error as Error).message); }\n    finally { this.busy = false; this.root.querySelectorAll('button').forEach(button => button.disabled = false); }\n  }\n}",
+              "ColumnPosition": 38,
+              "DirectLinkUUID": "",
+              "DisplayName": "mergecontrols-helper",
+              "Exports": "@TWWidgetDefinition\nclass MergeControls extends TypescriptWidget {\n  @property(bindingTarget, didBind(\"repositoryChanged\")) repoName!: STRING;\n  @twevent resolutionRequested!: TWEvent;\n  private root?: HTMLElement;\n  private generation = 0;\n  private busy = false;\n  private stateTimer?: number;\n  private stateRequest = 0;\n\n  afterRender() {\n    this.root = this.jqElement[0] as HTMLElement;\n    this.root.innerHTML = '<div class=\"git-merge-controls\"><h2>Merge and rebase</h2><label>Branch <select aria-label=\"Branch\"><option value=\"\">Select a branch</option></select></label> <button type=\"button\" data-action=\"merge\">Merge Branch</button> <button type=\"button\" data-action=\"rebase\">Rebase onto Branch</button> <button type=\"button\" data-action=\"resolve\" hidden>Resolve Current Conflict</button><p role=\"status\"></p></div>';\n    this.root.querySelector('[data-action=\"merge\"]')!.addEventListener('click', () => this.run('Merge'));\n    this.root.querySelector('[data-action=\"rebase\"]')!.addEventListener('click', () => this.run('Rebase'));\n    this.root.querySelector('[data-action=\"resolve\"]')!.addEventListener('click', () => this.openResolution());\n    this.repositoryChanged();\n    this.stateTimer = window.setInterval(() => { if (!document.hidden && !this.busy) this.refreshConflictState(); }, 10000);\n  }\n  beforeDestroy() { this.generation++; this.stateRequest++; if (this.stateTimer !== undefined) window.clearInterval(this.stateTimer); }\n  private async invoke(service: string, body: object) {\n    const response = await fetch('/Thingworx/Things/' + encodeURIComponent(this.repoName) + '/Services/' + service, {method:'POST', credentials:'same-origin', headers:{'Accept':'application/json','Content-Type':'application/json','X-XSRF-TOKEN':'TWX-XSRF-TOKEN-VALUE','X-Requested-By':'ThingWorx'}, body:JSON.stringify(body)});\n    if (!response.ok) throw new Error('Request failed (HTTP ' + response.status + ')');\n    const row = (await response.json()).rows?.[0];\n    if (!row || typeof row.Error !== 'boolean') throw new Error('Invalid service response');\n    return row;\n  }\n  private message(value: string) { if (this.root) this.root.querySelector('p')!.textContent = value; }\n  private async repositoryChanged() {\n    if (!this.root) return;\n    const request = ++this.generation;\n    this.stateRequest++;\n    this.setConflictVisible(false);\n    if (!this.repoName) return;\n    this.refreshConflictState();\n    const select = this.root.querySelector('select')!;\n    select.replaceChildren(new Option('Select a branch', ''));\n    try {\n      const result = await this.invoke('GetBranchList', {});\n      if (request !== this.generation) return;\n      if (result.Error) throw new Error(result.Message);\n      for (const branch of result.Result?.rows || []) {\n        if (!branch.IsHead && branch.BranchName && !branch.BranchName.endsWith('/HEAD')) select.add(new Option(branch.ShortBranchName + ' (' + branch.BranchType.toLowerCase() + ')', branch.BranchName));\n      }\n    } catch (error) { if (request === this.generation) this.message((error as Error).message); }\n  }\n  private setConflictVisible(visible: boolean) {\n    if (this.root) (this.root.querySelector('[data-action=\"resolve\"]') as HTMLButtonElement).hidden = !visible;\n  }\n  private async refreshConflictState() {\n    if (!this.root || !this.repoName) return;\n    const request = ++this.stateRequest;\n    const repository = this.repoName;\n    try {\n      const result = await this.invoke('GetConflictState', {});\n      if (request !== this.stateRequest || repository !== this.repoName) return;\n      if (result.Error) throw new Error(result.Message || 'Could not check conflict state');\n      this.setConflictVisible(!!result.Result?.rows?.[0]?.InProgress);\n    } catch (error) {\n      if (request === this.stateRequest && repository === this.repoName) this.message((error as Error).message);\n    }\n  }\n  private openResolution() {\n    if (!this.repoName) return;\n    this.resolutionRequested();\n  }\n  private async run(service: 'Merge' | 'Rebase') {\n    if (!this.root || !this.repoName || this.busy) return;\n    const branch = this.root.querySelector('select')!.value;\n    if (!branch) { this.message('Select a branch first.'); return; }\n    this.busy = true;\n    this.root.querySelectorAll('button').forEach(button => button.disabled = true);\n    this.message(service + ' in progress…');\n    try {\n      const result = await this.invoke(service, service === 'Merge' ? {BranchName: branch} : {UpstreamBranch: branch});\n      this.message(result.Message || (result.Error ? service + ' failed.' : service + ' completed.'));\n      if ((result.Message || '').includes('[CONFLICT]')) this.setConflictVisible(true);\n      if (!result.Error) this.repositoryChanged();\n      else await this.refreshConflictState();\n    } catch (error) { this.message((error as Error).message); }\n    finally { this.busy = false; this.root.querySelectorAll('button').forEach(button => button.disabled = false); }\n  }\n}",
+              "FullScreen": false,
+              "Height": 150,
+              "Id": "mergecontrols-helper",
+              "LastContainer": false,
+              "Left": 674.6749877929688,
+              "Margin": "0",
+              "ResponsiveLayout": false,
+              "RuntimeProperties": "[{\"name\": \"repoName\", \"dataType\": \"STRING\", \"description\": \"Repository Thing name\", \"type\": \"property\", \"isBindingTarget\": true, \"isBindingSource\": false}, {\"name\": \"resolutionRequested\", \"description\": \"Open conflict resolution\", \"type\": \"event\"}]",
+              "ScrollPosition": 96,
+              "ShowDataLoading": true,
+              "Title": "HomeNavigation",
+              "Top": 22.199996948242188,
+              "TranspiledCode": "var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {\n    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;\n    if (typeof Reflect === \"object\" && typeof Reflect.decorate === \"function\") r = Reflect.decorate(decorators, target, key, desc);\n    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;\n    return c > 3 && r && Object.defineProperty(target, key, r), r;\n};\nlet MergeControls = class MergeControls extends TypescriptWidget {\n    constructor() {\n        super(...arguments);\n        this.generation = 0;\n        this.busy = false;\n        this.stateRequest = 0;\n    }\n    afterRender() {\n        this.root = this.jqElement[0];\n        this.root.innerHTML = '<div class=\"git-merge-controls\"><h2>Merge and rebase</h2><label>Branch <select aria-label=\"Branch\"><option value=\"\">Select a branch</option></select></label> <button type=\"button\" data-action=\"merge\">Merge Branch</button> <button type=\"button\" data-action=\"rebase\">Rebase onto Branch</button> <button type=\"button\" data-action=\"resolve\" hidden>Resolve Current Conflict</button><p role=\"status\"></p></div>';\n        this.root.querySelector('[data-action=\"merge\"]').addEventListener('click', () => this.run('Merge'));\n        this.root.querySelector('[data-action=\"rebase\"]').addEventListener('click', () => this.run('Rebase'));\n        this.root.querySelector('[data-action=\"resolve\"]').addEventListener('click', () => this.openResolution());\n        this.repositoryChanged();\n        this.stateTimer = window.setInterval(() => { if (!document.hidden && !this.busy)\n            this.refreshConflictState(); }, 10000);\n    }\n    beforeDestroy() { this.generation++; this.stateRequest++; if (this.stateTimer !== undefined)\n        window.clearInterval(this.stateTimer); }\n    async invoke(service, body) {\n        var _a;\n        const response = await fetch('/Thingworx/Things/' + encodeURIComponent(this.repoName) + '/Services/' + service, { method: 'POST', credentials: 'same-origin', headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-XSRF-TOKEN': 'TWX-XSRF-TOKEN-VALUE', 'X-Requested-By': 'ThingWorx' }, body: JSON.stringify(body) });\n        if (!response.ok)\n            throw new Error('Request failed (HTTP ' + response.status + ')');\n        const row = (_a = (await response.json()).rows) === null || _a === void 0 ? void 0 : _a[0];\n        if (!row || typeof row.Error !== 'boolean')\n            throw new Error('Invalid service response');\n        return row;\n    }\n    message(value) { if (this.root)\n        this.root.querySelector('p').textContent = value; }\n    async repositoryChanged() {\n        var _a;\n        if (!this.root)\n            return;\n        const request = ++this.generation;\n        this.stateRequest++;\n        this.setConflictVisible(false);\n        if (!this.repoName)\n            return;\n        this.refreshConflictState();\n        const select = this.root.querySelector('select');\n        select.replaceChildren(new Option('Select a branch', ''));\n        try {\n            const result = await this.invoke('GetBranchList', {});\n            if (request !== this.generation)\n                return;\n            if (result.Error)\n                throw new Error(result.Message);\n            for (const branch of ((_a = result.Result) === null || _a === void 0 ? void 0 : _a.rows) || []) {\n                if (!branch.IsHead && branch.BranchName && !branch.BranchName.endsWith('/HEAD'))\n                    select.add(new Option(branch.ShortBranchName + ' (' + branch.BranchType.toLowerCase() + ')', branch.BranchName));\n            }\n        }\n        catch (error) {\n            if (request === this.generation)\n                this.message(error.message);\n        }\n    }\n    setConflictVisible(visible) {\n        if (this.root)\n            this.root.querySelector('[data-action=\"resolve\"]').hidden = !visible;\n    }\n    async refreshConflictState() {\n        var _a, _b, _c;\n        if (!this.root || !this.repoName)\n            return;\n        const request = ++this.stateRequest;\n        const repository = this.repoName;\n        try {\n            const result = await this.invoke('GetConflictState', {});\n            if (request !== this.stateRequest || repository !== this.repoName)\n                return;\n            if (result.Error)\n                throw new Error(result.Message || 'Could not check conflict state');\n            this.setConflictVisible(!!((_c = (_b = (_a = result.Result) === null || _a === void 0 ? void 0 : _a.rows) === null || _b === void 0 ? void 0 : _b[0]) === null || _c === void 0 ? void 0 : _c.InProgress));\n        }\n        catch (error) {\n            if (request === this.stateRequest && repository === this.repoName)\n                this.message(error.message);\n        }\n    }\n    openResolution() {\n        if (!this.repoName)\n            return;\n        this.resolutionRequested();\n    }\n    async run(service) {\n        if (!this.root || !this.repoName || this.busy)\n            return;\n        const branch = this.root.querySelector('select').value;\n        if (!branch) {\n            this.message('Select a branch first.');\n            return;\n        }\n        this.busy = true;\n        this.root.querySelectorAll('button').forEach(button => button.disabled = true);\n        this.message(service + ' in progress…');\n        try {\n            const result = await this.invoke(service, service === 'Merge' ? { BranchName: branch } : { UpstreamBranch: branch });\n            this.message(result.Message || (result.Error ? service + ' failed.' : service + ' completed.'));\n            if ((result.Message || '').includes('[CONFLICT]'))\n                this.setConflictVisible(true);\n            if (!result.Error)\n                this.repositoryChanged();\n            else\n                await this.refreshConflictState();\n        }\n        catch (error) {\n            this.message(error.message);\n        }\n        finally {\n            this.busy = false;\n            this.root.querySelectorAll('button').forEach(button => button.disabled = false);\n        }\n    }\n};\n__decorate([\n    property(bindingTarget, didBind(\"repositoryChanged\"))\n], MergeControls.prototype, \"repoName\", void 0);\n__decorate([\n    twevent\n], MergeControls.prototype, \"resolutionRequested\", void 0);\nMergeControls = __decorate([\n    TWWidgetDefinition\n], MergeControls);\n",
+              "Type": "BMTypescriptClassHost",
+              "Visible": true,
+              "Width": 800,
+              "Z-index": 10,
+              "_Height": 679,
+              "_Left": 0,
+              "_NavigationWidth": 256,
+              "_Top": 0,
+              "_Width": 1498,
+              "__TypeDisplayName": "Typescript Class",
+              "_baseVersion": "9.7.0"
+            },
+            "Widgets": []
+          }
+        ]
+      },
+      {
+        "Properties": {
+          "Area": "UI",
+          "ClickOutsideToClose": false,
+          "CloseButton": true,
+          "DisplayName": "navigate-conflict-resolution",
+          "Id": "navigate-conflict-resolution",
+          "IncludeLegacyHeightAdjustment": true,
+          "LastContainer": false,
+          "Left": 0,
+          "LegacyHeightAdjustmentEnabled": true,
+          "Margin": "5",
+          "MashupParameters": [
+            {
+              "BaseType": "STRING",
+              "Description": "Repository selected on Git Home",
+              "ParameterName": "repoName",
+              "ParmDef": {
+                "aspects": {
+                  "bindingDirection": "IN"
+                },
+                "baseType": "STRING",
+                "description": "Repository selected on Git Home",
+                "name": "repoName",
+                "ordinal": 0
+              }
+            }
+          ],
+          "MissingMashupMessage": "Mashup must be selected",
+          "PopupHeight": 0,
+          "PopupScrollbar": "auto",
+          "PopupTitle": "",
+          "PopupWidth": 0,
+          "RedirectTo": "mashup",
+          "ReloadOnReplace": false,
+          "ResponsiveLayout": false,
+          "ShowDataLoading": true,
+          "TargetMashup": "GIT.Mashup.ConflictResolution",
+          "TargetWindowType": "replace",
+          "Text": "tw.navigationfunction-ide.properties.text.default-value",
+          "Top": 0,
+          "Type": "navigationfunction",
+          "UseTheme": true,
+          "Visible": true,
+          "Z-index": 10,
+          "__TypeDisplayName": "Navigation",
+          "_currentParameterDefs": [
+            {
+              "BaseType": "STRING",
+              "DefaultValue": "",
+              "Description": "Repository selected on Git Home",
+              "ParameterName": "repoName",
+              "bindingDirection": "Both",
+              "bindingType": "Property",
+              "isBindingSource": true,
+              "isBindingTarget": true,
+              "shown": true
+            }
+          ]
+        },
+        "Widgets": []
+      }
+    ]
+  },
+  "mashupType": "mashup"
+}]]></mashupContent><preview/><ConfigurationChanges><ConfigurationChange changeAction="CREATE" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T18:48:36.636Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T18:50:20.495Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T18:51:38.238Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T18:52:28.232Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T18:54:12.197Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T18:55:43.668Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T18:57:07.284Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:12:25.905Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:30:00.892Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:32:22.648Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:33:13.431Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:37:36.276Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:38:28.639Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:39:51.224Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:42:53.952Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:45:59.307Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:47:44.583Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:50:30.053Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:52:55.885Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:57:09.306Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-12T14:20:44.788Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-12T14:25:34.953Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-12T15:19:54.576Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-12T15:30:45.952Z" user="SuperUser"/></ConfigurationChanges></Mashup></Mashups></Entities>

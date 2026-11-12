@@ -38,7 +38,7 @@ metadata, permissions, configuration tables, and `ParameterDefinitions` are
 XML. The `mashupContent` element contains a JSON document as text. Editing
 JSON must preserve valid XML text; XML escaping and JSON escaping are separate.
 
-In `Mashups_GIT.Mashup.Operations.xml`, the JSON contains:
+In `Mashups_GIT.Mashup.Branches.xml`, the JSON contains:
 
 | Key | Role observed in this export |
 | --- | --- |
@@ -46,7 +46,7 @@ In `Mashups_GIT.Mashup.Operations.xml`, the JSON contains:
 | `DataBindings` | Property-to-property connections. |
 | `Events` | Events that invoke services or widget actions. |
 | `UI` | Root mashup `Properties` and recursive `Widgets` tree. |
-| `CustomMashupCss` | CSS stored in the export; generated from `src/Operations.css` here. |
+| `CustomMashupCss` | CSS stored in the export; generated from `src/Shared.css` and `src/Branches.css` here. |
 
 `UI.Properties._currentParameterDefs` repeats mashup parameter metadata in
 JSON. The XML `ParameterDefinitions` is a second representation. When adding or
@@ -111,8 +111,8 @@ the source name to `BranchName` while leaving the source as the outer service.
    and inspect the Bindings panel. Open **View Mashup** to check runtime behavior;
    PTC notes that services and events do not execute in the design canvas.
 
-For this extension, `ui/src/GitHelper.ts` and `ui/src/Operations.css` are source files;
-the build embeds them into the Operations mashup. See [ui/README.md](../ui/README.md)
+For this extension, the TypeScript and CSS under `ui/src/` are source files;
+the build embeds them into the mashups. See [ui/README.md](../ui/README.md)
 before touching the generated `Code`, `TranspiledCode`, `Exports`, or
 `CustomMashupCss` fields. Preserve unrelated export fields and IDs.
 

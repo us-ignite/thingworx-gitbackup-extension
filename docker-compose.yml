@@ -46,6 +46,7 @@ services:
   security-init:
     image: ghcr.io/us-ignite/thingworx/security-tool:10.1.2
     container_name: twx-security-init
+    entrypoint: ["/bin/sh", "/scripts/security-init-wrapper.sh"]
     environment:
       KEYSTORE: "true"
       KEYSTORE_PASSWORD: thingworx-keystore-password
@@ -55,10 +56,12 @@ services:
       TWX_DATABASE_PASSWORD: twxpass_P@ssw0rd!
       SECRET_PROVISIONING_APP_KEY: test-provisioning-key-12345
       ENCRYPT_CREDENTIALS: "true"
+      FORCE_SECURITY_INIT: ${FORCE_SECURITY_INIT:-false}
     networks:
       - twx-network
     volumes:
       - twx-storage:/ThingworxStorage
+      - ./apps/thingworx-jgit-extension/scripts/security-init-wrapper.sh:/scripts/security-init-wrapper.sh:ro
 
   thingworx:
     image: ghcr.io/us-ignite/thingworx/platform-postgres:10.1.2-openjdk

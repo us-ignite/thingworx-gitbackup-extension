@@ -90,6 +90,24 @@ class StatusExportReconcilerTest {
     }
 
     @Test
+    void preservesStagedDeletionWhenEntityStillExists() throws Exception {
+        Path root = directory.resolve("repo-deleted");
+        Path snapshot = directory.resolve("snapshot-deleted");
+        Path file = root.resolve("Example/Mashups/Page.xml");
+        String xml = "<Entities><Mashups><Mashup name=\"Page\"/></Mashups></Entities>";
+        write(file, xml);
+        write(snapshot.resolve("Mashups/Page.xml"), xml);
+        try (Git git = Git.init().setDirectory(root.toFile()).call()) {
+            git.add().addFilepattern(".").call();
+            git.commit().setMessage("base").setAuthor("Test", "test@example.com").call();
+            git.rm().addFilepattern("Example/Mashups/Page.xml").call();
+            StatusExportReconciler.reconcile(git, snapshot, "", "Example", (t, n, p) -> true);
+            assertFalse(Files.exists(file));
+            assertTrue(git.status().call().getRemoved().contains("Example/Mashups/Page.xml"));
+        }
+    }
+
+    @Test
     void refusesSymlinkTargetsBeforeChangingFiles() throws Exception {
         Path root = directory.resolve("repo");
         Path outside = directory.resolve("outside");

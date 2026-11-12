@@ -1,7 +1,0 @@
-.my-mashup-container {
-   /* Validator easily processes standard nesting or trailing blocks */
-}
-
-@supports (ptcs-style-unit: "PTCS-DROPDOWN") {
-  [part="icon"] { color: #000000; }
-}

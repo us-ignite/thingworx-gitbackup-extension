@@ -1,0 +1,454 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><Entities build="b471" majorVersion="10" minorVersion="1" modelPersistenceProviderPackage="PostgresPersistenceProviderPackage" revision="2" schemaVersion="1212" universal=""><Mashups><Mashup aspect.isEditableExtensionObject="true" aspect.isExtension="true" aspect.isFlex="true" aspect.isResponsive="true" aspect.mashupType="mashup" columns="0.0" description="Git ConflictResolution" documentationContent="" homeMashup="" lastModifiedDate="2026-11-12T15:31:20.815Z" name="GIT.Mashup.ConflictResolution" projectName="GIT" rows="0.0" tags=""><Owner name="Administrator" type="User"/><avatar/><DesignTimePermissions><Create/><Read/><Update/><Delete/><Metadata/></DesignTimePermissions><RunTimePermissions/><VisibilityPermissions><Visibility/></VisibilityPermissions><ConfigurationTableDefinitions/><ConfigurationTables><ConfigurationTable dataShapeName="" description="Mashup Mobile Settings" isHidden="true" isMultiRow="false" name="MobileSettings" ordinal="0"><DataShape><FieldDefinitions><FieldDefinition aspect.defaultValue="false" aspect.friendlyName="Disable Zoom" baseType="BOOLEAN" description="Disables zooming in and out within the mashup" name="disableZoom" ordinal="0"/><FieldDefinition aspect.defaultValue="true" aspect.friendlyName="Full Screen Mode" baseType="BOOLEAN" description="Open the mashup in full screen mode" name="fullScreenMode" ordinal="0"/><FieldDefinition aspect.friendlyName="Height" baseType="STRING" description="The height of the mashup page" name="height" ordinal="0"/><FieldDefinition aspect.defaultValue="device-height" aspect.friendlyName="Height Type" baseType="STRING" description="Use the height of the device display, or a custom height (in px)" name="heightType" ordinal="0"/><FieldDefinition aspect.defaultValue="1.0" aspect.friendlyName="Initial Scale" baseType="NUMBER" description="The initial zoom scale when the mashup is loaded for the first time" name="initialScale" ordinal="0"/><FieldDefinition aspect.friendlyName="Shortcut Icon Title" baseType="STRING" description="A title for the mashup shortcut on the iOS home screen" name="iosShortcutIconTitle" ordinal="0"/><FieldDefinition aspect.defaultValue="black-translucent" aspect.friendlyName="Status Bar Appearance" baseType="STRING" description="The style of the iOS status bar" name="iosStatusBarAppearance" ordinal="0"/><FieldDefinition aspect.defaultValue="10.0" aspect.friendlyName="Maximum Scale" baseType="NUMBER" description="The maximum scale that users can zoom out to" name="maximumScale" ordinal="0"/><FieldDefinition aspect.defaultValue="0.1" aspect.friendlyName="Minimum Scale" baseType="NUMBER" description="The minimum scale that users can zoom out to" name="minimumScale" ordinal="0"/><FieldDefinition aspect.friendlyName="Width" baseType="STRING" description="The width of the mashup page" name="width" ordinal="0"/><FieldDefinition aspect.defaultValue="device-width" aspect.friendlyName="Width Type" baseType="STRING" description="Use the width of the device display, or a custom width (in px)" name="widthType" ordinal="0"/></FieldDefinitions></DataShape><Rows><Row><disableZoom>false</disableZoom><fullScreenMode>true</fullScreenMode><height><![CDATA[device-height]]></height><heightType><![CDATA[device-height]]></heightType><initialScale>1.0</initialScale><iosShortcutIconTitle/><iosStatusBarAppearance><![CDATA[black-translucent]]></iosStatusBarAppearance><maximumScale>10.0</maximumScale><minimumScale>0.1</minimumScale><width><![CDATA[device-width]]></width><widthType><![CDATA[device-width]]></widthType></Row></Rows></ConfigurationTable></ConfigurationTables><ParameterDefinitions><FieldDefinition aspect.bindingDirection="IN" baseType="STRING" description="Repository Thing name" name="repoName" ordinal="0"/></ParameterDefinitions><Things/><ThingShapes/><ThingTemplates/><mashupContent><![CDATA[{
+  "CustomMashupCss": "/* Shared Git workspace tokens and layout.\n\n   Spacing rule: every visible widget keeps ThingWorx's default Margin of 5,\n   so neighbouring controls sit 10px apart. Card containers also use Margin 5\n   so their edges line up with text. Container padding and gaps below subtract\n   that 5px, so the visible insets are 24px at the page edge and 16px between\n   sections and inside cards. Do not give individual widgets other margins;\n   align rows with the container's align-items instead (flex-end for rows with\n   labelled inputs, center for buttons and checkboxes).\n\n   Contrast (WCAG): text 11.4:1 and muted text 5.2:1 on the canvas; muted text\n   5.9:1 on surfaces. Native widget colors and focus indicators stay with the\n   active ThingWorx theme. The theme's container style sets a white\n   background, so backgrounds and borders below need !important. */\n:root {\n  --git-text: #243746;\n  --git-muted: #536776;\n  --git-canvas: #eef1f4;\n  --git-surface: #ffffff;\n  --git-border: #c2cbd3;\n  --git-radius: 6px;\n  --git-page-inset: 19px;   /* + 5px widget margin = 24px */\n  --git-card-inset: 11px;   /* + 5px widget margin = 16px */\n  --git-section-gap: 6px;   /* + 5px + 5px margins = 16px */\n  --git-header-height: 64px;\n}\n\n/* Header band: the slot that holds GIT.Mashup.GitHeader on every page. The\n   runtime sizes a contained mashup to fill its slot, so GitHeader applies its\n   own horizontal inset (see GitHeader.css). */\n[id$=\"git-header-slot\"] {\n  min-height: var(--git-header-height);\n  background: var(--git-surface) !important;\n  border-bottom: 1px solid var(--git-border) !important;\n  color: var(--git-text);\n  box-sizing: border-box;\n}\n\n/* Page body. */\n[id$=\"home-main\"],\n[id$=\"changes-main\"],\n[id$=\"branches-main\"],\n[id$=\"history-main\"],\n[id$=\"log-main\"],\n[id$=\"reflog-main\"],\n[id$=\"extlog-main\"],\n[id$=\"settings-main\"],\n[id$=\"user-settings-content\"],\n[id$=\"operations-main\"],\n[id$=\"conflictresolution-main\"] {\n  padding: var(--git-page-inset);\n  gap: var(--git-section-gap);\n  align-items: stretch !important;\n  background: var(--git-canvas) !important;\n  color: var(--git-text);\n  box-sizing: border-box;\n}\n\n/* Layout containers inside the page stay transparent; only cards are white. */\n:is([id$=\"home-main\"], [id$=\"changes-main\"], [id$=\"branches-main\"], [id$=\"history-main\"], [id$=\"log-main\"], [id$=\"reflog-main\"], [id$=\"extlog-main\"], [id$=\"settings-main\"], [id$=\"user-settings-content\"], [id$=\"operations-main\"], [id$=\"conflictresolution-main\"]) .widget-flexcontainer { background: transparent !important; }\n\n/* Cards: white surfaces on the canvas. */\n:is([id$=\"home-main\"], [id$=\"changes-main\"], [id$=\"branches-main\"], [id$=\"history-main\"], [id$=\"log-main\"], [id$=\"reflog-main\"], [id$=\"extlog-main\"], [id$=\"settings-main\"], [id$=\"user-settings-content\"], [id$=\"operations-main\"], [id$=\"conflictresolution-main\"]) :is([id$=\"home-list-container\"], [id$=\"changes-sync-card\"], [id$=\"changes-worktree-card\"], [id$=\"changes-push-card\"], [id$=\"branches-list-card\"], [id$=\"branches-create-card\"], [id$=\"branches-merge-card\"], [id$=\"repository-settings-card\"], [id$=\"settings-projects\"], [id$=\"history-tree-card\"], [id$=\"history-log-card\"]),\n[id$=\"user-settings-content\"] :is([id$=\"flexcontainer-40\"], [id$=\"flexcontainer-41\"], [id$=\"extension-log-section\"]) {\n  background: var(--git-surface) !important;\n  border: 1px solid var(--git-border) !important;\n  border-radius: var(--git-radius) !important;\n  box-sizing: border-box;\n  min-width: 0;\n}\n/* User Settings sections use the shared card inset. */\n[id$=\"user-settings-content\"] :is([id$=\"flexcontainer-40\"], [id$=\"flexcontainer-41\"], [id$=\"extension-log-section\"]) { padding: var(--git-card-inset); }\n\n/* Grid areas: the grid draws its own border, so only size them. */\n[id$=\"changes-grid-area\"],\n[id$=\"branches-grid-area\"],\n[id$=\"log-grid-area\"],\n[id$=\"reflog-grid-area\"],\n[id$=\"extlog-grid-area\"] { min-height: 320px; min-width: 0; }\n[id$=\"changes-grid-bounding-box\"],\n[id$=\"log-grid-bounding-box\"],\n[id$=\"reflog-grid-bounding-box\"],\n[id$=\"extlog-grid-bounding-box\"] { position: relative; flex: 1 1 0%; min-width: 0; }\n\n/* Secondary text. */\n[id$=\"-intro\"],\n[id$=\"-status\"] { color: var(--git-muted); line-height: 1.5; }\n\n@media (max-width: 600px) {\n  :root { --git-page-inset: 11px; }   /* 16px visible */\n}\n\n[id$=\"conflictresolution-main\"] { align-items: stretch !important; min-height: 0; }\n[id$=\"conflictresolution-helper-bounding-box\"] {\n  position: relative;\n  align-self: stretch;\n  flex: 1 0 auto !important;\n  width: 100% !important;\n  min-width: 0;\n  height: auto !important;\n}\n[id$=\"conflictresolution-helper\"] { width: 100%; height: 100%; }\n.git-conflict-resolution {\n  display: flex;\n  flex-direction: column;\n  gap: var(--git-card-inset);\n  width: 100%;\n  min-height: calc(100vh - var(--git-header-height) - 2 * var(--git-page-inset));\n  box-sizing: border-box;\n  padding: var(--git-card-inset);\n  background: var(--git-surface);\n  border: 1px solid var(--git-border);\n  border-radius: var(--git-radius);\n  color: var(--git-text);\n  font-family: Arial, Helvetica, sans-serif;\n  font-size: 14px;\n  line-height: 1.5;\n}\n.git-conflict-resolution p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }\n.git-conflict-resolution [role=\"status\"], .git-conflict-resolution .file-info { color: var(--git-muted); }\n.git-conflict-resolution .conflict-heading, .git-conflict-resolution .conflict-file { display: flex; flex-direction: column; gap: 0.35rem; }\n.git-conflict-resolution label { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; font-weight: 600; }\n.git-conflict-resolution select { width: min(100%, 32rem); min-height: 34px; padding: 0.4rem; font: inherit; color: var(--git-text); border: 1px solid var(--git-border); border-radius: 3px; background: var(--git-surface); }\n.git-conflict-resolution .versions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--git-card-inset); flex: 1 1 14rem; }\n.git-conflict-resolution .versions label, .git-conflict-resolution .resolved { min-height: 0; }\n.git-conflict-resolution textarea { display: block; flex: 1 1 auto; width: 100%; min-height: 12rem; box-sizing: border-box; padding: 0.5rem; border: 1px solid var(--git-border); border-radius: 3px; font: 0.875rem/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; resize: vertical; }\n.git-conflict-resolution .resolved { flex: 1 1 14rem; }\n.git-conflict-resolution .action-group { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; padding-top: var(--git-card-inset); border-top: 1px solid var(--git-border); }\n.git-conflict-resolution ptcs-button { max-width: 100%; }\n.git-conflict-resolution ptcs-button[data-action=\"delete\"], .git-conflict-resolution ptcs-button[data-action=\"abort\"] { margin-left: auto; }\n@media (max-width: 800px) { .git-conflict-resolution .versions { grid-template-columns: 1fr; } }\n@media (max-width: 600px) { .git-conflict-resolution ptcs-button[data-action=\"delete\"], .git-conflict-resolution ptcs-button[data-action=\"abort\"] { margin-left: 0; } }\n\n/* Override the class host's fixed Composer width at every layout layer. */\n[id$=\"conflictresolution-main\"],\n[id$=\"conflictresolution-main-bounding-box\"] {\n  width: 100% !important;\n  max-width: none !important;\n  min-width: 0;\n  box-sizing: border-box;\n}\n[id$=\"conflictresolution-helper-bounding-box\"],\n[id$=\"conflictresolution-helper\"] {\n  width: 100% !important;\n  max-width: none !important;\n  box-sizing: border-box;\n}",
+  "Data": {},
+  "DataBindings": [
+    {
+      "Id": "31f496c4-2c3d-4ac1-9ec0-dafed7653a90",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "repoName",
+          "SourcePropertyBaseType": "STRING",
+          "SourcePropertyType": "Property",
+          "TargetProperty": "repoName",
+          "TargetPropertyBaseType": "STRING",
+          "TargetPropertyType": "property"
+        }
+      ],
+      "SourceArea": "Mashup",
+      "SourceDetails": "AllData",
+      "SourceId": "mashup-root",
+      "SourceSection": "",
+      "TargetArea": "UI",
+      "TargetId": "conflictresolution-helper",
+      "TargetSection": ""
+    },
+    {
+      "Id": "67d77ebd-751e-4c98-9595-9d69cc351e81",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "repoName",
+          "SourcePropertyBaseType": "STRING",
+          "SourcePropertyType": "Property",
+          "TargetProperty": "repoName",
+          "TargetPropertyBaseType": "STRING",
+          "TargetPropertyType": "property"
+        }
+      ],
+      "SourceArea": "Mashup",
+      "SourceDetails": "AllData",
+      "SourceId": "mashup-root",
+      "SourceSection": "",
+      "TargetArea": "UI",
+      "TargetId": "git-header",
+      "TargetSection": ""
+    },
+    {
+      "Id": "c23ab8d8-111f-4bb4-a4ec-c63a3b57d992",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "repoName",
+          "SourcePropertyBaseType": "STRING",
+          "SourcePropertyType": "Property",
+          "TargetProperty": "repoName",
+          "TargetPropertyBaseType": "STRING",
+          "TargetPropertyType": "property"
+        }
+      ],
+      "SourceArea": "Mashup",
+      "SourceDetails": "AllData",
+      "SourceId": "mashup-root",
+      "SourceSection": "",
+      "TargetArea": "UI",
+      "TargetId": "navigate-conflict-changes",
+      "TargetSection": ""
+    }
+  ],
+  "DesignTimePermissions": {},
+  "Events": [
+    {
+      "EventHandlerArea": "UI",
+      "EventHandlerId": "navigate-conflict-changes",
+      "EventHandlerService": "Navigate",
+      "EventTriggerArea": "UI",
+      "EventTriggerEvent": "resolutionComplete",
+      "EventTriggerId": "conflictresolution-helper",
+      "EventTriggerSection": "",
+      "Id": "a77d2606-e25d-4a5f-9346-f0b949a57fb1"
+    }
+  ],
+  "Reminders": [],
+  "RunTimePermissions": {},
+  "UI": {
+    "Properties": {
+      "AddToDashboardButton": "SimplePlus",
+      "AddToDashboardButtonStyle": "DefaultAddToDashboardButtonStyle",
+      "Area": "Mashup",
+      "BGImage": "",
+      "BGImageRepeat": "no-repeat",
+      "BGImageSize": "auto",
+      "Columns": 0,
+      "ConfigureGadgetButton": "SimpleGear",
+      "ConfigureGadgetButtonStyle": "DefaultConfigureGadgetButtonStyle",
+      "DisableLegacyCustomClassStyles": false,
+      "DisplayName": "Mashup",
+      "EnableParameterEditing": false,
+      "Height": 618,
+      "Id": "mashup-root",
+      "IgnoreWarningsInViewMashup": false,
+      "IsPrintLayout": false,
+      "Left": 0,
+      "LegacyFocus": false,
+      "Margin": "0",
+      "MashupResolution": "FHD 1920x1080",
+      "MashupToEditGadget": "DefaultMashupToEditGadget",
+      "MinHeight": 0,
+      "MinWidth": 0,
+      "ResponsiveLayout": true,
+      "Rows": 0,
+      "ShowDataLoading": true,
+      "Style": "DefaultMashupStyle",
+      "StyleProperties": {
+        "data": {},
+        "meta": {
+          "type": "WidgetStyler",
+          "version": "1.0"
+        }
+      },
+      "StyleTheme": "PTC Convergence Theme",
+      "Title": "Git ConflictResolution",
+      "TitleBar": false,
+      "TitleBarStyle": "DefaultTitleBarStyle",
+      "TitleBarText": "Gadget Title Here",
+      "Top": 0,
+      "Type": "mashup",
+      "UseMasterTheme": false,
+      "UseTheme": false,
+      "UseThemeForHybrids": false,
+      "Visible": true,
+      "Width": 1024,
+      "Z-index": 10,
+      "__TypeDisplayName": "Mashup",
+      "_baseVersion": "9.7.0-b47",
+      "_currentParameterDefs": [
+        {
+          "Aspects": {},
+          "BaseType": "STRING",
+          "BindingDirection": "IN",
+          "Description": "Repository Thing name",
+          "ParameterName": "repoName"
+        }
+      ],
+      "id_index": 20,
+      "secureExpressionsOnly": true,
+      "supportsAutoResize": true
+    },
+    "Widgets": [
+      {
+        "Properties": {
+          "Area": "UI",
+          "CollapseTabIcon": "",
+          "DisableLegacyCustomClassStyles": false,
+          "DisplayName": "git-header-slot",
+          "EnableContainerUnload": false,
+          "EnableExpandCollapse": false,
+          "ExpandCollapseTabLocation": "inside",
+          "ExpandTabIcon": "",
+          "Expanded": true,
+          "Id": "git-header-slot",
+          "LastContainer": false,
+          "LazyLoading": false,
+          "Left": 0,
+          "Margin": "",
+          "Overlay": false,
+          "OverrideChildrenAbsolute": false,
+          "ResponsiveLayout": true,
+          "ShowDataLoading": true,
+          "ShowExpandCollapseTab": false,
+          "ShowVerticalScrollbar": false,
+          "SourceURL": "",
+          "Style": "DefaultContainerStyle",
+          "StyleProperties": {},
+          "Top": 0,
+          "Type": "flexcontainer",
+          "UseTheme": true,
+          "Visible": true,
+          "Z-index": 10,
+          "__TypeDisplayName": "Responsive Container",
+          "_baseVersion": "9.7.0-b47",
+          "align-content": "flex-start",
+          "align-items": "center",
+          "flex-basis": "auto",
+          "flex-direction": "row",
+          "flex-grow": 0,
+          "flex-max-height": "64px",
+          "flex-max-width": "",
+          "flex-min-height": "64px",
+          "flex-min-width": "",
+          "flex-shrink": 0,
+          "flex-size": "fixed",
+          "flex-wrap": "nowrap",
+          "iconClass": "widgets-flexcontainer-fixed",
+          "isLocked": false,
+          "justify-content": "flex-start",
+          "positioning": "responsive",
+          "userCannotRemove": false
+        },
+        "Widgets": [
+          {
+            "Properties": {
+              "Area": "UI",
+              "Type": "mashupcontainer",
+              "__TypeDisplayName": "Contained Mashup",
+              "DisplayName": "git-header",
+              "Id": "git-header",
+              "Name": "GIT.Mashup.GitHeader",
+              "pageName": "Conflict Resolution",
+              "repoName": "",
+              "Height": 64,
+              "Width": 800,
+              "ResponsiveLayout": true,
+              "Visible": true,
+              "UseTheme": true,
+              "MashupParameters": [
+                {
+                  "ParameterName": "repoName",
+                  "Description": "Repository",
+                  "BaseType": "STRING",
+                  "DefaultValue": ""
+                },
+                {
+                  "ParameterName": "pageName",
+                  "Description": "Current page name",
+                  "BaseType": "STRING",
+                  "DefaultValue": ""
+                },
+                {
+                  "ParameterName": "showUserSettings",
+                  "Description": "Show a User Settings crumb before the page name",
+                  "BaseType": "BOOLEAN",
+                  "DefaultValue": false
+                }
+              ],
+              "Margin": "0",
+              "showUserSettings": false
+            },
+            "Widgets": []
+          }
+        ]
+      },
+      {
+        "Properties": {
+          "Area": "UI",
+          "CollapseTabIcon": "",
+          "DisableLegacyCustomClassStyles": false,
+          "DisplayName": "conflictresolution-main",
+          "EnableContainerUnload": false,
+          "EnableExpandCollapse": false,
+          "ExpandCollapseTabLocation": "inside",
+          "ExpandTabIcon": "",
+          "Expanded": true,
+          "Id": "conflictresolution-main",
+          "LastContainer": true,
+          "LazyLoading": false,
+          "Left": 0,
+          "Margin": "",
+          "Overlay": false,
+          "OverrideChildrenAbsolute": false,
+          "ResponsiveLayout": true,
+          "Scrolling": "auto-scroll",
+          "ShowDataLoading": true,
+          "ShowExpandCollapseTab": false,
+          "ShowVerticalScrollbar": false,
+          "SourceURL": "",
+          "Style": "DefaultContainerStyle",
+          "StyleProperties": {},
+          "Top": 0,
+          "Type": "flexcontainer",
+          "UseTheme": true,
+          "Visible": true,
+          "Z-index": 10,
+          "__TypeDisplayName": "Responsive Container",
+          "_baseVersion": "9.7.0-b47",
+          "align-content": "flex-start",
+          "align-items": "flex-start",
+          "flex-basis": "auto",
+          "flex-direction": "column",
+          "flex-grow": 1,
+          "flex-max-height": "",
+          "flex-max-width": "",
+          "flex-min-height": "",
+          "flex-min-width": "",
+          "flex-shrink": 1,
+          "flex-size": "default",
+          "flex-wrap": "nowrap",
+          "iconClass": "widgets-flexcontainer",
+          "isLocked": false,
+          "justify-content": "flex-start",
+          "positioning": "responsive",
+          "userCannotRemove": true
+        },
+        "Widgets": [
+          {
+            "Properties": {
+              "Area": "UI",
+              "Code": "@TWWidgetDefinition\nclass ConflictResolution extends TypescriptWidget {\n  @property(bindingTarget, didBind(\"repositoryChanged\")) repoName!: STRING;\n  @twevent resolutionComplete!: TWEvent;\n  private root?: HTMLElement;\n  private generation = 0;\n  private busy = false;\n  private state: any;\n  private file: any;\n  afterRender() {\n    this.root = this.jqElement[0] as HTMLElement;\n    this.root.innerHTML = `<section class=\"git-conflict-resolution\"><header class=\"conflict-heading\"><ptcs-label class=\"page-title\" label=\"Conflict resolution\" variant=\"header\"></ptcs-label><p role=\"status\"></p></header><div class=\"conflict-file\"><label>Conflicted file <select aria-label=\"Conflicted file\"><option value=\"\">Select a file</option></select></label><p class=\"file-info\"></p></div><div class=\"versions\"><label>Base<textarea data-version=\"base\" readonly></textarea></label><label><span data-label=\"current\">Current</span><textarea data-version=\"current\" readonly></textarea></label><label><span data-label=\"incoming\">Incoming</span><textarea data-version=\"incoming\" readonly></textarea></label></div><label class=\"resolved\">Resolved content<textarea data-version=\"working\"></textarea></label><div class=\"file-actions action-group\"><ptcs-button variant=\"primary\" label=\"Use current\" data-action=\"current\"></ptcs-button><ptcs-button variant=\"primary\" label=\"Use incoming\" data-action=\"incoming\"></ptcs-button><ptcs-button variant=\"primary\" label=\"Save edited content\" data-action=\"content\"></ptcs-button><ptcs-button variant=\"danger\" label=\"Delete file\" data-action=\"delete\"></ptcs-button></div><div class=\"operation-actions action-group\"><ptcs-button variant=\"primary\" label=\"Continue operation\" data-action=\"continue\"></ptcs-button><ptcs-button variant=\"secondary\" label=\"Skip commit\" data-action=\"skip\"></ptcs-button><ptcs-button variant=\"danger\" label=\"Abort operation\" data-action=\"abort\"></ptcs-button><ptcs-button variant=\"secondary\" label=\"Refresh\" data-action=\"refresh\"></ptcs-button></div></section>`;\n    this.root.querySelector('select')!.addEventListener('change', () => this.loadFile());\n    for (const action of ['current','incoming','content','delete']) this.root.querySelector('[data-action=\"' + action + '\"]')!.addEventListener('click', () => this.resolve(action));\n    for (const action of ['continue','skip','abort','refresh']) this.root.querySelector('[data-action=\"' + action + '\"]')!.addEventListener('click', () => this.operation(action));\n    this.repositoryChanged();\n  }\n  beforeDestroy() { this.generation++; }\n  private async invoke(service: string, body: object) {\n    const response = await fetch('/Thingworx/Things/' + encodeURIComponent(this.repoName) + '/Services/' + service, {method:'POST',credentials:'same-origin',headers:{'Accept':'application/json','Content-Type':'application/json','X-XSRF-TOKEN':'TWX-XSRF-TOKEN-VALUE','X-Requested-By':'ThingWorx'},body:JSON.stringify(body)});\n    if (!response.ok) throw new Error('Request failed (HTTP ' + response.status + ')');\n    const row = (await response.json()).rows?.[0];\n    if (!row || typeof row.Error !== 'boolean') throw new Error('Invalid service response');\n    return row;\n  }\n  private message(value: string) { if (this.root) this.root.querySelector('[role=\"status\"]')!.textContent = value; }\n  private repositoryChanged() { if (this.root && this.repoName) this.refresh(); }\n  private updateButtons() {\n    if (!this.root) return;\n    for (const action of ['current','incoming','content','delete']) {\n      const button = this.root.querySelector('[data-action=\"' + action + '\"]') as HTMLElement & { disabled: boolean };\n      button.disabled = this.busy || !this.file || (action === 'content' && this.file.Binary) || (action === 'current' && !this.file.CurrentExists) || (action === 'incoming' && !this.file.IncomingExists);\n    }\n    for (const action of ['continue','skip','abort']) {\n      const button = this.root.querySelector('[data-action=\"' + action + '\"]') as HTMLElement & { disabled: boolean };\n      button.disabled = this.busy || !this.state?.InProgress || (action === 'continue' && this.state.ConflictCount > 0) || (action === 'skip' && !this.state.CanSkip);\n    }\n  }\n  private async refresh() {\n    if (!this.root || !this.repoName) return;\n    const request = ++this.generation;\n    this.file = undefined;\n    try {\n      const result = await this.invoke('GetConflictState', {});\n      if (request !== this.generation) return;\n      if (result.Error) throw new Error(result.Message);\n      this.state = result.Result?.rows?.[0];\n      if (!this.state) throw new Error('Missing conflict state');\n      this.root.querySelector('[data-label=\"current\"]')!.textContent = this.state.CurrentLabel || 'Current';\n      this.root.querySelector('[data-label=\"incoming\"]')!.textContent = this.state.IncomingLabel || 'Incoming';\n      const select = this.root.querySelector('select')!;\n      select.replaceChildren(new Option('Select a file', ''));\n      for (const path of (this.state.ConflictFiles || '').split('\\n').filter(Boolean)) select.add(new Option(path, path));\n      this.clearFile();\n      this.message(this.state.InProgress ? (this.state.Description || this.state.Operation + ' is waiting for resolution.') + ' ' + this.state.ConflictCount + ' file(s) remaining.' : 'No operation is waiting for conflict resolution.');\n      this.updateButtons();\n    } catch (error) { if (request === this.generation) { this.state = undefined; this.message((error as Error).message); this.updateButtons(); } }\n  }\n  private clearFile() {\n    if (!this.root) return;\n    this.file = undefined;\n    this.root.querySelector('.file-info')!.textContent = '';\n    this.root.querySelectorAll('textarea').forEach(area => area.value = '');\n  }\n  private async loadFile() {\n    if (!this.root) return;\n    const path = this.root.querySelector('select')!.value;\n    this.clearFile(); this.updateButtons();\n    if (!path) return;\n    const request = ++this.generation;\n    try {\n      const result = await this.invoke('GetConflictFile', {File:path});\n      if (request !== this.generation || !this.root) return;\n      if (result.Error) throw new Error(result.Message);\n      this.file = result.Result?.rows?.[0];\n      if (!this.file) throw new Error('Missing file data');\n      this.root.querySelector('.file-info')!.textContent = this.file.Binary ? 'Binary file: choose a version or delete the file.' : 'Edit the working version or choose a version. A missing version is shown as empty.';\n      for (const name of ['base','current','incoming','working']) {\n        const field = name.charAt(0).toUpperCase() + name.slice(1);\n        (this.root.querySelector('[data-version=\"' + name + '\"]') as HTMLTextAreaElement).value = this.file[field] || '';\n      }\n      this.updateButtons();\n    } catch (error) { if (request === this.generation) this.message((error as Error).message); }\n  }\n  private async resolve(resolution: string) {\n    if (!this.root || !this.file || this.busy) return;\n    const path = this.root.querySelector('select')!.value;\n    if (resolution === 'delete' && !window.confirm('Resolve this conflict by deleting ' + path + '?')) return;\n    this.busy = true; this.updateButtons();\n    try {\n      const result = await this.invoke('ResolveConflictFile', {File:path, Resolution:resolution, Content:(this.root.querySelector('[data-version=\"working\"]') as HTMLTextAreaElement).value});\n      if (result.Error) throw new Error(result.Message);\n      await this.refresh();\n    } catch (error) { this.message((error as Error).message); }\n    finally { this.busy = false; this.updateButtons(); }\n  }\n  private async operation(action: string) {\n    if (action === 'refresh') { if (!this.busy) await this.refresh(); return; }\n    if (this.busy || !this.state?.InProgress) return;\n    if (action === 'abort' && !window.confirm('Abort the operation and restore its original state?')) return;\n    if (action === 'skip' && !window.confirm('Skip the current rebase commit?')) return;\n    const service = action === 'continue' ? 'ConflictContinue' : action === 'skip' ? 'ConflictSkip' : 'ConflictAbort';\n    let completed = false;\n    this.busy = true; this.updateButtons();\n    try {\n      const result = await this.invoke(service, action === 'continue' ? {Message:''} : {});\n      if (result.Error && !(result.Message || '').includes('[CONFLICT]')) throw new Error(result.Message);\n      await this.refresh();\n      if (this.state && !this.state.InProgress) { this.message(result.Message || 'Operation completed.'); completed = true; }\n    } catch (error) { this.message((error as Error).message); }\n    finally { this.busy = false; this.updateButtons(); }\n    if (completed) this.resolutionComplete();\n  }\n}",
+              "ColumnPosition": 38,
+              "DirectLinkUUID": "",
+              "DisplayName": "conflictresolution-helper",
+              "Exports": "@TWWidgetDefinition\nclass ConflictResolution extends TypescriptWidget {\n  @property(bindingTarget, didBind(\"repositoryChanged\")) repoName!: STRING;\n  @twevent resolutionComplete!: TWEvent;\n  private root?: HTMLElement;\n  private generation = 0;\n  private busy = false;\n  private state: any;\n  private file: any;\n  afterRender() {\n    this.root = this.jqElement[0] as HTMLElement;\n    this.root.innerHTML = `<section class=\"git-conflict-resolution\"><header class=\"conflict-heading\"><ptcs-label class=\"page-title\" label=\"Conflict resolution\" variant=\"header\"></ptcs-label><p role=\"status\"></p></header><div class=\"conflict-file\"><label>Conflicted file <select aria-label=\"Conflicted file\"><option value=\"\">Select a file</option></select></label><p class=\"file-info\"></p></div><div class=\"versions\"><label>Base<textarea data-version=\"base\" readonly></textarea></label><label><span data-label=\"current\">Current</span><textarea data-version=\"current\" readonly></textarea></label><label><span data-label=\"incoming\">Incoming</span><textarea data-version=\"incoming\" readonly></textarea></label></div><label class=\"resolved\">Resolved content<textarea data-version=\"working\"></textarea></label><div class=\"file-actions action-group\"><ptcs-button variant=\"primary\" label=\"Use current\" data-action=\"current\"></ptcs-button><ptcs-button variant=\"primary\" label=\"Use incoming\" data-action=\"incoming\"></ptcs-button><ptcs-button variant=\"primary\" label=\"Save edited content\" data-action=\"content\"></ptcs-button><ptcs-button variant=\"danger\" label=\"Delete file\" data-action=\"delete\"></ptcs-button></div><div class=\"operation-actions action-group\"><ptcs-button variant=\"primary\" label=\"Continue operation\" data-action=\"continue\"></ptcs-button><ptcs-button variant=\"secondary\" label=\"Skip commit\" data-action=\"skip\"></ptcs-button><ptcs-button variant=\"danger\" label=\"Abort operation\" data-action=\"abort\"></ptcs-button><ptcs-button variant=\"secondary\" label=\"Refresh\" data-action=\"refresh\"></ptcs-button></div></section>`;\n    this.root.querySelector('select')!.addEventListener('change', () => this.loadFile());\n    for (const action of ['current','incoming','content','delete']) this.root.querySelector('[data-action=\"' + action + '\"]')!.addEventListener('click', () => this.resolve(action));\n    for (const action of ['continue','skip','abort','refresh']) this.root.querySelector('[data-action=\"' + action + '\"]')!.addEventListener('click', () => this.operation(action));\n    this.repositoryChanged();\n  }\n  beforeDestroy() { this.generation++; }\n  private async invoke(service: string, body: object) {\n    const response = await fetch('/Thingworx/Things/' + encodeURIComponent(this.repoName) + '/Services/' + service, {method:'POST',credentials:'same-origin',headers:{'Accept':'application/json','Content-Type':'application/json','X-XSRF-TOKEN':'TWX-XSRF-TOKEN-VALUE','X-Requested-By':'ThingWorx'},body:JSON.stringify(body)});\n    if (!response.ok) throw new Error('Request failed (HTTP ' + response.status + ')');\n    const row = (await response.json()).rows?.[0];\n    if (!row || typeof row.Error !== 'boolean') throw new Error('Invalid service response');\n    return row;\n  }\n  private message(value: string) { if (this.root) this.root.querySelector('[role=\"status\"]')!.textContent = value; }\n  private repositoryChanged() { if (this.root && this.repoName) this.refresh(); }\n  private updateButtons() {\n    if (!this.root) return;\n    for (const action of ['current','incoming','content','delete']) {\n      const button = this.root.querySelector('[data-action=\"' + action + '\"]') as HTMLElement & { disabled: boolean };\n      button.disabled = this.busy || !this.file || (action === 'content' && this.file.Binary) || (action === 'current' && !this.file.CurrentExists) || (action === 'incoming' && !this.file.IncomingExists);\n    }\n    for (const action of ['continue','skip','abort']) {\n      const button = this.root.querySelector('[data-action=\"' + action + '\"]') as HTMLElement & { disabled: boolean };\n      button.disabled = this.busy || !this.state?.InProgress || (action === 'continue' && this.state.ConflictCount > 0) || (action === 'skip' && !this.state.CanSkip);\n    }\n  }\n  private async refresh() {\n    if (!this.root || !this.repoName) return;\n    const request = ++this.generation;\n    this.file = undefined;\n    try {\n      const result = await this.invoke('GetConflictState', {});\n      if (request !== this.generation) return;\n      if (result.Error) throw new Error(result.Message);\n      this.state = result.Result?.rows?.[0];\n      if (!this.state) throw new Error('Missing conflict state');\n      this.root.querySelector('[data-label=\"current\"]')!.textContent = this.state.CurrentLabel || 'Current';\n      this.root.querySelector('[data-label=\"incoming\"]')!.textContent = this.state.IncomingLabel || 'Incoming';\n      const select = this.root.querySelector('select')!;\n      select.replaceChildren(new Option('Select a file', ''));\n      for (const path of (this.state.ConflictFiles || '').split('\\n').filter(Boolean)) select.add(new Option(path, path));\n      this.clearFile();\n      this.message(this.state.InProgress ? (this.state.Description || this.state.Operation + ' is waiting for resolution.') + ' ' + this.state.ConflictCount + ' file(s) remaining.' : 'No operation is waiting for conflict resolution.');\n      this.updateButtons();\n    } catch (error) { if (request === this.generation) { this.state = undefined; this.message((error as Error).message); this.updateButtons(); } }\n  }\n  private clearFile() {\n    if (!this.root) return;\n    this.file = undefined;\n    this.root.querySelector('.file-info')!.textContent = '';\n    this.root.querySelectorAll('textarea').forEach(area => area.value = '');\n  }\n  private async loadFile() {\n    if (!this.root) return;\n    const path = this.root.querySelector('select')!.value;\n    this.clearFile(); this.updateButtons();\n    if (!path) return;\n    const request = ++this.generation;\n    try {\n      const result = await this.invoke('GetConflictFile', {File:path});\n      if (request !== this.generation || !this.root) return;\n      if (result.Error) throw new Error(result.Message);\n      this.file = result.Result?.rows?.[0];\n      if (!this.file) throw new Error('Missing file data');\n      this.root.querySelector('.file-info')!.textContent = this.file.Binary ? 'Binary file: choose a version or delete the file.' : 'Edit the working version or choose a version. A missing version is shown as empty.';\n      for (const name of ['base','current','incoming','working']) {\n        const field = name.charAt(0).toUpperCase() + name.slice(1);\n        (this.root.querySelector('[data-version=\"' + name + '\"]') as HTMLTextAreaElement).value = this.file[field] || '';\n      }\n      this.updateButtons();\n    } catch (error) { if (request === this.generation) this.message((error as Error).message); }\n  }\n  private async resolve(resolution: string) {\n    if (!this.root || !this.file || this.busy) return;\n    const path = this.root.querySelector('select')!.value;\n    if (resolution === 'delete' && !window.confirm('Resolve this conflict by deleting ' + path + '?')) return;\n    this.busy = true; this.updateButtons();\n    try {\n      const result = await this.invoke('ResolveConflictFile', {File:path, Resolution:resolution, Content:(this.root.querySelector('[data-version=\"working\"]') as HTMLTextAreaElement).value});\n      if (result.Error) throw new Error(result.Message);\n      await this.refresh();\n    } catch (error) { this.message((error as Error).message); }\n    finally { this.busy = false; this.updateButtons(); }\n  }\n  private async operation(action: string) {\n    if (action === 'refresh') { if (!this.busy) await this.refresh(); return; }\n    if (this.busy || !this.state?.InProgress) return;\n    if (action === 'abort' && !window.confirm('Abort the operation and restore its original state?')) return;\n    if (action === 'skip' && !window.confirm('Skip the current rebase commit?')) return;\n    const service = action === 'continue' ? 'ConflictContinue' : action === 'skip' ? 'ConflictSkip' : 'ConflictAbort';\n    let completed = false;\n    this.busy = true; this.updateButtons();\n    try {\n      const result = await this.invoke(service, action === 'continue' ? {Message:''} : {});\n      if (result.Error && !(result.Message || '').includes('[CONFLICT]')) throw new Error(result.Message);\n      await this.refresh();\n      if (this.state && !this.state.InProgress) { this.message(result.Message || 'Operation completed.'); completed = true; }\n    } catch (error) { this.message((error as Error).message); }\n    finally { this.busy = false; this.updateButtons(); }\n    if (completed) this.resolutionComplete();\n  }\n}",
+              "FullScreen": false,
+              "Height": 900,
+              "Id": "conflictresolution-helper",
+              "LastContainer": false,
+              "Left": 674.6749877929688,
+              "Margin": "5",
+              "ResponsiveLayout": false,
+              "RuntimeProperties": "[{\"name\": \"repoName\", \"dataType\": \"STRING\", \"description\": \"Repository Thing name\", \"type\": \"property\", \"isBindingTarget\": true, \"isBindingSource\": false}]",
+              "ScrollPosition": 96,
+              "ShowDataLoading": true,
+              "Title": "HomeNavigation",
+              "Top": 22.199996948242188,
+              "TranspiledCode": "var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {\n    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;\n    if (typeof Reflect === \"object\" && typeof Reflect.decorate === \"function\") r = Reflect.decorate(decorators, target, key, desc);\n    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;\n    return c > 3 && r && Object.defineProperty(target, key, r), r;\n};\nlet ConflictResolution = class ConflictResolution extends TypescriptWidget {\n    constructor() {\n        super(...arguments);\n        this.generation = 0;\n        this.busy = false;\n    }\n    afterRender() {\n        this.root = this.jqElement[0];\n        this.root.innerHTML = `<section class=\"git-conflict-resolution\"><header class=\"conflict-heading\"><ptcs-label class=\"page-title\" label=\"Conflict resolution\" variant=\"header\"></ptcs-label><p role=\"status\"></p></header><div class=\"conflict-file\"><label>Conflicted file <select aria-label=\"Conflicted file\"><option value=\"\">Select a file</option></select></label><p class=\"file-info\"></p></div><div class=\"versions\"><label>Base<textarea data-version=\"base\" readonly></textarea></label><label><span data-label=\"current\">Current</span><textarea data-version=\"current\" readonly></textarea></label><label><span data-label=\"incoming\">Incoming</span><textarea data-version=\"incoming\" readonly></textarea></label></div><label class=\"resolved\">Resolved content<textarea data-version=\"working\"></textarea></label><div class=\"file-actions action-group\"><ptcs-button variant=\"primary\" label=\"Use current\" data-action=\"current\"></ptcs-button><ptcs-button variant=\"primary\" label=\"Use incoming\" data-action=\"incoming\"></ptcs-button><ptcs-button variant=\"primary\" label=\"Save edited content\" data-action=\"content\"></ptcs-button><ptcs-button variant=\"danger\" label=\"Delete file\" data-action=\"delete\"></ptcs-button></div><div class=\"operation-actions action-group\"><ptcs-button variant=\"primary\" label=\"Continue operation\" data-action=\"continue\"></ptcs-button><ptcs-button variant=\"secondary\" label=\"Skip commit\" data-action=\"skip\"></ptcs-button><ptcs-button variant=\"danger\" label=\"Abort operation\" data-action=\"abort\"></ptcs-button><ptcs-button variant=\"secondary\" label=\"Refresh\" data-action=\"refresh\"></ptcs-button></div></section>`;\n        this.root.querySelector('select').addEventListener('change', () => this.loadFile());\n        for (const action of ['current', 'incoming', 'content', 'delete'])\n            this.root.querySelector('[data-action=\"' + action + '\"]').addEventListener('click', () => this.resolve(action));\n        for (const action of ['continue', 'skip', 'abort', 'refresh'])\n            this.root.querySelector('[data-action=\"' + action + '\"]').addEventListener('click', () => this.operation(action));\n        this.repositoryChanged();\n    }\n    beforeDestroy() { this.generation++; }\n    async invoke(service, body) {\n        var _a;\n        const response = await fetch('/Thingworx/Things/' + encodeURIComponent(this.repoName) + '/Services/' + service, { method: 'POST', credentials: 'same-origin', headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-XSRF-TOKEN': 'TWX-XSRF-TOKEN-VALUE', 'X-Requested-By': 'ThingWorx' }, body: JSON.stringify(body) });\n        if (!response.ok)\n            throw new Error('Request failed (HTTP ' + response.status + ')');\n        const row = (_a = (await response.json()).rows) === null || _a === void 0 ? void 0 : _a[0];\n        if (!row || typeof row.Error !== 'boolean')\n            throw new Error('Invalid service response');\n        return row;\n    }\n    message(value) { if (this.root)\n        this.root.querySelector('[role=\"status\"]').textContent = value; }\n    repositoryChanged() { if (this.root && this.repoName)\n        this.refresh(); }\n    updateButtons() {\n        var _a;\n        if (!this.root)\n            return;\n        for (const action of ['current', 'incoming', 'content', 'delete']) {\n            const button = this.root.querySelector('[data-action=\"' + action + '\"]');\n            button.disabled = this.busy || !this.file || (action === 'content' && this.file.Binary) || (action === 'current' && !this.file.CurrentExists) || (action === 'incoming' && !this.file.IncomingExists);\n        }\n        for (const action of ['continue', 'skip', 'abort']) {\n            const button = this.root.querySelector('[data-action=\"' + action + '\"]');\n            button.disabled = this.busy || !((_a = this.state) === null || _a === void 0 ? void 0 : _a.InProgress) || (action === 'continue' && this.state.ConflictCount > 0) || (action === 'skip' && !this.state.CanSkip);\n        }\n    }\n    async refresh() {\n        var _a, _b;\n        if (!this.root || !this.repoName)\n            return;\n        const request = ++this.generation;\n        this.file = undefined;\n        try {\n            const result = await this.invoke('GetConflictState', {});\n            if (request !== this.generation)\n                return;\n            if (result.Error)\n                throw new Error(result.Message);\n            this.state = (_b = (_a = result.Result) === null || _a === void 0 ? void 0 : _a.rows) === null || _b === void 0 ? void 0 : _b[0];\n            if (!this.state)\n                throw new Error('Missing conflict state');\n            this.root.querySelector('[data-label=\"current\"]').textContent = this.state.CurrentLabel || 'Current';\n            this.root.querySelector('[data-label=\"incoming\"]').textContent = this.state.IncomingLabel || 'Incoming';\n            const select = this.root.querySelector('select');\n            select.replaceChildren(new Option('Select a file', ''));\n            for (const path of (this.state.ConflictFiles || '').split('\\n').filter(Boolean))\n                select.add(new Option(path, path));\n            this.clearFile();\n            this.message(this.state.InProgress ? (this.state.Description || this.state.Operation + ' is waiting for resolution.') + ' ' + this.state.ConflictCount + ' file(s) remaining.' : 'No operation is waiting for conflict resolution.');\n            this.updateButtons();\n        }\n        catch (error) {\n            if (request === this.generation) {\n                this.state = undefined;\n                this.message(error.message);\n                this.updateButtons();\n            }\n        }\n    }\n    clearFile() {\n        if (!this.root)\n            return;\n        this.file = undefined;\n        this.root.querySelector('.file-info').textContent = '';\n        this.root.querySelectorAll('textarea').forEach(area => area.value = '');\n    }\n    async loadFile() {\n        var _a, _b;\n        if (!this.root)\n            return;\n        const path = this.root.querySelector('select').value;\n        this.clearFile();\n        this.updateButtons();\n        if (!path)\n            return;\n        const request = ++this.generation;\n        try {\n            const result = await this.invoke('GetConflictFile', { File: path });\n            if (request !== this.generation || !this.root)\n                return;\n            if (result.Error)\n                throw new Error(result.Message);\n            this.file = (_b = (_a = result.Result) === null || _a === void 0 ? void 0 : _a.rows) === null || _b === void 0 ? void 0 : _b[0];\n            if (!this.file)\n                throw new Error('Missing file data');\n            this.root.querySelector('.file-info').textContent = this.file.Binary ? 'Binary file: choose a version or delete the file.' : 'Edit the working version or choose a version. A missing version is shown as empty.';\n            for (const name of ['base', 'current', 'incoming', 'working']) {\n                const field = name.charAt(0).toUpperCase() + name.slice(1);\n                this.root.querySelector('[data-version=\"' + name + '\"]').value = this.file[field] || '';\n            }\n            this.updateButtons();\n        }\n        catch (error) {\n            if (request === this.generation)\n                this.message(error.message);\n        }\n    }\n    async resolve(resolution) {\n        if (!this.root || !this.file || this.busy)\n            return;\n        const path = this.root.querySelector('select').value;\n        if (resolution === 'delete' && !window.confirm('Resolve this conflict by deleting ' + path + '?'))\n            return;\n        this.busy = true;\n        this.updateButtons();\n        try {\n            const result = await this.invoke('ResolveConflictFile', { File: path, Resolution: resolution, Content: this.root.querySelector('[data-version=\"working\"]').value });\n            if (result.Error)\n                throw new Error(result.Message);\n            await this.refresh();\n        }\n        catch (error) {\n            this.message(error.message);\n        }\n        finally {\n            this.busy = false;\n            this.updateButtons();\n        }\n    }\n    async operation(action) {\n        var _a;\n        if (action === 'refresh') {\n            if (!this.busy)\n                await this.refresh();\n            return;\n        }\n        if (this.busy || !((_a = this.state) === null || _a === void 0 ? void 0 : _a.InProgress))\n            return;\n        if (action === 'abort' && !window.confirm('Abort the operation and restore its original state?'))\n            return;\n        if (action === 'skip' && !window.confirm('Skip the current rebase commit?'))\n            return;\n        const service = action === 'continue' ? 'ConflictContinue' : action === 'skip' ? 'ConflictSkip' : 'ConflictAbort';\n        let completed = false;\n        this.busy = true;\n        this.updateButtons();\n        try {\n            const result = await this.invoke(service, action === 'continue' ? { Message: '' } : {});\n            if (result.Error && !(result.Message || '').includes('[CONFLICT]'))\n                throw new Error(result.Message);\n            await this.refresh();\n            if (this.state && !this.state.InProgress) {\n                this.message(result.Message || 'Operation completed.');\n                completed = true;\n            }\n        }\n        catch (error) {\n            this.message(error.message);\n        }\n        finally {\n            this.busy = false;\n            this.updateButtons();\n        }\n        if (completed)\n            this.resolutionComplete();\n    }\n};\n__decorate([\n    property(bindingTarget, didBind(\"repositoryChanged\"))\n], ConflictResolution.prototype, \"repoName\", void 0);\n__decorate([\n    twevent\n], ConflictResolution.prototype, \"resolutionComplete\", void 0);\nConflictResolution = __decorate([\n    TWWidgetDefinition\n], ConflictResolution);\n",
+              "Type": "BMTypescriptClassHost",
+              "Visible": true,
+              "Width": 1100,
+              "Z-index": 10,
+              "_Height": 679,
+              "_Left": 0,
+              "_NavigationWidth": 256,
+              "_Top": 0,
+              "_Width": 1498,
+              "__TypeDisplayName": "Typescript Class",
+              "_baseVersion": "9.7.0"
+            },
+            "Widgets": []
+          }
+        ]
+      },
+      {
+        "Properties": {
+          "Area": "UI",
+          "ClickOutsideToClose": false,
+          "CloseButton": true,
+          "DisplayName": "navigate-conflict-changes",
+          "Id": "navigate-conflict-changes",
+          "IncludeLegacyHeightAdjustment": true,
+          "LastContainer": false,
+          "Left": 0,
+          "LegacyHeightAdjustmentEnabled": true,
+          "Margin": "5",
+          "MashupParameters": [
+            {
+              "BaseType": "STRING",
+              "Description": "Repository selected on Git Home",
+              "ParameterName": "repoName",
+              "ParmDef": {
+                "aspects": {
+                  "bindingDirection": "IN"
+                },
+                "baseType": "STRING",
+                "description": "Repository selected on Git Home",
+                "name": "repoName",
+                "ordinal": 0
+              }
+            }
+          ],
+          "MissingMashupMessage": "Mashup must be selected",
+          "PopupHeight": 0,
+          "PopupScrollbar": "auto",
+          "PopupTitle": "",
+          "PopupWidth": 0,
+          "RedirectTo": "mashup",
+          "ReloadOnReplace": false,
+          "ResponsiveLayout": false,
+          "ShowDataLoading": true,
+          "TargetMashup": "GIT.Mashup.Changes",
+          "TargetWindowType": "replace",
+          "Text": "tw.navigationfunction-ide.properties.text.default-value",
+          "Top": 0,
+          "Type": "navigationfunction",
+          "UseTheme": true,
+          "Visible": true,
+          "Z-index": 10,
+          "__TypeDisplayName": "Navigation",
+          "_currentParameterDefs": [
+            {
+              "BaseType": "STRING",
+              "DefaultValue": "",
+              "Description": "Repository selected on Git Home",
+              "ParameterName": "repoName",
+              "bindingDirection": "Both",
+              "bindingType": "Property",
+              "isBindingSource": true,
+              "isBindingTarget": true,
+              "shown": true
+            }
+          ]
+        },
+        "Widgets": []
+      },
+      {
+        "Properties": {
+          "Area": "UI",
+          "ButtonType": "secondary",
+          "ContextID": "",
+          "DisableLegacyCustomClassStyles": false,
+          "Disabled": false,
+          "DisplayName": "conflict-theme-button",
+          "FocusOnLoad": false,
+          "IconPosition": "left",
+          "Id": "conflict-theme-button",
+          "Label": "Sync from ThingWorx",
+          "LabelAlignment": "center",
+          "LastContainer": false,
+          "Left": 139.47500610351562,
+          "Margin": "5",
+          "MultiLine": false,
+          "ResponsiveLayout": false,
+          "ShowDataLoading": true,
+          "Size": "standard",
+          "TabSequence": 0,
+          "Top": 280,
+          "Type": "ptcsbutton",
+          "UseTheme": true,
+          "Visible": false,
+          "Z-index": 10,
+          "__TypeDisplayName": "Button",
+          "_baseVersion": "9.7.0"
+        },
+        "Widgets": []
+      },
+      {
+        "Properties": {
+          "Area": "UI",
+          "DisableLegacyCustomClassStyles": false,
+          "DisclosureControl": "show-more",
+          "DisplayName": "conflict-theme-label",
+          "HorizontalAlignment": "left",
+          "Id": "conflict-theme-label",
+          "LabelText": "Sync Controls",
+          "LabelType": "title",
+          "LastContainer": false,
+          "Left": 415.67498779296875,
+          "Margin": "5",
+          "MultiLine": true,
+          "PreserveWhiteSpace": false,
+          "ResponsiveLayout": false,
+          "ShowDataLoading": true,
+          "Top": 92.19998168945312,
+          "Type": "ptcslabel",
+          "UseTheme": true,
+          "VerticalAlignment": "flex-start",
+          "Visible": false,
+          "Z-index": 10,
+          "__TypeDisplayName": "Label",
+          "_baseVersion": "9.7.0",
+          "overflowShowLessTxt": "[[showLess]]",
+          "overflowShowMoreTxt": "[[showMore]]"
+        },
+        "Widgets": []
+      }
+    ]
+  },
+  "mashupType": "mashup"
+}]]></mashupContent><preview/><ConfigurationChanges><ConfigurationChange changeAction="CREATE" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T18:48:36.636Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T18:50:20.495Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T18:51:38.238Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T18:52:28.232Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T18:54:12.197Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T18:55:43.668Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T18:57:07.284Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:12:25.905Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:30:00.892Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:32:22.648Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:33:13.431Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:37:36.276Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:38:28.639Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:39:51.224Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:42:53.952Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:45:59.307Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:47:44.583Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:50:30.053Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:52:55.885Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:57:09.306Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-12T14:20:44.788Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-12T14:25:34.953Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-12T15:19:54.576Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-12T15:30:45.952Z" user="SuperUser"/></ConfigurationChanges></Mashup></Mashups></Entities>

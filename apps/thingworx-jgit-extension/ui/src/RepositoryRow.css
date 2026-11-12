@@ -1,0 +1,11 @@
+/* Row inside the Home list card: 12px / 16px visible insets. */
+[id$="row-main"] {
+  padding: 7px var(--git-card-inset);
+  background: var(--git-surface) !important;
+  border-bottom: 1px solid var(--git-border) !important;
+  color: var(--git-text);
+  box-sizing: border-box;
+}
+[id$="row-header"] { width: 100%; }
+[id$="row-name-bounding-box"] { flex: 1 1 auto; min-width: 0; }
+[id$="row-name"] { font-weight: 600; }

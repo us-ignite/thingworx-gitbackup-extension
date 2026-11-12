@@ -1,0 +1,91 @@
+/* Shared Git workspace tokens and layout.
+
+   Spacing rule: every visible widget keeps ThingWorx's default Margin of 5,
+   so neighbouring controls sit 10px apart. Card containers also use Margin 5
+   so their edges line up with text. Container padding and gaps below subtract
+   that 5px, so the visible insets are 24px at the page edge and 16px between
+   sections and inside cards. Do not give individual widgets other margins;
+   align rows with the container's align-items instead (flex-end for rows with
+   labelled inputs, center for buttons and checkboxes).
+
+   Contrast (WCAG): text 11.4:1 and muted text 5.2:1 on the canvas; muted text
+   5.9:1 on surfaces. Native widget colors and focus indicators stay with the
+   active ThingWorx theme. The theme's container style sets a white
+   background, so backgrounds and borders below need !important. */
+:root {
+  --git-text: #243746;
+  --git-muted: #536776;
+  --git-canvas: #eef1f4;
+  --git-surface: #ffffff;
+  --git-border: #c2cbd3;
+  --git-radius: 6px;
+  --git-page-inset: 19px;   /* + 5px widget margin = 24px */
+  --git-card-inset: 11px;   /* + 5px widget margin = 16px */
+  --git-section-gap: 6px;   /* + 5px + 5px margins = 16px */
+  --git-header-height: 64px;
+}
+
+/* Header band: the slot that holds GIT.Mashup.GitHeader on every page. The
+   runtime sizes a contained mashup to fill its slot, so GitHeader applies its
+   own horizontal inset (see GitHeader.css). */
+[id$="git-header-slot"] {
+  min-height: var(--git-header-height);
+  background: var(--git-surface) !important;
+  border-bottom: 1px solid var(--git-border) !important;
+  color: var(--git-text);
+  box-sizing: border-box;
+}
+
+/* Page body. */
+[id$="home-main"],
+[id$="changes-main"],
+[id$="branches-main"],
+[id$="history-main"],
+[id$="log-main"],
+[id$="reflog-main"],
+[id$="extlog-main"],
+[id$="settings-main"],
+[id$="user-settings-content"],
+[id$="operations-main"],
+[id$="conflictresolution-main"] {
+  padding: var(--git-page-inset);
+  gap: var(--git-section-gap);
+  align-items: stretch !important;
+  background: var(--git-canvas) !important;
+  color: var(--git-text);
+  box-sizing: border-box;
+}
+
+/* Layout containers inside the page stay transparent; only cards are white. */
+:is([id$="home-main"], [id$="changes-main"], [id$="branches-main"], [id$="history-main"], [id$="log-main"], [id$="reflog-main"], [id$="extlog-main"], [id$="settings-main"], [id$="user-settings-content"], [id$="operations-main"], [id$="conflictresolution-main"]) .widget-flexcontainer { background: transparent !important; }
+
+/* Cards: white surfaces on the canvas. */
+:is([id$="home-main"], [id$="changes-main"], [id$="branches-main"], [id$="history-main"], [id$="log-main"], [id$="reflog-main"], [id$="extlog-main"], [id$="settings-main"], [id$="user-settings-content"], [id$="operations-main"], [id$="conflictresolution-main"]) :is([id$="home-list-container"], [id$="changes-sync-card"], [id$="changes-worktree-card"], [id$="changes-push-card"], [id$="branches-list-card"], [id$="branches-create-card"], [id$="branches-merge-card"], [id$="repository-settings-card"], [id$="settings-projects"], [id$="history-tree-card"], [id$="history-log-card"]),
+[id$="user-settings-content"] :is([id$="flexcontainer-40"], [id$="flexcontainer-41"], [id$="extension-log-section"]) {
+  background: var(--git-surface) !important;
+  border: 1px solid var(--git-border) !important;
+  border-radius: var(--git-radius) !important;
+  box-sizing: border-box;
+  min-width: 0;
+}
+/* User Settings sections use the shared card inset. */
+[id$="user-settings-content"] :is([id$="flexcontainer-40"], [id$="flexcontainer-41"], [id$="extension-log-section"]) { padding: var(--git-card-inset); }
+
+/* Grid areas: the grid draws its own border, so only size them. */
+[id$="changes-grid-area"],
+[id$="branches-grid-area"],
+[id$="log-grid-area"],
+[id$="reflog-grid-area"],
+[id$="extlog-grid-area"] { min-height: 320px; min-width: 0; }
+[id$="changes-grid-bounding-box"],
+[id$="log-grid-bounding-box"],
+[id$="reflog-grid-bounding-box"],
+[id$="extlog-grid-bounding-box"] { position: relative; flex: 1 1 0%; min-width: 0; }
+
+/* Secondary text. */
+[id$="-intro"],
+[id$="-status"] { color: var(--git-muted); line-height: 1.5; }
+
+@media (max-width: 600px) {
+  :root { --git-page-inset: 11px; }   /* 16px visible */
+}

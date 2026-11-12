@@ -1,0 +1,55 @@
+[id$="conflictresolution-main"] { align-items: stretch !important; min-height: 0; }
+[id$="conflictresolution-helper-bounding-box"] {
+  position: relative;
+  align-self: stretch;
+  flex: 1 0 auto !important;
+  width: 100% !important;
+  min-width: 0;
+  height: auto !important;
+}
+[id$="conflictresolution-helper"] { width: 100%; height: 100%; }
+.git-conflict-resolution {
+  display: flex;
+  flex-direction: column;
+  gap: var(--git-card-inset);
+  width: 100%;
+  min-height: calc(100vh - var(--git-header-height) - 2 * var(--git-page-inset));
+  box-sizing: border-box;
+  padding: var(--git-card-inset);
+  background: var(--git-surface);
+  border: 1px solid var(--git-border);
+  border-radius: var(--git-radius);
+  color: var(--git-text);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.git-conflict-resolution p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.git-conflict-resolution [role="status"], .git-conflict-resolution .file-info { color: var(--git-muted); }
+.git-conflict-resolution .conflict-heading, .git-conflict-resolution .conflict-file { display: flex; flex-direction: column; gap: 0.35rem; }
+.git-conflict-resolution label { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; font-weight: 600; }
+.git-conflict-resolution select { width: min(100%, 32rem); min-height: 34px; padding: 0.4rem; font: inherit; color: var(--git-text); border: 1px solid var(--git-border); border-radius: 3px; background: var(--git-surface); }
+.git-conflict-resolution .versions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--git-card-inset); flex: 1 1 14rem; }
+.git-conflict-resolution .versions label, .git-conflict-resolution .resolved { min-height: 0; }
+.git-conflict-resolution textarea { display: block; flex: 1 1 auto; width: 100%; min-height: 12rem; box-sizing: border-box; padding: 0.5rem; border: 1px solid var(--git-border); border-radius: 3px; font: 0.875rem/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; resize: vertical; }
+.git-conflict-resolution .resolved { flex: 1 1 14rem; }
+.git-conflict-resolution .action-group { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; padding-top: var(--git-card-inset); border-top: 1px solid var(--git-border); }
+.git-conflict-resolution ptcs-button { max-width: 100%; }
+.git-conflict-resolution ptcs-button[data-action="delete"], .git-conflict-resolution ptcs-button[data-action="abort"] { margin-left: auto; }
+@media (max-width: 800px) { .git-conflict-resolution .versions { grid-template-columns: 1fr; } }
+@media (max-width: 600px) { .git-conflict-resolution ptcs-button[data-action="delete"], .git-conflict-resolution ptcs-button[data-action="abort"] { margin-left: 0; } }
+
+/* Override the class host's fixed Composer width at every layout layer. */
+[id$="conflictresolution-main"],
+[id$="conflictresolution-main-bounding-box"] {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0;
+  box-sizing: border-box;
+}
+[id$="conflictresolution-helper-bounding-box"],
+[id$="conflictresolution-helper"] {
+  width: 100% !important;
+  max-width: none !important;
+  box-sizing: border-box;
+}

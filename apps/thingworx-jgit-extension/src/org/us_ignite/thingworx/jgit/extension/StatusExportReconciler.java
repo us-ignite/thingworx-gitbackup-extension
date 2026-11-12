@@ -73,7 +73,8 @@ final class StatusExportReconciler {
         if (!projectRoot.startsWith(root))
             throw new IOException("Project path is outside the repository.");
         String prefix = relativeProject.toString().replace('\\', '/') + "/";
-        for (String path : git.status().call().getConflicting()) {
+        var status = git.status().call();
+        for (String path : status.getConflicting()) {
             if (path.startsWith(prefix))
                 throw new IOException(
                         "Resolve project export conflicts before refreshing status: " + path);
@@ -94,6 +95,7 @@ final class StatusExportReconciler {
         }
         List<Map.Entry<Path, Path>> copies = new ArrayList<>();
         for (var item : exported.entrySet()) {
+            if (status.getRemoved().contains(item.getKey())) continue;
             Path destination = root.resolve(item.getKey()).normalize();
             checkSafeTarget(root, destination);
             if (tracked.containsKey(item.getKey())

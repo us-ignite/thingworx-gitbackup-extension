@@ -77,7 +77,7 @@ class GitHelper extends TypescriptWidget {
   @service updateCreateBranchButton() {
     console.log("GitHelper.updateCreateBranchButton(): this.newBranchName = " + this.newBranchName +
       ", this.sourceBranch = " + this.sourceBranch);
-    this.createBranchButtonDisabled = (!this.newBranchName || !this.sourceBranch);
+    this.createBranchButtonDisabled = !this.newBranchName;
   }
 
   @service startPull() {

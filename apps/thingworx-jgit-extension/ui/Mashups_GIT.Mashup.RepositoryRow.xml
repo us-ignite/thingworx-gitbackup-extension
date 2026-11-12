@@ -1,0 +1,856 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><Entities build="b471" majorVersion="10" minorVersion="1" modelPersistenceProviderPackage="PostgresPersistenceProviderPackage" revision="2" schemaVersion="1212" universal=""><Mashups><Mashup aspect.isEditableExtensionObject="true" aspect.isExtension="true" aspect.isFlex="true" aspect.isResponsive="true" aspect.mashupType="mashup" columns="0.0" description="Browse Git history and commit contents" documentationContent="" homeMashup="" lastModifiedDate="2026-11-12T16:02:51.447Z" name="GIT.Mashup.RepositoryRow" projectName="GIT" rows="0.0" tags=""><Owner name="SuperUser" type="User"/><avatar/><DesignTimePermissions><Create/><Read/><Update/><Delete/><Metadata/></DesignTimePermissions><RunTimePermissions/><VisibilityPermissions><Visibility/></VisibilityPermissions><ConfigurationTableDefinitions/><ConfigurationTables><ConfigurationTable dataShapeName="" description="Mashup Mobile Settings" isHidden="true" isMultiRow="false" name="MobileSettings" ordinal="0"><DataShape><FieldDefinitions><FieldDefinition aspect.defaultValue="false" aspect.friendlyName="Disable Zoom" baseType="BOOLEAN" description="Disables zooming in and out within the mashup" name="disableZoom" ordinal="0"/><FieldDefinition aspect.defaultValue="true" aspect.friendlyName="Full Screen Mode" baseType="BOOLEAN" description="Open the mashup in full screen mode" name="fullScreenMode" ordinal="0"/><FieldDefinition aspect.friendlyName="Height" baseType="STRING" description="The height of the mashup page" name="height" ordinal="0"/><FieldDefinition aspect.defaultValue="device-height" aspect.friendlyName="Height Type" baseType="STRING" description="Use the height of the device display, or a custom height (in px)" name="heightType" ordinal="0"/><FieldDefinition aspect.defaultValue="1.0" aspect.friendlyName="Initial Scale" baseType="NUMBER" description="The initial zoom scale when the mashup is loaded for the first time" name="initialScale" ordinal="0"/><FieldDefinition aspect.friendlyName="Shortcut Icon Title" baseType="STRING" description="A title for the mashup shortcut on the iOS home screen" name="iosShortcutIconTitle" ordinal="0"/><FieldDefinition aspect.defaultValue="black-translucent" aspect.friendlyName="Status Bar Appearance" baseType="STRING" description="The style of the iOS status bar" name="iosStatusBarAppearance" ordinal="0"/><FieldDefinition aspect.defaultValue="10.0" aspect.friendlyName="Maximum Scale" baseType="NUMBER" description="The maximum scale that users can zoom out to" name="maximumScale" ordinal="0"/><FieldDefinition aspect.defaultValue="0.1" aspect.friendlyName="Minimum Scale" baseType="NUMBER" description="The minimum scale that users can zoom out to" name="minimumScale" ordinal="0"/><FieldDefinition aspect.friendlyName="Width" baseType="STRING" description="The width of the mashup page" name="width" ordinal="0"/><FieldDefinition aspect.defaultValue="device-width" aspect.friendlyName="Width Type" baseType="STRING" description="Use the width of the device display, or a custom width (in px)" name="widthType" ordinal="0"/></FieldDefinitions></DataShape><Rows><Row><disableZoom>false</disableZoom><fullScreenMode>true</fullScreenMode><height><![CDATA[device-height]]></height><heightType><![CDATA[device-height]]></heightType><initialScale>1.0</initialScale><iosShortcutIconTitle/><iosStatusBarAppearance><![CDATA[black-translucent]]></iosStatusBarAppearance><maximumScale>10.0</maximumScale><minimumScale>0.1</minimumScale><width><![CDATA[device-width]]></width><widthType><![CDATA[device-width]]></widthType></Row></Rows></ConfigurationTable></ConfigurationTables><ParameterDefinitions><FieldDefinition baseType="STRING" description="Repository Thing name" name="repoName" ordinal="0"/></ParameterDefinitions><Things/><ThingShapes/><ThingTemplates/><mashupContent><![CDATA[{
+  "CustomMashupCss": "/* Shared Git workspace tokens and layout.\n\n   Spacing rule: every visible widget keeps ThingWorx's default Margin of 5,\n   so neighbouring controls sit 10px apart. Card containers also use Margin 5\n   so their edges line up with text. Container padding and gaps below subtract\n   that 5px, so the visible insets are 24px at the page edge and 16px between\n   sections and inside cards. Do not give individual widgets other margins;\n   align rows with the container's align-items instead (flex-end for rows with\n   labelled inputs, center for buttons and checkboxes).\n\n   Contrast (WCAG): text 11.4:1 and muted text 5.2:1 on the canvas; muted text\n   5.9:1 on surfaces. Native widget colors and focus indicators stay with the\n   active ThingWorx theme. The theme's container style sets a white\n   background, so backgrounds and borders below need !important. */\n:root {\n  --git-text: #243746;\n  --git-muted: #536776;\n  --git-canvas: #eef1f4;\n  --git-surface: #ffffff;\n  --git-border: #c2cbd3;\n  --git-radius: 6px;\n  --git-page-inset: 19px;   /* + 5px widget margin = 24px */\n  --git-card-inset: 11px;   /* + 5px widget margin = 16px */\n  --git-section-gap: 6px;   /* + 5px + 5px margins = 16px */\n  --git-header-height: 64px;\n}\n\n/* Header band: the slot that holds GIT.Mashup.GitHeader on every page. The\n   runtime sizes a contained mashup to fill its slot, so GitHeader applies its\n   own horizontal inset (see GitHeader.css). */\n[id$=\"git-header-slot\"] {\n  min-height: var(--git-header-height);\n  background: var(--git-surface) !important;\n  border-bottom: 1px solid var(--git-border) !important;\n  color: var(--git-text);\n  box-sizing: border-box;\n}\n\n/* Page body. */\n[id$=\"home-main\"],\n[id$=\"changes-main\"],\n[id$=\"branches-main\"],\n[id$=\"history-main\"],\n[id$=\"log-main\"],\n[id$=\"reflog-main\"],\n[id$=\"extlog-main\"],\n[id$=\"settings-main\"],\n[id$=\"user-settings-content\"],\n[id$=\"operations-main\"],\n[id$=\"conflictresolution-main\"] {\n  padding: var(--git-page-inset);\n  gap: var(--git-section-gap);\n  align-items: stretch !important;\n  background: var(--git-canvas) !important;\n  color: var(--git-text);\n  box-sizing: border-box;\n}\n\n/* Layout containers inside the page stay transparent; only cards are white. */\n:is([id$=\"home-main\"], [id$=\"changes-main\"], [id$=\"branches-main\"], [id$=\"history-main\"], [id$=\"log-main\"], [id$=\"reflog-main\"], [id$=\"extlog-main\"], [id$=\"settings-main\"], [id$=\"user-settings-content\"], [id$=\"operations-main\"], [id$=\"conflictresolution-main\"]) .widget-flexcontainer { background: transparent !important; }\n\n/* Cards: white surfaces on the canvas. */\n:is([id$=\"home-main\"], [id$=\"changes-main\"], [id$=\"branches-main\"], [id$=\"history-main\"], [id$=\"log-main\"], [id$=\"reflog-main\"], [id$=\"extlog-main\"], [id$=\"settings-main\"], [id$=\"user-settings-content\"], [id$=\"operations-main\"], [id$=\"conflictresolution-main\"]) :is([id$=\"home-list-container\"], [id$=\"changes-sync-card\"], [id$=\"changes-worktree-card\"], [id$=\"changes-push-card\"], [id$=\"branches-list-card\"], [id$=\"branches-create-card\"], [id$=\"branches-merge-card\"], [id$=\"repository-settings-card\"], [id$=\"settings-projects\"], [id$=\"history-tree-card\"], [id$=\"history-log-card\"]),\n[id$=\"user-settings-content\"] :is([id$=\"flexcontainer-40\"], [id$=\"flexcontainer-41\"], [id$=\"extension-log-section\"]) {\n  background: var(--git-surface) !important;\n  border: 1px solid var(--git-border) !important;\n  border-radius: var(--git-radius) !important;\n  box-sizing: border-box;\n  min-width: 0;\n}\n/* User Settings sections use the shared card inset. */\n[id$=\"user-settings-content\"] :is([id$=\"flexcontainer-40\"], [id$=\"flexcontainer-41\"], [id$=\"extension-log-section\"]) { padding: var(--git-card-inset); }\n\n/* Grid areas: the grid draws its own border, so only size them. */\n[id$=\"changes-grid-area\"],\n[id$=\"branches-grid-area\"],\n[id$=\"log-grid-area\"],\n[id$=\"reflog-grid-area\"],\n[id$=\"extlog-grid-area\"] { min-height: 320px; min-width: 0; }\n[id$=\"changes-grid-bounding-box\"],\n[id$=\"log-grid-bounding-box\"],\n[id$=\"reflog-grid-bounding-box\"],\n[id$=\"extlog-grid-bounding-box\"] { position: relative; flex: 1 1 0%; min-width: 0; }\n\n/* Secondary text. */\n[id$=\"-intro\"],\n[id$=\"-status\"] { color: var(--git-muted); line-height: 1.5; }\n\n@media (max-width: 600px) {\n  :root { --git-page-inset: 11px; }   /* 16px visible */\n}\n\n/* Row inside the Home list card: 12px / 16px visible insets. */\n[id$=\"row-main\"] {\n  padding: 7px var(--git-card-inset);\n  background: var(--git-surface) !important;\n  border-bottom: 1px solid var(--git-border) !important;\n  color: var(--git-text);\n  box-sizing: border-box;\n}\n[id$=\"row-header\"] { width: 100%; }\n[id$=\"row-name-bounding-box\"] { flex: 1 1 auto; min-width: 0; }\n[id$=\"row-name\"] { font-weight: 600; }",
+  "Data": {},
+  "DataBindings": [
+    {
+      "Id": "26c3685d-1b49-4707-8559-2b06964c4098",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "repoName",
+          "SourcePropertyBaseType": "STRING",
+          "SourcePropertyType": "Property",
+          "TargetProperty": "LabelText",
+          "TargetPropertyBaseType": "STRING",
+          "TargetPropertyType": "property"
+        }
+      ],
+      "SourceArea": "Mashup",
+      "SourceDetails": "AllData",
+      "SourceId": "mashup-root",
+      "SourceSection": "",
+      "TargetArea": "UI",
+      "TargetId": "row-name",
+      "TargetSection": ""
+    },
+    {
+      "Id": "26c8dc4a-688d-4b57-8e83-54ca438fa48b",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "repoName",
+          "SourcePropertyBaseType": "STRING",
+          "SourcePropertyType": "Property",
+          "TargetProperty": "repoName",
+          "TargetPropertyBaseType": "STRING",
+          "TargetPropertyType": "property"
+        }
+      ],
+      "SourceArea": "Mashup",
+      "SourceDetails": "AllData",
+      "SourceId": "mashup-root",
+      "SourceSection": "",
+      "TargetArea": "UI",
+      "TargetId": "home-navigation",
+      "TargetSection": ""
+    },
+    {
+      "Id": "4e58bd9f-4b78-4a3f-859a-57dde93e1d91",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "repoName",
+          "SourcePropertyBaseType": "STRING",
+          "SourcePropertyType": "Property",
+          "TargetProperty": "repoName",
+          "TargetPropertyBaseType": "STRING",
+          "TargetPropertyType": "property"
+        }
+      ],
+      "SourceArea": "Mashup",
+      "SourceDetails": "AllData",
+      "SourceId": "mashup-root",
+      "SourceSection": "",
+      "TargetArea": "UI",
+      "TargetId": "navigate-row-changes",
+      "TargetSection": ""
+    },
+    {
+      "Id": "1ecb6ef8-9b8b-4776-b161-c7ce2d4eda28",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "repoName",
+          "SourcePropertyBaseType": "STRING",
+          "SourcePropertyType": "Property",
+          "TargetProperty": "repoName",
+          "TargetPropertyBaseType": "STRING",
+          "TargetPropertyType": "property"
+        }
+      ],
+      "SourceArea": "Mashup",
+      "SourceDetails": "AllData",
+      "SourceId": "mashup-root",
+      "SourceSection": "",
+      "TargetArea": "UI",
+      "TargetId": "navigate-row-history",
+      "TargetSection": ""
+    },
+    {
+      "Id": "9065ebc3-de9f-4c20-afda-eb5450287f3a",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "repoName",
+          "SourcePropertyBaseType": "STRING",
+          "SourcePropertyType": "Property",
+          "TargetProperty": "repoName",
+          "TargetPropertyBaseType": "STRING",
+          "TargetPropertyType": "property"
+        }
+      ],
+      "SourceArea": "Mashup",
+      "SourceDetails": "AllData",
+      "SourceId": "mashup-root",
+      "SourceSection": "",
+      "TargetArea": "UI",
+      "TargetId": "navigate-row-settings",
+      "TargetSection": ""
+    },
+    {
+      "Id": "c1470f6d-a78e-4226-be3f-a64492d0074e",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "repoName",
+          "SourcePropertyBaseType": "STRING",
+          "SourcePropertyType": "Property",
+          "TargetProperty": "repoName",
+          "TargetPropertyBaseType": "STRING",
+          "TargetPropertyType": "property"
+        }
+      ],
+      "SourceArea": "Mashup",
+      "SourceDetails": "AllData",
+      "SourceId": "mashup-root",
+      "SourceSection": "",
+      "TargetArea": "UI",
+      "TargetId": "navigate-row-branches",
+      "TargetSection": ""
+    }
+  ],
+  "DesignTimePermissions": {},
+  "Events": [
+    {
+      "EventHandlerArea": "UI",
+      "EventHandlerId": "navigate-row-changes",
+      "EventHandlerService": "Navigate",
+      "EventTriggerArea": "UI",
+      "EventTriggerEvent": "Clicked",
+      "EventTriggerId": "row-changes",
+      "EventTriggerSection": "",
+      "Id": "86d2d4d8-3d9c-48d4-a313-479c5ea8524d"
+    },
+    {
+      "EventHandlerArea": "UI",
+      "EventHandlerId": "navigate-row-history",
+      "EventHandlerService": "Navigate",
+      "EventTriggerArea": "UI",
+      "EventTriggerEvent": "Clicked",
+      "EventTriggerId": "row-history",
+      "EventTriggerSection": "",
+      "Id": "2c67d2ab-b9aa-4bbe-b527-76e7b19227e6"
+    },
+    {
+      "EventHandlerArea": "UI",
+      "EventHandlerId": "navigate-row-settings",
+      "EventHandlerService": "Navigate",
+      "EventTriggerArea": "UI",
+      "EventTriggerEvent": "Clicked",
+      "EventTriggerId": "row-settings",
+      "EventTriggerSection": "",
+      "Id": "3833f8f5-a3e0-4316-a124-12dbec1c7be2"
+    },
+    {
+      "EventHandlerArea": "UI",
+      "EventHandlerId": "navigate-row-branches",
+      "EventHandlerService": "Navigate",
+      "EventTriggerArea": "UI",
+      "EventTriggerEvent": "Clicked",
+      "EventTriggerId": "row-branches",
+      "EventTriggerSection": "",
+      "Id": "ad34d81a-27b0-4706-aa0a-0775204b7aed"
+    }
+  ],
+  "Reminders": [],
+  "RunTimePermissions": {},
+  "UI": {
+    "Properties": {
+      "AddToDashboardButton": "SimplePlus",
+      "AddToDashboardButtonStyle": "DefaultAddToDashboardButtonStyle",
+      "Area": "Mashup",
+      "BGImage": "",
+      "BGImageRepeat": "no-repeat",
+      "BGImageSize": "auto",
+      "Columns": 0,
+      "ConfigureGadgetButton": "SimpleGear",
+      "ConfigureGadgetButtonStyle": "DefaultConfigureGadgetButtonStyle",
+      "DisableLegacyCustomClassStyles": false,
+      "DisplayName": "Mashup",
+      "EnableParameterEditing": false,
+      "Height": 72,
+      "Id": "mashup-root",
+      "IgnoreWarningsInViewMashup": false,
+      "IsPrintLayout": false,
+      "Left": 0,
+      "LegacyFocus": false,
+      "Margin": "0",
+      "MashupResolution": "FHD 1920x1080",
+      "MashupToEditGadget": "DefaultMashupToEditGadget",
+      "MinHeight": 0,
+      "MinWidth": 0,
+      "ResponsiveLayout": true,
+      "Rows": 0,
+      "ShowDataLoading": true,
+      "Style": "DefaultMashupStyle",
+      "StyleProperties": {
+        "data": {},
+        "meta": {
+          "type": "WidgetStyler",
+          "version": "1.0"
+        }
+      },
+      "StyleTheme": "PTC Convergence Theme",
+      "Title": "Repository row",
+      "TitleBar": false,
+      "TitleBarStyle": "DefaultTitleBarStyle",
+      "TitleBarText": "Gadget Title Here",
+      "Top": 0,
+      "Type": "mashup",
+      "UseMasterTheme": false,
+      "UseTheme": false,
+      "UseThemeForHybrids": false,
+      "Visible": true,
+      "Width": 1024,
+      "Z-index": 10,
+      "__TypeDisplayName": "Mashup",
+      "_baseVersion": "9.7.0-b47",
+      "_currentParameterDefs": [
+        {
+          "Aspects": {},
+          "BaseType": "STRING",
+          "BindingDirection": "IN",
+          "Description": "Repository Thing name",
+          "ParameterName": "repoName"
+        }
+      ],
+      "id_index": 20,
+      "secureExpressionsOnly": true,
+      "supportsAutoResize": true
+    },
+    "Widgets": [
+      {
+        "Properties": {
+          "Area": "UI",
+          "CollapseTabIcon": "",
+          "DisableLegacyCustomClassStyles": false,
+          "DisplayName": "GitHomeMain",
+          "EnableContainerUnload": false,
+          "EnableExpandCollapse": false,
+          "ExpandCollapseTabLocation": "inside",
+          "ExpandTabIcon": "",
+          "Expanded": true,
+          "Id": "row-main",
+          "LastContainer": true,
+          "LazyLoading": false,
+          "Left": 0,
+          "Margin": "",
+          "Overlay": false,
+          "OverrideChildrenAbsolute": false,
+          "ResponsiveLayout": true,
+          "Scrolling": "auto-scroll",
+          "ShowDataLoading": true,
+          "ShowExpandCollapseTab": false,
+          "ShowVerticalScrollbar": false,
+          "SourceURL": "",
+          "Style": "DefaultContainerStyle",
+          "StyleProperties": {},
+          "Top": 0,
+          "Type": "flexcontainer",
+          "UseTheme": true,
+          "Visible": true,
+          "Z-index": 10,
+          "__TypeDisplayName": "Responsive Container",
+          "_baseVersion": "9.7.0-b47",
+          "align-content": "flex-start",
+          "align-items": "flex-start",
+          "flex-basis": "auto",
+          "flex-direction": "column",
+          "flex-grow": 1,
+          "flex-max-height": "",
+          "flex-max-width": "",
+          "flex-min-height": "",
+          "flex-min-width": "",
+          "flex-shrink": 1,
+          "flex-size": "default",
+          "flex-wrap": "nowrap",
+          "iconClass": "widgets-flexcontainer",
+          "isLocked": false,
+          "justify-content": "flex-start",
+          "positioning": "responsive",
+          "userCannotRemove": true
+        },
+        "Widgets": [
+          {
+            "Properties": {
+              "Area": "UI",
+              "CollapseTabIcon": "",
+              "DisableLegacyCustomClassStyles": false,
+              "DisplayName": "GitHomeHeader",
+              "EnableContainerUnload": false,
+              "EnableExpandCollapse": false,
+              "ExpandCollapseTabLocation": "inside",
+              "ExpandTabIcon": "",
+              "Expanded": true,
+              "Id": "row-header",
+              "LastContainer": true,
+              "LazyLoading": false,
+              "Left": 0,
+              "Margin": "",
+              "Overlay": false,
+              "OverrideChildrenAbsolute": false,
+              "ResponsiveLayout": true,
+              "ShowDataLoading": true,
+              "ShowExpandCollapseTab": false,
+              "ShowVerticalScrollbar": false,
+              "SourceURL": "",
+              "Style": "DefaultContainerStyle",
+              "StyleProperties": {},
+              "Top": 0,
+              "Type": "flexcontainer",
+              "UseTheme": true,
+              "Visible": true,
+              "Z-index": 10,
+              "__TypeDisplayName": "Responsive Container",
+              "_baseVersion": "9.7.0-b47",
+              "align-content": "flex-start",
+              "align-items": "center",
+              "flex-basis": "auto",
+              "flex-direction": "row",
+              "flex-grow": 0,
+              "flex-max-height": "",
+              "flex-max-width": "",
+              "flex-min-height": "",
+              "flex-min-width": "",
+              "flex-shrink": 0,
+              "flex-size": "default",
+              "flex-wrap": "nowrap",
+              "iconClass": "widgets-flexcontainer",
+              "isLocked": true,
+              "justify-content": "flex-start",
+              "positioning": "responsive",
+              "userCannotRemove": false
+            },
+            "Widgets": [
+              {
+                "Properties": {
+                  "Area": "UI",
+                  "DisableLegacyCustomClassStyles": false,
+                  "DisclosureControl": "show-more",
+                  "DisplayName": "GitHomeTitle",
+                  "HorizontalAlignment": "left",
+                  "Id": "row-name",
+                  "LabelText": "",
+                  "LabelType": "label",
+                  "LastContainer": false,
+                  "Left": 74.47500610351562,
+                  "Margin": "5",
+                  "MultiLine": true,
+                  "PreserveWhiteSpace": false,
+                  "ResponsiveLayout": false,
+                  "ShowDataLoading": true,
+                  "Top": 27,
+                  "Type": "ptcslabel",
+                  "UseTheme": true,
+                  "VerticalAlignment": "flex-start",
+                  "Visible": true,
+                  "Z-index": 10,
+                  "__TypeDisplayName": "Label",
+                  "_baseVersion": "9.7.0",
+                  "overflowShowLessTxt": "[[showLess]]",
+                  "overflowShowMoreTxt": "[[showMore]]"
+                },
+                "Widgets": []
+              },
+              {
+                "Properties": {
+                  "Area": "UI",
+                  "ButtonType": "secondary",
+                  "ContextID": "",
+                  "DisableLegacyCustomClassStyles": false,
+                  "Disabled": false,
+                  "DisplayName": "RowChanges",
+                  "FocusOnLoad": false,
+                  "IconPosition": "left",
+                  "Id": "row-changes",
+                  "Label": "Changes",
+                  "LabelAlignment": "center",
+                  "LastContainer": false,
+                  "Left": 77.57498168945312,
+                  "Margin": "5",
+                  "MultiLine": false,
+                  "ResponsiveLayout": false,
+                  "SVGIcon": "",
+                  "ShowDataLoading": true,
+                  "Size": "standard",
+                  "TabSequence": 0,
+                  "TooltipField": "",
+                  "Top": 31.199981689453125,
+                  "Type": "ptcsbutton",
+                  "UseTheme": true,
+                  "Visible": true,
+                  "Width": 120,
+                  "Z-index": 10,
+                  "__TypeDisplayName": "Button",
+                  "_baseVersion": "9.7.0"
+                },
+                "Widgets": []
+              },
+              {
+                "Properties": {
+                  "Area": "UI",
+                  "ButtonType": "secondary",
+                  "ContextID": "",
+                  "DisableLegacyCustomClassStyles": false,
+                  "Disabled": false,
+                  "DisplayName": "RowHistory",
+                  "FocusOnLoad": false,
+                  "IconPosition": "left",
+                  "Id": "row-history",
+                  "Label": "History",
+                  "LabelAlignment": "center",
+                  "LastContainer": false,
+                  "Left": 77.57498168945312,
+                  "Margin": "5",
+                  "MultiLine": false,
+                  "ResponsiveLayout": false,
+                  "SVGIcon": "",
+                  "ShowDataLoading": true,
+                  "Size": "standard",
+                  "TabSequence": 0,
+                  "TooltipField": "",
+                  "Top": 31.199981689453125,
+                  "Type": "ptcsbutton",
+                  "UseTheme": true,
+                  "Visible": true,
+                  "Width": 120,
+                  "Z-index": 10,
+                  "__TypeDisplayName": "Button",
+                  "_baseVersion": "9.7.0"
+                },
+                "Widgets": []
+              },
+              {
+                "Properties": {
+                  "Area": "UI",
+                  "ButtonType": "secondary",
+                  "ContextID": "",
+                  "DisableLegacyCustomClassStyles": false,
+                  "Disabled": false,
+                  "DisplayName": "RowBranches",
+                  "FocusOnLoad": false,
+                  "IconPosition": "left",
+                  "Id": "row-branches",
+                  "Label": "Branches",
+                  "LabelAlignment": "center",
+                  "LastContainer": false,
+                  "Left": 77.57498168945312,
+                  "Margin": "5",
+                  "MultiLine": false,
+                  "ResponsiveLayout": false,
+                  "SVGIcon": "",
+                  "ShowDataLoading": true,
+                  "Size": "standard",
+                  "TabSequence": 0,
+                  "TooltipField": "",
+                  "Top": 31.199981689453125,
+                  "Type": "ptcsbutton",
+                  "UseTheme": true,
+                  "Visible": true,
+                  "Width": 120,
+                  "Z-index": 10,
+                  "__TypeDisplayName": "Button",
+                  "_baseVersion": "9.7.0"
+                },
+                "Widgets": []
+              },
+              {
+                "Properties": {
+                  "Area": "UI",
+                  "ButtonType": "secondary",
+                  "ContextID": "",
+                  "DisableLegacyCustomClassStyles": false,
+                  "Disabled": false,
+                  "DisplayName": "RowSettings",
+                  "FocusOnLoad": false,
+                  "IconPosition": "left",
+                  "Id": "row-settings",
+                  "Label": "Settings",
+                  "LabelAlignment": "center",
+                  "LastContainer": false,
+                  "Left": 77.57498168945312,
+                  "Margin": "5",
+                  "MultiLine": false,
+                  "ResponsiveLayout": false,
+                  "SVGIcon": "",
+                  "ShowDataLoading": true,
+                  "Size": "standard",
+                  "TabSequence": 0,
+                  "TooltipField": "",
+                  "Top": 31.199981689453125,
+                  "Type": "ptcsbutton",
+                  "UseTheme": true,
+                  "Visible": true,
+                  "Width": 120,
+                  "Z-index": 10,
+                  "__TypeDisplayName": "Button",
+                  "_baseVersion": "9.7.0"
+                },
+                "Widgets": []
+              }
+            ]
+          },
+          {
+            "Properties": {
+              "Area": "UI",
+              "Code": "@TWWidgetDefinition\nclass HomeNavigation extends TypescriptWidget {\n  @property(bindingTarget) repoName!: STRING;\n  @property(bindingTarget) gitMessage!: STRING;\n  private resultPopover?: HTMLElement;\n\n  beforeDestroy() {\n    this.resultPopover?.remove();\n  }\n\n  @service showGitResult() {\n    if (!this.gitMessage) return;\n    this.resultPopover?.remove();\n    const popover = document.createElement(\"div\");\n    popover.setAttribute(\"popover\", \"manual\");\n    popover.setAttribute(\"role\", \"dialog\");\n    popover.setAttribute(\"aria-label\", \"Git operation result\");\n    Object.assign(popover.style, {\n      position: \"fixed\", top: \"5rem\", right: \"1rem\", left: \"auto\", bottom: \"auto\",\n      margin: \"0\", width: \"min(34rem, calc(100vw - 2rem))\", maxHeight: \"min(60vh, 30rem)\",\n      overflow: \"auto\", padding: \"1rem\", background: \"white\", color: \"#222\",\n      border: \"1px solid #aaa\", borderRadius: \"4px\", boxShadow: \"0 4px 16px #0003\",\n      zIndex: \"10000\", boxSizing: \"border-box\"\n    });\n    const close = document.createElement(\"button\");\n    close.type = \"button\";\n    close.textContent = \"Close\";\n    close.setAttribute(\"aria-label\", \"Close Git operation result\");\n    close.style.float = \"right\";\n    close.addEventListener(\"click\", () => { popover.remove(); this.resultPopover = undefined; });\n    const title = document.createElement(\"strong\");\n    title.textContent = \"Git operation result\";\n    const message = document.createElement(\"p\");\n    message.style.whiteSpace = \"pre-wrap\";\n    message.style.overflowWrap = \"anywhere\";\n    message.textContent = this.gitMessage;\n    popover.append(close, title, message);\n    document.body.appendChild(popover);\n    this.resultPopover = popover;\n    if (typeof popover.showPopover === \"function\") popover.showPopover();\n    else popover.style.display = \"block\";\n  }\n\n}",
+              "ColumnPosition": 38,
+              "DirectLinkUUID": "",
+              "DisplayName": "HomeNavigation",
+              "Exports": "@TWWidgetDefinition\nclass HomeNavigation extends TypescriptWidget {\n  @property(bindingTarget) repoName!: STRING;\n  @property(bindingTarget) gitMessage!: STRING;\n  private resultPopover?: HTMLElement;\n\n  beforeDestroy() {\n    this.resultPopover?.remove();\n  }\n\n  @service showGitResult() {\n    if (!this.gitMessage) return;\n    this.resultPopover?.remove();\n    const popover = document.createElement(\"div\");\n    popover.setAttribute(\"popover\", \"manual\");\n    popover.setAttribute(\"role\", \"dialog\");\n    popover.setAttribute(\"aria-label\", \"Git operation result\");\n    Object.assign(popover.style, {\n      position: \"fixed\", top: \"5rem\", right: \"1rem\", left: \"auto\", bottom: \"auto\",\n      margin: \"0\", width: \"min(34rem, calc(100vw - 2rem))\", maxHeight: \"min(60vh, 30rem)\",\n      overflow: \"auto\", padding: \"1rem\", background: \"white\", color: \"#222\",\n      border: \"1px solid #aaa\", borderRadius: \"4px\", boxShadow: \"0 4px 16px #0003\",\n      zIndex: \"10000\", boxSizing: \"border-box\"\n    });\n    const close = document.createElement(\"button\");\n    close.type = \"button\";\n    close.textContent = \"Close\";\n    close.setAttribute(\"aria-label\", \"Close Git operation result\");\n    close.style.float = \"right\";\n    close.addEventListener(\"click\", () => { popover.remove(); this.resultPopover = undefined; });\n    const title = document.createElement(\"strong\");\n    title.textContent = \"Git operation result\";\n    const message = document.createElement(\"p\");\n    message.style.whiteSpace = \"pre-wrap\";\n    message.style.overflowWrap = \"anywhere\";\n    message.textContent = this.gitMessage;\n    popover.append(close, title, message);\n    document.body.appendChild(popover);\n    this.resultPopover = popover;\n    if (typeof popover.showPopover === \"function\") popover.showPopover();\n    else popover.style.display = \"block\";\n  }\n\n}",
+              "FullScreen": false,
+              "Height": 48,
+              "Id": "home-navigation",
+              "LastContainer": false,
+              "Left": 674.6749877929688,
+              "Margin": "5",
+              "ResponsiveLayout": false,
+              "RuntimeProperties": "[{\"name\":\"repoName\",\"dataType\":\"STRING\",\"description\":\"Repository Thing name\",\"type\":\"property\",\"isBindingTarget\":true,\"isBindingSource\":false}]",
+              "ScrollPosition": 96,
+              "ShowDataLoading": true,
+              "Title": "HomeNavigation",
+              "Top": 22.199996948242188,
+              "TranspiledCode": "var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {\n    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;\n    if (typeof Reflect === \"object\" && typeof Reflect.decorate === \"function\") r = Reflect.decorate(decorators, target, key, desc);\n    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;\n    return c > 3 && r && Object.defineProperty(target, key, r), r;\n};\nlet HomeNavigation = class HomeNavigation extends TypescriptWidget {\n    beforeDestroy() {\n        var _a;\n        (_a = this.resultPopover) === null || _a === void 0 ? void 0 : _a.remove();\n    }\n    showGitResult() {\n        var _a;\n        if (!this.gitMessage)\n            return;\n        (_a = this.resultPopover) === null || _a === void 0 ? void 0 : _a.remove();\n        const popover = document.createElement(\"div\");\n        popover.setAttribute(\"popover\", \"manual\");\n        popover.setAttribute(\"role\", \"dialog\");\n        popover.setAttribute(\"aria-label\", \"Git operation result\");\n        Object.assign(popover.style, {\n            position: \"fixed\", top: \"5rem\", right: \"1rem\", left: \"auto\", bottom: \"auto\",\n            margin: \"0\", width: \"min(34rem, calc(100vw - 2rem))\", maxHeight: \"min(60vh, 30rem)\",\n            overflow: \"auto\", padding: \"1rem\", background: \"white\", color: \"#222\",\n            border: \"1px solid #aaa\", borderRadius: \"4px\", boxShadow: \"0 4px 16px #0003\",\n            zIndex: \"10000\", boxSizing: \"border-box\"\n        });\n        const close = document.createElement(\"button\");\n        close.type = \"button\";\n        close.textContent = \"Close\";\n        close.setAttribute(\"aria-label\", \"Close Git operation result\");\n        close.style.float = \"right\";\n        close.addEventListener(\"click\", () => { popover.remove(); this.resultPopover = undefined; });\n        const title = document.createElement(\"strong\");\n        title.textContent = \"Git operation result\";\n        const message = document.createElement(\"p\");\n        message.style.whiteSpace = \"pre-wrap\";\n        message.style.overflowWrap = \"anywhere\";\n        message.textContent = this.gitMessage;\n        popover.append(close, title, message);\n        document.body.appendChild(popover);\n        this.resultPopover = popover;\n        if (typeof popover.showPopover === \"function\")\n            popover.showPopover();\n        else\n            popover.style.display = \"block\";\n    }\n};\n__decorate([\n    property(bindingTarget)\n], HomeNavigation.prototype, \"repoName\", void 0);\n__decorate([\n    property(bindingTarget)\n], HomeNavigation.prototype, \"gitMessage\", void 0);\n__decorate([\n    service\n], HomeNavigation.prototype, \"showGitResult\", null);\nHomeNavigation = __decorate([\n    TWWidgetDefinition\n], HomeNavigation);\n",
+              "Type": "BMTypescriptClassHost",
+              "Visible": true,
+              "Width": 148,
+              "Z-index": 10,
+              "_Height": 679,
+              "_Left": 0,
+              "_NavigationWidth": 256,
+              "_Top": 0,
+              "_Width": 1498,
+              "__TypeDisplayName": "Typescript Class",
+              "_baseVersion": "9.7.0",
+              "isLocked": false
+            },
+            "Widgets": []
+          }
+        ]
+      },
+      {
+        "Properties": {
+          "Area": "UI",
+          "ClickOutsideToClose": false,
+          "CloseButton": true,
+          "DisplayName": "navigate-row-changes",
+          "Id": "navigate-row-changes",
+          "IncludeLegacyHeightAdjustment": true,
+          "LastContainer": false,
+          "Left": 0,
+          "LegacyHeightAdjustmentEnabled": true,
+          "Margin": "5",
+          "MashupParameters": [
+            {
+              "BaseType": "STRING",
+              "Description": "Repository selected on Git Home",
+              "ParameterName": "repoName",
+              "ParmDef": {
+                "aspects": {},
+                "baseType": "STRING",
+                "description": "Repository selected on Git Home",
+                "name": "repoName",
+                "ordinal": 0
+              }
+            }
+          ],
+          "MissingMashupMessage": "Mashup must be selected",
+          "PopupHeight": 0,
+          "PopupScrollbar": "auto",
+          "PopupTitle": "",
+          "PopupWidth": 0,
+          "RedirectTo": "mashup",
+          "ReloadOnReplace": false,
+          "ResponsiveLayout": false,
+          "ShowDataLoading": true,
+          "TargetMashup": "GIT.Mashup.Changes",
+          "TargetWindowType": "replace",
+          "Text": "tw.navigationfunction-ide.properties.text.default-value",
+          "Top": 0,
+          "Type": "navigationfunction",
+          "UseTheme": true,
+          "Visible": true,
+          "Z-index": 10,
+          "__TypeDisplayName": "Navigation",
+          "_currentParameterDefs": [
+            {
+              "BaseType": "STRING",
+              "DefaultValue": "",
+              "Description": "Repository selected on Git Home",
+              "ParameterName": "repoName",
+              "bindingDirection": "Both",
+              "bindingType": "Property",
+              "isBindingSource": true,
+              "isBindingTarget": true,
+              "shown": true
+            }
+          ]
+        },
+        "Widgets": []
+      },
+      {
+        "Properties": {
+          "Area": "UI",
+          "ClickOutsideToClose": false,
+          "CloseButton": true,
+          "DisplayName": "navigate-row-history",
+          "Id": "navigate-row-history",
+          "IncludeLegacyHeightAdjustment": true,
+          "LastContainer": false,
+          "Left": 0,
+          "LegacyHeightAdjustmentEnabled": true,
+          "Margin": "5",
+          "MashupParameters": [
+            {
+              "BaseType": "STRING",
+              "Description": "Repository selected on Git Home",
+              "ParameterName": "repoName",
+              "ParmDef": {
+                "aspects": {
+                  "bindingDirection": "IN"
+                },
+                "baseType": "STRING",
+                "description": "Repository selected on Git Home",
+                "name": "repoName",
+                "ordinal": 0
+              }
+            }
+          ],
+          "MissingMashupMessage": "Mashup must be selected",
+          "PopupHeight": 0,
+          "PopupScrollbar": "auto",
+          "PopupTitle": "",
+          "PopupWidth": 0,
+          "RedirectTo": "mashup",
+          "ReloadOnReplace": false,
+          "ResponsiveLayout": false,
+          "ShowDataLoading": true,
+          "TargetMashup": "GIT.Mashup.History",
+          "TargetWindowType": "replace",
+          "Text": "tw.navigationfunction-ide.properties.text.default-value",
+          "Top": 0,
+          "Type": "navigationfunction",
+          "UseTheme": true,
+          "Visible": true,
+          "Z-index": 10,
+          "__TypeDisplayName": "Navigation",
+          "_currentParameterDefs": [
+            {
+              "BaseType": "STRING",
+              "DefaultValue": "",
+              "Description": "Repository selected on Git Home",
+              "ParameterName": "repoName",
+              "bindingDirection": "Both",
+              "bindingType": "Property",
+              "isBindingSource": true,
+              "isBindingTarget": true,
+              "shown": true
+            }
+          ]
+        },
+        "Widgets": []
+      },
+      {
+        "Properties": {
+          "Area": "UI",
+          "ClickOutsideToClose": false,
+          "CloseButton": true,
+          "DisplayName": "navigate-row-settings",
+          "Id": "navigate-row-settings",
+          "IncludeLegacyHeightAdjustment": true,
+          "LastContainer": false,
+          "Left": 0,
+          "LegacyHeightAdjustmentEnabled": true,
+          "Margin": "5",
+          "MashupParameters": [
+            {
+              "BaseType": "STRING",
+              "Description": "Repository Thing name",
+              "ParameterName": "repoName",
+              "ParmDef": {
+                "aspects": {
+                  "bindingDirection": "IN"
+                },
+                "baseType": "STRING",
+                "description": "Repository Thing name",
+                "name": "repoName",
+                "ordinal": 0
+              }
+            }
+          ],
+          "MissingMashupMessage": "Mashup must be selected",
+          "PopupHeight": 0,
+          "PopupScrollbar": "auto",
+          "PopupTitle": "",
+          "PopupWidth": 0,
+          "RedirectTo": "mashup",
+          "ReloadOnReplace": false,
+          "ResponsiveLayout": false,
+          "ShowDataLoading": true,
+          "TargetMashup": "GIT.Mashup.RepositorySettings",
+          "TargetWindowType": "replace",
+          "Text": "tw.navigationfunction-ide.properties.text.default-value",
+          "Top": 0,
+          "Type": "navigationfunction",
+          "UseTheme": true,
+          "Visible": true,
+          "Z-index": 10,
+          "__TypeDisplayName": "Navigation",
+          "_currentParameterDefs": [
+            {
+              "BaseType": "STRING",
+              "DefaultValue": "",
+              "Description": "Repository Thing name",
+              "ParameterName": "repoName",
+              "bindingDirection": "Both",
+              "bindingType": "Property",
+              "isBindingSource": true,
+              "isBindingTarget": true,
+              "shown": true
+            }
+          ]
+        },
+        "Widgets": []
+      },
+      {
+        "Properties": {
+          "Area": "UI",
+          "ClickOutsideToClose": false,
+          "CloseButton": true,
+          "DisplayName": "navigate-row-branches",
+          "Id": "navigate-row-branches",
+          "IncludeLegacyHeightAdjustment": true,
+          "LastContainer": false,
+          "Left": 0,
+          "LegacyHeightAdjustmentEnabled": true,
+          "Margin": "5",
+          "MashupParameters": [
+            {
+              "BaseType": "INFOTABLE",
+              "Description": "GPG key verification result",
+              "ParameterName": "GpgVerification",
+              "ParmDef": {
+                "aspects": {
+                  "bindingDirection": "BOTH",
+                  "dataShape": "GIT.GpgKeyVerificationResult.DataShape"
+                },
+                "baseType": "INFOTABLE",
+                "description": "GPG key verification result",
+                "name": "GpgVerification",
+                "ordinal": 0
+              }
+            },
+            {
+              "BaseType": "INFOTABLE",
+              "Description": "Selected branch rows",
+              "ParameterName": "SelectedBranch",
+              "ParmDef": {
+                "aspects": {
+                  "bindingDirection": "BOTH",
+                  "dataShape": "GIT.BranchList.DataShape"
+                },
+                "baseType": "INFOTABLE",
+                "description": "Selected branch rows",
+                "name": "SelectedBranch",
+                "ordinal": 0
+              }
+            },
+            {
+              "BaseType": "STRING",
+              "Description": "Repository selected on Git Home",
+              "ParameterName": "repoName",
+              "ParmDef": {
+                "aspects": {
+                  "bindingDirection": "IN"
+                },
+                "baseType": "STRING",
+                "description": "Repository selected on Git Home",
+                "name": "repoName",
+                "ordinal": 0
+              }
+            }
+          ],
+          "MissingMashupMessage": "Mashup must be selected",
+          "PopupHeight": 0,
+          "PopupScrollbar": "auto",
+          "PopupTitle": "",
+          "PopupWidth": 0,
+          "RedirectTo": "mashup",
+          "ReloadOnReplace": false,
+          "ResponsiveLayout": false,
+          "ShowDataLoading": true,
+          "TargetMashup": "GIT.Mashup.Branches",
+          "TargetWindowType": "replace",
+          "Text": "tw.navigationfunction-ide.properties.text.default-value",
+          "Top": 0,
+          "Type": "navigationfunction",
+          "UseTheme": true,
+          "Visible": true,
+          "Z-index": 10,
+          "__TypeDisplayName": "Navigation",
+          "_currentParameterDefs": [
+            {
+              "BaseType": "STRING",
+              "DefaultValue": "",
+              "Description": "Repository selected on Git Home",
+              "ParameterName": "repoName",
+              "bindingDirection": "Both",
+              "bindingType": "Property",
+              "isBindingSource": true,
+              "isBindingTarget": true,
+              "shown": true
+            },
+            {
+              "BaseType": "INFOTABLE",
+              "DefaultValue": {
+                "dataShape": {
+                  "name": "GIT.BranchList.DataShape"
+                },
+                "rows": []
+              },
+              "Description": "Selected branch rows",
+              "ParameterName": "SelectedBranch",
+              "bindingDirection": "Both",
+              "bindingType": "Property",
+              "isBindingSource": true,
+              "isBindingTarget": true,
+              "shown": true
+            },
+            {
+              "BaseType": "INFOTABLE",
+              "DefaultValue": {
+                "dataShape": {
+                  "name": "GIT.CurrentBranchStatus.DataShape"
+                },
+                "rows": []
+              },
+              "Description": "Current branch result",
+              "ParameterName": "CurrentBranchStatus",
+              "bindingDirection": "Both",
+              "bindingType": "Property",
+              "isBindingSource": true,
+              "isBindingTarget": true,
+              "shown": true
+            }
+          ]
+        },
+        "Widgets": []
+      }
+    ]
+  },
+  "mashupType": "mashup"
+}]]></mashupContent><preview/><ConfigurationChanges><ConfigurationChange changeAction="CREATE" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T18:31:59.348Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T18:33:51.109Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T18:35:30.919Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T18:48:36.852Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T18:50:20.486Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T18:51:38.230Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T18:52:28.222Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T18:54:12.189Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T18:55:43.660Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T18:57:07.275Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:12:25.896Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:30:00.879Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:32:22.638Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:33:13.421Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:37:36.267Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:38:28.627Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:39:51.212Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:42:53.942Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:45:59.295Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:47:44.572Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:50:30.042Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:52:55.875Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-10T22:57:09.293Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-12T14:20:44.775Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-12T14:25:34.939Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-12T15:19:54.560Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-12T15:30:45.937Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-12T15:33:58.462Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-12T15:40:57.465Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Importing Extension Package Metadata" timestamp="2026-11-12T15:50:48.754Z" user="SuperUser"/><ConfigurationChange changeAction="MODIFY" changeReason="Mashup : design : updated&#10;" timestamp="2026-11-12T16:02:51.447Z" user="Administrator"/></ConfigurationChanges></Mashup></Mashups></Entities>

@@ -1,0 +1,6 @@
+/* Repository settings and tracked projects share the page card treatment. */
+[id$="repository-settings-card"],
+[id$="settings-projects"] {
+  align-self: stretch !important;
+  padding: var(--git-card-inset);
+}

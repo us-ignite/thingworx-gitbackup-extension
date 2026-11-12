@@ -204,10 +204,16 @@ public final class DeclarativeAnnotationProcessor extends AbstractProcessor {
                 body.append(" aspect.dataChangeType=\"")
                         .append(escape(property.dataChangeType()))
                         .append("\"");
-            body.append(" aspect.defaultValue=\"")
-                    .append(escape(property.defaultValue()))
-                    .append("\"")
-                    .append(" aspect.isPersistent=\"")
+            if (!property.dataShape().isBlank())
+                body.append(" aspect.dataShape=\"")
+                        .append(escape(property.dataShape()))
+                        .append("\"");
+            // An empty default is not a valid serialized InfoTable, so omit it for INFOTABLE.
+            if (property.baseType() != DapBaseType.INFOTABLE || !property.defaultValue().isBlank())
+                body.append(" aspect.defaultValue=\"")
+                        .append(escape(property.defaultValue()))
+                        .append("\"");
+            body.append(" aspect.isPersistent=\"")
                     .append(property.persistent())
                     .append("\"")
                     .append(" baseType=\"")

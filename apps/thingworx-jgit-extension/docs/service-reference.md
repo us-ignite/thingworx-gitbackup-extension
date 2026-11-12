@@ -19,19 +19,20 @@ be entered through the current user’s `UserExtensions` properties and must not
 | `CommitStaged` | `Message: STRING` | Commits the current index without exporting project entities. Requires staged changes. |
 | `Push` | `Remote: STRING`, `BranchName: STRING`, `RemoteBranchName: STRING`, `SetUpstream: BOOLEAN` | Pushes the current/upstream branch or an explicit local branch to a remote branch. |
 | `Pull` | `Force: BOOLEAN` | Fetches and integrates remote changes and always imports the configured `ProjectName` (sync is automatic/invisible). |
-| `Fetch` | `Remote: STRING` | Fetches remote refs without integrating them. |
+| `Fetch` | `Remote: STRING` (optional; defaults to `origin`) | Fetches remote refs without integrating them. |
 | `BranchCreate` | `BranchName: STRING`, `StartPoint: STRING` | Creates a local branch without switching. |
 | `BranchSwitch` | `BranchName: STRING` | Switches to a local branch or creates a tracking branch for a matching origin branch. |
 | `Checkout` | `BranchNameOrCommit: STRING`, `CreateBranch: BOOLEAN`, `StartPoint: STRING`, `Force: BOOLEAN` | Checks out a branch, tag, or commit, optionally creating a branch or forcing the update. |
 | `GetCurrentBranch` | — | Returns `GIT.CurrentBranchStatus.ServiceResult` for the current branch or detached-head state. |
 | `GetBranchList` | — | Returns `GIT.BranchList.ServiceResult`. |
 | `BranchDelete` | `BranchName: STRING`, `Remote: STRING`, `DeleteRemote: BOOLEAN`, `Force: BOOLEAN` | Deletes a local branch and optionally its remote branch. |
-| `GetLog` | `Ref: STRING`, `MaxEntries: INTEGER` | Returns `GIT.CommitLog`. |
-| `GetReflog` | `Ref: STRING`, `MaxEntries: INTEGER` | Returns `GIT.ReflogEntry`. |
+| `GetLog` | `Ref: STRING`, `MaxEntries: INTEGER`, `AllBranches: BOOLEAN` | Returns `GIT.CommitLog` rows, newest first. A blank `Ref` uses the current branch; an unknown `Ref` returns `Error=true`. `MaxEntries` of zero or blank means no limit. |
+| `GetReflog` | `Ref: STRING`, `MaxEntries: INTEGER` | Returns `GIT.ReflogEntry` rows, newest first. A blank `Ref` uses `HEAD`; short names such as `main` or `origin/main` resolve the way Git does, and an unknown `Ref` returns `Error=true`. Reflogs are local to this clone. |
+| `GetHistoryRefs` | `ReflogOnly: BOOLEAN` | Returns `GIT.HistoryRef` rows for HEAD, local branches, remote-tracking branches, and tags, in that order. `DisplayName` is the short name that `GetLog` and `GetReflog` accept. With `ReflogOnly=true`, only refs with local reflog entries are returned. |
 | `Status` | `ShowUnchangedFiles: BOOLEAN`, `HideUntracked: BOOLEAN`, `HideUnchanged: BOOLEAN`, `HideIgnored: BOOLEAN` (all default `false`) | Synchronizes the project export and returns `GIT.Status` rows, optionally including unchanged paths and excluding untracked, unchanged, or ignored rows. The original `File`, `Status`, and `Staged` fields remain available, along with fields for the Changes view. |
 | `Add` | `File: STRING`, `All: BOOLEAN` | Stages one repository-relative file; with `All=true`, stages all non-ignored additions, modifications, and deletions. |
 | `Unstage` | `File: STRING`, `All: BOOLEAN` | Unstages one repository-relative file or, with `All=true`, every staged path. |
-| `ApplyFileAction` | `Changes: INFOTABLE<GIT.WorkingTreeDisplay.DataShape>`, `Action: STRING` | Applies `stage`, `unstage`, or `untrack` to the selected rows after checking current Git status. |
+| `ApplyFileAction` | `Changes: INFOTABLE<GIT.WorkingTreeDisplay.DataShape>`, `Action: STRING` | Applies `stage`, `unstage`, `untrack`, or `delete` to the selected rows after checking current Git status. `delete` removes the files from the working tree and stages tracked deletions without changing ThingWorx entities. |
 | `RemoveEverywhere` | `Changes: INFOTABLE<GIT.WorkingTreeDisplay.DataShape>` | Deletes supported ThingWorx entities described by the selected XML exports and deletes the files, staging tracked deletions. Every file and entity is validated before removal; failures during deletion can still leave partial results and are reported. |
 | `Remove` | `File: STRING` | Removes a path from the index using cached semantics and preserves its working-tree file. |
 | `GetConflictFiles` | — | Returns conflicted files using `GIT.Status`. |
@@ -71,8 +72,13 @@ preserved. Status refuses to synchronize while project export files have unresol
 entities. It supports Things, Thing Templates, Thing Shapes, Networks, Media Entities, Model and
 Data Tag Vocabularies, Style Definitions, and Notification Definitions and Contents. Other entity
 types, non-entity files, absent files, entities outside the configured project, and system or
-extension entities are rejected. The caller needs delete permission on every entity and invoke
+extension entities are rejected. An entity that is already absent is skipped and its XML file is
+still removed. The caller needs delete permission on every existing entity and invoke
 permission on the corresponding EntityServices deletion services. Deletion is not transactional.
+
+Mashup XML files can also be removed, but the Mashups remain in ThingWorx and the result warns
+about them. A later project export can recreate their XML; delete the Mashups in Composer to
+remove them permanently. Status refresh preserves staged deletions until they are committed.
 
 ## Utility services
 
@@ -94,6 +100,21 @@ permission on the corresponding EntityServices deletion services. Deletion is no
 | `GitCredentialCreate` | `GitCommitterUser: STRING`, `GitCommitterPassword: STRING`, `GitCommitterEmail: STRING`, `GitCommitterFullName: STRING`, `GitThing: THINGNAME`, `GpgKeyFingerprint: STRING` | Creates a current-user credential record; fails if a record already exists for `GitThing`. |
 | `GitCommitIdentityUpdate` | `GitThing: THINGNAME`, `GitCommitterFullName: STRING`, `GitCommitterEmail: STRING` | Updates the current user’s commit identity for an existing repository record, preserving its credentials and signing selection. |
 | `GitCredentialUpdate` | `GitCommitterUser: STRING`, `GitCommitterPassword: STRING`, `GitCommitterEmail: STRING`, `GitCommitterFullName: STRING`, `GitThing: THINGNAME`, `GpgKeyFingerprint: STRING` | Updates an existing current-user record; fails if the record is missing. A blank fingerprint clears signing. |
+| `GitRepositorySettingsSave` | `GitThing: THINGNAME`, `GitCommitterUser: STRING`, `GitCommitterPassword: STRING`, `GitCommitterEmail: STRING`, `GitCommitterFullName: STRING`, `GpgKeyFingerprint: STRING` | Creates or updates the current user’s repository credentials and signing selection. A blank password preserves an existing password; a blank fingerprint disables signing. |
 | `GitCredentialDelete` | `GitThing: THINGNAME` | Deletes the current user’s credential record; fails if the record is missing. |
 
+| `GetGitLog` | `MaxEntries: NUMBER` (default 100, at most 1000) | Returns `GIT.GitLog` rows for recent Git actions (action, repository, user, message), newest first. |
+| `GetExtensionLog` | `MaxEntries: INTEGER` (default 200, at most 2000), `MinimumLevel: STRING`, `SearchText: STRING` | Returns `GIT.ExtensionLog` rows the extension wrote to the ApplicationLog, newest first. `MinimumLevel` is `TRACE`, `DEBUG`, `INFO`, `WARN`, or `ERROR`; blank includes every level. `SearchText` matches the message, ignoring case. |
 For the exact InfoTable fields and service annotations, see the [generated Java API reference](api/index.md).
+
+## Extension log
+
+The extension writes to the ThingWorx ApplicationLog through loggers named after its classes,
+so each entry's origin is an abbreviated class name such as `o.u.t.j.e.GitActionLogger`. Git
+action entries (`GIT.ACTION | action | repository | message | user`) are written at `WARN`.
+Only entries at or above the ApplicationLog's configured level are recorded; ThingWorx defaults
+to `WARN`, so `INFO` entries such as service completion messages are not kept unless the level is
+lowered. `GetExtensionLog` and the Extension Log page under Git User Settings read these entries.
+Entries the extension wrote to the ScriptLog before this release stay in the ScriptLog.
+For newly logged service failures with an exception, Source includes the exception's stack trace;
+older entries and messages without an exception show the logger class only.

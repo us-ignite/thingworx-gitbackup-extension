@@ -1,7 +1,6 @@
 package org.us_ignite.thingworx.jgit.extension;
 
 import com.thingworx.data.util.InfoTableInstanceFactory;
-import com.thingworx.entities.interfaces.IServiceProvider;
 import com.thingworx.entities.utils.EntityUtilities;
 import com.thingworx.entities.utils.UserUtilities;
 import com.thingworx.logging.LogUtilities;
@@ -22,7 +21,6 @@ import com.thingworx.types.primitives.BooleanPrimitive;
 import com.thingworx.types.primitives.IPrimitiveType;
 import com.thingworx.types.primitives.InfoTablePrimitive;
 import com.thingworx.types.primitives.IntegerPrimitive;
-import com.thingworx.types.primitives.NumberPrimitive;
 import com.thingworx.types.primitives.PasswordPrimitive;
 import com.thingworx.types.primitives.StringPrimitive;
 import java.io.PrintWriter;
@@ -32,7 +30,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import org.joda.time.DateTime;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.us_ignite.thingworx.dap.DapBaseType;
@@ -40,6 +37,7 @@ import org.us_ignite.thingworx.dap.DapProperty;
 import org.us_ignite.thingworx.dap.DapServicePayload;
 import org.us_ignite.thingworx.dap.DapThingShape;
 import org.us_ignite.thingworx.dap.runtime.DapResults;
+import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.ExtensionLogSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.GitLogSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.GpgKeySpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.GpgKeySummarySpec;
@@ -103,8 +101,13 @@ public class GitUtilityThingShape extends Thing {
                     String RepoPath,
             @ThingworxServiceParameter(name = "BranchName", description = "", baseType = "STRING")
                     String BranchName,
-            @ThingworxServiceParameter(name = "ProjectName", description = "", baseType = "STRING")
-                    String ProjectName,
+            @ThingworxServiceParameter(
+                            name = "TrackedProjects",
+                            description =
+                                    "Existing ThingWorx projects to synchronize with the repository; may be empty and edited later in Repository Settings",
+                            baseType = "INFOTABLE",
+                            aspects = {"dataShape:GIT.TrackedProject.DataShape"})
+                    InfoTable TrackedProjects,
             @ThingworxServiceParameter(name = "UseProxy", description = "", baseType = "BOOLEAN")
                     Boolean UseProxy,
             @ThingworxServiceParameter(name = "ProxyURL", description = "", baseType = "STRING")
@@ -139,6 +142,27 @@ public class GitUtilityThingShape extends Thing {
         try {
             if (RepoName == null || RepoName.isBlank())
                 throw new IllegalArgumentException("RepoName is required.");
+            // Validate every project before creating anything, using the same rules as
+            // AddTrackedProject: each must be an existing, trackable project.
+            java.util.LinkedHashSet<String> projects = new java.util.LinkedHashSet<>();
+            if (TrackedProjects != null) {
+                for (int i = 0; i < TrackedProjects.getRowCount(); i++) {
+                    String raw = TrackedProjects.getRow(i).getStringValue(Const.ProjectName);
+                    if (raw == null || raw.isBlank()) continue;
+                    String name = FileRepositoryManager.validateProjectFolderName(raw);
+                    var project =
+                            EntityUtilities.findEntity(name, ThingworxRelationshipTypes.Project);
+                    if (project == null) {
+                        throw new IllegalArgumentException(
+                                String.format(Const.ERR_PROJECT_NOT_FOUND, name));
+                    }
+                    if (!FileRepositoryManager.isTrackableProject(project)) {
+                        throw new IllegalArgumentException(
+                                "Project '" + name + "' cannot be tracked by a repository.");
+                    }
+                    projects.add(name);
+                }
+            }
             EntityServices es = new EntityServices();
             String repositoryProject = Const.RepositoryProjectName;
             if (EntityUtilities.findEntity(repositoryProject, ThingworxRelationshipTypes.Project)
@@ -147,17 +171,6 @@ public class GitUtilityThingShape extends Thing {
                         repositoryProject,
                         "Component",
                         "Repository Things created by the JGit extension",
-                        "",
-                        new TagCollection());
-            }
-            if (ProjectName != null
-                    && !ProjectName.isBlank()
-                    && EntityUtilities.findEntity(ProjectName, ThingworxRelationshipTypes.Project)
-                            == null) {
-                es.CreateProject(
-                        ProjectName,
-                        "Component",
-                        "Project for entity synchronization via the JGit extension",
                         "",
                         new TagCollection());
             }
@@ -194,8 +207,17 @@ public class GitUtilityThingShape extends Thing {
             repoThing.setPropertyValue(
                     Const.InitialBranch,
                     new StringPrimitive(BranchName == null ? "main" : BranchName));
+            repoThing.setPropertyValue(Const.ProjectName, new StringPrimitive(""));
+            InfoTable trackedProjects =
+                    InfoTableInstanceFactory.createInfoTableFromDataShape(
+                            Const.TrackedProjectDataShapeName);
+            for (String project : projects) {
+                ValueCollection trackedProject = new ValueCollection();
+                trackedProject.put(Const.ProjectName, new StringPrimitive(project));
+                trackedProjects.addRow(trackedProject);
+            }
             repoThing.setPropertyValue(
-                    Const.ProjectName, new StringPrimitive(ProjectName == null ? "" : ProjectName));
+                    Const.TrackedProjects, new InfoTablePrimitive(trackedProjects));
             repoThing.setPropertyValue(
                     Const.UseProxy, new BooleanPrimitive(UseProxy != null && UseProxy));
             repoThing.setPropertyValue(
@@ -224,7 +246,9 @@ public class GitUtilityThingShape extends Thing {
         }
     }
 
-    /** Writes a repository lifecycle entry to the ScriptLog; failures never break the service. */
+    /**
+     * Writes a repository lifecycle entry to the extension log; failures never break the service.
+     */
     private void gitActionLog(String action, String repoName, String message) {
         try {
             GitActionLogger.logAction(action, repoName, message);
@@ -1660,6 +1684,88 @@ public class GitUtilityThingShape extends Thing {
 
     @DapServicePayload(StringResultSpec.class)
     @ThingworxServiceDefinition(
+            name = "GitRepositorySettingsSave",
+            description =
+                    "Creates or updates the current user's repository credentials and signing key; a blank password preserves an existing password",
+            category = "",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
+    public InfoTable GitRepositorySettingsSave(
+            @ThingworxServiceParameter(
+                            name = "GitThing",
+                            description = "Repository Thing",
+                            baseType = "THINGNAME")
+                    String gitThing,
+            @ThingworxServiceParameter(
+                            name = "GitCommitterUser",
+                            description = "Git username",
+                            baseType = "STRING")
+                    String user,
+            @ThingworxServiceParameter(
+                            name = "GitCommitterPassword",
+                            description = "New password, or blank to keep the existing password",
+                            baseType = "STRING")
+                    String password,
+            @ThingworxServiceParameter(
+                            name = "GitCommitterEmail",
+                            description = "Committer email",
+                            baseType = "STRING")
+                    String email,
+            @ThingworxServiceParameter(
+                            name = "GitCommitterFullName",
+                            description = "Committer name",
+                            baseType = "STRING")
+                    String fullName,
+            @ThingworxServiceParameter(
+                            name = "GpgKeyFingerprint",
+                            description = "Signing key, or blank to disable signing",
+                            baseType = "STRING")
+                    String fingerprint) {
+        try {
+            if (gitThing == null || gitThing.isBlank()) {
+                throw new IllegalArgumentException("Repository is required.");
+            }
+            GitUserContextManager context = new GitUserContextManager();
+            InfoTable credentials = context.credentials();
+            ValueCollection existing = null;
+            if (credentials != null) {
+                for (int i = 0; i < credentials.getRowCount(); i++) {
+                    ValueCollection row = credentials.getRow(i);
+                    if (gitThing.equals(row.getStringValue("GitThing"))) {
+                        existing = row;
+                        break;
+                    }
+                }
+            }
+            String safeUser = user == null ? "" : user;
+            String safePassword = password == null ? "" : password;
+            String safeEmail = email == null ? "" : email;
+            String safeName = fullName == null ? "" : fullName;
+            String safeFingerprint = fingerprint == null ? "" : fingerprint;
+            if (existing == null) {
+                return GitCredentialCreate(
+                        safeUser, safePassword, safeEmail, safeName, gitThing, safeFingerprint);
+            }
+            if (safePassword.isEmpty() && existing.getPrimitive("GitCommitterPassword") != null) {
+                safePassword =
+                        ((PasswordPrimitive) existing.getPrimitive("GitCommitterPassword"))
+                                .getValue();
+            }
+            return GitCredentialUpdate(
+                    safeUser, safePassword, safeEmail, safeName, gitThing, safeFingerprint);
+        } catch (Exception e) {
+            return DapResults.failure(
+                    "GitRepositorySettingsSave", e, StringResultContract.SERVICE_RESULT);
+        }
+    }
+
+    @DapServicePayload(StringResultSpec.class)
+    @ThingworxServiceDefinition(
             name = "GitCredentialDelete",
             description = "Deletes credentials for a repository",
             category = "",
@@ -1762,15 +1868,15 @@ public class GitUtilityThingShape extends Thing {
     }
 
     /**
-     * Returns recent Git action entries recorded by {@link GitActionLogger} in the ScriptLog.
+     * Returns recent Git action entries recorded by {@link GitActionLogger} in the ApplicationLog.
      *
-     * <p>Entries are the interim storage surface for the Git Log MashUp; a dedicated Git action log
-     * stream may replace the storage later without changing this row contract.
+     * <p>A dedicated Git action log stream may replace the storage later without changing this row
+     * contract.
      */
     @DapServicePayload(GitLogSpec.class)
     @ThingworxServiceDefinition(
             name = "GetGitLog",
-            description = "Returns recent Git action entries recorded in the ScriptLog",
+            description = "Returns recent Git action entries recorded in the extension log",
             category = "",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
@@ -1790,33 +1896,15 @@ public class GitUtilityThingShape extends Thing {
                     MaxEntries == null || MaxEntries < 1
                             ? 100
                             : (int) Math.min(MaxEntries.doubleValue(), 1000.0);
-            Object logEntity =
-                    EntityUtilities.findEntity("ScriptLog", ThingworxRelationshipTypes.Log);
-            if (logEntity == null)
-                throw new IllegalArgumentException("ScriptLog entity is not available");
-            // QueryLogEntries searchExpression does not reliably match file-backed log entries,
-            // so request broadly and filter to Git action entries here.
-            ValueCollection params = new ValueCollection();
-            params.put("maxItems", new NumberPrimitive(Math.min(maxEntries * 20.0, 2000.0)));
-            params.put("oldestFirst", new BooleanPrimitive(false));
-            InfoTable entries =
-                    ((IServiceProvider) logEntity).processServiceRequest("QueryLogEntries", params);
             GitLogTable log = GitLogTable.create();
-            for (int i = 0;
-                    i < entries.getRowCount() && log.toInfoTable().getRowCount() < maxEntries;
-                    i++) {
-                ValueCollection row = entries.getRow(i);
-                String content =
-                        row.getStringValue("content") == null ? "" : row.getStringValue("content");
+            for (ExtensionLog.Entry entry : ExtensionLog.read(GitActionLogger.class, maxEntries)) {
+                String content = entry.content();
                 if (!content.startsWith(GitActionLogger.ACTION_PREFIX)) continue;
                 // Content format: "GIT.ACTION | action | repoName | message | user"
-                String rest =
-                        content.length() > GitActionLogger.ACTION_PREFIX.length()
-                                ? content.substring(GitActionLogger.ACTION_PREFIX.length()).trim()
-                                : "";
+                String rest = content.substring(GitActionLogger.ACTION_PREFIX.length()).trim();
                 if (rest.startsWith("|")) rest = rest.substring(1).trim();
                 String front = rest;
-                String loggedUser = row.getStringValue("user");
+                String loggedUser = entry.user();
                 int lastSep = rest.lastIndexOf(" | ");
                 if (lastSep > 0) {
                     front = rest.substring(0, lastSep).trim();
@@ -1824,26 +1912,80 @@ public class GitUtilityThingShape extends Thing {
                     if (!tailUser.isEmpty()) loggedUser = tailUser;
                 }
                 String[] parts = front.split("\\s*\\|\\s*", 3);
-                String action = parts.length > 0 ? parts[0] : "";
-                String repoName = parts.length > 1 ? parts[1] : "";
-                String message = parts.length > 2 ? parts[2] : "";
-                Object timestamp =
-                        row.getPrimitive("timestamp") == null
-                                ? null
-                                : row.getPrimitive("timestamp").getValue();
                 log.add(
                         GitLogRow.create()
-                                .timestamp(new DateTime(timestamp))
+                                .timestamp(entry.timestamp())
                                 .user(loggedUser)
-                                .action(action)
-                                .repoName(repoName)
-                                .level(row.getStringValue("level"))
-                                .message(message));
+                                .action(parts.length > 0 ? parts[0] : "")
+                                .repoName(parts.length > 1 ? parts[1] : "")
+                                .level(entry.level())
+                                .message(parts.length > 2 ? parts[2] : ""));
             }
             return DapResults.success("GetGitLog", GitLogTable.SERVICE_RESULT, log);
         } catch (Exception e) {
             _logger.error("GetGitLog failed", e);
             return DapResults.failure("GetGitLog", e, GitLogTable.SERVICE_RESULT);
+        }
+    }
+
+    /**
+     * Returns entries the extension wrote to the ApplicationLog, newest first. Only entries at or
+     * above the ApplicationLog's configured level are recorded; ThingWorx defaults to WARN.
+     */
+    @DapServicePayload(ExtensionLogSpec.class)
+    @ThingworxServiceDefinition(
+            name = "GetExtensionLog",
+            description =
+                    "Returns entries the Git extension wrote to the ApplicationLog, newest first.",
+            category = "",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {
+                "isEntityDataShape:true",
+                "dataShape:GIT.ExtensionLog.ServiceResult.DataShape"
+            })
+    public InfoTable GetExtensionLog(
+            @ThingworxServiceParameter(
+                            name = "MaxEntries",
+                            description = "Maximum number of entries; default 200, at most 2000",
+                            baseType = "INTEGER")
+                    Integer MaxEntries,
+            @ThingworxServiceParameter(
+                            name = "MinimumLevel",
+                            description =
+                                    "Lowest level to include: TRACE, DEBUG, INFO, WARN, or ERROR. Blank includes every level.",
+                            baseType = "STRING")
+                    String MinimumLevel,
+            @ThingworxServiceParameter(
+                            name = "SearchText",
+                            description =
+                                    "Only include entries whose message contains this text, ignoring case",
+                            baseType = "STRING")
+                    String SearchText) {
+        try {
+            int maxEntries =
+                    MaxEntries == null || MaxEntries < 1 ? 200 : Math.min(MaxEntries, 2000);
+            ExtensionLogTable log = ExtensionLogTable.create();
+            for (ExtensionLog.Entry entry :
+                    ExtensionLog.readAll(maxEntries, MinimumLevel, SearchText)) {
+                log.add(
+                        ExtensionLogRow.create()
+                                .timestamp(entry.timestamp())
+                                .level(entry.level())
+                                .source(entry.source())
+                                .message(entry.content())
+                                .user(entry.user())
+                                .thread(entry.thread())
+                                .origin(entry.origin()));
+            }
+            return DapResults.success("GetExtensionLog", ExtensionLogTable.SERVICE_RESULT, log);
+        } catch (Exception e) {
+            _logger.error("GetExtensionLog failed", e);
+            return DapResults.failure("GetExtensionLog", e, ExtensionLogTable.SERVICE_RESULT);
         }
     }
 

@@ -44,6 +44,9 @@ public final class JGitEntityDeclarations {
 
         @DapField(name = "DetachedHEAD", baseType = DapBaseType.BOOLEAN, ordinal = 2)
         private Boolean detachedHead;
+
+        @DapField(name = "AheadStatus", baseType = DapBaseType.STRING, ordinal = 3)
+        private String aheadStatus;
     }
 
     @DapDataShape(
@@ -206,6 +209,201 @@ public final class JGitEntityDeclarations {
                 ordinal = 9,
                 description = "Checkout target branch, when available")
         private String checkoutTarget;
+    }
+
+    @DapDataShape(
+            name = "GIT.HistoryRef.DataShape",
+            description = "A ref that log and reflog views can select.",
+            serviceResultDescription = "Service result carrying history refs.",
+            payloadDescription = "History ref payload")
+    public static final class HistoryRefSpec {
+        @DapField(
+                name = "RefName",
+                baseType = DapBaseType.STRING,
+                ordinal = 1,
+                description = "Full ref name, or HEAD")
+        private String refName;
+
+        @DapField(
+                name = "DisplayName",
+                baseType = DapBaseType.STRING,
+                ordinal = 2,
+                description =
+                        "Short ref name that GetLog and GetReflog resolve, such as main or origin/main")
+        private String displayName;
+
+        @DapField(
+                name = "RefType",
+                baseType = DapBaseType.STRING,
+                ordinal = 3,
+                description = "HEAD, LOCAL, REMOTE, or TAG")
+        private String refType;
+
+        @DapField(
+                name = "CommitID",
+                baseType = DapBaseType.STRING,
+                ordinal = 4,
+                description = "Commit the ref points to; blank for an unborn branch")
+        private String commitId;
+
+        @DapField(
+                name = "IsHead",
+                baseType = DapBaseType.BOOLEAN,
+                ordinal = 5,
+                description = "Whether this is HEAD or the branch HEAD points to")
+        private Boolean isHead;
+
+        @DapField(
+                name = "HasReflog",
+                baseType = DapBaseType.BOOLEAN,
+                ordinal = 6,
+                description = "Whether this clone has local reflog entries for the ref")
+        private Boolean hasReflog;
+    }
+
+    @DapDataShape(
+            name = "GIT.ConflictState.DataShape",
+            description = "The conflicted operation a repository is waiting on.",
+            serviceResultDescription = "Service result carrying the conflict state.",
+            payloadDescription = "Conflict state payload")
+    public static final class ConflictStateSpec {
+        @DapField(
+                name = "InProgress",
+                baseType = DapBaseType.BOOLEAN,
+                ordinal = 1,
+                description = "Whether an operation is waiting for conflict resolution")
+        private Boolean inProgress;
+
+        @DapField(
+                name = "Phase",
+                baseType = DapBaseType.STRING,
+                ordinal = 2,
+                description = "NONE, MERGE, REBASE, LOCAL_CHANGES, or OTHER")
+        private String phase;
+
+        @DapField(
+                name = "Operation",
+                baseType = DapBaseType.STRING,
+                ordinal = 3,
+                description = "Operation that stopped, such as Pull or Branch switch")
+        private String operation;
+
+        @DapField(
+                name = "RepositoryState",
+                baseType = DapBaseType.STRING,
+                ordinal = 4,
+                description = "JGit repository state, such as MERGING or REBASING_MERGE")
+        private String repositoryState;
+
+        @DapField(
+                name = "CurrentLabel",
+                baseType = DapBaseType.STRING,
+                ordinal = 5,
+                description = "Label for the existing side of each conflict")
+        private String currentLabel;
+
+        @DapField(
+                name = "IncomingLabel",
+                baseType = DapBaseType.STRING,
+                ordinal = 6,
+                description = "Label for the incoming side of each conflict")
+        private String incomingLabel;
+
+        @DapField(
+                name = "Description",
+                baseType = DapBaseType.STRING,
+                ordinal = 7,
+                description = "What happened, for display")
+        private String description;
+
+        @DapField(
+                name = "ConflictCount",
+                baseType = DapBaseType.INTEGER,
+                ordinal = 8,
+                description = "Number of files that still have conflicts")
+        private Integer conflictCount;
+
+        @DapField(
+                name = "ConflictFiles",
+                baseType = DapBaseType.STRING,
+                ordinal = 9,
+                description = "Newline-separated repository-relative paths that still conflict")
+        private String conflictFiles;
+
+        @DapField(
+                name = "CanSkip",
+                baseType = DapBaseType.BOOLEAN,
+                ordinal = 10,
+                description = "Whether the current commit can be skipped (rebase only)")
+        private Boolean canSkip;
+    }
+
+    @DapDataShape(
+            name = "GIT.ConflictFile.DataShape",
+            description = "The versions of one conflicted file.",
+            serviceResultDescription = "Service result carrying conflicted file versions.",
+            payloadDescription = "Conflicted file payload")
+    public static final class ConflictFileSpec {
+        @DapField(
+                name = "File",
+                baseType = DapBaseType.STRING,
+                ordinal = 1,
+                description = "Repository-relative path")
+        private String file;
+
+        @DapField(
+                name = "Conflicted",
+                baseType = DapBaseType.BOOLEAN,
+                ordinal = 2,
+                description = "Whether the file still has unmerged index entries")
+        private Boolean conflicted;
+
+        @DapField(
+                name = "Binary",
+                baseType = DapBaseType.BOOLEAN,
+                ordinal = 3,
+                description = "Whether any version is binary; text fields are then blank")
+        private Boolean binary;
+
+        @DapField(
+                name = "Working",
+                baseType = DapBaseType.STRING,
+                ordinal = 4,
+                description = "Working-tree content, with conflict markers while unresolved")
+        private String working;
+
+        @DapField(
+                name = "Current",
+                baseType = DapBaseType.STRING,
+                ordinal = 5,
+                description = "Existing version")
+        private String current;
+
+        @DapField(
+                name = "Incoming",
+                baseType = DapBaseType.STRING,
+                ordinal = 6,
+                description = "Incoming version")
+        private String incoming;
+
+        @DapField(
+                name = "Base",
+                baseType = DapBaseType.STRING,
+                ordinal = 7,
+                description = "Common ancestor version")
+        private String base;
+
+        @DapField(name = "WorkingExists", baseType = DapBaseType.BOOLEAN, ordinal = 8)
+        private Boolean workingExists;
+
+        @DapField(name = "CurrentExists", baseType = DapBaseType.BOOLEAN, ordinal = 9)
+        private Boolean currentExists;
+
+        @DapField(name = "IncomingExists", baseType = DapBaseType.BOOLEAN, ordinal = 10)
+        private Boolean incomingExists;
+
+        @DapField(name = "BaseExists", baseType = DapBaseType.BOOLEAN, ordinal = 11)
+        private Boolean baseExists;
     }
 
     @DapDataShape(
@@ -448,6 +646,22 @@ public final class JGitEntityDeclarations {
     }
 
     @DapDataShape(
+            name = "GIT.TrackedProject.DataShape",
+            description = "A ThingWorx project synchronized with a repository",
+            serviceResultName = "GIT.TrackedProject.ServiceResult.DataShape",
+            serviceResultDescription = "Service result carrying ThingWorx project names",
+            payloadDescription = "ThingWorx project names")
+    public static final class TrackedProjectSpec {
+        @DapField(
+                name = "ProjectName",
+                baseType = DapBaseType.STRING,
+                ordinal = 1,
+                primaryKey = true,
+                description = "ThingWorx project name")
+        private String projectName;
+    }
+
+    @DapDataShape(
             name = "GIT.GpgKeySummary.DataShape",
             description = "Public metadata for a user's GPG key",
             serviceResultName = "GIT.GpgKeySummary.ServiceResult.DataShape",
@@ -671,7 +885,63 @@ public final class JGitEntityDeclarations {
         private String message;
     }
 
-    @DapProject(name = "GIT", packageVersion = "1.0.0")
+    @DapDataShape(
+            name = "GIT.ExtensionLog.DataShape",
+            description = "An entry the Git extension wrote to the ApplicationLog.",
+            serviceResultDescription = "Service result carrying extension log rows.",
+            payloadDescription = "Extension log payload")
+    public static final class ExtensionLogSpec {
+        @DapField(
+                name = "Timestamp",
+                baseType = DapBaseType.DATETIME,
+                ordinal = 1,
+                description = "Log entry timestamp")
+        private Object timestamp;
+
+        @DapField(
+                name = "Level",
+                baseType = DapBaseType.STRING,
+                ordinal = 2,
+                description = "Log level, such as WARN or ERROR")
+        private String level;
+
+        @DapField(
+                name = "Source",
+                baseType = DapBaseType.STRING,
+                ordinal = 3,
+                description = "Extension class and exception stack trace when available")
+        private String source;
+
+        @DapField(
+                name = "Message",
+                baseType = DapBaseType.STRING,
+                ordinal = 4,
+                description = "Log message")
+        private String message;
+
+        @DapField(
+                name = "User",
+                baseType = DapBaseType.STRING,
+                ordinal = 5,
+                description = "User whose request wrote the entry")
+        private String user;
+
+        @DapField(
+                name = "Thread",
+                baseType = DapBaseType.STRING,
+                ordinal = 6,
+                description = "Server thread that wrote the entry")
+        private String thread;
+
+        @DapField(
+                name = "Origin",
+                baseType = DapBaseType.STRING,
+                ordinal = 7,
+                description = "ApplicationLog origin, the abbreviated logger name")
+        private String origin;
+    }
+
+    @DapProject(name = "GIT", packageVersion = "1.0.0", editable = true)
     public static final class ProjectSpec {}
 
     @DapProject(

@@ -16,7 +16,19 @@ The extension packages are written to `apps/thingworx-jgit-extension/build/distr
 ./gradlew :apps:thingworx-jgit-extension:devSetup
 ```
 
-This starts the local PostgreSQL, ThingWorx, and Gitea stack, installs the extension, and creates a test repository. It also creates a reusable GPG key labeled `Dev Setup Test Key` for the ThingWorx Administrator, if one does not already exist. Its public key is also registered with the local Gitea `giteauser` account. The key is generated locally with no passphrase and is intended only for development; it is not automatically selected for repository signing. A copy of the public key is kept in the extension build directory to support repeat setup runs. Python 3 and GnuPG (`gpg`) are required on the host. Supply the required local license-server credentials through the project’s ignored environment file.
+This starts the local PostgreSQL, ThingWorx, and Gitea stack, installs the extension, and creates a test repository. It also creates a reusable GPG key labeled `Dev Setup Test Key` for the ThingWorx Administrator, if one does not already exist. Its public key is also registered with the local Gitea `giteauser` account. The key is generated locally with no passphrase and is intended only for development; it is not automatically selected for repository signing. A copy of the public key is kept in the extension build directory to support repeat setup runs. Each setup creates a separate development package with a patch version one higher than the greater of the installed and built versions, and upgrades ThingWorx to that package. The tracked `.version` file and release package are unchanged. Development upgrades can advance the installed version beyond release versions; those releases cannot be installed on that environment until their version exceeds the development version. Python 3 and GnuPG (`gpg`) are required on the host. Supply the required local license-server credentials through the project’s ignored environment file.
+
+`devSetup` installs the required widget dependency extensions and runs one-shot containers with `--no-deps`. The `security-init` service is idempotent: it preserves an existing keystore and license device ID and only initializes when the keystore is absent. Set `FORCE_SECURITY_INIT=true` only when intentionally rotating the keystore.
+
+After saving mashup changes in Composer, export all existing GIT mashup source files with:
+
+```bash
+./gradlew :apps:thingworx-jgit-extension:saveChanges
+```
+
+The task replaces the corresponding files in `ui/` with exports from the local development instance. Set `TWX_URL` (including `/Thingworx`), `TWX_USERNAME`, and `TWX_PASSWORD` to use another instance. All exports are validated before any files are replaced. Embedded TypeScript and CSS are regenerated from `ui/src` during packaging, so copy edits to those fields into their corresponding source files as well. Use `-PmashupOutputDir=/path/to/directory` to export to a separate directory for review.
+
+To save only one mashup, supply its suffix, for example `-Pmashup=Changes`.
 
 ## Tests
 

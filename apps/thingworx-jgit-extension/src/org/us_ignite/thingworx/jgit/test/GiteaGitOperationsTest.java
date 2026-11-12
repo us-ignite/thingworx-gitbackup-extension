@@ -246,15 +246,40 @@ public class GiteaGitOperationsTest {
                         + response.body());
     }
 
+    /** Builds a GIT.TrackedProject.DataShape InfoTable payload for RepositoryCreate. */
+    private static JsonObject trackedProjects(String... projects) {
+        JsonObject field = new JsonObject();
+        field.addProperty("name", "ProjectName");
+        field.addProperty("baseType", "STRING");
+        JsonObject fields = new JsonObject();
+        fields.add("ProjectName", field);
+        JsonObject shape = new JsonObject();
+        shape.add("fieldDefinitions", fields);
+        com.google.gson.JsonArray rows = new com.google.gson.JsonArray();
+        for (String project : projects) {
+            JsonObject row = new JsonObject();
+            row.addProperty("ProjectName", project);
+            rows.add(row);
+        }
+        JsonObject table = new JsonObject();
+        table.add("dataShape", shape);
+        table.add("rows", rows);
+        return table;
+    }
+
     @Test
     @Order(1)
     void testCreateGitThing() throws Exception {
+        // RepositoryCreate tracks only existing projects.
+        JsonObject project = new JsonObject();
+        project.addProperty("name", "GiteaGitOperationsProject");
+        assertEquals(200, callEntityService("CreateProject", project).statusCode());
         JsonObject body = new JsonObject();
         body.addProperty("RepoName", GIT_THING_NAME);
         body.addProperty("GitRepoURL", giteaRepoUrl);
         body.addProperty("RepoPath", GIT_THING_PATH);
         body.addProperty("BranchName", "main");
-        body.addProperty("ProjectName", "GiteaGitOperationsProject");
+        body.add("TrackedProjects", trackedProjects("GiteaGitOperationsProject"));
         body.addProperty("GitCommitterUser", credentials.giteaUser);
         body.addProperty("GitCommitterPassword", credentials.giteaPass);
         body.addProperty("GitCommitterEmail", "test@example.com");
@@ -1085,6 +1110,29 @@ public class GiteaGitOperationsTest {
         assertNotNull(untrackedB, "Untracked file should remain on disk: " + rows);
         assertFalse(untrackedB.get("Tracked").getAsBoolean());
         applyFileAction("stage", fileB);
+
+        String fileC = GIT_THING_PATH + "/changes-flow-c.txt";
+        String relC = repoRelativePath(fileC);
+        editFileInRepoViaThingworxAPI(GIT_THING_NAME, fileC, "Changes flow C");
+        applyFileAction("delete", fileC);
+        rows = getStatusRows();
+        assertNull(
+                findWorkingTreeRow(rows, relC, "Changes"),
+                "Deleting an untracked file removes it from disk: " + rows);
+
+        applyFileAction("delete", fileB);
+        rows = getStatusRows();
+        JsonObject deletedB = findWorkingTreeRow(rows, relB, "Staged Changes");
+        assertNotNull(deletedB, "Deleting a tracked file stages its removal: " + rows);
+        assertEquals("Removed", deletedB.get("Status").getAsString());
+        assertNull(
+                findWorkingTreeRow(rows, relB, "Changes"),
+                "Deleted tracked file should not remain on disk: " + rows);
+        commitBody = new JsonObject();
+        commitBody.addProperty("Message", "Integration test: remove source file");
+        commitRes = callService("CommitStaged", commitBody);
+        assertEquals(200, commitRes.statusCode(), "CommitStaged failed: " + commitRes.body());
+        assertSuccess(commitRes.body());
     }
 
     @Test
@@ -1100,6 +1148,46 @@ public class GiteaGitOperationsTest {
         body.addProperty("Message", "Integration test: no staged changes");
         assertServiceFailure(callService("CommitStaged", body), "CommitStaged");
         assertServiceFailure(callService("Commit", body), "Commit");
+    }
+
+    @Test
+    @Order(33)
+    void testRemoveEverywhereRemovesExportWhenEntityIsAlreadyAbsent() throws Exception {
+        String file = GIT_THING_PATH + "/orphaned-thing.xml";
+        String relative = repoRelativePath(file);
+        editFileInRepoViaThingworxAPI(
+                GIT_THING_NAME,
+                file,
+                "<Entities><Things><Thing name=\"RemoveEverywhere.AlreadyAbsent\"/></Things></Entities>");
+        stageFile(file);
+        JsonObject commit = new JsonObject();
+        commit.addProperty("Message", "Add orphaned export fixture");
+        assertSuccess(callService("CommitStaged", commit).body());
+
+        JsonObject statusRequest = new JsonObject();
+        statusRequest.addProperty("ShowUnchangedFiles", true);
+        JsonObject payload =
+                JsonParser.parseString(callService("Status", statusRequest).body())
+                        .getAsJsonObject()
+                        .getAsJsonArray("rows")
+                        .get(0)
+                        .getAsJsonObject()
+                        .getAsJsonObject("Result");
+        JsonObject selected =
+                findWorkingTreeRow(payload.getAsJsonArray("rows"), relative, "Unchanged");
+        assertNotNull(selected, "Expected orphaned export in status");
+        JsonObject changes = new JsonObject();
+        changes.add("dataShape", payload.getAsJsonObject("dataShape").deepCopy());
+        JsonArray rows = new JsonArray();
+        rows.add(selected.deepCopy());
+        changes.add("rows", rows);
+        JsonObject body = new JsonObject();
+        body.add("Changes", changes);
+        assertSuccess(callService("RemoveEverywhere", body).body());
+
+        JsonObject removed = findWorkingTreeRow(getStatusRows(), relative, "Staged Changes");
+        assertNotNull(removed, "Tracked orphaned export should be staged as deleted");
+        assertEquals("Removed", removed.get("Status").getAsString());
     }
 
     @Test
@@ -1297,6 +1385,91 @@ public class GiteaGitOperationsTest {
     }
 
     @Test
+    @Order(23)
+    void testGetHistoryRefsListsHeadFirstAndFiltersReflogs() throws Exception {
+        JsonArray all = responseRows(callService("GetHistoryRefs", new JsonObject()).body());
+        assertFalse(all.isEmpty(), "GetHistoryRefs should return at least HEAD");
+        JsonObject head = all.get(0).getAsJsonObject();
+        assertEquals("HEAD", head.get("RefName").getAsString());
+        assertEquals("HEAD", head.get("DisplayName").getAsString());
+        assertEquals("HEAD", head.get("RefType").getAsString());
+        assertTrue(head.get("IsHead").getAsBoolean());
+        boolean currentLocalBranch = false;
+        for (var entry : all) {
+            JsonObject row = entry.getAsJsonObject();
+            String name = row.get("RefName").getAsString();
+            assertFalse(
+                    name.startsWith("refs/remotes/") && name.endsWith("/HEAD"),
+                    "Symbolic remote HEAD refs should be omitted: " + name);
+            if ("LOCAL".equals(row.get("RefType").getAsString())
+                    && row.get("IsHead").getAsBoolean()) {
+                currentLocalBranch = true;
+                assertEquals(
+                        name.substring("refs/heads/".length()),
+                        row.get("DisplayName").getAsString());
+            }
+        }
+        assertTrue(currentLocalBranch, "Expected the checked-out branch to be marked IsHead");
+
+        JsonObject reflogOnly = new JsonObject();
+        reflogOnly.addProperty("ReflogOnly", true);
+        JsonArray withReflogs = responseRows(callService("GetHistoryRefs", reflogOnly).body());
+        assertFalse(withReflogs.isEmpty(), "HEAD should have reflog entries after commits");
+        for (var entry : withReflogs) {
+            assertTrue(
+                    entry.getAsJsonObject().get("HasReflog").getAsBoolean(),
+                    "ReflogOnly should drop refs without reflogs: " + entry);
+        }
+    }
+
+    @Test
+    @Order(23)
+    void testHistoryServicesResolveDefaultsAndRejectUnknownRefs() throws Exception {
+        assertServiceSuccess(callService("GetReflog", new JsonObject()), "GetReflog without Ref");
+
+        JsonObject shortName = new JsonObject();
+        shortName.addProperty("Ref", "main");
+        for (var entry : responseRows(callService("GetReflog", shortName).body())) {
+            assertEquals("refs/heads/main", entry.getAsJsonObject().get("RefName").getAsString());
+        }
+
+        JsonObject unknown = new JsonObject();
+        unknown.addProperty("Ref", "no-such-ref-for-history-test");
+        assertServiceFailure(callService("GetReflog", unknown), "GetReflog unknown ref");
+        assertServiceFailure(callService("GetLog", unknown), "GetLog unknown ref");
+    }
+
+    @Test
+    @Order(23)
+    void testGetExtensionLogReturnsExtensionErrors() throws Exception {
+        String marker = "extension-log-test-" + System.nanoTime();
+        JsonObject unknown = new JsonObject();
+        unknown.addProperty("Ref", marker);
+        assertServiceFailure(callService("GetLog", unknown), "GetLog unknown ref");
+
+        JsonObject query = new JsonObject();
+        query.addProperty("MaxEntries", 50);
+        query.addProperty("MinimumLevel", "ERROR");
+        query.addProperty("SearchText", marker);
+        var response =
+                stack.httpClient.send(
+                        stack.thingworx
+                                .serviceRequest(
+                                        "GIT.Utility.Thing", "GetExtensionLog", query.toString())
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
+        JsonArray rows = responseRows(response.body());
+        assertEquals(1, rows.size(), "Expected only the GetLog failure: " + response.body());
+        JsonObject row = rows.get(0).getAsJsonObject();
+        assertEquals("ERROR", row.get("Level").getAsString());
+        assertTrue(row.get("Source").getAsString().contains("DapResults\n"), row.toString());
+        assertTrue(
+                row.get("Source").getAsString().contains("GitRepositoryShape.GetLog"),
+                row.toString());
+        assertTrue(row.get("Message").getAsString().contains(marker), row.toString());
+    }
+
+    @Test
     @Order(24)
     void testFetch() throws Exception {
         JsonObject body = new JsonObject();
@@ -1306,6 +1479,18 @@ public class GiteaGitOperationsTest {
         assertEquals(200, res.statusCode(), "Fetch failed: " + res.body());
         assertNotNull(res.body());
         assertSuccess(res.body());
+
+        for (String remote : new String[] {null, "", "   "}) {
+            JsonObject defaultBody = new JsonObject();
+            if (remote != null) defaultBody.addProperty("Remote", remote);
+            var defaultRes = callService("Fetch", defaultBody);
+            assertServiceSuccess(defaultRes, "Fetch with default remote");
+            assertTrue(defaultRes.body().contains("origin"), defaultRes.body());
+        }
+
+        JsonObject unknownBody = new JsonObject();
+        unknownBody.addProperty("Remote", "nonexistent-remote");
+        assertServiceFailure(callService("Fetch", unknownBody), "Fetch");
     }
 
     private String extractFirstCommitId(String json) {

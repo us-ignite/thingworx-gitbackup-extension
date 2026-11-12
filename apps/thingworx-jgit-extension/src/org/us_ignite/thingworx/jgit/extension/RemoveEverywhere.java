@@ -41,8 +41,9 @@ final class RemoveEverywhere {
         if (changes == null || changes.getRowCount() == 0) {
             throw new IllegalArgumentException("No files selected.");
         }
-        if (repo.projectName().isBlank()) {
-            throw new IllegalArgumentException("A repository project is required.");
+        java.util.Set<String> projects = new java.util.HashSet<>(repo.trackedProjects());
+        if (projects.isEmpty()) {
+            throw new IllegalArgumentException(Const.ERR_PROJECT_NAME_REQUIRED);
         }
         Path root = repo.git().getRepository().getWorkTree().toPath().toRealPath();
         var status = repo.git().status().call();
@@ -80,12 +81,16 @@ final class RemoveEverywhere {
                                 "EntityServices", ThingworxRelationshipTypes.Resource);
         if (entityServices == null)
             throw new IllegalStateException("EntityServices is unavailable.");
+        List<Target> existingTargets = new ArrayList<>();
+        List<String> mashups = new ArrayList<>();
         for (Target target : targets.values()) {
+            if (target.type().equals("Mashup")) {
+                mashups.add(target.name());
+                continue;
+            }
             ThingworxRelationshipTypes type = ThingworxRelationshipTypes.valueOf(target.type());
             RootEntity entity = EntityUtilities.findEntity(target.name(), type);
-            if (entity == null)
-                throw new IllegalArgumentException(
-                        target.type() + " " + target.name() + ": entity not found.");
+            if (entity == null) continue;
             if (entity.isSystemObject() || entity.isExtensionObject()) {
                 throw new IllegalArgumentException(
                         target.type()
@@ -93,14 +98,14 @@ final class RemoveEverywhere {
                                 + target.name()
                                 + ": system or extension entity cannot be removed.");
             }
-            if (!repo.projectName().equals(entity.GetProjectName())) {
+            if (!projects.contains(entity.GetProjectName())) {
                 throw new IllegalArgumentException(
                         target.type()
                                 + " "
                                 + target.name()
-                                + ": entity is not in project "
-                                + repo.projectName()
-                                + ".");
+                                + ": entity is not in a tracked project ("
+                                + String.join(", ", projects)
+                                + ").");
             }
             if (!Boolean.TRUE.equals(entity.CheckDesignTimePermission("Delete"))) {
                 throw new SecurityException(
@@ -116,10 +121,11 @@ final class RemoveEverywhere {
                 throw new SecurityException(
                         "Service permission denied for " + SERVICES.get(target.type()));
             }
+            existingTargets.add(target);
         }
         List<String> completed = new ArrayList<>();
         try {
-            for (Target target : targets.values()) {
+            for (Target target : existingTargets) {
                 ValueCollection params = new ValueCollection();
                 params.put("name", new StringPrimitive(target.name()));
                 entityServices.processAPIServiceRequest(SERVICES.get(target.type()), params);
@@ -138,11 +144,19 @@ final class RemoveEverywhere {
                             + e.getMessage(),
                     e);
         }
-        return "Removed "
-                + targets.size()
-                + " ThingWorx entity/entities and "
-                + paths.size()
-                + " file(s); tracked deletions are staged.";
+        String message =
+                "Removed "
+                        + existingTargets.size()
+                        + " ThingWorx entity/entities and "
+                        + paths.size()
+                        + " file(s); tracked deletions are staged.";
+        if (!mashups.isEmpty()) {
+            message +=
+                    " Warning: Mashups were not deleted from ThingWorx: "
+                            + String.join(", ", mashups)
+                            + ". Project export may recreate their XML; delete them in Composer to remove them permanently.";
+        }
+        return message;
     }
 
     static List<Target> readTargets(Path path) throws Exception {
@@ -163,7 +177,7 @@ final class RemoveEverywhere {
                 if (!(item instanceof Element entity)) continue;
                 String type = entity.getTagName();
                 String name = entity.getAttribute("name");
-                if (!SERVICES.containsKey(type) || name.isBlank()) {
+                if ((!SERVICES.containsKey(type) && !type.equals("Mashup")) || name.isBlank()) {
                     throw new IllegalArgumentException(
                             path.getFileName()
                                     + ": unsupported entity type or missing name: "
