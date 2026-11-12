@@ -3389,21 +3389,8 @@ public class GitRepositoryShape extends Thing {
             } finally {
                 fileRepo.close();
             }
-            InfoTable found =
-                    new com.thingworx.resources.entities.EntityServices()
-                            .GetEntityList(
-                                    "Project",
-                                    "",
-                                    new com.thingworx.types.TagCollection(),
-                                    100000.0);
-            List<String> available = new ArrayList<>();
-            for (int i = 0; i < found.getRowCount(); i++) {
-                String name = found.getRow(i).getStringValue("name");
-                if (name == null || tracked.contains(name)) continue;
-                var project = EntityUtilities.findEntity(name, ThingworxRelationshipTypes.Project);
-                if (FileRepositoryManager.isTrackableProject(project)) available.add(name);
-            }
-            available.sort(String.CASE_INSENSITIVE_ORDER);
+            List<String> available = new ArrayList<>(FileRepositoryManager.trackableProjectNames());
+            available.removeIf(tracked::contains);
             return DapResults.success(
                     "GetAvailableProjects",
                     TrackedProjectTable.SERVICE_RESULT,
@@ -3554,15 +3541,7 @@ public class GitRepositoryShape extends Thing {
     }
 
     private static InfoTable projectTable(List<String> projects) throws Exception {
-        InfoTable table =
-                InfoTableInstanceFactory.createInfoTableFromDataShape(
-                        Const.TrackedProjectDataShapeName);
-        for (String project : projects) {
-            ValueCollection row = new ValueCollection();
-            row.put(Const.ProjectName, new StringPrimitive(project));
-            table.addRow(row);
-        }
-        return table;
+        return FileRepositoryManager.projectTable(projects);
     }
 
     private Thing resolveTargetThing() {

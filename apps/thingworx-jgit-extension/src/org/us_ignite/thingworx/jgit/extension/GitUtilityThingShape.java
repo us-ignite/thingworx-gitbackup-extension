@@ -46,6 +46,7 @@ import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.OperationLi
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.RepositoryConfigurationSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.RepositoryListSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.StringResultSpec;
+import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.TrackedProjectSpec;
 
 /**
  * Utility services for repository lifecycle, entity synchronization, user configuration, and
@@ -139,9 +140,14 @@ public class GitUtilityThingShape extends Thing {
                             description = "",
                             baseType = "STRING")
                     String GitCommitterFullName) {
+        boolean thingCreated = false;
         try {
             if (RepoName == null || RepoName.isBlank())
                 throw new IllegalArgumentException("RepoName is required.");
+            RepoName = RepoName.trim();
+            if (EntityUtilities.findEntity(RepoName, ThingworxRelationshipTypes.Thing) != null)
+                throw new IllegalArgumentException(
+                        "A Thing named '" + RepoName + "' already exists.");
             // Validate every project before creating anything, using the same rules as
             // AddTrackedProject: each must be an existing, trackable project.
             java.util.LinkedHashSet<String> projects = new java.util.LinkedHashSet<>();
@@ -183,6 +189,7 @@ public class GitUtilityThingShape extends Thing {
                     new TagCollection(),
                     repositoryProject,
                     Const.RepositoryThingTemplateName);
+            thingCreated = true;
             // The repository is a single Thing based on the GIT.Repository.ThingTemplate
             // (which extends FileRepository). FileRepository supplies the working-tree storage
             // and the template's implemented GIT.Repository.ThingShape supplies the
@@ -206,7 +213,10 @@ public class GitUtilityThingShape extends Thing {
                     Const.RepoPath, new StringPrimitive(RepoPath == null ? "" : RepoPath));
             repoThing.setPropertyValue(
                     Const.InitialBranch,
-                    new StringPrimitive(BranchName == null ? "main" : BranchName));
+                    new StringPrimitive(
+                            BranchName == null || BranchName.isBlank()
+                                    ? "main"
+                                    : BranchName.trim()));
             repoThing.setPropertyValue(Const.ProjectName, new StringPrimitive(""));
             InfoTable trackedProjects =
                     InfoTableInstanceFactory.createInfoTableFromDataShape(
@@ -229,20 +239,85 @@ public class GitUtilityThingShape extends Thing {
                     Const.LocalizationTokensPrefix,
                     new StringPrimitive(
                             LocalizationTokensPrefix == null ? "" : LocalizationTokensPrefix));
-            GitCredentialCreate(
-                    GitCommitterUser,
-                    GitCommitterPassword,
-                    GitCommitterEmail,
-                    GitCommitterFullName,
-                    RepoName,
-                    "");
+            // Credentials are optional; Repository Settings can add them later.
+            if (!isBlank(GitCommitterUser)
+                    || !isBlank(GitCommitterPassword)
+                    || !isBlank(GitCommitterEmail)
+                    || !isBlank(GitCommitterFullName)) {
+                InfoTable credentialResult =
+                        GitCredentialCreate(
+                                nullToEmpty(GitCommitterUser),
+                                nullToEmpty(GitCommitterPassword),
+                                nullToEmpty(GitCommitterEmail),
+                                nullToEmpty(GitCommitterFullName),
+                                RepoName,
+                                "");
+                ValueCollection credentialRow =
+                        credentialResult == null || credentialResult.getRowCount() == 0
+                                ? null
+                                : credentialResult.getRow(0);
+                if (credentialRow == null || Boolean.TRUE.equals(credentialRow.getValue("Error"))) {
+                    throw new IllegalStateException(
+                            "Could not save credentials: "
+                                    + (credentialRow == null
+                                            ? "no result"
+                                            : credentialRow.getStringValue("Message")));
+                }
+            }
             gitActionLog("RepositoryCreate", RepoName, "Repository created.");
             return DapResults.success(
                     "RepositoryCreate", "Repository created.", StringResultContract.SERVICE_RESULT);
         } catch (Exception e) {
+            if (thingCreated) {
+                // Remove the partly configured Thing so the same name can be retried.
+                try {
+                    new EntityServices().DeleteThing(RepoName);
+                } catch (Exception cleanup) {
+                    _logger.warn("RepositoryCreate could not remove " + RepoName, cleanup);
+                }
+            }
             gitActionLog(
                     "RepositoryCreate", RepoName, e == null ? "" : String.valueOf(e.getMessage()));
             return DapResults.failure("RepositoryCreate", e, StringResultContract.SERVICE_RESULT);
+        }
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    private static String nullToEmpty(String value) {
+        return value == null ? "" : value;
+    }
+
+    /** Lists projects a new repository can track, for the repository create form. */
+    @DapServicePayload(TrackedProjectSpec.class)
+    @ThingworxServiceDefinition(
+            name = "GetTrackableProjects",
+            description =
+                    "Lists ThingWorx projects visible to the caller that a repository can track",
+            category = "Projects",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {
+                "isEntityDataShape:true",
+                "dataShape:GIT.TrackedProject.ServiceResult.DataShape"
+            })
+    public InfoTable GetTrackableProjects() {
+        try {
+            return DapResults.success(
+                    "GetTrackableProjects",
+                    TrackedProjectTable.SERVICE_RESULT,
+                    TrackedProjectTable.wrap(
+                            FileRepositoryManager.projectTable(
+                                    FileRepositoryManager.trackableProjectNames())));
+        } catch (Exception e) {
+            return DapResults.failure(
+                    "GetTrackableProjects", e, TrackedProjectTable.SERVICE_RESULT);
         }
     }
 

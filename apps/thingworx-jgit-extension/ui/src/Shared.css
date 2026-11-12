@@ -45,6 +45,7 @@
 [id$="reflog-main"],
 [id$="extlog-main"],
 [id$="settings-main"],
+[id$="create-main"],
 [id$="user-settings-content"],
 [id$="operations-main"],
 [id$="conflictresolution-main"] {
@@ -57,10 +58,10 @@
 }
 
 /* Layout containers inside the page stay transparent; only cards are white. */
-:is([id$="home-main"], [id$="changes-main"], [id$="branches-main"], [id$="history-main"], [id$="log-main"], [id$="reflog-main"], [id$="extlog-main"], [id$="settings-main"], [id$="user-settings-content"], [id$="operations-main"], [id$="conflictresolution-main"]) .widget-flexcontainer { background: transparent !important; }
+:is([id$="home-main"], [id$="changes-main"], [id$="branches-main"], [id$="history-main"], [id$="log-main"], [id$="reflog-main"], [id$="extlog-main"], [id$="settings-main"], [id$="create-main"], [id$="user-settings-content"], [id$="operations-main"], [id$="conflictresolution-main"]) .widget-flexcontainer { background: transparent !important; }
 
 /* Cards: white surfaces on the canvas. */
-:is([id$="home-main"], [id$="changes-main"], [id$="branches-main"], [id$="history-main"], [id$="log-main"], [id$="reflog-main"], [id$="extlog-main"], [id$="settings-main"], [id$="user-settings-content"], [id$="operations-main"], [id$="conflictresolution-main"]) :is([id$="home-list-container"], [id$="changes-sync-card"], [id$="changes-worktree-card"], [id$="changes-push-card"], [id$="branches-list-card"], [id$="branches-create-card"], [id$="branches-merge-card"], [id$="repository-settings-card"], [id$="settings-projects"], [id$="history-tree-card"], [id$="history-log-card"]),
+:is([id$="home-main"], [id$="changes-main"], [id$="branches-main"], [id$="history-main"], [id$="log-main"], [id$="reflog-main"], [id$="extlog-main"], [id$="settings-main"], [id$="create-main"], [id$="user-settings-content"], [id$="operations-main"], [id$="conflictresolution-main"]) :is([id$="home-list-container"], [id$="changes-sync-card"], [id$="changes-worktree-card"], [id$="changes-push-card"], [id$="branches-list-card"], [id$="branches-create-card"], [id$="branches-merge-card"], [id$="repository-settings-card"], [id$="settings-projects"], [id$="create-repository-card"], [id$="create-credentials-card"], [id$="create-projects-card"], [id$="create-advanced-card"], [id$="history-tree-card"], [id$="history-log-card"]),
 [id$="user-settings-content"] :is([id$="flexcontainer-40"], [id$="flexcontainer-41"], [id$="extension-log-section"]) {
   background: var(--git-surface) !important;
   border: 1px solid var(--git-border) !important;

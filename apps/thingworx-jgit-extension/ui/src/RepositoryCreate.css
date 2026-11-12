@@ -1,0 +1,10 @@
+/* New repository form: each section is a card; fields keep a readable width. */
+[id$="create-repository-card"],
+[id$="create-credentials-card"],
+[id$="create-projects-card"],
+[id$="create-advanced-card"] {
+  align-self: stretch !important;
+  padding: var(--git-card-inset);
+}
+[id$="create-projects-grid-area"] { align-self: stretch; min-height: 240px; min-width: 0; }
+[id$="create-message"] { color: var(--git-text); }

@@ -85,7 +85,8 @@ remove them permanently. Status refresh preserves staged deletions until they ar
 | Service | Arguments | Result / purpose |
 |---|---|---|
 | `RepositoryList` | — | Lists available repository Things. Returns an `INFOTABLE` with `RepoName: STRING` rows. |
-| `RepositoryCreate` | `RepoName: STRING`, `GitRepoURL: STRING`, `RepoPath: STRING`, `BranchName: STRING`, `ProjectName: STRING`, `UseProxy: BOOLEAN`, `ProxyURL: STRING`, `ProxyPort: INTEGER`, `LocalizationTokensPrefix: STRING`, `GitCommitterUser: STRING`, `GitCommitterPassword: STRING`, `GitCommitterEmail: STRING`, `GitCommitterFullName: STRING` | Creates and configures the repository Thing and the current user's Git credentials in one call. |
+| `RepositoryCreate` | `RepoName: STRING`, `GitRepoURL: STRING`, `RepoPath: STRING`, `BranchName: STRING`, `TrackedProjects: INFOTABLE` (`GIT.TrackedProject.DataShape`), `UseProxy: BOOLEAN`, `ProxyURL: STRING`, `ProxyPort: INTEGER`, `LocalizationTokensPrefix: STRING`, `GitCommitterUser: STRING`, `GitCommitterPassword: STRING`, `GitCommitterEmail: STRING`, `GitCommitterFullName: STRING` | Creates and configures the repository Thing and, when any credential field is set, the current user's Git credentials. Fails without changes when a Thing with that name exists. A blank `BranchName` means `main`. If a later step fails, the new Thing is deleted so the name can be reused. |
+| `GetTrackableProjects` | — | Lists ThingWorx projects visible to the caller that a new repository can track, for the New Repository form. Returns `GIT.TrackedProject.ServiceResult.DataShape`. |
 | `RepositoryDelete` | `RepoName: STRING` | Deletes the repository Thing, local content, and the current user’s associated configuration. |
 | `InitUserExtensionProperties` | — | Creates and initializes the Git credentials and reusable GPG-key UserExtension properties. |
 | `GpgKeyListSummary` | — | Lists the current user’s GPG key labels and fingerprints without private key material. |
