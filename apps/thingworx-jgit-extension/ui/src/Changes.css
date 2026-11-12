@@ -1,0 +1,14 @@
+[id$="changes-header"],
+[id$="changes-filters"],
+[id$="changes-actions"],
+[id$="changes-commit-row"],
+[id$="changes-push-row"] { width: 100%; flex-wrap: wrap; }
+
+[id$="changes-sync-card"],
+[id$="changes-worktree-card"],
+[id$="changes-push-card"] {
+  align-self: stretch !important;
+  padding: var(--git-card-inset);
+}
+[id$="changes-worktree-card"] { min-height: 360px; }
+[id$="changes-worktree-card"] [id$="changes-grid-area"] { flex: 1 1 320px; }

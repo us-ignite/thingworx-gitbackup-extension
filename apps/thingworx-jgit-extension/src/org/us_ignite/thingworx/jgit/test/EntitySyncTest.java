@@ -131,15 +131,62 @@ public class EntitySyncTest {
         installer.close();
     }
 
+    /** Builds a GIT.TrackedProject.DataShape InfoTable payload for RepositoryCreate. */
+    private static JsonObject trackedProjects(String... projects) {
+        JsonObject field = new JsonObject();
+        field.addProperty("name", "ProjectName");
+        field.addProperty("baseType", "STRING");
+        JsonObject fields = new JsonObject();
+        fields.add("ProjectName", field);
+        JsonObject shape = new JsonObject();
+        shape.add("fieldDefinitions", fields);
+        com.google.gson.JsonArray rows = new com.google.gson.JsonArray();
+        for (String project : projects) {
+            JsonObject row = new JsonObject();
+            row.addProperty("ProjectName", project);
+            rows.add(row);
+        }
+        JsonObject table = new JsonObject();
+        table.add("dataShape", shape);
+        table.add("rows", rows);
+        return table;
+    }
+
     private void configureRepository(
             ThingWorxContainer twx, String thingName, String fullName, String email)
             throws Exception {
+        // RepositoryCreate tracks only existing projects, so create it first on this instance.
+        JsonObject project = new JsonObject();
+        project.addProperty("name", TEST_PROJECT);
+        httpClient.send(
+                HttpRequest.newBuilder()
+                        .uri(
+                                URI.create(
+                                        twx.getExternalUrl()
+                                                + "/Thingworx/Resources/EntityServices/Services/CreateProject"))
+                        .header("Content-Type", "application/json")
+                        .header("Accept", "application/json")
+                        .header(
+                                "Authorization",
+                                "Basic "
+                                        + Base64.getEncoder()
+                                                .encodeToString(
+                                                        (credentials.thingworxAdminUser
+                                                                        + ":"
+                                                                        + credentials
+                                                                                .thingworxAdminPass)
+                                                                .getBytes(StandardCharsets.UTF_8)))
+                        .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
+                        .header("X-Requested-By", "ThingWorx")
+                        .POST(HttpRequest.BodyPublishers.ofString(project.toString()))
+                        .build(),
+                HttpResponse.BodyHandlers.ofString());
         JsonObject body = new JsonObject();
         body.addProperty("RepoName", thingName);
         body.addProperty("GitRepoURL", giteaRepoUrl);
         body.addProperty("RepoPath", SHARED_REPO_PATH);
         body.addProperty("BranchName", "main");
-        body.addProperty("ProjectName", TEST_PROJECT);
+        body.add("TrackedProjects", trackedProjects(TEST_PROJECT));
         body.addProperty("GitCommitterUser", credentials.giteaUser);
         body.addProperty("GitCommitterPassword", credentials.giteaPass);
         body.addProperty("GitCommitterEmail", email);

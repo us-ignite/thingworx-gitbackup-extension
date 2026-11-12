@@ -14,6 +14,8 @@ The extension is built for Java 21 and is tested against ThingWorx 9.6, 9.7, and
 - [Export and import ThingWorx entities](import-export.md)
 - [Configure GPG signing](gpg.md)
 - [Browse the Java API reference](api/index.md)
+- [Understand the mashup export format](mashup-format-primer.md)
+- [Build UI with the project widgets and data model](ui-agent-guide.md)
 
 ## Security reminder
 

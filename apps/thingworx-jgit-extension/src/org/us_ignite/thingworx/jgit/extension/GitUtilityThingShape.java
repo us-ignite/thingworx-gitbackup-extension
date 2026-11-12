@@ -37,8 +37,12 @@ import org.us_ignite.thingworx.dap.DapProperty;
 import org.us_ignite.thingworx.dap.DapServicePayload;
 import org.us_ignite.thingworx.dap.DapThingShape;
 import org.us_ignite.thingworx.dap.runtime.DapResults;
+import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.ExtensionLogSpec;
+import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.GitLogSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.GpgKeySpec;
+import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.GpgKeySummarySpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.GpgKeyVerificationSpec;
+import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.OperationListSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.RepositoryConfigurationSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.RepositoryListSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.StringResultSpec;
@@ -97,8 +101,13 @@ public class GitUtilityThingShape extends Thing {
                     String RepoPath,
             @ThingworxServiceParameter(name = "BranchName", description = "", baseType = "STRING")
                     String BranchName,
-            @ThingworxServiceParameter(name = "ProjectName", description = "", baseType = "STRING")
-                    String ProjectName,
+            @ThingworxServiceParameter(
+                            name = "TrackedProjects",
+                            description =
+                                    "Existing ThingWorx projects to synchronize with the repository; may be empty and edited later in Repository Settings",
+                            baseType = "INFOTABLE",
+                            aspects = {"dataShape:GIT.TrackedProject.DataShape"})
+                    InfoTable TrackedProjects,
             @ThingworxServiceParameter(name = "UseProxy", description = "", baseType = "BOOLEAN")
                     Boolean UseProxy,
             @ThingworxServiceParameter(name = "ProxyURL", description = "", baseType = "STRING")
@@ -133,6 +142,27 @@ public class GitUtilityThingShape extends Thing {
         try {
             if (RepoName == null || RepoName.isBlank())
                 throw new IllegalArgumentException("RepoName is required.");
+            // Validate every project before creating anything, using the same rules as
+            // AddTrackedProject: each must be an existing, trackable project.
+            java.util.LinkedHashSet<String> projects = new java.util.LinkedHashSet<>();
+            if (TrackedProjects != null) {
+                for (int i = 0; i < TrackedProjects.getRowCount(); i++) {
+                    String raw = TrackedProjects.getRow(i).getStringValue(Const.ProjectName);
+                    if (raw == null || raw.isBlank()) continue;
+                    String name = FileRepositoryManager.validateProjectFolderName(raw);
+                    var project =
+                            EntityUtilities.findEntity(name, ThingworxRelationshipTypes.Project);
+                    if (project == null) {
+                        throw new IllegalArgumentException(
+                                String.format(Const.ERR_PROJECT_NOT_FOUND, name));
+                    }
+                    if (!FileRepositoryManager.isTrackableProject(project)) {
+                        throw new IllegalArgumentException(
+                                "Project '" + name + "' cannot be tracked by a repository.");
+                    }
+                    projects.add(name);
+                }
+            }
             EntityServices es = new EntityServices();
             String repositoryProject = Const.RepositoryProjectName;
             if (EntityUtilities.findEntity(repositoryProject, ThingworxRelationshipTypes.Project)
@@ -141,17 +171,6 @@ public class GitUtilityThingShape extends Thing {
                         repositoryProject,
                         "Component",
                         "Repository Things created by the JGit extension",
-                        "",
-                        new TagCollection());
-            }
-            if (ProjectName != null
-                    && !ProjectName.isBlank()
-                    && EntityUtilities.findEntity(ProjectName, ThingworxRelationshipTypes.Project)
-                            == null) {
-                es.CreateProject(
-                        ProjectName,
-                        "Component",
-                        "Project for entity synchronization via the JGit extension",
                         "",
                         new TagCollection());
             }
@@ -188,8 +207,17 @@ public class GitUtilityThingShape extends Thing {
             repoThing.setPropertyValue(
                     Const.InitialBranch,
                     new StringPrimitive(BranchName == null ? "main" : BranchName));
+            repoThing.setPropertyValue(Const.ProjectName, new StringPrimitive(""));
+            InfoTable trackedProjects =
+                    InfoTableInstanceFactory.createInfoTableFromDataShape(
+                            Const.TrackedProjectDataShapeName);
+            for (String project : projects) {
+                ValueCollection trackedProject = new ValueCollection();
+                trackedProject.put(Const.ProjectName, new StringPrimitive(project));
+                trackedProjects.addRow(trackedProject);
+            }
             repoThing.setPropertyValue(
-                    Const.ProjectName, new StringPrimitive(ProjectName == null ? "" : ProjectName));
+                    Const.TrackedProjects, new InfoTablePrimitive(trackedProjects));
             repoThing.setPropertyValue(
                     Const.UseProxy, new BooleanPrimitive(UseProxy != null && UseProxy));
             repoThing.setPropertyValue(
@@ -208,10 +236,23 @@ public class GitUtilityThingShape extends Thing {
                     GitCommitterFullName,
                     RepoName,
                     "");
+            gitActionLog("RepositoryCreate", RepoName, "Repository created.");
             return DapResults.success(
                     "RepositoryCreate", "Repository created.", StringResultContract.SERVICE_RESULT);
         } catch (Exception e) {
+            gitActionLog(
+                    "RepositoryCreate", RepoName, e == null ? "" : String.valueOf(e.getMessage()));
             return DapResults.failure("RepositoryCreate", e, StringResultContract.SERVICE_RESULT);
+        }
+    }
+
+    /**
+     * Writes a repository lifecycle entry to the extension log; failures never break the service.
+     */
+    private void gitActionLog(String action, String repoName, String message) {
+        try {
+            GitActionLogger.logAction(action, repoName, message);
+        } catch (Exception ignored) {
         }
     }
 
@@ -330,9 +371,12 @@ public class GitUtilityThingShape extends Thing {
                     "GIT Repository Thing "
                             + RepoName
                             + " (self-hosted FileRepository) was deleted successfully.");
+            gitActionLog("RepositoryDelete", RepoName, "Repository deleted.");
             return DapResults.success(
                     "RepositoryDelete", "Repository deleted.", StringResultContract.SERVICE_RESULT);
         } catch (Exception e) {
+            gitActionLog(
+                    "RepositoryDelete", RepoName, e == null ? "" : String.valueOf(e.getMessage()));
             return DapResults.failure("RepositoryDelete", e, StringResultContract.SERVICE_RESULT);
         }
     }
@@ -873,6 +917,50 @@ public class GitUtilityThingShape extends Thing {
         } catch (Exception e) {
             _logger.error("GpgKeyList failed", e);
             return DapResults.failure("GpgKeyList", e, GpgKeyTable.SERVICE_RESULT);
+        }
+    }
+
+    @DapServicePayload(GpgKeySummarySpec.class)
+    @ThingworxServiceDefinition(
+            name = "GpgKeyListSummary",
+            description =
+                    "Lists the current user's GPG key labels and fingerprints without private key material",
+            category = "",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {
+                "isEntityDataShape:true",
+                "dataShape:GIT.GpgKeySummary.ServiceResult.DataShape"
+            })
+    public InfoTable GpgKeyListSummary() {
+        try {
+            InfoTable result =
+                    InfoTableInstanceFactory.createInfoTableFromDataShape(
+                            "GIT.GpgKeySummary.DataShape");
+            InfoTable keys = new GitUserContextManager().gpgKeys();
+            if (keys != null) {
+                for (int i = 0; i < keys.getRowCount(); i++) {
+                    ValueCollection key = keys.getRow(i);
+                    ValueCollection row = new ValueCollection();
+                    row.put(
+                            Const.GpgKeyFingerprint,
+                            new StringPrimitive(key.getStringValue(Const.GpgKeyFingerprint)));
+                    row.put(
+                            Const.GpgKeyLabel,
+                            new StringPrimitive(key.getStringValue(Const.GpgKeyLabel)));
+                    result.addRow(row);
+                }
+            }
+            return DapResults.success(
+                    "GpgKeyListSummary",
+                    GpgKeySummaryTable.SERVICE_RESULT,
+                    GpgKeySummaryTable.wrap(result));
+        } catch (Exception e) {
+            return DapResults.failure("GpgKeyListSummary", e, GpgKeySummaryTable.SERVICE_RESULT);
         }
     }
 
@@ -1458,6 +1546,67 @@ public class GitUtilityThingShape extends Thing {
 
     @DapServicePayload(StringResultSpec.class)
     @ThingworxServiceDefinition(
+            name = "GitCommitIdentityUpdate",
+            description =
+                    "Updates the current user's commit identity for a repository without changing credentials or signing settings",
+            category = "",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
+    public InfoTable GitCommitIdentityUpdate(
+            @ThingworxServiceParameter(
+                            name = "GitThing",
+                            description = "Repository Thing",
+                            baseType = "THINGNAME")
+                    String gitThing,
+            @ThingworxServiceParameter(
+                            name = "GitCommitterFullName",
+                            description = "Commit name",
+                            baseType = "STRING")
+                    String fullName,
+            @ThingworxServiceParameter(
+                            name = "GitCommitterEmail",
+                            description = "Commit email",
+                            baseType = "STRING")
+                    String email) {
+        try {
+            if (fullName == null || fullName.isBlank() || email == null || email.isBlank())
+                throw new IllegalArgumentException("Commit name and email are required.");
+            GitUserContextManager context = new GitUserContextManager();
+            InfoTable all = context.credentials();
+            ValueCollection row = null;
+            if (all != null && gitThing != null && !gitThing.isBlank()) {
+                for (int i = 0; i < all.getRowCount(); i++) {
+                    if (gitThing.equals(all.getRow(i).getStringValue("GitThing"))) {
+                        row = all.getRow(i);
+                        break;
+                    }
+                }
+            }
+            if (row == null)
+                throw new IllegalArgumentException(
+                        "Credentials not found for repository: " + gitThing);
+            row.put(Const.GitCommitterName, new StringPrimitive(fullName.trim()));
+            row.put(Const.GitCommitterEmail, new StringPrimitive(email.trim()));
+            context.requireUser()
+                    .setPropertyValue(
+                            Const.UserRepositoryConfiguration, new InfoTablePrimitive(all));
+            return DapResults.success(
+                    "GitCommitIdentityUpdate",
+                    "Commit identity saved.",
+                    StringResultContract.SERVICE_RESULT);
+        } catch (Exception e) {
+            return DapResults.failure(
+                    "GitCommitIdentityUpdate", e, StringResultContract.SERVICE_RESULT);
+        }
+    }
+
+    @DapServicePayload(StringResultSpec.class)
+    @ThingworxServiceDefinition(
             name = "GitCredentialUpdate",
             description = "Updates credentials for an existing repository record",
             category = "",
@@ -1535,6 +1684,88 @@ public class GitUtilityThingShape extends Thing {
 
     @DapServicePayload(StringResultSpec.class)
     @ThingworxServiceDefinition(
+            name = "GitRepositorySettingsSave",
+            description =
+                    "Creates or updates the current user's repository credentials and signing key; a blank password preserves an existing password",
+            category = "",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
+    public InfoTable GitRepositorySettingsSave(
+            @ThingworxServiceParameter(
+                            name = "GitThing",
+                            description = "Repository Thing",
+                            baseType = "THINGNAME")
+                    String gitThing,
+            @ThingworxServiceParameter(
+                            name = "GitCommitterUser",
+                            description = "Git username",
+                            baseType = "STRING")
+                    String user,
+            @ThingworxServiceParameter(
+                            name = "GitCommitterPassword",
+                            description = "New password, or blank to keep the existing password",
+                            baseType = "STRING")
+                    String password,
+            @ThingworxServiceParameter(
+                            name = "GitCommitterEmail",
+                            description = "Committer email",
+                            baseType = "STRING")
+                    String email,
+            @ThingworxServiceParameter(
+                            name = "GitCommitterFullName",
+                            description = "Committer name",
+                            baseType = "STRING")
+                    String fullName,
+            @ThingworxServiceParameter(
+                            name = "GpgKeyFingerprint",
+                            description = "Signing key, or blank to disable signing",
+                            baseType = "STRING")
+                    String fingerprint) {
+        try {
+            if (gitThing == null || gitThing.isBlank()) {
+                throw new IllegalArgumentException("Repository is required.");
+            }
+            GitUserContextManager context = new GitUserContextManager();
+            InfoTable credentials = context.credentials();
+            ValueCollection existing = null;
+            if (credentials != null) {
+                for (int i = 0; i < credentials.getRowCount(); i++) {
+                    ValueCollection row = credentials.getRow(i);
+                    if (gitThing.equals(row.getStringValue("GitThing"))) {
+                        existing = row;
+                        break;
+                    }
+                }
+            }
+            String safeUser = user == null ? "" : user;
+            String safePassword = password == null ? "" : password;
+            String safeEmail = email == null ? "" : email;
+            String safeName = fullName == null ? "" : fullName;
+            String safeFingerprint = fingerprint == null ? "" : fingerprint;
+            if (existing == null) {
+                return GitCredentialCreate(
+                        safeUser, safePassword, safeEmail, safeName, gitThing, safeFingerprint);
+            }
+            if (safePassword.isEmpty() && existing.getPrimitive("GitCommitterPassword") != null) {
+                safePassword =
+                        ((PasswordPrimitive) existing.getPrimitive("GitCommitterPassword"))
+                                .getValue();
+            }
+            return GitCredentialUpdate(
+                    safeUser, safePassword, safeEmail, safeName, gitThing, safeFingerprint);
+        } catch (Exception e) {
+            return DapResults.failure(
+                    "GitRepositorySettingsSave", e, StringResultContract.SERVICE_RESULT);
+        }
+    }
+
+    @DapServicePayload(StringResultSpec.class)
+    @ThingworxServiceDefinition(
             name = "GitCredentialDelete",
             description = "Deletes credentials for a repository",
             category = "",
@@ -1585,4 +1816,215 @@ public class GitUtilityThingShape extends Thing {
     private void validateGpgKeyOwnership(User user, String fingerprint) throws Exception {
         new GitUserContextManager().validateGpgKeyOwnership(fingerprint);
     }
+
+    /**
+     * Returns the Git operation tab list used by the ManagementConsole mashup.
+     *
+     * <p>The returned rows carry the tab value ({@code Value}) and display label ({@code
+     * Description}) consumed by the operations dropdown and tab set. Kept as its own service so the
+     * Operation names stay data-driven rather than hard-coded in the mashup.
+     */
+    @DapServicePayload(OperationListSpec.class)
+    @ThingworxServiceDefinition(
+            name = "GetOperations",
+            description = "Returns the Git operations tab list for the ManagementConsole mashup",
+            category = "",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {
+                "isEntityDataShape:true",
+                "dataShape:GIT.OperationList.ServiceResult.DataShape"
+            })
+    public InfoTable GetOperations() {
+        try {
+            OperationListTable operations = OperationListTable.create();
+            operations.add(
+                    OperationListRow.create()
+                            .value("Commit")
+                            .description("Commit & Push")
+                            .ordinal(1));
+            operations.add(OperationListRow.create().value("Pull").description("Pull").ordinal(2));
+            operations.add(
+                    OperationListRow.create().value("Branch").description("Branch").ordinal(3));
+            operations.add(
+                    OperationListRow.create().value("Settings").description("Settings").ordinal(4));
+            operations.add(OperationListRow.create().value("Log").description("Log").ordinal(5));
+            operations.add(
+                    OperationListRow.create().value("New Repo").description("New Repo").ordinal(6));
+            operations.add(
+                    OperationListRow.create()
+                            .value("Delete")
+                            .description("Delete Repo")
+                            .ordinal(7));
+            return DapResults.success(
+                    "GetOperations", OperationListTable.SERVICE_RESULT, operations);
+        } catch (Exception e) {
+            return DapResults.failure("GetOperations", e, OperationListTable.SERVICE_RESULT);
+        }
+    }
+
+    /**
+     * Returns recent Git action entries recorded by {@link GitActionLogger} in the ApplicationLog.
+     *
+     * <p>A dedicated Git action log stream may replace the storage later without changing this row
+     * contract.
+     */
+    @DapServicePayload(GitLogSpec.class)
+    @ThingworxServiceDefinition(
+            name = "GetGitLog",
+            description = "Returns recent Git action entries recorded in the extension log",
+            category = "",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.GitLog.ServiceResult.DataShape"})
+    public InfoTable GetGitLog(
+            @ThingworxServiceParameter(
+                            name = "MaxEntries",
+                            description = "Maximum number of log entries to return; default 100",
+                            baseType = "NUMBER")
+                    Double MaxEntries) {
+        try {
+            int maxEntries =
+                    MaxEntries == null || MaxEntries < 1
+                            ? 100
+                            : (int) Math.min(MaxEntries.doubleValue(), 1000.0);
+            GitLogTable log = GitLogTable.create();
+            for (ExtensionLog.Entry entry : ExtensionLog.read(GitActionLogger.class, maxEntries)) {
+                String content = entry.content();
+                if (!content.startsWith(GitActionLogger.ACTION_PREFIX)) continue;
+                // Content format: "GIT.ACTION | action | repoName | message | user"
+                String rest = content.substring(GitActionLogger.ACTION_PREFIX.length()).trim();
+                if (rest.startsWith("|")) rest = rest.substring(1).trim();
+                String front = rest;
+                String loggedUser = entry.user();
+                int lastSep = rest.lastIndexOf(" | ");
+                if (lastSep > 0) {
+                    front = rest.substring(0, lastSep).trim();
+                    String tailUser = rest.substring(lastSep + 3).trim();
+                    if (!tailUser.isEmpty()) loggedUser = tailUser;
+                }
+                String[] parts = front.split("\\s*\\|\\s*", 3);
+                log.add(
+                        GitLogRow.create()
+                                .timestamp(entry.timestamp())
+                                .user(loggedUser)
+                                .action(parts.length > 0 ? parts[0] : "")
+                                .repoName(parts.length > 1 ? parts[1] : "")
+                                .level(entry.level())
+                                .message(parts.length > 2 ? parts[2] : ""));
+            }
+            return DapResults.success("GetGitLog", GitLogTable.SERVICE_RESULT, log);
+        } catch (Exception e) {
+            _logger.error("GetGitLog failed", e);
+            return DapResults.failure("GetGitLog", e, GitLogTable.SERVICE_RESULT);
+        }
+    }
+
+    /**
+     * Returns entries the extension wrote to the ApplicationLog, newest first. Only entries at or
+     * above the ApplicationLog's configured level are recorded; ThingWorx defaults to WARN.
+     */
+    @DapServicePayload(ExtensionLogSpec.class)
+    @ThingworxServiceDefinition(
+            name = "GetExtensionLog",
+            description =
+                    "Returns entries the Git extension wrote to the ApplicationLog, newest first.",
+            category = "",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {
+                "isEntityDataShape:true",
+                "dataShape:GIT.ExtensionLog.ServiceResult.DataShape"
+            })
+    public InfoTable GetExtensionLog(
+            @ThingworxServiceParameter(
+                            name = "MaxEntries",
+                            description = "Maximum number of entries; default 200, at most 2000",
+                            baseType = "INTEGER")
+                    Integer MaxEntries,
+            @ThingworxServiceParameter(
+                            name = "MinimumLevel",
+                            description =
+                                    "Lowest level to include: TRACE, DEBUG, INFO, WARN, or ERROR. Blank includes every level.",
+                            baseType = "STRING")
+                    String MinimumLevel,
+            @ThingworxServiceParameter(
+                            name = "SearchText",
+                            description =
+                                    "Only include entries whose message contains this text, ignoring case",
+                            baseType = "STRING")
+                    String SearchText) {
+        try {
+            int maxEntries =
+                    MaxEntries == null || MaxEntries < 1 ? 200 : Math.min(MaxEntries, 2000);
+            ExtensionLogTable log = ExtensionLogTable.create();
+            for (ExtensionLog.Entry entry :
+                    ExtensionLog.readAll(maxEntries, MinimumLevel, SearchText)) {
+                log.add(
+                        ExtensionLogRow.create()
+                                .timestamp(entry.timestamp())
+                                .level(entry.level())
+                                .source(entry.source())
+                                .message(entry.content())
+                                .user(entry.user())
+                                .thread(entry.thread())
+                                .origin(entry.origin()));
+            }
+            return DapResults.success("GetExtensionLog", ExtensionLogTable.SERVICE_RESULT, log);
+        } catch (Exception e) {
+            _logger.error("GetExtensionLog failed", e);
+            return DapResults.failure("GetExtensionLog", e, ExtensionLogTable.SERVICE_RESULT);
+        }
+    }
+
+    /**
+     * Returns the AG Grid column configuration for the entity grid used by the Commit/Push mashup.
+     * Ported from the Sabel Git.ThingShape.ReleaseManager script implementation so the mashup no
+     * longer depends on app-owned entities.
+     */
+    @DapServicePayload(StringResultSpec.class)
+    @ThingworxServiceDefinition(
+            name = "GetAllEntitiesGridConfig",
+            description = "Returns the AG Grid column configuration for the entity grid",
+            category = "",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
+    public InfoTable GetAllEntitiesGridConfig() {
+        return DapResults.success(
+                "GetAllEntitiesGridConfig",
+                ALL_ENTITIES_GRID_CONFIG_JSON,
+                StringResultContract.SERVICE_RESULT);
+    }
+
+    private static final String ALL_ENTITIES_GRID_CONFIG_JSON =
+            "{\"ColumnConfig\":{"
+                    + "\"name\":{\"field\":\"name\",\"headerName\":\"Name\",\"filter\":\"agTextColumnFilter\",\"editable\":false,\"hide\":false,\"enableRowGroup\":true,\"headerCheckboxSelectionFilteredOnly\":true,\"headerCheckboxSelection\":true,\"minWidth\":300,\"suppressHeaderMenuButton\":true},"
+                    + "\"type\":{\"field\":\"type\",\"headerName\":\"Type\",\"filter\":\"agSetColumnFilter\",\"editable\":false,\"hide\":false,\"enableRowGroup\":true,\"width\":95,\"suppressHeaderMenuButton\":true},"
+                    + "\"changeAction\":{\"suppressHeaderMenuButton\":true,\"field\":\"changeAction\",\"headerName\":\"Change Action\",\"filter\":\"agSetColumnFilter\",\"editable\":false,\"hide\":false,\"enableRowGroup\":true,\"width\":128},"
+                    + "\"changeReason\":{\"suppressHeaderMenuButton\":true,\"field\":\"changeReason\",\"headerName\":\"Change Reason\",\"filter\":\"agTextColumnFilter\",\"editable\":false,\"hide\":false,\"enableRowGroup\":true,\"flex\":1},"
+                    + "\"user\":{\"suppressHeaderMenuButton\":true,\"field\":\"user\",\"headerName\":\"Modified By\",\"filter\":\"agSetColumnFilter\",\"editable\":false,\"hide\":false,\"enableRowGroup\":true,\"minWidth\":200},"
+                    + "\"timestamp\":{\"suppressHeaderMenuButton\":true,\"field\":\"timestamp\",\"headerName\":\"Modified\",\"filter\":\"agDateColumnFilter\",\"editable\":false,\"hide\":false,\"enableRowGroup\":true,\"width\":150,\"sort\":\"desc\"},"
+                    + "\"project\":{\"suppressHeaderMenuButton\":true,\"field\":\"project\",\"headerName\":\"Project\",\"filter\":\"agSetColumnFilter\",\"editable\":false,\"hide\":false,\"enableRowGroup\":true,\"minWidth\":200},"
+                    + "\"id\":{\"suppressHeaderMenuButton\":true,\"field\":\"id\",\"headerName\":\"ID\",\"filter\":\"agSetColumnFilter\",\"editable\":false,\"hide\":true,\"enableRowGroup\":true},"
+                    + "\"parentId\":{\"suppressHeaderMenuButton\":true,\"field\":\"parentId\",\"headerName\":\"Parent ID\",\"filter\":\"agSetColumnFilter\",\"editable\":false,\"hide\":true,\"enableRowGroup\":true},"
+                    + "\"link\":{\"suppressHeaderMenuButton\":true,\"field\":\"link\",\"headerName\":\"Link\",\"cellRenderer\":\"CustomHyperlinkRenderer\",\"editable\":false,\"hide\":false,\"width\":68},"
+                    + "\"committed\":{\"suppressHeaderMenuButton\":true,\"field\":\"committed\",\"headerName\":\"Committed\",\"filter\":\"agSetColumnFilter\",\"cellRenderer\":\"CustomCheckboxRenderer\",\"editable\":false,\"hide\":false,\"width\":110}"
+                    + "},\"GridOptions\":{\"statusBar\":{\"statusPanels\":[{\"statusPanel\":\"agTotalAndFilteredRowCountComponent\",\"align\":\"left\"}]}}}";
 }

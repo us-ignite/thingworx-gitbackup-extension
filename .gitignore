@@ -9,6 +9,7 @@ dependency-reduced-pom.xml
 public/
 site/
 issues/
+feedback/
 *javadoc*
 
 # Eclipse
@@ -42,6 +43,7 @@ graalvm-jdk-21*
 
 # Integration test credentials
 .env
+docker-compose.override.yml
 private-signing-key.asc
 private-signing-key.b64
 

@@ -68,4 +68,11 @@ public @interface DapProperty {
      * @return the optional data-change event type.
      */
     String dataChangeType() default "";
+
+    /**
+     * Returns the configured value.
+     *
+     * @return the DataShape name for an INFOTABLE property.
+     */
+    String dataShape() default "";
 }

@@ -1,0 +1,18 @@
+{
+  "name": "@aggridwidget2/runtime",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fortawesome/fontawesome-svg-core": "1.2.36",
+    "@fortawesome/free-solid-svg-icons": "5.15.4",
+    "ag-grid-community": "32.3.3",
+    "ag-grid-enterprise": "32.3.3",
+    "dayjs": "1.11.23",
+    "jszip": "3.10.1",
+    "multiple-select": "1.5.2"
+  }
+}

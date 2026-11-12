@@ -1,0 +1,9 @@
+[id$="history-widget-bounding-box"] { position: relative; width: 100%; min-height: 500px; flex: 1 1 0%; }
+
+[id$="history-tree-card"],
+[id$="history-log-card"] {
+  align-self: stretch !important;
+  padding: var(--git-card-inset);
+}
+[id$="history-tree-card"] { min-height: 550px; }
+[id$="history-log-actions"] { flex-wrap: wrap !important; }

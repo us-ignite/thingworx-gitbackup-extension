@@ -1,0 +1,7 @@
+/* The page's git-header-slot supplies the band and border; the header applies
+   its own horizontal inset. Hidden crumbs collapse, so the branch is pushed
+   right with an auto margin. */
+[id$="shared-header"] { width: 100%; min-height: 48px; display: flex; align-items: center; justify-content: flex-start; flex-wrap: nowrap; box-sizing: border-box; overflow: hidden; padding: 0 var(--git-page-inset); }
+[id$="shared-header-bounding-box"] { width: 100% !important; align-self: stretch !important; min-width: 0 !important; }
+[id$="flexcontainer-90-bounding-box"] { margin-left: auto !important; }
+[id$="git-header-helper-bounding-box"] { display: none !important; }

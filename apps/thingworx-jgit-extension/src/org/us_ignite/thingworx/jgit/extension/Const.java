@@ -8,6 +8,8 @@ public final class Const {
     public static final String DefaultProjectToExport = "DefaultExportProject";
     public static final String LocalizationTokensPrefix = "LocalizationTokensPrefix";
     public static final String ProjectName = "ProjectName";
+    public static final String TrackedProjects = "TrackedProjects";
+    public static final String TrackedProjectDataShapeName = "GIT.TrackedProject.DataShape";
     public static final String GitRepoURLDefaultValue = "";
 
     // PlatformInfo property Names
@@ -15,8 +17,11 @@ public final class Const {
     // Entity names
     public static final String CommitLogDataShapeName = "GIT.CommitLog.DataShape";
     public static final String ReflogEntryDataShapeName = "GIT.ReflogEntry.DataShape";
+    public static final String HistoryRefDataShapeName = "GIT.HistoryRef.DataShape";
     public static final String CommitInfoDataShapeName = "GIT.CommitInfo.DataShape";
     public static final String CommitChangedFiles = "GIT.CommitChangedFiles.DataShape";
+    public static final String CommitTreeEntryDataShapeName = "GIT.CommitTreeEntry.DataShape";
+    public static final String FileContentDataShapeName = "GIT.FileContent.DataShape";
     public static final String UtilityThingName = "GIT.Utility.Thing";
     public static final String RepositoryThingTemplateName = "GIT.Repository.ThingTemplate";
     public static final String RepositoryProjectName = "GIT.Repositories";
@@ -54,6 +59,17 @@ public final class Const {
     public static final String ERR_PREFIX_GIT = "[GIT] ";
     public static final String ERR_PREFIX_SYSTEM = "[SYSTEM] ";
 
+    /**
+     * Marks a result whose operation stopped on conflicts the user can resolve in the Conflicts
+     * mashup. The UI looks for this prefix to offer Resolve conflicts or Cancel.
+     */
+    public static final String ERR_PREFIX_CONFLICT = "[CONFLICT] ";
+
+    public static final String ERR_CONFLICT_IN_PROGRESS =
+            "%s is waiting for conflict resolution. Resolve the conflicts or cancel the %s before running other Git operations.";
+    public static final String ERR_CONFLICTS_STOPPED =
+            "%s stopped because of conflicts in %d file(s). Resolve the conflicts, or cancel to restore the repository.";
+
     public static final String ERR_NO_REPO_URL =
             "No Git repository URL configured. Set the GitRepoURL Thing property and restart the Thing.";
     public static final String ERR_NO_REPO_URL_PUSH =
@@ -62,10 +78,15 @@ public final class Const {
             "Missing Git credentials (username/password). Configure credentials for this repository in the current user's ThingWorx UserExtensions properties.";
     public static final String ERR_NO_COMMITTER =
             "Missing committer identity (name/email). Configure 'GitCommitterFullName' and 'GitCommitterEmail' in the current user's ThingWorx UserExtensions properties.";
+    public static final String ERR_COMMIT_MESSAGE_REQUIRED = "Commit message is required.";
+    public static final String ERR_NO_STAGED_CHANGES =
+            "No staged changes to commit. Stage files before committing.";
+    public static final String ERR_UNKNOWN_FILE_ACTION =
+            "Unknown file action '%s'. Use 'stage', 'unstage', 'untrack', or 'delete'.";
     public static final String ERR_PROJECT_NOT_FOUND =
             "Project '%s' not found. Verify the project name exists in ThingWorx.";
     public static final String ERR_PROJECT_NAME_REQUIRED =
-            "ProjectName is required and was not provided.";
+            "No ThingWorx projects are tracked by this repository. Add a project in Repository Settings.";
     public static final String ERR_BRANCH_NOT_FOUND =
             "Branch '%s' not found. Verify the branch name exists locally. Use 'Pull' to fetch remote branches first.";
     public static final String ERR_UPSTREAM_NOT_FOUND =

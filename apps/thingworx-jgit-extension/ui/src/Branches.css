@@ -1,0 +1,86 @@
+@supports (ptcs-style-unit: "PTCS-DROPDOWN") {
+  [part="icon"] { color: #000000; }
+}
+[id$="AgGridWidget2-69-bounding-box"] { position: relative; flex: 1 1 0%; min-width: 0; }
+
+/* Keep merge actions in a compact, full-width card below the branch list. */
+[id$="branches-merge-card"] {
+  flex: 0 0 auto !important;
+  align-self: stretch !important;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+[id$="merge-controls-bounding-box"] {
+  position: relative;
+  flex: 1 1 0% !important;
+  min-width: 0;
+  width: 100% !important;
+  height: 180px !important;
+}
+@media (max-width: 700px) {
+  [id$="merge-controls-bounding-box"] { height: 240px !important; }
+}
+
+/* Keep each branch workflow together on its own surface. */
+[id$="branches-main"] :is([id$="branches-list-card"], [id$="branches-create-card"]) {
+  align-self: stretch !important;
+  min-width: 0;
+  padding: var(--git-card-inset);
+  box-sizing: border-box;
+}
+[id$="branches-list-card"] { min-height: 360px; }
+[id$="branches-create-card"] { flex: 0 0 auto !important; }
+[id$="branches-list-card"] [id$="branches-grid-area"] { flex: 1 1 320px; }
+[id$="branches-create-card"] [id$="flexcontainer-59"],
+[id$="branches-list-card"] [id$="flexcontainer-110"] { flex-wrap: wrap !important; }
+
+/* Merge controls run in this page so navigation replaces the full page. */
+[id$="mergecontrols-main"] { align-items: stretch !important; }
+[id$="mergecontrols-helper-bounding-box"] {
+  position: relative;
+  align-self: stretch;
+  width: 100% !important;
+  min-width: 0;
+  height: 180px !important;
+}
+.git-merge-controls { padding: 0.75rem; box-sizing: border-box; width: 100%; }
+.git-merge-controls select, .git-merge-controls button { margin: 0.25rem; padding: 0.5rem; max-width: 100%; }
+.git-merge-controls p { margin: 0.25rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 700px) {
+  [id$="mergecontrols-helper-bounding-box"] { height: 240px !important; }
+}
+
+.git-merge-controls h2 { margin: 0 0 0.5rem; font-size: 1.1rem; }
+.git-merge-controls button[hidden] { display: none; }
+
+/* Native controls do not inherit the mashup theme's typography by default. */
+.git-merge-controls {
+  color: var(--git-text);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.git-merge-controls select,
+.git-merge-controls button { font: inherit; }
+.git-merge-controls select {
+  min-height: 34px;
+  color: var(--git-text);
+  background: var(--git-surface);
+  border: 1px solid var(--git-border);
+  border-radius: 3px;
+}
+.git-merge-controls button {
+  min-height: 34px;
+  padding: 0.5rem 1rem;
+  color: #fff;
+  background: #0073aa;
+  border: 1px solid #0073aa;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.git-merge-controls button:hover:not(:disabled) { background: #005d89; }
+.git-merge-controls button:disabled { opacity: 0.55; cursor: default; }
+.git-merge-controls button:focus-visible,
+.git-merge-controls select:focus-visible { outline: 2px solid #0073aa; outline-offset: 2px; }
+.git-merge-controls p { color: var(--git-muted); }

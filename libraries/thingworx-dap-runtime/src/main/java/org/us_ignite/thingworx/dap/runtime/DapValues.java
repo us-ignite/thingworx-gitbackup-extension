@@ -6,6 +6,7 @@ import com.thingworx.types.primitives.BooleanPrimitive;
 import com.thingworx.types.primitives.DatetimePrimitive;
 import com.thingworx.types.primitives.InfoTablePrimitive;
 import com.thingworx.types.primitives.IntegerPrimitive;
+import com.thingworx.types.primitives.LongPrimitive;
 import com.thingworx.types.primitives.PasswordPrimitive;
 import com.thingworx.types.primitives.StringPrimitive;
 import org.joda.time.DateTime;
@@ -83,6 +84,29 @@ public final class DapValues {
         IntegerPrimitive primitive = new IntegerPrimitive();
         primitive.setValue(value);
         row.put(name, primitive);
+    }
+
+    /**
+     * Gets a Long value from a row.
+     *
+     * @param row the source row
+     * @param name the field name
+     * @return the named Long value, or {@code null} when absent
+     */
+    public static Long getLong(ValueCollection row, String name) {
+        Object value = value(row, name);
+        return value instanceof Number number ? number.longValue() : null;
+    }
+
+    /**
+     * Stores a Long value in a row.
+     *
+     * @param row the target row
+     * @param name the field name
+     * @param value the value to store
+     */
+    public static void putLong(ValueCollection row, String name, Long value) {
+        row.put(name, new LongPrimitive(value));
     }
 
     /**

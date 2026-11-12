@@ -6,6 +6,7 @@ plugins {
 }
 
 import thingworx.TwxVersions
+import java.security.MessageDigest
 
 // Aggregator over the per-version subprojects in versions/<tw>/ (each a plain
 // single-version Java project sharing this directory's src/). This project
@@ -21,6 +22,12 @@ ext {
     packageVersion = file('.version').text.trim()
     defaultPackageName = "JGitExtension-v${packageVersion}-${defaultSdkCfg.outputSuffix}"
 }
+
+def widgetDependencyPackages = [
+        [path: ':apps:bmwidgets-extension', zip: 'BMCoreUIWidgets-min-2.9.3.zip'],
+        [path: ':apps:aggridwidget2-extension', zip: 'agGridWidget2-extension-1.0.1.zip'],
+        [path: ':apps:git-history-widget-extension', zip: 'GitHistoryWidget-1.0.1.zip'],
+]
 
 def execOps = project.services.get(org.gradle.process.ExecOperations)
 
@@ -40,7 +47,125 @@ spotless {
 tasks.register('packageExtension') {
     description = "Assemble extension zip for default ThingWorx version (${defaultTwx})"
     group = 'build'
+    dependsOn 'embedGitHelper'
     dependsOn defaultProjectPath + ':packageExtension'
+}
+
+tasks.register('installUiBuildDependencies', Exec) {
+    description = 'Install the pinned TypeScript compiler used to embed the mashup helper'
+    group = 'development'
+    workingDir file('ui')
+    commandLine 'npm', 'ci', '--ignore-scripts', '--no-audit', '--no-fund'
+    inputs.files file('ui/package.json'), file('ui/package-lock.json')
+    outputs.file file('ui/node_modules/typescript/lib/typescript.js')
+}
+
+def bmWidgetsProject = project(':apps:bmwidgets-extension')
+tasks.register('syncUiTypeDeclarations', Sync) {
+    description = 'Refresh ThingWorx and BMCoreUIWidgets TypeScript declarations from the pinned extension release'
+    group = 'development'
+    dependsOn bmWidgetsProject.tasks.named('fetchWidgetRelease')
+    from({ zipTree(bmWidgetsProject.ext.bmWidgetReleaseZip.get().asFile) }) {
+        include 'ui/BMCoreUIWidgets/TWRuntimeWidget.d.ts'
+        include 'ui/BMCoreUIWidgets/Thingworx.d.ts'
+        include 'ui/BMCoreUIWidgets/jquery.d.ts'
+        includeEmptyDirs = false
+        eachFile { details ->
+            if (details.name == 'TWRuntimeWidget.d.ts') {
+                details.path = 'BMCoreUIWidgets.d.ts'
+            } else {
+                details.path = details.name
+            }
+        }
+    }
+    into file('ui/src/types')
+}
+
+tasks.register('embedGitHelper', Exec) {
+    description = 'Embed the GitHelper TypeScript source in the Branches mashup'
+    group = 'build'
+    dependsOn tasks.named('installUiBuildDependencies'), tasks.named('syncUiTypeDeclarations')
+    mustRunAfter tasks.named('embedConflictMashups')
+    workingDir file('ui')
+    commandLine 'node', 'embed-typescript-helper.js', 'src/GitHelper.ts',
+            'Mashups_GIT.Mashup.Branches.xml', 'BMTypescriptClassHost-50'
+    inputs.files file('ui/src/GitHelper.ts'), file('ui/embed-typescript-helper.js'), file('ui/package-lock.json')
+    outputs.file file('ui/Mashups_GIT.Mashup.Branches.xml')
+}
+
+tasks.register('embedHomeNavigation', Exec) {
+    description = 'Embed the Git Home navigation helper'
+    dependsOn tasks.named('installUiBuildDependencies')
+    workingDir file('ui')
+    commandLine 'node', 'embed-home-navigation.js'
+    inputs.files file('ui/src/HomeNavigation.ts'), file('ui/src/GitResultPopover.ts'), file('ui/embed-home-navigation.js'), file('ui/package-lock.json')
+    outputs.files(['Home', 'RepositoryRow', 'Changes', 'Settings']
+            .collect { name -> file("ui/Mashups_GIT.Mashup.${name}.xml") })
+}
+
+tasks.register('embedMashupCss', Exec) {
+    description = 'Embed shared and page CSS in the GIT mashups'
+    group = 'build'
+    mustRunAfter tasks.named('embedHomeNavigation'), tasks.named('embedRepositorySettings'), tasks.named('embedGitHeader'), tasks.named('embedConflictMashups'), tasks.named('embedGitHelper')
+    workingDir file('ui')
+    commandLine 'node', 'embed-mashup-css.js'
+    inputs.files file('ui/embed-mashup-css.js'), fileTree('ui/src') { include '*.css' }
+    outputs.files(['Home', 'RepositoryRow', 'GitHeader', 'Changes', 'Branches', 'History', 'Log', 'Reflog',
+                   'ExtensionLog', 'RepositorySettings', 'Settings', 'MergeControls', 'ConflictResolution'].collect { name -> file("ui/Mashups_GIT.Mashup.${name}.xml") })
+}
+
+tasks.register('embedRepositorySettings', Exec) {
+    mustRunAfter tasks.named('embedHomeNavigation')
+    description = 'Embed the repository settings helper'
+    dependsOn tasks.named('installUiBuildDependencies')
+    workingDir file('ui')
+    commandLine 'node', 'embed-typescript-helper.js', 'src/RepositorySettings.ts',
+            'Mashups_GIT.Mashup.RepositorySettings.xml', 'repository-settings-helper'
+    inputs.files file('ui/src/RepositorySettings.ts'), file('ui/embed-typescript-helper.js'), file('ui/package-lock.json')
+    outputs.file file('ui/Mashups_GIT.Mashup.RepositorySettings.xml')
+}
+
+tasks.register('embedGitHeader', Exec) {
+    description = 'Embed the shared Git header helper'
+    dependsOn tasks.named('installUiBuildDependencies')
+    workingDir file('ui')
+    commandLine 'node', 'embed-typescript-helper.js', 'src/GitHeader.ts',
+            'Mashups_GIT.Mashup.GitHeader.xml', 'git-header-helper'
+    inputs.files file('ui/src/GitHeader.ts'), file('ui/embed-typescript-helper.js'), file('ui/package-lock.json')
+    outputs.file file('ui/Mashups_GIT.Mashup.GitHeader.xml')
+}
+
+tasks.register('embedConflictMashups') {
+    dependsOn tasks.named('installUiBuildDependencies')
+    inputs.files file('ui/src/MergeControls.ts'), file('ui/src/ConflictResolution.ts'), file('ui/embed-typescript-helper.js')
+    outputs.files file('ui/Mashups_GIT.Mashup.MergeControls.xml'), file('ui/Mashups_GIT.Mashup.ConflictResolution.xml'), file('ui/Mashups_GIT.Mashup.Branches.xml')
+    doLast {
+        ['MergeControls', 'ConflictResolution'].each { name ->
+            exec {
+                workingDir file('ui')
+                commandLine 'node', 'embed-typescript-helper.js', "src/${name}.ts", "Mashups_GIT.Mashup.${name}.xml", "${name.toLowerCase()}-helper"
+            }
+        }
+        exec {
+            workingDir file('ui')
+            commandLine 'node', 'embed-typescript-helper.js', 'src/MergeControls.ts', 'Mashups_GIT.Mashup.Branches.xml', 'mergecontrols-helper'
+        }
+    }
+}
+
+// The per-version projects can also be packaged directly, bypassing this
+// aggregator. Make sure those packages receive the same generated mashup.
+def rootEmbedGitHelper = tasks.named('embedGitHelper')
+gradle.projectsEvaluated {
+    TwxVersions.ALL.each { version ->
+        def versionPath = ":apps:thingworx-jgit-extension:v${TwxVersions.sanitize(version)}"
+        project(versionPath).tasks.matching { it.name == 'packageExtension' }.configureEach {
+            dependsOn rootEmbedGitHelper, tasks.named('embedHomeNavigation'), tasks.named('embedRepositorySettings'), tasks.named('embedGitHeader'), tasks.named('embedConflictMashups'), tasks.named('embedMashupCss')
+        }
+        project(versionPath).tasks.matching { it.name == 'prepPackage' }.configureEach {
+            dependsOn rootEmbedGitHelper, tasks.named('embedHomeNavigation'), tasks.named('embedRepositorySettings'), tasks.named('embedGitHeader'), tasks.named('embedConflictMashups'), tasks.named('embedMashupCss')
+        }
+    }
 }
 
 tasks.register('javadoc', Sync) {
@@ -61,6 +186,55 @@ tasks.register('buildAll', Sync) {
         }
     }
     into layout.buildDirectory.dir('distributions')
+}
+
+def monacoVersion = 'v1.26.3'
+def monacoName = "MonacoScriptEditor-prod-${monacoVersion}.zip"
+def monacoUrl = "https://github.com/thingworx-field-work/MonacoEditorTWX/releases/download/${monacoVersion}/${monacoName}"
+def monacoSha256 = 'a57bb21919c7850799a239fd1e5770b641caa00e931c4e26b212192d68afa841'
+def monacoZip = layout.buildDirectory.file("downloads/${monacoName}")
+def validMonacoZip = { File file ->
+    file.isFile() && MessageDigest.getInstance('SHA-256').digest(file.bytes).encodeHex().toString() == monacoSha256
+}
+tasks.register('fetchMonacoEditor') {
+    description = 'Download the pinned Monaco Script Editor widget release'
+    inputs.property('url', monacoUrl)
+    inputs.property('sha256', monacoSha256)
+    outputs.file(monacoZip)
+    outputs.upToDateWhen { validMonacoZip(monacoZip.get().asFile) }
+    doLast {
+        def target = monacoZip.get().asFile
+        target.parentFile.mkdirs()
+        def temporary = new File(target.parentFile, target.name + '.part')
+        try {
+            new URL(monacoUrl).withInputStream { input -> temporary.withOutputStream { it << input } }
+            if (!validMonacoZip(temporary)) throw new GradleException("SHA-256 mismatch for ${monacoUrl}")
+            java.nio.file.Files.move(temporary.toPath(), target.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+        } finally {
+            temporary.delete()
+        }
+    }
+}
+
+// Distribution archive contains installable extension zips, not nested ThingWorx resources.
+tasks.register('packageExtensionPack', Zip) {
+    description = 'Bundle the JGit extension and its separately installable widget dependencies'
+    group = 'build'
+    dependsOn tasks.named('packageExtension'), tasks.named('fetchMonacoEditor')
+    widgetDependencyPackages.each { dependency ->
+        dependsOn "${dependency.path}:packageExtension"
+    }
+    archiveFileName = "JGitExtension-pack-v${project.ext.packageVersion}-${defaultSdkCfg.outputSuffix}.zip"
+    destinationDirectory = layout.buildDirectory.dir('distributions')
+    from(project(defaultProjectPath).layout.buildDirectory.dir('distributions')) {
+        include "${project.ext.defaultPackageName}.zip"
+    }
+    widgetDependencyPackages.each { dependency ->
+        from(project(dependency.path).layout.buildDirectory.dir('distributions')) {
+            include dependency.zip
+        }
+    }
+    from(monacoZip)
 }
 
 tasks.register('testAll') {
@@ -129,8 +303,23 @@ task composeLogs(type: Exec) {
     group = 'development'
 }
 
+tasks.register('saveChanges', Exec) {
+    description = 'Export the tracked GIT mashups from ThingWorx into the UI source directory'
+    group = 'development'
+    def sourceDir = file('ui')
+    def outputDir = providers.gradleProperty('mashupOutputDir').map { file(it) }.getOrElse(sourceDir)
+    commandLine 'python3', file('scripts/save-mashups.py').absolutePath,
+            '--source-dir', sourceDir.absolutePath, '--output-dir', outputDir.absolutePath
+    if (providers.gradleProperty('mashup').isPresent()) {
+        args '--mashup', providers.gradleProperty('mashup').get()
+    }
+}
+
 task devSetup {
-    dependsOn packageExtension, fetchLemminx
+    dependsOn packageExtension, fetchLemminx, tasks.named('fetchMonacoEditor')
+    widgetDependencyPackages.each { dependency ->
+        dependsOn "${dependency.path}:packageExtension"
+    }
     description = 'Build extension (default version), start dev stack, install extension on ThingWorx, and create Gitea test repo'
     group = 'development'
     def localPackageName = project.ext.defaultPackageName
@@ -162,16 +351,58 @@ task devSetup {
             throw new GradleException("ThingWorx did not become healthy within ~15 minutes. Check logs: docker compose logs thingworx")
         }
 
-        logger.lifecycle("Installing extension on ThingWorx (extension-init container)...")
-        execOps.exec {
-            workingDir = rootProject.projectDir
-            commandLine 'docker', 'compose', 'run', '--rm',
-                    '-e', "EXTENSION_ZIP=/distributions/${localPackageName}.zip",
-                    'extension-init'
-        }
-
+        def distributionDir = project(defaultProjectPath).file('build/distributions')
         def auth = java.util.Base64.getEncoder().encodeToString(
                 "Administrator:AdminP@ssw0rd!123".getBytes("UTF-8"))
+        def installExtension = { File zip, boolean verifyGitThing ->
+            logger.lifecycle("Installing ${zip.name}...")
+            execOps.exec {
+                workingDir = rootProject.projectDir
+                commandLine 'docker', 'compose', 'run', '--rm', '--no-deps',
+                        '-e', "EXTENSION_ZIP=/distributions/${zip.name}",
+                        '-e', "VERIFY_GIT_THING=${verifyGitThing}",
+                        'extension-init'
+            }
+        }
+        def monacoStatus = {
+            def conn = (HttpURLConnection) new URL('http://localhost:8080/Thingworx/ExtensionPackages/MonacoScriptEditor').openConnection()
+            conn.setRequestProperty('Authorization', "Basic ${auth}")
+            conn.setRequestProperty('Accept', 'application/json')
+            conn.setConnectTimeout(10000)
+            conn.setReadTimeout(10000)
+            conn.responseCode
+        }
+
+        logger.lifecycle("Installing widget dependency extensions...")
+        widgetDependencyPackages.each { dependency ->
+            def dependencyZip = new File(distributionDir, dependency.zip)
+            java.nio.file.Files.copy(
+                    project(dependency.path).layout.buildDirectory.file("distributions/${dependency.zip}").get().asFile.toPath(),
+                    dependencyZip.toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+            installExtension(dependencyZip, false)
+        }
+
+        def existingMonaco = monacoStatus()
+        if (existingMonaco == 404) {
+            def devMonaco = new File(distributionDir, monacoName)
+            java.nio.file.Files.copy(monacoZip.get().asFile.toPath(), devMonaco.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+            installExtension(devMonaco, false)
+        } else if (existingMonaco == 200) {
+            logger.lifecycle('Monaco Script Editor is already installed; leaving the existing version in place.')
+        } else {
+            throw new GradleException("Could not check Monaco Script Editor installation: HTTP ${existingMonaco}")
+        }
+        def devPackage = new File(distributionDir, 'JGitExtension-dev-setup.zip')
+        def versionOutput = new ByteArrayOutputStream()
+        execOps.exec {
+            commandLine 'python3', file('scripts/package-dev-extension.py').absolutePath,
+                    new File(distributionDir, "${localPackageName}.zip").absolutePath, devPackage.absolutePath
+            standardOutput = versionOutput
+        }
+        def devVersion = versionOutput.toString('UTF-8').trim()
+        logger.lifecycle("Installing development extension version ${devVersion} on ThingWorx...")
+        installExtension(devPackage, true)
 
         logger.lifecycle("Restarting ThingWorx to complete extension installation...")
         execOps.exec {
@@ -198,6 +429,8 @@ task devSetup {
         if (!postUpgradeHealthy) {
             throw new GradleException("ThingWorx did not become healthy after upgrade")
         }
+        if (monacoStatus() != 200) throw new GradleException('Monaco Script Editor installation could not be verified')
+        logger.lifecycle('Monaco Script Editor extension verified!')
 
         def verifyStatus = -1
         for (def i = 1; i <= 20; i++) {
@@ -222,7 +455,7 @@ task devSetup {
         }
 
         logger.lifecycle("Initializing UserExtension properties for Administrator...")
-        def services = ['InitUserExtensionProperties', 'InitUserExtensionGpgKeysProperty']
+        def services = ['InitUserExtensionProperties']
         services.each { serviceName ->
             def serviceUrl = new URL("http://localhost:8080/Thingworx/Things/GIT.Utility.Thing/Services/${serviceName}")
             def serviceConn = (HttpURLConnection) serviceUrl.openConnection()
@@ -256,7 +489,7 @@ task devSetup {
             Thread.sleep(3000)
         }
         if (!giteaReady) {
-            logger.warn("Gitea did not become ready. Create admin user and repo manually at http://localhost:3000")
+            throw new GradleException("Gitea did not become ready; cannot register the development GPG key")
         } else {
             execOps.exec {
                 commandLine 'docker', 'compose', 'exec', '-u', 'git', 'gitea', 'gitea', 'admin', 'user', 'create',
@@ -297,7 +530,27 @@ task devSetup {
             }
         }
 
+        logger.lifecycle("Ensuring the development GPG key is registered with ThingWorx and Gitea...")
+        execOps.exec {
+            commandLine 'python3', file('scripts/setup-dev-gpg-key.py').absolutePath
+        }
+
         logger.lifecycle("")
+        def installedUrl = new URL("http://localhost:8080/Thingworx/ExtensionPackages/JGitExtension")
+        def installedConn = (HttpURLConnection) installedUrl.openConnection()
+        installedConn.setRequestProperty("Authorization", "Basic ${auth}")
+        installedConn.setRequestProperty("Accept", "application/json")
+        installedConn.setConnectTimeout(10000)
+        installedConn.setReadTimeout(10000)
+        if (installedConn.responseCode == 200) {
+            def installedPackage = new groovy.json.JsonSlurper().parse(installedConn.inputStream)
+            if (installedPackage.packageVersion != devVersion) {
+                throw new GradleException("Expected JGitExtension ${devVersion}, but ThingWorx reports ${installedPackage.packageVersion}")
+            }
+            logger.lifecycle("Installed JGitExtension version: ${installedPackage.packageVersion} (source version: ${project.ext.packageVersion})")
+        } else {
+            throw new GradleException("Could not verify installed JGitExtension version (HTTP ${installedConn.responseCode})")
+        }
         logger.lifecycle("=== Dev Setup Complete ===")
         logger.lifecycle("ThingWorx:  http://localhost:8080/Thingworx  (Administrator / AdminP@ssw0rd!123)")
         logger.lifecycle("Gitea:      http://localhost:3000             (giteauser / giteapass123)")

@@ -204,10 +204,16 @@ public final class DeclarativeAnnotationProcessor extends AbstractProcessor {
                 body.append(" aspect.dataChangeType=\"")
                         .append(escape(property.dataChangeType()))
                         .append("\"");
-            body.append(" aspect.defaultValue=\"")
-                    .append(escape(property.defaultValue()))
-                    .append("\"")
-                    .append(" aspect.isPersistent=\"")
+            if (!property.dataShape().isBlank())
+                body.append(" aspect.dataShape=\"")
+                        .append(escape(property.dataShape()))
+                        .append("\"");
+            // An empty default is not a valid serialized InfoTable, so omit it for INFOTABLE.
+            if (property.baseType() != DapBaseType.INFOTABLE || !property.defaultValue().isBlank())
+                body.append(" aspect.defaultValue=\"")
+                        .append(escape(property.defaultValue()))
+                        .append("\"");
+            body.append(" aspect.isPersistent=\"")
                     .append(property.persistent())
                     .append("\"")
                     .append(" baseType=\"")
@@ -448,13 +454,26 @@ public final class DeclarativeAnnotationProcessor extends AbstractProcessor {
                     continue;
                 }
                 Map<String, Object> parameterValues = values(parameterAnnotation);
+                String parameterBaseType = string(parameterValues, "baseType");
+                String parameterDataShape = aspect(parameterValues, "dataShape");
+                if ("INFOTABLE".equals(parameterBaseType)
+                        && !parameterDataShape.isBlank()
+                        && !shapes.containsKey(parameterDataShape)) {
+                    error(
+                            parameter,
+                            "INFOTABLE parameter "
+                                    + string(parameterValues, "name")
+                                    + " references unknown dataShape "
+                                    + parameterDataShape);
+                }
                 parameters.add(
                         new ParameterModel(
                                 string(parameterValues, "name"),
                                 string(parameterValues, "description"),
-                                string(parameterValues, "baseType"),
+                                parameterBaseType,
                                 ordinal++,
-                                aspect(parameterValues, "defaultValue")));
+                                aspect(parameterValues, "defaultValue"),
+                                parameterDataShape));
             }
             result.add(
                     new ServiceModel(
@@ -817,6 +836,8 @@ public final class DeclarativeAnnotationProcessor extends AbstractProcessor {
                 xml.append(" aspect.defaultValue=\"")
                         .append(escape(parameter.defaultValue))
                         .append("\"");
+            if (!parameter.dataShape.isBlank())
+                xml.append(" aspect.dataShape=\"").append(escape(parameter.dataShape)).append("\"");
             xml.append(" baseType=\"")
                     .append(escape(parameter.baseType))
                     .append("\"")
@@ -1059,6 +1080,7 @@ public final class DeclarativeAnnotationProcessor extends AbstractProcessor {
             case DATETIME -> "org.joda.time.DateTime";
             case INFOTABLE -> "com.thingworx.types.InfoTable";
             case INTEGER -> "java.lang.Integer";
+            case LONG -> "java.lang.Long";
             case PASSWORD, STRING, THINGNAME -> "java.lang.String";
         };
     }
@@ -1071,6 +1093,7 @@ public final class DeclarativeAnnotationProcessor extends AbstractProcessor {
             case DATETIME -> "Datetime";
             case INFOTABLE -> "InfoTable";
             case INTEGER -> "Integer";
+            case LONG -> "Long";
         };
     }
 
@@ -1106,7 +1129,12 @@ public final class DeclarativeAnnotationProcessor extends AbstractProcessor {
             List<FieldModel> fields) {}
 
     private record ParameterModel(
-            String name, String description, String baseType, int ordinal, String defaultValue) {}
+            String name,
+            String description,
+            String baseType,
+            int ordinal,
+            String defaultValue,
+            String dataShape) {}
 
     private record ServiceModel(
             String name,

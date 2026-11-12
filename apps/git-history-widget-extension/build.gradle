@@ -1,0 +1,61 @@
+// Build the Git History widget's separate IDE and runtime bundles with Vite.
+
+plugins {
+    id 'base'
+}
+
+def extensionName = 'GitHistoryWidget'
+def extensionVersion = '1.0.1'
+
+tasks.register('installWidgetDependencies', Exec) {
+    description = 'Install pinned Vite and widget dependencies'
+    group = 'build'
+    workingDir = projectDir
+    commandLine 'npm', 'ci'
+    inputs.file('package-lock.json')
+    outputs.dir('node_modules')
+}
+
+tasks.register('buildWidgetBundles', Exec) {
+    description = 'Build the IDE and runtime ThingWorx widget bundles with Vite'
+    group = 'build'
+    dependsOn tasks.named('installWidgetDependencies')
+    workingDir = projectDir
+    commandLine 'npm', 'run', 'build'
+    inputs.dir('ide/src')
+    inputs.dir('runtime/src')
+    inputs.file('ide/vite.config.ts')
+    inputs.file('runtime/vite.config.ts')
+    inputs.file('package.json')
+    inputs.file('package-lock.json')
+    inputs.file('scripts/smoke-bundles.cjs')
+    outputs.dir(layout.buildDirectory.dir('vite'))
+}
+
+tasks.register('packageExtension', Zip) {
+    description = 'Assemble an installable ThingWorx extension zip for the Git History widget'
+    group = 'build'
+    archiveFileName = "${extensionName}-${extensionVersion}.zip"
+    destinationDirectory = layout.buildDirectory.dir('distributions')
+    dependsOn tasks.named('buildWidgetBundles')
+    from(layout.projectDirectory.dir('src')) {
+        exclude 'README.md'
+        exclude 'ui/GitHistoryWidget/GitHistoryWidget.ide.bundle.js'
+        exclude 'ui/GitHistoryWidget/GitHistoryWidget.runtime.bundle.js'
+    }
+    from(layout.buildDirectory.dir('vite/ide')) {
+        into 'ui/GitHistoryWidget'
+    }
+    from(layout.buildDirectory.dir('vite/runtime')) {
+        into 'ui/GitHistoryWidget'
+    }
+    // ThingWorx requires the resources directly at the zip root.
+}
+
+tasks.named('assemble') {
+    dependsOn tasks.named('packageExtension')
+}
+
+tasks.named('build') {
+    dependsOn tasks.named('packageExtension')
+}
