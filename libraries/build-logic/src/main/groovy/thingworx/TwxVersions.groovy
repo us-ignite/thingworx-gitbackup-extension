@@ -19,6 +19,7 @@ class TwxVersions {
             outputSuffix: '9.6.x',
             dbInitImage: 'ghcr.io/us-ignite/thingworx/postgres-init:9.6.9-openjdk',
             platformImage: 'ghcr.io/us-ignite/thingworx/platform-postgres:9.6.9-openjdk',
+            securityImage: 'ghcr.io/us-ignite/thingworx/security-tool:9.6.9',
             postgresImage: 'postgres:15',
             postgresHostAuth: 'trust',
             postgresPasswordEncryption: 'md5'
@@ -28,6 +29,7 @@ class TwxVersions {
             outputSuffix: '9.7.x',
             dbInitImage: 'ghcr.io/us-ignite/thingworx/postgres-init:9.7.6-openjdk',
             platformImage: 'ghcr.io/us-ignite/thingworx/platform-postgres:9.7.6-openjdk',
+            securityImage: 'ghcr.io/us-ignite/thingworx/security-tool:9.7.9',
             postgresImage: 'postgres:15',
             postgresHostAuth: 'trust',
             postgresPasswordEncryption: 'md5'
@@ -37,6 +39,7 @@ class TwxVersions {
             outputSuffix: '10.0.x',
             dbInitImage: 'ghcr.io/us-ignite/thingworx/postgres-init:10.0.4-openjdk',
             platformImage: 'ghcr.io/us-ignite/thingworx/platform-postgres:10.0.4-openjdk',
+            securityImage: 'ghcr.io/us-ignite/thingworx/security-tool:10.0.9',
             postgresImage: 'postgres:16',
             postgresHostAuth: 'trust',
             postgresPasswordEncryption: 'scram-sha-256'
@@ -46,6 +49,7 @@ class TwxVersions {
             outputSuffix: '10.1.x',
             dbInitImage: 'ghcr.io/us-ignite/thingworx/postgres-init:10.1.2-openjdk',
             platformImage: 'ghcr.io/us-ignite/thingworx/platform-postgres:10.1.2-openjdk',
+            securityImage: 'ghcr.io/us-ignite/thingworx/security-tool:10.1.2',
             postgresImage: 'postgres:16',
             postgresHostAuth: 'trust',
             postgresPasswordEncryption: 'scram-sha-256'
