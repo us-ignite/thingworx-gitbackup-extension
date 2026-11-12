@@ -112,7 +112,7 @@ the source name to `BranchName` while leaving the source as the outer service.
    PTC notes that services and events do not execute in the design canvas.
 
 For this extension, the TypeScript and CSS under `ui/src/` are source files;
-the build embeds them into the mashups. See [ui/README.md](../ui/README.md)
+the build embeds them into the mashups. See [ui/README.md](https://github.com/us-ignite/thingworx-gitbackup-extension/blob/main/apps/thingworx-jgit-extension/ui/README.md)
 before touching the generated `Code`, `TranspiledCode`, `Exports`, or
 `CustomMashupCss` fields. Preserve unrelated export fields and IDs.
 
