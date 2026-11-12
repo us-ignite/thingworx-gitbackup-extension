@@ -763,16 +763,6 @@
     {
       "EventHandlerArea": "Data",
       "EventHandlerId": "Things_GIT.Utility.Thing",
-      "EventHandlerService": "GitCredentialGet",
-      "EventTriggerArea": "Mashup",
-      "EventTriggerEvent": "Loaded",
-      "EventTriggerId": "mashup-root",
-      "EventTriggerSection": "",
-      "Id": "10ebad07-bd85-4577-b39a-6d0630f7d1e3"
-    },
-    {
-      "EventHandlerArea": "Data",
-      "EventHandlerId": "Things_GIT.Utility.Thing",
       "EventHandlerService": "VerifyGpgKey",
       "EventTriggerArea": "UI",
       "EventTriggerEvent": "Clicked",

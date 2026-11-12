@@ -522,7 +522,7 @@
                   "__TypeDisplayName": "AG Grid 2",
                   "_baseVersion": "9.7.0",
                   "AutoSelectFirstRow": false,
-                  "GridConfig": "{\"ColumnConfig\": {\"Timestamp\": {\"headerName\": \"Time\", \"width\": 180, \"pinned\": \"left\", \"sort\": \"desc\"}, \"Level\": {\"width\": 110}, \"Message\": {\"flex\": 3, \"minWidth\": 320}, \"Source\": {\"width\": 400, \"wrapText\": true, \"autoHeight\": true}, \"User\": {\"width\": 150}, \"Thread\": {\"hide\": true}, \"Origin\": {\"hide\": true}}}",
+                  "GridConfig": "{\"ColumnConfig\": {\"Timestamp\": {\"headerName\": \"Time\", \"width\": 180, \"pinned\": \"left\", \"sort\": \"desc\"}, \"Level\": {\"width\": 110}, \"Message\": {\"flex\": 3, \"minWidth\": 320}, \"Source\": {\"width\": 400, \"wrapText\": false, \"autoHeight\": false, \"cellStyle\": {\"white-space\": \"nowrap\", \"overflow\": \"hidden\", \"text-overflow\": \"ellipsis\"}}, \"User\": {\"width\": 150}, \"Thread\": {\"hide\": true}, \"Origin\": {\"hide\": true}}}",
                   "DateFormat": "YYYY-MM-DD HH:mm:ss"
                 },
                 "Widgets": []
