@@ -137,6 +137,39 @@ final class FileRepositoryManager {
                 && !Const.RepositoryProjectName.equals(project.getName());
     }
 
+    /**
+     * Lists the names of projects visible to the caller that pass {@link
+     * #isTrackableProject(RootEntity)}, sorted case-insensitively.
+     */
+    static List<String> trackableProjectNames() throws Exception {
+        InfoTable found =
+                new com.thingworx.resources.entities.EntityServices()
+                        .GetEntityList(
+                                "Project", "", new com.thingworx.types.TagCollection(), 100000.0);
+        List<String> names = new ArrayList<>();
+        for (int i = 0; i < found.getRowCount(); i++) {
+            String name = found.getRow(i).getStringValue("name");
+            if (name == null) continue;
+            var project = EntityUtilities.findEntity(name, ThingworxRelationshipTypes.Project);
+            if (isTrackableProject(project)) names.add(name);
+        }
+        names.sort(String.CASE_INSENSITIVE_ORDER);
+        return names;
+    }
+
+    /** Builds a {@code GIT.TrackedProject.DataShape} table from project names. */
+    static InfoTable projectTable(List<String> projects) throws Exception {
+        InfoTable table =
+                InfoTableInstanceFactory.createInfoTableFromDataShape(
+                        Const.TrackedProjectDataShapeName);
+        for (String project : projects) {
+            ValueCollection row = new ValueCollection();
+            row.put(Const.ProjectName, new StringPrimitive(project));
+            table.addRow(row);
+        }
+        return table;
+    }
+
     private List<String> requireTrackedProjects() throws Exception {
         List<String> projects = trackedProjects();
         if (projects.isEmpty()) {

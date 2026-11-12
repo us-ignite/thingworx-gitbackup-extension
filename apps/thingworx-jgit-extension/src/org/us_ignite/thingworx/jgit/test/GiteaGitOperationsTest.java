@@ -1507,4 +1507,82 @@ public class GiteaGitOperationsTest {
         }
         return false;
     }
+
+    private HttpResponse<String> callUtility(String service, JsonObject body) throws Exception {
+        return stack.httpClient.send(
+                stack.thingworx
+                        .serviceRequest(
+                                "GIT.Utility.Thing", service, body == null ? null : body.toString())
+                        .build(),
+                HttpResponse.BodyHandlers.ofString());
+    }
+
+    @Test
+    @Order(35)
+    void testGetTrackableProjectsListsUserProjectsOnly() throws Exception {
+        var res = callUtility("GetTrackableProjects", null);
+        assertServiceSuccess(res, "GetTrackableProjects");
+        JsonArray rows = responseRows(res.body());
+        java.util.List<String> names = new java.util.ArrayList<>();
+        rows.forEach(r -> names.add(r.getAsJsonObject().get("ProjectName").getAsString()));
+        assertTrue(
+                names.contains("GiteaGitOperationsProject"),
+                "Projects created by users should be trackable: " + names);
+        assertFalse(
+                names.contains("GIT.Repositories"),
+                "The project holding repository Things must not be trackable: " + names);
+    }
+
+    @Test
+    @Order(36)
+    void testRepositoryCreateRejectsExistingNameAndKeepsThing() throws Exception {
+        JsonObject body = new JsonObject();
+        body.addProperty("RepoName", GIT_THING_NAME);
+        body.addProperty("BranchName", "main");
+        var res = callUtility("RepositoryCreate", body);
+        assertServiceFailure(res, "RepositoryCreate with an existing name");
+        assertTrue(
+                res.body().contains("already exists"),
+                "Expected a duplicate-name message: " + res.body());
+        // The failure must not remove the existing repository Thing.
+        assertServiceSuccess(
+                callService("GetCurrentBranch", null), "GetCurrentBranch after duplicate create");
+    }
+
+    @Test
+    @Order(37)
+    void testRepositoryCreateDefaultsBlankBranchAndSkipsBlankCredentials() throws Exception {
+        String name = "ITCreateDefaultsThing";
+        JsonObject body = new JsonObject();
+        body.addProperty("RepoName", name);
+        body.addProperty("BranchName", "");
+        body.addProperty("GitCommitterUser", "");
+        body.addProperty("GitCommitterPassword", "");
+        body.addProperty("GitCommitterEmail", "");
+        body.addProperty("GitCommitterFullName", "");
+        assertServiceSuccess(
+                callUtility("RepositoryCreate", body), "RepositoryCreate with defaults");
+        try {
+            var branchRes =
+                    stack.httpClient.send(
+                            stack.thingworx.serviceRequest(name, "GetCurrentBranch", null).build(),
+                            HttpResponse.BodyHandlers.ofString());
+            JsonArray rows = responseRows(branchRes.body());
+            assertEquals(
+                    "main",
+                    rows.get(0).getAsJsonObject().get("BranchName").getAsString(),
+                    "A blank BranchName should default to main: " + branchRes.body());
+            JsonObject credentialQuery = new JsonObject();
+            credentialQuery.addProperty("GitThing", name);
+            var credentialRes = callUtility("GitCredentialGet", credentialQuery);
+            assertServiceFailure(credentialRes, "GitCredentialGet after blank credentials");
+            assertTrue(
+                    credentialRes.body().contains("Credentials not found"),
+                    "Blank credentials should not be saved: " + credentialRes.body());
+        } finally {
+            JsonObject delete = new JsonObject();
+            delete.addProperty("RepoName", name);
+            callUtility("RepositoryDelete", delete);
+        }
+    }
 }

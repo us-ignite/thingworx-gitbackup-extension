@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const shared = fs.readFileSync(path.join('src', 'Shared.css'), 'utf8').trim();
 const pages = ['Home', 'RepositoryRow', 'GitHeader', 'Changes', 'Branches', 'History', 'Log', 'Reflog',
-  'ExtensionLog', 'RepositorySettings', 'Settings', 'MergeControls', 'ConflictResolution'];
+  'ExtensionLog', 'RepositorySettings', 'RepositoryCreate', 'Settings', 'MergeControls', 'ConflictResolution'];
 for (const name of pages) {
   const file = `Mashups_GIT.Mashup.${name}.xml`;
   const pageCss = path.join('src', `${name}.css`);

@@ -106,12 +106,12 @@ tasks.register('embedHomeNavigation', Exec) {
 tasks.register('embedMashupCss', Exec) {
     description = 'Embed shared and page CSS in the GIT mashups'
     group = 'build'
-    mustRunAfter tasks.named('embedHomeNavigation'), tasks.named('embedRepositorySettings'), tasks.named('embedGitHeader'), tasks.named('embedConflictMashups'), tasks.named('embedGitHelper')
+    mustRunAfter tasks.named('embedHomeNavigation'), tasks.named('embedRepositorySettings'), tasks.named('embedRepositoryCreate'), tasks.named('embedGitHeader'), tasks.named('embedConflictMashups'), tasks.named('embedGitHelper')
     workingDir file('ui')
     commandLine 'node', 'embed-mashup-css.js'
     inputs.files file('ui/embed-mashup-css.js'), fileTree('ui/src') { include '*.css' }
     outputs.files(['Home', 'RepositoryRow', 'GitHeader', 'Changes', 'Branches', 'History', 'Log', 'Reflog',
-                   'ExtensionLog', 'RepositorySettings', 'Settings', 'MergeControls', 'ConflictResolution'].collect { name -> file("ui/Mashups_GIT.Mashup.${name}.xml") })
+                   'ExtensionLog', 'RepositorySettings', 'RepositoryCreate', 'Settings', 'MergeControls', 'ConflictResolution'].collect { name -> file("ui/Mashups_GIT.Mashup.${name}.xml") })
 }
 
 tasks.register('embedRepositorySettings', Exec) {
@@ -123,6 +123,17 @@ tasks.register('embedRepositorySettings', Exec) {
             'Mashups_GIT.Mashup.RepositorySettings.xml', 'repository-settings-helper'
     inputs.files file('ui/src/RepositorySettings.ts'), file('ui/embed-typescript-helper.js'), file('ui/package-lock.json')
     outputs.file file('ui/Mashups_GIT.Mashup.RepositorySettings.xml')
+}
+
+tasks.register('embedRepositoryCreate', Exec) {
+    mustRunAfter tasks.named('embedHomeNavigation')
+    description = 'Embed the new repository form helper'
+    dependsOn tasks.named('installUiBuildDependencies')
+    workingDir file('ui')
+    commandLine 'node', 'embed-typescript-helper.js', 'src/RepositoryCreate.ts',
+            'Mashups_GIT.Mashup.RepositoryCreate.xml', 'repository-create-helper'
+    inputs.files file('ui/src/RepositoryCreate.ts'), file('ui/embed-typescript-helper.js'), file('ui/package-lock.json')
+    outputs.file file('ui/Mashups_GIT.Mashup.RepositoryCreate.xml')
 }
 
 tasks.register('embedGitHeader', Exec) {
@@ -160,10 +171,10 @@ gradle.projectsEvaluated {
     TwxVersions.ALL.each { version ->
         def versionPath = ":apps:thingworx-jgit-extension:v${TwxVersions.sanitize(version)}"
         project(versionPath).tasks.matching { it.name == 'packageExtension' }.configureEach {
-            dependsOn rootEmbedGitHelper, tasks.named('embedHomeNavigation'), tasks.named('embedRepositorySettings'), tasks.named('embedGitHeader'), tasks.named('embedConflictMashups'), tasks.named('embedMashupCss')
+            dependsOn rootEmbedGitHelper, tasks.named('embedHomeNavigation'), tasks.named('embedRepositorySettings'), tasks.named('embedRepositoryCreate'), tasks.named('embedGitHeader'), tasks.named('embedConflictMashups'), tasks.named('embedMashupCss')
         }
         project(versionPath).tasks.matching { it.name == 'prepPackage' }.configureEach {
-            dependsOn rootEmbedGitHelper, tasks.named('embedHomeNavigation'), tasks.named('embedRepositorySettings'), tasks.named('embedGitHeader'), tasks.named('embedConflictMashups'), tasks.named('embedMashupCss')
+            dependsOn rootEmbedGitHelper, tasks.named('embedHomeNavigation'), tasks.named('embedRepositorySettings'), tasks.named('embedRepositoryCreate'), tasks.named('embedGitHeader'), tasks.named('embedConflictMashups'), tasks.named('embedMashupCss')
         }
     }
 }

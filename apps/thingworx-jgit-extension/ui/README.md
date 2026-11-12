@@ -5,6 +5,13 @@ which provides Changes, History, Branches, and Settings actions for each row, an
 the default item in the Git menu. `src/HomeNavigation.ts` is embedded during
 packaging by `embedHomeNavigation`.
 
+`Mashups_GIT.Mashup.RepositoryCreate.xml` is the New Repository form, opened from the **New repository**
+button in the Home header. It collects the repository name, remote URL, initial branch, storage path,
+optional credentials and signing key, tracked projects (from `GetTrackableProjects`), and proxy and
+localization options, then calls `RepositoryCreate`. A signing key is applied afterwards with
+`SetGPGKeyForSigning` on the new Thing. On success it opens Repository Settings for the new repository.
+`src/RepositoryCreate.ts` is embedded by `embedRepositoryCreate`.
+
 `Mashups_GIT.Mashup.RepositorySettings.xml` edits the current user's credentials,
 committer identity, and signing key for the selected repository. A blank password
 keeps an existing password. `src/RepositorySettings.ts` is embedded by
