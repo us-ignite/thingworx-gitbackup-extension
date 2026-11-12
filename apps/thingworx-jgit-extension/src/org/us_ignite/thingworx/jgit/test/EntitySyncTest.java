@@ -131,6 +131,29 @@ public class EntitySyncTest {
         installer.close();
     }
 
+    /**
+     * Exports the tracked project via Status and stages every change. Commit only records staged
+     * changes, and neither export nor Commit stages files automatically.
+     */
+    private void stageAll(ThingWorxContainer twx, String gitThing) throws Exception {
+        var statusRes =
+                httpClient.send(
+                        twx.serviceRequest(gitThing, "Status", null)
+                                .timeout(Duration.ofSeconds(30))
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, statusRes.statusCode(), "Status failed: " + statusRes.body());
+        assertSuccess(statusRes.body());
+        var addRes =
+                httpClient.send(
+                        twx.serviceRequest(gitThing, "Add", "{\"All\":true}")
+                                .timeout(Duration.ofSeconds(30))
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, addRes.statusCode(), "Add failed: " + addRes.body());
+        assertSuccess(addRes.body());
+    }
+
     /** Builds a GIT.TrackedProject.DataShape InfoTable payload for RepositoryCreate. */
     private static JsonObject trackedProjects(String... projects) {
         JsonObject field = new JsonObject();
@@ -295,6 +318,7 @@ public class EntitySyncTest {
                 thingVerifyRes.statusCode(),
                 "Source Thing was not created: " + thingVerifyRes.body());
 
+        stageAll(twxA, GIT_THING_A);
         JsonObject pushBody = new JsonObject();
         pushBody.addProperty("Message", "Cross-instance entity push from TWX-A");
         var commitReq =
@@ -609,6 +633,7 @@ public class EntitySyncTest {
                 updatedThingRes.body().contains(UPDATED_DESCRIPTION),
                 "Thing update was not applied: " + updatedThingRes.body());
 
+        stageAll(twxB, GIT_THING_B);
         JsonObject pushBody = new JsonObject();
         pushBody.addProperty("Message", "Cross-instance entity return push from TWX-B");
         var targetCommitReq =
@@ -812,6 +837,7 @@ public class EntitySyncTest {
                 thingRes.statusCode() == 200 || thingRes.statusCode() == 201,
                 "CreateThing failed: " + thingRes.statusCode() + " " + thingRes.body());
 
+        stageAll(twxA, GIT_THING_A);
         JsonObject commitBody = new JsonObject();
         commitBody.addProperty("Message", "Commit fast-forward Thing");
         var commitRes =
@@ -953,6 +979,7 @@ public class EntitySyncTest {
         assertTrue(
                 branchPutRes.statusCode() == 200 || branchPutRes.statusCode() == 201,
                 "Branch PUT failed: " + branchPutRes.body());
+        stageAll(twxA, GIT_THING_A);
         var branchCommitRes =
                 httpClient.send(
                         twxA.serviceRequest(
@@ -1022,6 +1049,7 @@ public class EntitySyncTest {
         assertTrue(
                 mainPutRes.statusCode() == 200 || mainPutRes.statusCode() == 201,
                 "Main PUT failed: " + mainPutRes.body());
+        stageAll(twxA, GIT_THING_A);
         var mainCommitRes =
                 httpClient.send(
                         twxA.serviceRequest(
@@ -1211,6 +1239,7 @@ public class EntitySyncTest {
             }
         } else {
             // Created via API, now commit and push via Git thing
+            stageAll(twxA, GIT_THING_A);
             JsonObject commitBody = new JsonObject();
             commitBody.addProperty("Message", commitMessage);
             var commitRes =

@@ -1462,10 +1462,10 @@ public class GiteaGitOperationsTest {
         assertEquals(1, rows.size(), "Expected only the GetLog failure: " + response.body());
         JsonObject row = rows.get(0).getAsJsonObject();
         assertEquals("ERROR", row.get("Level").getAsString());
-        assertTrue(row.get("Source").getAsString().contains("DapResults\n"), row.toString());
-        assertTrue(
-                row.get("Source").getAsString().contains("GitRepositoryShape.GetLog"),
-                row.toString());
+        // An unknown ref is an expected input error: it is logged without a stack trace, so
+        // Source is only the logger name. Stack traces are attached for thrown exceptions only.
+        assertEquals("DapResults", row.get("Source").getAsString(), row.toString());
+        assertTrue(row.get("Message").getAsString().contains("GetLog failed"), row.toString());
         assertTrue(row.get("Message").getAsString().contains(marker), row.toString());
     }
 
