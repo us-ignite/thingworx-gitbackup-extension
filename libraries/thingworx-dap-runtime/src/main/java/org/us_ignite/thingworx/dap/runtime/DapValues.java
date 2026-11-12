@@ -106,7 +106,9 @@ public final class DapValues {
      * @param value the value to store
      */
     public static void putLong(ValueCollection row, String name, Long value) {
-        row.put(name, new LongPrimitive(value));
+        LongPrimitive primitive = new LongPrimitive();
+        primitive.setValue(value);
+        row.put(name, primitive);
     }
 
     /**

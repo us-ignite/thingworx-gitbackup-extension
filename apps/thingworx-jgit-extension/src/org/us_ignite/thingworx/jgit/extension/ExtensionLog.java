@@ -77,7 +77,7 @@ final class ExtensionLog {
             throw new IllegalArgumentException("ApplicationLog entity is not available");
         }
         ValueCollection params = new ValueCollection();
-        params.put("maxItems", new NumberPrimitive((double) maxItems));
+        params.put("maxItems", new NumberPrimitive((Number) maxItems));
         params.put("origin", new StringPrimitive(origin(type)));
         params.put("oldestFirst", new BooleanPrimitive(false));
         InfoTable rows =
