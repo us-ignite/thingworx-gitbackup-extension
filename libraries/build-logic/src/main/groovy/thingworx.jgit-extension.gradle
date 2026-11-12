@@ -186,9 +186,26 @@ test {
     def isTestInvocation = gradle.startParameter.taskNames.any { taskName ->
         ['test', 'testAll', 'integrationTest', 'verify'].any { lifecycle -> taskName == lifecycle || taskName.endsWith(":${lifecycle}") }
     }
-    if (isTestInvocation) {
+    // -PuseExistingImages: images were provided another way (CI pulls them
+    // from the GHCR cache), so skip the builds and just verify they exist.
+    def useExistingImages = project.hasProperty('useExistingImages')
+    if (isTestInvocation && !useExistingImages) {
         dependsOn ":images:platform:build${sanitized}"
         dependsOn ":images:security-tool:buildSecurityTool_${ver}"
+    }
+    if (useExistingImages) {
+        def requiredImages = [cfg.platformImage, cfg.dbInitImage, cfg.securityImage]
+        doFirst {
+            def missing = requiredImages.findAll { image ->
+                new ProcessBuilder('docker', 'image', 'inspect', image)
+                    .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                    .redirectError(ProcessBuilder.Redirect.DISCARD)
+                    .start().waitFor() != 0
+            }
+            if (!missing.empty) {
+                throw new GradleException("-PuseExistingImages set but images are missing locally: ${missing.join(', ')}")
+            }
+        }
     }
     systemProperty "test.extensionZip", "${buildDir}/distributions/${project.ext.packageName}.zip"
     systemProperty "test.dbInitImage", System.getProperty('test.dbInitImage') ?: cfg.dbInitImage

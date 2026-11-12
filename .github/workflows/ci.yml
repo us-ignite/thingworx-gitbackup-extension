@@ -85,10 +85,83 @@ jobs:
           path: apps/thingworx-jgit-extension/build/distributions/
           if-no-files-found: error
 
+  # Warms the GHCR image cache (ghcr.io/us-ignite/thingworx/ci-cache/*) keyed
+  # on the image build inputs. A hit finishes in seconds; a miss builds the
+  # images once and pushes them so every later run just pulls.
+  images:
+    name: Test images (TWX ${{ matrix.twx }})
+    # Fork PRs get a read-only token and no secrets; tests build inline there.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - twx: '9.6'
+            task: v96
+          - twx: '9.7'
+            task: v97
+          - twx: '10.1'
+            task: v101
+    steps:
+      - uses: actions/checkout@v6
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Check image cache
+        id: cache
+        run: |
+          if .github/scripts/ci-images.sh has '${{ matrix.twx }}'; then
+            echo 'hit=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'hit=false' >> "$GITHUB_OUTPUT"
+          fi
+      # Only fetch the (large) LFS vendor archives on a cache miss.
+      - uses: actions/checkout@v6
+        if: steps.cache.outputs.hit != 'true'
+        with:
+          lfs: true
+      - name: Register twx-file filter + decrypt vendor archives
+        if: steps.cache.outputs.hit != 'true'
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          .gitfilters/setup-twx-file
+          git checkout --force HEAD -- vendor/
+      - uses: actions/setup-java@v5
+        if: steps.cache.outputs.hit != 'true'
+        with:
+          distribution: corretto
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v5
+        if: steps.cache.outputs.hit != 'true'
+      - name: Build images
+        if: steps.cache.outputs.hit != 'true'
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          TASK: ${{ matrix.task }}
+          TWX: ${{ matrix.twx }}
+        run: >-
+          ./gradlew
+          ":images:platform:build${TASK#v}"
+          ":images:security-tool:buildSecurityTool_${TWX}"
+          --console=plain
+      - name: Push images to cache
+        if: steps.cache.outputs.hit != 'true'
+        run: .github/scripts/ci-images.sh push '${{ matrix.twx }}'
+
   integration-tests:
     name: Integration tests (TWX ${{ matrix.twx }})
-    needs: build
+    needs: [build, images]
+    # Still run when the cache job failed or was skipped (forks); the test
+    # job then falls back to building the images itself.
+    if: ${{ !cancelled() && needs.build.result == 'success' }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     strategy:
       fail-fast: false
       matrix:
@@ -116,6 +189,16 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
       - name: Verify Docker
         run: docker info
+      - name: Pull cached test images
+        id: images
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin || true
+          if .github/scripts/ci-images.sh pull '${{ matrix.twx }}'; then
+            echo 'gradle_args=-PuseExistingImages' >> "$GITHUB_OUTPUT"
+          else
+            echo '::warning::Image cache unavailable for TWX ${{ matrix.twx }}; building images in this job.'
+            echo 'gradle_args=' >> "$GITHUB_OUTPUT"
+          fi
       - name: Run integration tests
         env:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
@@ -124,6 +207,7 @@ jobs:
           TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE: /var/run/docker.sock
         run: >-
           ./gradlew :apps:thingworx-jgit-extension:${{ matrix.task }}:test
+          ${{ steps.images.outputs.gradle_args }}
           -PtestMaxParallelForks=1
           -PtestParallelism=1
           --max-workers=1

@@ -21,7 +21,7 @@ tasks.named('test') {
     def isTestInvocation = gradle.startParameter.taskNames.any { taskName ->
         ['test', 'testAll', 'integrationTest', 'verify'].any { lifecycle -> taskName == lifecycle || taskName.endsWith(":${lifecycle}") }
     }
-    if (isTestInvocation) {
+    if (isTestInvocation && !project.hasProperty('useExistingImages')) {
         dependsOn(':images:platform:build101')
         dependsOn(':images:security-tool:buildSecurityTool_10.1')
     }
