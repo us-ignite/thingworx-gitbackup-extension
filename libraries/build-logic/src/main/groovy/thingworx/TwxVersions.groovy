@@ -4,7 +4,11 @@ package thingworx
 class TwxVersions {
     static final List<String> ALL = ['9.6', '9.7', '10.0', '10.1', '10.2']
     static final String DEFAULT = '10.2'
-    static final String RUNTIME_DEFAULT = '9.6'
+    /**
+     * Oldest supported SDK. Shared libraries (thingworx-dap-runtime) compile against it so one jar
+     * works in every extension variant. Raise it only when dropping that version from ALL.
+     */
+    static final String MINIMUM_TWX_SDK = '9.6'
 
     static final Map<String, String> SDK_ZIPS = [
         '9.6' : 'MED-61098-CD-096_9-6-0_ThingWorx-Extension-SDK-9-6-0.zip',
