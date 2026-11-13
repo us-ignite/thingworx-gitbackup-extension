@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Entities
+ majorVersion="10"
+ minorVersion="1"
+ universal="password">
+    <NotificationDefinitions>
+        <NotificationDefinition
+         description="Example notification definition"
+         documentationContent=""
+         homeMashup=""
+         name="Example.NotificationDefinition"
+         projectName="Example"
+         tags="">
+            <avatar></avatar>
+            <DesignTimePermissions>
+                <Create></Create>
+                <Read></Read>
+                <Update></Update>
+                <Delete></Delete>
+                <Metadata></Metadata>
+            </DesignTimePermissions>
+            <RunTimePermissions></RunTimePermissions>
+            <VisibilityPermissions>
+                <Visibility></Visibility>
+            </VisibilityPermissions>
+            <ConfigurationTableDefinitions></ConfigurationTableDefinitions>
+            <ConfigurationTables></ConfigurationTables>
+            <Contents></Contents>
+            <Recipients></Recipients>
+            <Events></Events>
+        </NotificationDefinition>
+    </NotificationDefinitions>
+</Entities>

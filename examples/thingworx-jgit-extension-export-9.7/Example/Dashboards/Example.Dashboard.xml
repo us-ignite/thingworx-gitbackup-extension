@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Entities
+ majorVersion="9"
+ minorVersion="7"
+ universal="password">
+    <Dashboards>
+        <Dashboard
+         description="Example dashboard"
+         documentationContent=""
+         homeMashup=""
+         name="Example.Dashboard"
+         projectName="Example"
+         tags="">
+            <avatar></avatar>
+            <DesignTimePermissions>
+                <Create></Create>
+                <Read></Read>
+                <Update></Update>
+                <Delete></Delete>
+                <Metadata></Metadata>
+            </DesignTimePermissions>
+            <RunTimePermissions></RunTimePermissions>
+            <VisibilityPermissions>
+                <Visibility></Visibility>
+            </VisibilityPermissions>
+            <ConfigurationTableDefinitions></ConfigurationTableDefinitions>
+            <ConfigurationTables></ConfigurationTables>
+            <Dashboard>
+                <DataShape>
+                    <FieldDefinitions></FieldDefinitions>
+                </DataShape>
+                <Rows></Rows>
+            </Dashboard>
+        </Dashboard>
+    </Dashboards>
+</Entities>
