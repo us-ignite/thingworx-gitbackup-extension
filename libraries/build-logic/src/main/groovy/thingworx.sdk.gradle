@@ -6,7 +6,7 @@ import thingworx.TwxVersions
 
 def twxVersion = project.ext.has('sdkTwxVersion')
     ? project.ext.sdkTwxVersion.toString()
-    : (project.findProperty('twxVersion')?.toString() ?: TwxVersions.RUNTIME_DEFAULT)
+    : (project.findProperty('twxVersion')?.toString() ?: TwxVersions.MINIMUM_TWX_SDK)
 ext.sdkTwxVersion = twxVersion
 
 def zipName = project.ext.has('sdkZipName')
