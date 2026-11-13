@@ -188,7 +188,7 @@ tasks.register('javadoc', Sync) {
 }
 
 tasks.register('buildAll', Sync) {
-    description = 'Build extension packages for all ThingWorx versions (9.6.x, 9.7.x, 10.0.x, 10.1.x) in one daemon'
+    description = 'Build extension packages for all ThingWorx versions (9.6.x, 9.7.x, 10.0.x, 10.1.x, 10.2.x) in one daemon'
     group = 'build'
     dependsOn TwxVersions.ALL.collect { ver -> ":apps:thingworx-jgit-extension:v${TwxVersions.sanitize(ver)}:packageExtension" }
     TwxVersions.ALL.each { ver ->

@@ -30,6 +30,7 @@ case "$twx" in
   9.7)  platform=9.7.6;  security=9.7.9 ;;
   10.0) platform=10.0.4; security=10.0.9 ;;
   10.1) platform=10.1.2; security=10.1.2 ;;
+  10.2) platform=10.2.1; security=10.2.1 ;;
   *) echo "Unsupported ThingWorx version: $twx" >&2; exit 2 ;;
 esac
 

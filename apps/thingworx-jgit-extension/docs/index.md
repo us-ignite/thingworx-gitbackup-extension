@@ -4,7 +4,7 @@ The ThingWorx JGit Extension provides Git integration for ThingWorx application 
 
 ## Supported platforms
 
-The extension is built for Java 21 and is tested against ThingWorx 9.6, 9.7, and 10.1 variants. Check the release artifacts and compatibility notes before installing into a production platform.
+The extension is built for Java 21 and is tested against ThingWorx 9.6, 9.7, 10.1, and 10.2 variants. Check the release artifacts and compatibility notes before installing into a production platform.
 
 ## Start here
 

@@ -61,7 +61,7 @@ mashups, and scheduled workflows manage source-controlled ThingWorx projects fro
 
 ## Supported platforms
 
-The project builds Java 21 extension variants for ThingWorx 9.6, 9.7, and 10.1. Install the
+The project builds Java 21 extension variants for ThingWorx 9.6, 9.7, 10.1, and 10.2. Install the
 package variant matching the target ThingWorx platform; the CI release workflow verifies each
 supported platform before publishing. See the [installation guide](docs/installation.md) for details.
 

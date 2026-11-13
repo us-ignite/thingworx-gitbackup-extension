@@ -67,6 +67,7 @@ tasks.register('eclipseAll') {
     dependsOn ':apps:thingworx-jgit-extension:v97:eclipse'
     dependsOn ':apps:thingworx-jgit-extension:v100:eclipse'
     dependsOn ':apps:thingworx-jgit-extension:v101:eclipse'
+    dependsOn ':apps:thingworx-jgit-extension:v102:eclipse'
     dependsOn ':apps:thingworx-operator:eclipse'
 }
 

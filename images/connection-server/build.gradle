@@ -28,6 +28,13 @@ def ALL_TWX = [
         appArchive: 'connection-server-9.3.0.4.zip',
         baseImage: 'ubuntu:22.04',
     ],
+    // No 10.2-specific Connection Server release; 9.3.0.4 is the latest.
+    '10.2': [
+        cxServerDockerFiles: 'MED-61352-CD-101_10-1-0_ThingWorx-Connection-Server-DockerFiles-9-3-0-4.tar.gz',
+        cxVersion: '9.3.0.4',
+        appArchive: 'connection-server-9.3.0.4.zip',
+        baseImage: 'ubuntu:22.04',
+    ],
 ]
 
 def ALL_CX_BASE = [

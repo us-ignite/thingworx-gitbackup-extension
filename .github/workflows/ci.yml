@@ -109,6 +109,8 @@ jobs:
             task: v97
           - twx: '10.1'
             task: v101
+          - twx: '10.2'
+            task: v102
     steps:
       - uses: actions/checkout@v6
       - name: Log in to GHCR
@@ -178,6 +180,8 @@ jobs:
             task: v97
           - twx: '10.1'
             task: v101
+          - twx: '10.2'
+            task: v102
     steps:
       - uses: actions/checkout@v6
         with:

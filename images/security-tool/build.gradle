@@ -6,27 +6,38 @@ plugins {
 def ALL_TWX = [
     '9.6': [
         securityDockerFiles: 'MED-61282-CD-096_9-6-9_Security-Management-Tool-DockerFiles-1-7-2-309.gz',
+        versionTag: '9.6.9',
         baseImage: 'ubuntu:22.04',
         securityToolArchive: 'security-common-cli-1.7.2.309.tar.gz',
         templateProcessorArchive: 'template-processor-13.0.1.51-application.tar.gz',
     ],
     '9.7': [
         securityDockerFiles: 'MED-61282-CD-097_9-7-3_Security-Management-Tool-DockerFiles-1-6-1-217.gz',
+        versionTag: '9.7.9',
         baseImage: 'ubuntu:22.04',
         securityToolArchive: 'security-common-cli-1.6.1.217.tar.gz',
         templateProcessorArchive: 'template-processor-12.4.0.34-application.tar.gz',
     ],
     '10.0': [
         securityDockerFiles: 'MED-61282-CD-100_10-0-4_Security-Management-Tool-DockerFiles-1-7-2-309.gz',
+        versionTag: '10.0.9',
         baseImage: 'ubuntu:22.04',
         securityToolArchive: 'security-common-cli-1.7.2.309.tar.gz',
         templateProcessorArchive: 'template-processor-13.0.1.51-application.tar.gz',
     ],
     '10.1': [
         securityDockerFiles: 'MED-61282-CD-101_10-1-2_Security-Management-Tool-DockerFiles-1-7-2-309.gz',
+        versionTag: '10.1.2',
         baseImage: 'ubuntu:24.04',
         securityToolArchive: 'security-common-cli-1.7.2.309.tar.gz',
         templateProcessorArchive: 'template-processor-13.0.1.51-application.tar.gz',
+    ],
+    '10.2': [
+        securityDockerFiles: 'MED-61282-CD-102_10-2-1_Security-Management-Tool-DockerFiles-1-7-2-314.gz',
+        versionTag: '10.2.1',
+        baseImage: 'ubuntu:24.04',
+        securityToolArchive: 'security-common-cli-1.7.2.314.tar.gz',
+        templateProcessorArchive: 'template-processor-13.0.1.59-application.tar.gz',
     ],
 ]
 
@@ -169,7 +180,7 @@ ALL_TWX.each { twxVersion, cfg ->
             if (cp1.waitFor() != 0) throw new GradleException("cp failed")
             def cp2 = new ProcessBuilder('cp', '-r', "${stage}", dockerDir.absolutePath).inheritIO().start()
             if (cp2.waitFor() != 0) throw new GradleException("cp failed")
-            def versionTag = capturedCfg.baseImage == 'ubuntu:24.04' ? "${capturedVer}.2" : "${capturedVer}.9"
+            def versionTag = capturedCfg.versionTag
             println "Building security-tool for TW ${capturedVer}..."
             def proc = new ProcessBuilder('docker', 'build',
                 '--progress=plain', '--pull=false', '--network=host',
@@ -201,7 +212,7 @@ tasks.register('pushAll') {
     def localTwx = ALL_TWX
     doLast {
         localTwx.each { twxVersion, cfg ->
-            def versionTag = cfg.baseImage == 'ubuntu:24.04' ? "${twxVersion}.2" : "${twxVersion}.9"
+            def versionTag = cfg.versionTag
             def p = new ProcessBuilder('docker', 'push', "ghcr.io/us-ignite/thingworx/security-tool:${versionTag}").inheritIO().start()
             if (p.waitFor() != 0) throw new GradleException("docker push failed")
         }

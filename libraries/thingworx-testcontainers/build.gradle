@@ -22,12 +22,12 @@ tasks.named('test') {
         ['test', 'testAll', 'integrationTest', 'verify'].any { lifecycle -> taskName == lifecycle || taskName.endsWith(":${lifecycle}") }
     }
     if (isTestInvocation && !project.hasProperty('useExistingImages')) {
-        dependsOn(':images:platform:build101')
-        dependsOn(':images:security-tool:buildSecurityTool_10.1')
+        dependsOn(':images:platform:build102')
+        dependsOn(':images:security-tool:buildSecurityTool_10.2')
     }
-    systemProperty 'test.dbInitImage', System.getProperty('test.dbInitImage') ?: 'ghcr.io/us-ignite/thingworx/postgres-init:10.1.2-openjdk'
-    systemProperty 'test.platformImage', System.getProperty('test.platformImage') ?: 'ghcr.io/us-ignite/thingworx/platform-postgres:10.1.2-openjdk'
-    systemProperty 'test.postgresImage', System.getProperty('test.postgresImage') ?: 'postgres:16'
+    systemProperty 'test.dbInitImage', System.getProperty('test.dbInitImage') ?: 'ghcr.io/us-ignite/thingworx/postgres-init:10.2.1-openjdk'
+    systemProperty 'test.platformImage', System.getProperty('test.platformImage') ?: 'ghcr.io/us-ignite/thingworx/platform-postgres:10.2.1-openjdk'
+    systemProperty 'test.postgresImage', System.getProperty('test.postgresImage') ?: 'postgres:17'
     testLogging { events 'passed', 'skipped', 'failed'; exceptionFormat = 'full' }
 }
 
