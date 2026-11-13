@@ -32,6 +32,13 @@ def ALL_TWX = [
         platformVersion:    '10.1.2',
         baseImage:          'ubuntu:24.04',
     ],
+    '10.2': [
+        platformDockerFiles: 'MED-61268-CD-102_10-2-1_ThingWorx-Platform-DockerFiles-10-2-1.gz',
+        platformPostgres:   'MED-61111-CD-102_10-2-1_ThingWorx-Platform-Postgres-10-2-1.zip',
+        tomcatVersion:      '11.0.0',
+        platformVersion:    '10.2.1',
+        baseImage:          'ubuntu:24.04',
+    ],
 ]
 
 def ALL_VARIANTS = ['openjdk', 'corretto', 'graalvm']
@@ -370,6 +377,7 @@ tasks.register('pushAll') {
             [ver: '9.7',  platformVersion: '9.7.6'],
             [ver: '10.0', platformVersion: '10.0.4'],
             [ver: '10.1', platformVersion: '10.1.2'],
+            [ver: '10.2', platformVersion: '10.2.1'],
         ]
         def allVariants = ['openjdk', 'corretto', 'graalvm']
         def pfx = 'ghcr.io/us-ignite/thingworx'

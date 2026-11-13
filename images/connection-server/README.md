@@ -8,7 +8,7 @@ archives from PTC Support Downloads alongside the DockerFiles releases:
 | Required local file | Supported ThingWorx versions |
 | --- | --- |
 | `vendor/connection-server-9.2.2.2.zip` | 9.6 |
-| `vendor/connection-server-9.3.0.4.zip` | 9.7, 10.0, 10.1 |
+| `vendor/connection-server-9.3.0.4.zip` | 9.7, 10.0, 10.1, 10.2 |
 
 Include both application archives in the encrypted vendor archive used by CI.
 The Gradle build copies the appropriate ZIP into each build's `staging/`

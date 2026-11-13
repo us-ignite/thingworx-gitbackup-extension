@@ -22,7 +22,7 @@ services:
       - pgdata:/var/lib/postgresql/data
 
   db-init:
-    image: ghcr.io/us-ignite/thingworx/postgres-init:10.1.2
+    image: ghcr.io/us-ignite/thingworx/postgres-init:10.2.1
     container_name: twx-db-init
     entrypoint: ["/bin/bash", "/scripts/db-init-wrapper.sh"]
     environment:
@@ -44,7 +44,7 @@ services:
       - ./apps/thingworx-jgit-extension/scripts/db-init-wrapper.sh:/scripts/db-init-wrapper.sh:ro
 
   security-init:
-    image: ghcr.io/us-ignite/thingworx/security-tool:10.1.2
+    image: ghcr.io/us-ignite/thingworx/security-tool:10.2.1
     container_name: twx-security-init
     entrypoint: ["/bin/sh", "/scripts/security-init-wrapper.sh"]
     environment:
@@ -64,7 +64,7 @@ services:
       - ./apps/thingworx-jgit-extension/scripts/security-init-wrapper.sh:/scripts/security-init-wrapper.sh:ro
 
   thingworx:
-    image: ghcr.io/us-ignite/thingworx/platform-postgres:10.1.2-openjdk
+    image: ghcr.io/us-ignite/thingworx/platform-postgres:10.2.1-openjdk
     container_name: twx-platform
     ports:
       - "8080:8080"
@@ -217,7 +217,7 @@ services:
       TWX_URL: http://thingworx:8080
       TWX_USERNAME: Administrator
       TWX_PASSWORD: AdminP@ssw0rd!123
-      EXTENSION_ZIP: /distributions/JGitExtension-v6.6.25-10.1.x.zip
+      EXTENSION_ZIP: /distributions/JGitExtension-v6.10.0-10.2.x.zip
     depends_on:
       thingworx:
         condition: service_started
@@ -225,7 +225,7 @@ services:
       - twx-network
     volumes:
       - ./apps/thingworx-jgit-extension/scripts/install-extension.sh:/scripts/install-extension.sh:ro
-      - ./apps/thingworx-jgit-extension/versions/10.1/build/distributions:/distributions:ro
+      - ./apps/thingworx-jgit-extension/versions/10.2/build/distributions:/distributions:ro
 
 networks:
   twx-network:

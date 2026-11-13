@@ -22,6 +22,7 @@ include ':apps:thingworx-jgit-extension:v96'
 include ':apps:thingworx-jgit-extension:v97'
 include ':apps:thingworx-jgit-extension:v100'
 include ':apps:thingworx-jgit-extension:v101'
+include ':apps:thingworx-jgit-extension:v102'
 include ':apps:thingworx-operator'
 include ':images:platform'
 include ':images:security-tool'
@@ -40,6 +41,7 @@ project(':apps:thingworx-jgit-extension:v96').projectDir = file('apps/thingworx-
 project(':apps:thingworx-jgit-extension:v97').projectDir = file('apps/thingworx-jgit-extension/versions/9.7')
 project(':apps:thingworx-jgit-extension:v100').projectDir = file('apps/thingworx-jgit-extension/versions/10.0')
 project(':apps:thingworx-jgit-extension:v101').projectDir = file('apps/thingworx-jgit-extension/versions/10.1')
+project(':apps:thingworx-jgit-extension:v102').projectDir = file('apps/thingworx-jgit-extension/versions/10.2')
 project(':apps:thingworx-operator').projectDir = file('apps/thingworx-operator')
 project(':images:platform').projectDir = file('images/platform')
 project(':images:security-tool').projectDir = file('images/security-tool')
