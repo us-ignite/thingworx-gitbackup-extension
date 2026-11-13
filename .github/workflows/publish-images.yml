@@ -156,7 +156,10 @@ jobs:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
           .gitfilters/setup-twx-file
-          git checkout --force HEAD -- vendor/
+          # Delete first: path checkout skips stat-clean files, so the smudge
+          # filter would never run on files an earlier checkout already wrote.
+          rm -f vendor/*.zip vendor/*.gz vendor/*.tar.gz
+          git checkout HEAD -- vendor/
       - uses: actions/setup-java@v5
         with:
           distribution: corretto
@@ -183,7 +186,10 @@ jobs:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
           .gitfilters/setup-twx-file
-          git checkout --force HEAD -- vendor/
+          # Delete first: path checkout skips stat-clean files, so the smudge
+          # filter would never run on files an earlier checkout already wrote.
+          rm -f vendor/*.zip vendor/*.gz vendor/*.tar.gz
+          git checkout HEAD -- vendor/
       - uses: actions/setup-java@v5
         with:
           distribution: corretto
@@ -210,7 +216,10 @@ jobs:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
           .gitfilters/setup-twx-file
-          git checkout --force HEAD -- vendor/
+          # Delete first: path checkout skips stat-clean files, so the smudge
+          # filter would never run on files an earlier checkout already wrote.
+          rm -f vendor/*.zip vendor/*.gz vendor/*.tar.gz
+          git checkout HEAD -- vendor/
       - uses: actions/setup-java@v5
         with:
           distribution: corretto
