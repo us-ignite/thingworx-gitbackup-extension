@@ -1,0 +1,301 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Entities
+ majorVersion="10"
+ minorVersion="1"
+ universal="password">
+    <PersistenceProviders>
+        <PersistenceProvider
+         aspect.enabled="false"
+         description="Example persistence provider (placeholder connection)"
+         documentationContent=""
+         enabled="false"
+         homeMashup=""
+         isDefault="false"
+         name="Example.PersistenceProvider"
+         persistenceProviderPackage="Influx2PersistenceProviderPackage"
+         projectName="Example"
+         tags="">
+            <avatar></avatar>
+            <DesignTimePermissions>
+                <Create></Create>
+                <Read></Read>
+                <Update></Update>
+                <Delete></Delete>
+                <Metadata></Metadata>
+            </DesignTimePermissions>
+            <RunTimePermissions></RunTimePermissions>
+            <VisibilityPermissions>
+                <Visibility></Visibility>
+            </VisibilityPermissions>
+            <ConfigurationTableDefinitions></ConfigurationTableDefinitions>
+            <ConfigurationTables>
+                <ConfigurationTable
+                 dataShapeName=""
+                 description="Connection information needed to connect to InfluxDB"
+                 isMultiRow="false"
+                 name="ConnectionInformation"
+                 ordinal="0">
+                    <DataShape>
+                        <FieldDefinitions>
+                            <FieldDefinition
+                             aspect.defaultValue="false"
+                             aspect.friendlyName="Auto Create Bucket"
+                             baseType="BOOLEAN"
+                             description="Auto create the bucket if it does not exist"
+                             name="autoCreate"
+                             ordinal="3"></FieldDefinition>
+                            <FieldDefinition
+                             aspect.defaultValue="1000"
+                             aspect.friendlyName="Batch Size (Not in use, will be removed in the future)"
+                             baseType="INTEGER"
+                             description="Number of data point to collect in batch for writes"
+                             name="batchSize"
+                             ordinal="5"></FieldDefinition>
+                            <FieldDefinition
+                             aspect.friendlyName="Bucket Name"
+                             baseType="STRING"
+                             description="The bucket name used to log into the database"
+                             name="bucketName"
+                             ordinal="2"></FieldDefinition>
+                            <FieldDefinition
+                             aspect.defaultValue="10"
+                             aspect.friendlyName="Time for Connection Timeout"
+                             baseType="LONG"
+                             description="The Connection Timeout Value"
+                             name="connectionTimeout"
+                             ordinal="10"></FieldDefinition>
+                            <FieldDefinition
+                             aspect.defaultValue="5000"
+                             aspect.friendlyName="Fetch Size of data from the persistence provider"
+                             baseType="INTEGER"
+                             description="The count of rows to be fetched in batches instead of caching all rows on client side"
+                             name="fetchSize"
+                             ordinal="9"></FieldDefinition>
+                            <FieldDefinition
+                             aspect.defaultValue="1000"
+                             aspect.friendlyName="Flush Interval (ms) (Not in use, will be removed in the future)"
+                             baseType="INTEGER"
+                             description="Number of milliseconds before the batch is written"
+                             name="flushInterval"
+                             ordinal="6"></FieldDefinition>
+                            <FieldDefinition
+                             aspect.defaultValue="NONE"
+                             aspect.friendlyName="Log Level"
+                             baseType="STRING"
+                             description="The influx client log level (BASIC, HEADERS, or BODY)"
+                             name="logLevel"
+                             ordinal="8"></FieldDefinition>
+                            <FieldDefinition
+                             aspect.friendlyName="Organization Name"
+                             baseType="STRING"
+                             description="The organization used to log into the database"
+                             name="orgName"
+                             ordinal="1"></FieldDefinition>
+                            <FieldDefinition
+                             aspect.defaultValue="10"
+                             aspect.friendlyName="Time for Read Timeout"
+                             baseType="LONG"
+                             description="The Read Timeout Value"
+                             name="readTimeout"
+                             ordinal="11"></FieldDefinition>
+                            <FieldDefinition
+                             aspect.defaultValue="0"
+                             aspect.friendlyName="Retention Period (days)"
+                             baseType="INTEGER"
+                             description="Data Retention Period in Days"
+                             name="retentionDays"
+                             ordinal="4"></FieldDefinition>
+                            <FieldDefinition
+                             aspect.friendlyName="Token"
+                             baseType="PASSWORD"
+                             description="The token used to log into the database"
+                             name="token"
+                             ordinal="7"></FieldDefinition>
+                            <FieldDefinition
+                             aspect.defaultValue="http://localhost:8086"
+                             aspect.friendlyName="ConnectionUrl"
+                             baseType="STRING"
+                             description="The URL to the database"
+                             name="url"
+                             ordinal="0"></FieldDefinition>
+                            <FieldDefinition
+                             aspect.defaultValue="20"
+                             aspect.friendlyName="Time for Write Timeout"
+                             baseType="LONG"
+                             description="The Write Timeout Value"
+                             name="writeTimeout"
+                             ordinal="12"></FieldDefinition>
+                        </FieldDefinitions>
+                    </DataShape>
+                    <Rows>
+                        <Row>
+                            <autoCreate>false</autoCreate>
+                            <batchSize>1000</batchSize>
+                            <bucketName></bucketName>
+                            <connectionTimeout>10</connectionTimeout>
+                            <fetchSize>5000</fetchSize>
+                            <flushInterval>1000</flushInterval>
+                            <logLevel>
+                            <![CDATA[
+                            NONE
+                            ]]>
+                            </logLevel>
+                            <orgName></orgName>
+                            <readTimeout>10</readTimeout>
+                            <retentionDays>0</retentionDays>
+                            <token></token>
+                            <url>
+                            <![CDATA[
+                            http://localhost:8086
+                            ]]>
+                            </url>
+                            <writeTimeout>20</writeTimeout>
+                        </Row>
+                    </Rows>
+                </ConfigurationTable>
+                <ConfigurationTable
+                 dataShapeName=""
+                 description="Stream Processor Settings"
+                 isMultiRow="false"
+                 name="StreamProcessorSettings"
+                 ordinal="0">
+                    <DataShape>
+                        <FieldDefinitions>
+                            <FieldDefinition
+                             aspect.defaultValue="2500.0"
+                             aspect.friendlyName="Max no. of Stream Writes in Process Block"
+                             baseType="NUMBER"
+                             description="Maximum number of stream writes to process in one block"
+                             name="maximumBlockSize"
+                             ordinal="4"></FieldDefinition>
+                            <FieldDefinition
+                             aspect.defaultValue="250000.0"
+                             aspect.friendlyName="Max Queue Size"
+                             baseType="NUMBER"
+                             description="Maximum number of stream entries to queue (will be rejected after that)"
+                             name="maximumQueueSize"
+                             ordinal="3"></FieldDefinition>
+                            <FieldDefinition
+                             aspect.defaultValue="10000.0"
+                             aspect.friendlyName="Max Wait Time Before Flushing Stream Buffer (millisec)"
+                             baseType="NUMBER"
+                             description="Maximum wait time before flushing stream buffer in milliseconds"
+                             name="maximumWaitTime"
+                             ordinal="0"></FieldDefinition>
+                            <FieldDefinition
+                             aspect.defaultValue="5"
+                             aspect.friendlyName="Maximum number of Stream Write retry attempts"
+                             baseType="INTEGER"
+                             description="Maximum number of stream write retry attempts"
+                             name="maximumWriteRetries"
+                             ordinal="6"></FieldDefinition>
+                            <FieldDefinition
+                             aspect.defaultValue="5.0"
+                             aspect.friendlyName="Number of Processing Threads"
+                             baseType="NUMBER"
+                             description="Number of processing threads"
+                             name="numberOfProcessingThreads"
+                             ordinal="5"></FieldDefinition>
+                            <FieldDefinition
+                             aspect.defaultValue="5.0"
+                             aspect.friendlyName="Buffer Status Scan Rate (millisec)"
+                             baseType="NUMBER"
+                             description="Rate at which to check the buffer status in milliseconds"
+                             name="scanRate"
+                             ordinal="2"></FieldDefinition>
+                            <FieldDefinition
+                             aspect.defaultValue="1000.0"
+                             aspect.friendlyName="Max no. of Items Before Flushing Stream Buffer"
+                             baseType="NUMBER"
+                             description="Maximum number of items to accumulate before flushing stream buffer"
+                             name="sizeThreshold"
+                             ordinal="1"></FieldDefinition>
+                        </FieldDefinitions>
+                    </DataShape>
+                    <Rows>
+                        <Row>
+                            <maximumBlockSize>2500.0</maximumBlockSize>
+                            <maximumQueueSize>250000.0</maximumQueueSize>
+                            <maximumWaitTime>10000.0</maximumWaitTime>
+                            <maximumWriteRetries>5</maximumWriteRetries>
+                            <numberOfProcessingThreads>5.0</numberOfProcessingThreads>
+                            <scanRate>5.0</scanRate>
+                            <sizeThreshold>1000.0</sizeThreshold>
+                        </Row>
+                    </Rows>
+                </ConfigurationTable>
+                <ConfigurationTable
+                 dataShapeName=""
+                 description="Value Stream Processor Settings"
+                 isMultiRow="false"
+                 name="ValueStreamProcessorSettings"
+                 ordinal="0">
+                    <DataShape>
+                        <FieldDefinitions>
+                            <FieldDefinition
+                             aspect.defaultValue="25000.0"
+                             aspect.friendlyName="Max no. of Value Stream Writes in Process Block"
+                             baseType="NUMBER"
+                             description="Maximum number of value stream writes to process in one block"
+                             name="maximumBlockSize"
+                             ordinal="4"></FieldDefinition>
+                            <FieldDefinition
+                             aspect.defaultValue="1000000.0"
+                             aspect.friendlyName="Max Queue Size"
+                             baseType="NUMBER"
+                             description="Maximum number of value stream entries to queue (will be rejected after that)"
+                             name="maximumQueueSize"
+                             ordinal="3"></FieldDefinition>
+                            <FieldDefinition
+                             aspect.defaultValue="10000.0"
+                             aspect.friendlyName="Max Wait Time Before Flushing Value Stream Buffer (millisec)"
+                             baseType="NUMBER"
+                             description="Maximum wait time before flushing value stream buffer in milliseconds"
+                             name="maximumWaitTime"
+                             ordinal="0"></FieldDefinition>
+                            <FieldDefinition
+                             aspect.defaultValue="5"
+                             aspect.friendlyName="Maximum number of Value Stream Write retry attempts"
+                             baseType="INTEGER"
+                             description="Maximum number of value stream write retry attempts"
+                             name="maximumWriteRetries"
+                             ordinal="6"></FieldDefinition>
+                            <FieldDefinition
+                             aspect.defaultValue="10.0"
+                             aspect.friendlyName="Number of Processing Threads"
+                             baseType="NUMBER"
+                             description="Number of processing threads"
+                             name="numberOfProcessingThreads"
+                             ordinal="5"></FieldDefinition>
+                            <FieldDefinition
+                             aspect.defaultValue="5.0"
+                             aspect.friendlyName="Buffer Status Scan Rate (millisec)"
+                             baseType="NUMBER"
+                             description="Rate at which to check the buffer status in milliseconds"
+                             name="scanRate"
+                             ordinal="2"></FieldDefinition>
+                            <FieldDefinition
+                             aspect.defaultValue="1000.0"
+                             aspect.friendlyName="Max no. of Items Before Flushing Value  Buffer"
+                             baseType="NUMBER"
+                             description="Maximum number of items to accumulate before flushing value stream buffer"
+                             name="sizeThreshold"
+                             ordinal="1"></FieldDefinition>
+                        </FieldDefinitions>
+                    </DataShape>
+                    <Rows>
+                        <Row>
+                            <maximumBlockSize>25000.0</maximumBlockSize>
+                            <maximumQueueSize>1000000.0</maximumQueueSize>
+                            <maximumWaitTime>10000.0</maximumWaitTime>
+                            <maximumWriteRetries>5</maximumWriteRetries>
+                            <numberOfProcessingThreads>10.0</numberOfProcessingThreads>
+                            <scanRate>5.0</scanRate>
+                            <sizeThreshold>1000.0</sizeThreshold>
+                        </Row>
+                    </Rows>
+                </ConfigurationTable>
+            </ConfigurationTables>
+        </PersistenceProvider>
+    </PersistenceProviders>
+</Entities>
