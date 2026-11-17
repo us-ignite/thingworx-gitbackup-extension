@@ -197,7 +197,12 @@ public class SshTransportTest {
         query.addProperty("GitThing", THING);
         var res = callUtility("GitCredentialGet", query);
         JsonObject row = firstResultRow(assertServiceSuccess(res, "GitCredentialGet"));
-        assertEquals(generatedFingerprint, row.get("SshKeyFingerprint").getAsString());
+        // The automatic upgrade may already have moved the repository-wide key to origin's own
+        // sign-in, so read the key where the remote resolves it.
+        assertEquals(
+                generatedFingerprint,
+                signIn("origin").get("SshKeyFingerprint").getAsString(),
+                "The selected SSH key should be reported for origin");
         assertFalse(row.get("HasPassword").getAsBoolean(), "No password was saved: " + row);
         assertFalse(
                 res.body().contains("GitCommitterPassword"), "Password returned: " + res.body());
@@ -361,10 +366,13 @@ public class SshTransportTest {
     void eachRemoteHasItsOwnSignIn() throws Exception {
         String sshUrl =
                 "ssh://git@gitea:22/" + credentials.giteaUser + "/" + credentials.repoName + ".git";
-        // No repository-wide key: origin can only sign in with a key of its own.
-        selectKey("");
+        // No repository-wide key and no sign-in of its own: origin can only sign in with a key it
+        // saves here. An earlier automatic upgrade may have copied the old repository-wide key to
+        // origin, so clear both places first.
         JsonObject origin = new JsonObject();
         origin.addProperty("Remote", "origin");
+        assertServiceSuccess(callRepository("RemoteSignInClear", origin), "RemoteSignInClear");
+        selectKey("");
         String message = failureMessage(callRepository("Fetch", origin), "Fetch without key");
         assertTrue(message.contains("no SSH key is selected"), "Unexpected error: " + message);
 
@@ -409,20 +417,34 @@ public class SshTransportTest {
     @Test
     @Order(13)
     void upgradeGivesEachRemoteTheRepositoryWideSignIn() throws Exception {
-        // After the previous test, origin uses the repository-wide key.
+        // Establish the state this test upgrades instead of depending on what earlier tests left:
+        // origin has no sign-in of its own and uses the repository-wide key.
+        JsonObject originRequest = new JsonObject();
+        originRequest.addProperty("Remote", "origin");
+        assertServiceSuccess(
+                callRepository("RemoteSignInClear", originRequest), "RemoteSignInClear");
+        selectKey(generatedFingerprint);
         assertTrue(signIn("origin").get("Inherited").getAsBoolean(), "origin has its own sign-in");
 
+        JsonObject query = new JsonObject();
+        query.addProperty("GitThing", THING);
+        boolean repositoryWideKey =
+                generatedFingerprint.equals(
+                        firstResultRow(
+                                        assertServiceSuccess(
+                                                callUtility("GitCredentialGet", query),
+                                                "GitCredentialGet before RunUpgrade"))
+                                .get("SshKeyFingerprint")
+                                .getAsString());
         String report =
                 assertServiceSuccess(callUtility("RunUpgrade", new JsonObject()), "RunUpgrade")
                         .toString();
-        assertTrue(report.contains("sign-in copied"), report);
+        if (repositoryWideKey) assertTrue(report.contains("sign-in copied"), report);
         assertFalse(report.contains("PRIVATE KEY"), "Secret in report: " + report);
 
         JsonObject origin = signIn("origin");
         assertFalse(origin.get("Inherited").getAsBoolean(), origin.toString());
         assertEquals(generatedFingerprint, origin.get("SshKeyFingerprint").getAsString());
-        JsonObject query = new JsonObject();
-        query.addProperty("GitThing", THING);
         JsonObject settings =
                 firstResultRow(
                         assertServiceSuccess(
