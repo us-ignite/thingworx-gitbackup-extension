@@ -41,7 +41,7 @@ public class ServiceAuthorizationTest {
     private static final String PLAIN_THING = "ITAuthPlainThing";
     private static final String HIDDEN_PROJECT = "ITAuthHiddenProject";
     private static final String USER = "ITAuthLimitedUser";
-    private static final String USER_PASSWORD = "It-Limited-Passw0rd!2026";
+    private static final String USER_PASSWORD = "It-Limited-Passw0rd!2026"; // ggignore
 
     private TestingCredentials credentials;
     private JGitExtensionTestStack stack;
