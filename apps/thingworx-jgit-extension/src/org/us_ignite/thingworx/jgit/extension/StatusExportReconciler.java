@@ -32,41 +32,66 @@ final class StatusExportReconciler {
 
     static void reconcile(Git git, Path snapshot, String repositoryPath, String project)
             throws Exception {
-        reconcile(
-                git,
-                snapshot,
-                repositoryPath,
-                project,
-                (type, name, configuredProject) -> {
-                    final ThingworxRelationshipTypes entityType;
-                    try {
-                        entityType = ThingworxRelationshipTypes.valueOf(type);
-                    } catch (IllegalArgumentException e) {
-                        // Unknown XML types cannot safely be classified as removed entities.
-                        return true;
-                    }
-                    RootEntity entity = EntityUtilities.findEntityDirect(name, entityType);
-                    return entity != null && configuredProject.equals(entity.GetProjectName());
-                });
+        reconcile(git, snapshot, repositoryPath, project, defaultLookup());
+    }
+
+    private static EntityLookup defaultLookup() {
+        return (type, name, configuredProject) -> {
+            final ThingworxRelationshipTypes entityType;
+            try {
+                entityType = ThingworxRelationshipTypes.valueOf(type);
+            } catch (IllegalArgumentException e) {
+                // Unknown XML types cannot safely be classified as removed entities.
+                return true;
+            }
+            RootEntity entity = EntityUtilities.findEntityDirect(name, entityType);
+            return entity != null && configuredProject.equals(entity.GetProjectName());
+        };
     }
 
     static void reconcile(
             Git git, Path snapshot, String repositoryPath, String project, EntityLookup lookup)
             throws Exception {
-        Path root = git.getRepository().getWorkTree().toPath().toRealPath();
         String repoPath =
                 repositoryPath == null
                         ? ""
                         : repositoryPath.replace('\\', '/').replaceAll("^/+|/+$", "");
-        Path relativeProject =
-                (repoPath.isEmpty() ? Path.of("") : Path.of(repoPath)).resolve(project).normalize();
-        if (relativeProject.isAbsolute()
-                || relativeProject.startsWith("..")
-                || relativeProject.getNameCount() == 0
-                || project.contains("/")
+        if (project.contains("/")
                 || project.contains("\\")
                 || project.equals(".")
                 || project.equals("..")) {
+            throw new IOException("Invalid project export path.");
+        }
+        reconcileFolder(
+                git,
+                snapshot,
+                repoPath.isEmpty() ? project : repoPath + "/" + project,
+                project,
+                lookup);
+    }
+
+    /**
+     * Reconciles a project export into an explicit repository-relative folder, used for tracked
+     * projects with a custom {@code Path}.
+     */
+    static void reconcileFolder(Git git, Path snapshot, String projectFolder, String project)
+            throws Exception {
+        reconcileFolder(git, snapshot, projectFolder, project, defaultLookup());
+    }
+
+    static void reconcileFolder(
+            Git git, Path snapshot, String projectFolder, String project, EntityLookup lookup)
+            throws Exception {
+        Path root = git.getRepository().getWorkTree().toPath().toRealPath();
+        String folder =
+                projectFolder == null
+                        ? ""
+                        : projectFolder.replace('\\', '/').replaceAll("^/+|/+$", "");
+        if (folder.isEmpty()) throw new IOException("Invalid project export path.");
+        Path relativeProject = Path.of(folder).normalize();
+        if (relativeProject.isAbsolute()
+                || relativeProject.startsWith("..")
+                || relativeProject.getNameCount() == 0) {
             throw new IOException("Invalid project export path.");
         }
         Path projectRoot = root.resolve(relativeProject).normalize();

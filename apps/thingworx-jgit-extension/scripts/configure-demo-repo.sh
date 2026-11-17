@@ -11,8 +11,9 @@ GITEA_USERNAME="${GITEA_USERNAME:?GITEA_USERNAME must be set}"
 GITEA_PASSWORD="${GITEA_PASSWORD:?GITEA_PASSWORD must be set}"
 GITEA_REPO_NAME="${GITEA_REPO_NAME:?GITEA_REPO_NAME must be set}"
 DEMO_REPO_NAME="${DEMO_REPO_NAME:-demo}"
-DEMO_REPO_PATH="${DEMO_REPO_PATH:-examples/thingworx-jgit-extension-export}"
 DEMO_PROJECT_NAME="${DEMO_PROJECT_NAME:-Example}"
+# Folder of the demo project in the seeded Gitea repository.
+DEMO_PROJECT_PATH="${DEMO_PROJECT_PATH:-examples/thingworx-jgit-extension-export/${DEMO_PROJECT_NAME}}"
 
 if [ ! -f "/example/${DEMO_PROJECT_NAME}/Projects/${DEMO_PROJECT_NAME}.xml" ]; then
     echo "[demo-init] ERROR: The mounted ThingWorx example export is missing." >&2
@@ -70,7 +71,7 @@ fi
 thing_status=$(curl -sS -o /dev/null -w '%{http_code}' -u "${TWX_USERNAME}:${TWX_PASSWORD}" \
     -H 'Accept: application/json' "${TWX_URL}/Thingworx/Things/${DEMO_REPO_NAME}") || true
 if [ "$thing_status" = "404" ]; then
-    create_payload="{\"RepoName\":\"${DEMO_REPO_NAME}\",\"GitRepoURL\":\"${GITEA_URL}/${GITEA_USERNAME}/${GITEA_REPO_NAME}.git\",\"RepoPath\":\"${DEMO_REPO_PATH}\",\"BranchName\":\"main\",\"TrackedProjects\":{\"dataShape\":{\"fieldDefinitions\":{\"ProjectName\":{\"name\":\"ProjectName\",\"baseType\":\"STRING\"}}},\"rows\":[{\"ProjectName\":\"${DEMO_PROJECT_NAME}\"}]},\"UseProxy\":false,\"ProxyURL\":\"\",\"ProxyPort\":0,\"LocalizationTokensPrefix\":\"\",\"GitCommitterUser\":\"${GITEA_USERNAME}\",\"GitCommitterPassword\":\"${GITEA_PASSWORD}\",\"GitCommitterEmail\":\"test@example.com\",\"GitCommitterFullName\":\"Gitea Test User\"}"
+    create_payload="{\"RepoName\":\"${DEMO_REPO_NAME}\",\"GitRepoURL\":\"${GITEA_URL}/${GITEA_USERNAME}/${GITEA_REPO_NAME}.git\",\"BranchName\":\"main\",\"TrackedProjects\":{\"dataShape\":{\"fieldDefinitions\":{\"ProjectName\":{\"name\":\"ProjectName\",\"baseType\":\"STRING\"},\"Path\":{\"name\":\"Path\",\"baseType\":\"STRING\"}}},\"rows\":[{\"ProjectName\":\"${DEMO_PROJECT_NAME}\",\"Path\":\"${DEMO_PROJECT_PATH}\"}]},\"UseProxy\":false,\"ProxyURL\":\"\",\"ProxyPort\":0,\"LocalizationTokensPrefix\":\"\",\"GitCommitterUser\":\"${GITEA_USERNAME}\",\"GitCommitterPassword\":\"${GITEA_PASSWORD}\",\"GitCommitterEmail\":\"test@example.com\",\"GitCommitterFullName\":\"Gitea Test User\"}"
     create_response=$(call_service RepositoryCreate "$create_payload") || true
     if ! printf '%s' "$create_response" | grep -Eq '"Error"[[:space:]]*:[[:space:]]*false'; then
         echo "[demo-init] RepositoryCreate did not report success; checking whether the Thing was created." >&2
@@ -103,7 +104,6 @@ set_property() {
 }
 
 set_property GitRepoURL "${GITEA_URL}/${GITEA_USERNAME}/${GITEA_REPO_NAME}.git"
-set_property RepoPath "$DEMO_REPO_PATH"
 set_property BranchName main
 # Track the demo project on an existing repository; an "already tracked" reply is fine.
 track_response=$(curl -fsS -u "${TWX_USERNAME}:${TWX_PASSWORD}" \
@@ -112,7 +112,7 @@ track_response=$(curl -fsS -u "${TWX_USERNAME}:${TWX_PASSWORD}" \
     -H 'Accept: application/json' \
     -H 'Content-Type: application/json' \
     -X POST "${TWX_URL}/Thingworx/Things/${DEMO_REPO_NAME}/Services/AddTrackedProject" \
-    -d "{\"ProjectName\":\"${DEMO_PROJECT_NAME}\"}") || true
+    -d "{\"ProjectName\":\"${DEMO_PROJECT_NAME}\",\"Path\":\"${DEMO_PROJECT_PATH}\"}") || true
 if ! printf '%s' "$track_response" | grep -Eq '"Error"[[:space:]]*:[[:space:]]*false|already tracked'; then
     echo "[demo-init] ERROR: Could not track project '${DEMO_PROJECT_NAME}': ${track_response}" >&2
     exit 1

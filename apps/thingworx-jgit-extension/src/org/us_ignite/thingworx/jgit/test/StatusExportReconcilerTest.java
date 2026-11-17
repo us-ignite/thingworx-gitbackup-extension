@@ -125,4 +125,40 @@ class StatusExportReconcilerTest {
             assertFalse(Files.exists(outside.resolve("Thing.xml")));
         }
     }
+
+    @Test
+    void reconcilesIntoACustomProjectFolder() throws Exception {
+        Path root = directory.resolve("custom");
+        Path snapshot = directory.resolve("snapshot-custom");
+        Path base = root.resolve("twx/app/Things");
+        write(base.resolve("Stale.xml"), entity("Stale", "old"));
+        write(root.resolve("Example/Things/Other.xml"), entity("Other", "keep"));
+        write(snapshot.resolve("Things/New.xml"), entity("New", "current"));
+        try (Git git = Git.init().setDirectory(root.toFile()).call()) {
+            git.add().addFilepattern(".").call();
+            git.commit().setMessage("base").setAuthor("Test", "test@example.com").call();
+            StatusExportReconciler.reconcileFolder(
+                    git, snapshot, "/twx/app/", "Example", (t, n, p) -> false);
+            assertEquals(entity("New", "current"), Files.readString(base.resolve("New.xml")));
+            assertFalse(Files.exists(base.resolve("Stale.xml")));
+            // The default <ProjectName> folder is not touched when a custom folder is used.
+            assertTrue(Files.exists(root.resolve("Example/Things/Other.xml")));
+        }
+    }
+
+    @Test
+    void refusesFoldersOutsideTheRepository() throws Exception {
+        Path root = directory.resolve("escape");
+        Files.createDirectories(root);
+        try (Git git = Git.init().setDirectory(root.toFile()).call()) {
+            for (String folder : new String[] {"", "/", "../outside", "a/../../outside"}) {
+                assertThrows(
+                        Exception.class,
+                        () ->
+                                StatusExportReconciler.reconcileFolder(
+                                        git, directory, folder, "Example", (t, n, p) -> true),
+                        folder);
+            }
+        }
+    }
 }

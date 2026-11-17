@@ -37,6 +37,22 @@ and the Helm chart is in [`../../charts/thingworx-operator`](../../charts/thingw
 `ThingWorxCluster` resources model the cluster lifecycle. `ThingWorxExtension` resources install digest-pinned
 OCI extension artifacts one at a time for each target cluster.
 
+## Ingress security
+
+When `spec.ingress.host` is set, configure `tlsSecretName` or `certManagerIssuer`.
+The operator rejects an ingress without either setting and removes its previously managed ingress
+if an old configuration is unsafe. Existing installations must add TLS before upgrading. For an
+NGINX ingress class with operator-managed TLS, the operator requests an HTTP-to-HTTPS redirect.
+Enable HSTS in the ingress controller configuration and verify redirect and HSTS behavior in the
+actual controller; Kubernetes Ingress does not standardize these controls.
+
+If TLS terminates at a trusted upstream proxy, `spec.ingress.trustedUpstreamTls: true` explicitly
+accepts plaintext between that proxy and the ingress. Restrict access to the ingress so clients
+cannot bypass the proxy, and configure HTTPS redirects and HSTS on the proxy. This option does not
+verify the proxy, establish TLS on the backend hop, or set network policy. The Compose stack is
+for local development and binds its plaintext services to loopback; binding changes require the
+containers to be recreated.
+
 ## Lifecycle phases and state diagram
 
 The `ThingWorxCluster` reconciler is an ordered, idempotent state machine defined in

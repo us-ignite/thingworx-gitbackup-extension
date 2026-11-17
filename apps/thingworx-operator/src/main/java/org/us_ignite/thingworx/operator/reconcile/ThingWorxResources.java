@@ -881,6 +881,10 @@ public final class ThingWorxResources {
         if (ingress.getCertManagerIssuer() != null)
             metadata.addToAnnotations(
                     "cert-manager.io/cluster-issuer", ingress.getCertManagerIssuer());
+        if ("nginx".equals(ingress.getClassName())
+                && (ingress.getTlsSecretName() != null || ingress.getCertManagerIssuer() != null)) {
+            metadata.addToAnnotations("nginx.ingress.kubernetes.io/ssl-redirect", "true");
+        }
         var builder =
                 new IngressBuilder()
                         .withMetadata(metadata.build())

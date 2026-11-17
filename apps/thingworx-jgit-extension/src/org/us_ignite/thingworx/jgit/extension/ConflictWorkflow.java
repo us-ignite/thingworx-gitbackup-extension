@@ -208,7 +208,8 @@ final class ConflictWorkflow {
             String text = message == null || message.isBlank() ? null : message;
             if (text == null) text = repository.readMergeCommitMsg();
             if (text == null || text.isBlank()) text = "Merge";
-            CommitCommand commit = git.commit().setMessage(text);
+            CommitCommand commit =
+                    git.commit().setMessage(CommitAttribution.withAuthenticatedUser(text));
             if (commitSetup != null) commitSetup.accept(commit);
             commit.call();
         } else if (state.isRebasing()) {

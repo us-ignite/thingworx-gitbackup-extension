@@ -1,6 +1,7 @@
 package org.us_ignite.thingworx.jgit.extension;
 
 import com.thingworx.data.util.InfoTableInstanceFactory;
+import com.thingworx.entities.RootEntity;
 import com.thingworx.entities.utils.EntityUtilities;
 import com.thingworx.entities.utils.UserUtilities;
 import com.thingworx.logging.LogUtilities;
@@ -13,6 +14,7 @@ import com.thingworx.resources.entities.EntityServices;
 import com.thingworx.resources.queries.Searcher;
 import com.thingworx.security.users.User;
 import com.thingworx.things.Thing;
+import com.thingworx.things.repository.FileRepositoryThing;
 import com.thingworx.thingshape.ThingShape;
 import com.thingworx.types.InfoTable;
 import com.thingworx.types.TagCollection;
@@ -25,8 +27,10 @@ import com.thingworx.types.primitives.PasswordPrimitive;
 import com.thingworx.types.primitives.StringPrimitive;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -43,10 +47,13 @@ import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.GpgKeySpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.GpgKeySummarySpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.GpgKeyVerificationSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.OperationListSpec;
-import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.RepositoryConfigurationSpec;
+import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.RepositoryConfigurationSummarySpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.RepositoryListSpec;
+import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.SshKeySummarySpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.StringResultSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.TrackedProjectSpec;
+import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.UpgradeStepSpec;
+import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.UserIdentitySpec;
 
 /**
  * Utility services for repository lifecycle, entity synchronization, user configuration, and
@@ -98,14 +105,12 @@ public class GitUtilityThingShape extends Thing {
                     String RepoName,
             @ThingworxServiceParameter(name = "GitRepoURL", description = "", baseType = "STRING")
                     String GitRepoURL,
-            @ThingworxServiceParameter(name = "RepoPath", description = "", baseType = "STRING")
-                    String RepoPath,
             @ThingworxServiceParameter(name = "BranchName", description = "", baseType = "STRING")
                     String BranchName,
             @ThingworxServiceParameter(
                             name = "TrackedProjects",
                             description =
-                                    "Existing ThingWorx projects to synchronize with the repository; may be empty and edited later in Repository Settings",
+                                    "Existing ThingWorx projects to synchronize with the repository, each with an optional Path (folder relative to the repository root; blank means <ProjectName>); may be empty and edited later in Repository Settings",
                             baseType = "INFOTABLE",
                             aspects = {"dataShape:GIT.TrackedProject.DataShape"})
                     InfoTable TrackedProjects,
@@ -148,17 +153,28 @@ public class GitUtilityThingShape extends Thing {
             if (EntityUtilities.findEntity(RepoName, ThingworxRelationshipTypes.Thing) != null)
                 throw new IllegalArgumentException(
                         "A Thing named '" + RepoName + "' already exists.");
+            // EntityServices called from Java does not apply the caller's permissions.
+            requireEntityServicePermission("CreateThing");
+            if (!isBlank(GitRepoURL)) Remotes.parseUrl(GitRepoURL);
             // Validate every project before creating anything, using the same rules as
             // AddTrackedProject: each must be an existing, trackable project.
-            java.util.LinkedHashSet<String> projects = new java.util.LinkedHashSet<>();
+            List<FileRepositoryManager.TrackedProject> projects = new ArrayList<>();
             if (TrackedProjects != null) {
                 for (int i = 0; i < TrackedProjects.getRowCount(); i++) {
-                    String raw = TrackedProjects.getRow(i).getStringValue(Const.ProjectName);
+                    ValueCollection row = TrackedProjects.getRow(i);
+                    String raw = row.getStringValue(Const.ProjectName);
                     if (raw == null || raw.isBlank()) continue;
                     String name = FileRepositoryManager.validateProjectFolderName(raw);
+                    String path =
+                            FileRepositoryManager.validateProjectPath(
+                                    row.containsKey(Const.TrackedProjectPath)
+                                            ? row.getStringValue(Const.TrackedProjectPath)
+                                            : "");
                     var project =
                             EntityUtilities.findEntity(name, ThingworxRelationshipTypes.Project);
-                    if (project == null) {
+                    // A project the caller cannot see or read is reported exactly like a
+                    // missing one, so the service does not reveal which projects exist.
+                    if (project == null || !callerCanAccessProject(project)) {
                         throw new IllegalArgumentException(
                                 String.format(Const.ERR_PROJECT_NOT_FOUND, name));
                     }
@@ -166,9 +182,11 @@ public class GitUtilityThingShape extends Thing {
                         throw new IllegalArgumentException(
                                 "Project '" + name + "' cannot be tracked by a repository.");
                     }
-                    projects.add(name);
+                    projects.add(new FileRepositoryManager.TrackedProject(name, path));
                 }
             }
+            projects = FileRepositoryManager.normalizeTrackedProjects(projects);
+            FileRepositoryManager.requireDistinctProjectFolders(projects);
             EntityServices es = new EntityServices();
             String repositoryProject = Const.RepositoryProjectName;
             if (EntityUtilities.findEntity(repositoryProject, ThingworxRelationshipTypes.Project)
@@ -208,26 +226,14 @@ public class GitUtilityThingShape extends Thing {
             repoThing =
                     (Thing) EntityUtilities.findEntity(RepoName, ThingworxRelationshipTypes.Thing);
             repoThing.setPropertyValue(
-                    Const.GitRepoURL, new StringPrimitive(GitRepoURL == null ? "" : GitRepoURL));
-            repoThing.setPropertyValue(
-                    Const.RepoPath, new StringPrimitive(RepoPath == null ? "" : RepoPath));
-            repoThing.setPropertyValue(
                     Const.InitialBranch,
                     new StringPrimitive(
                             BranchName == null || BranchName.isBlank()
                                     ? "main"
                                     : BranchName.trim()));
-            repoThing.setPropertyValue(Const.ProjectName, new StringPrimitive(""));
-            InfoTable trackedProjects =
-                    InfoTableInstanceFactory.createInfoTableFromDataShape(
-                            Const.TrackedProjectDataShapeName);
-            for (String project : projects) {
-                ValueCollection trackedProject = new ValueCollection();
-                trackedProject.put(Const.ProjectName, new StringPrimitive(project));
-                trackedProjects.addRow(trackedProject);
-            }
             repoThing.setPropertyValue(
-                    Const.TrackedProjects, new InfoTablePrimitive(trackedProjects));
+                    Const.TrackedProjects,
+                    new InfoTablePrimitive(FileRepositoryManager.trackedProjectTable(projects)));
             repoThing.setPropertyValue(
                     Const.UseProxy, new BooleanPrimitive(UseProxy != null && UseProxy));
             repoThing.setPropertyValue(
@@ -239,17 +245,22 @@ public class GitUtilityThingShape extends Thing {
                     Const.LocalizationTokensPrefix,
                     new StringPrimitive(
                             LocalizationTokensPrefix == null ? "" : LocalizationTokensPrefix));
-            // Credentials are optional; Repository Settings can add them later.
-            if (!isBlank(GitCommitterUser)
-                    || !isBlank(GitCommitterPassword)
-                    || !isBlank(GitCommitterEmail)
-                    || !isBlank(GitCommitterFullName)) {
+            // The commit identity belongs to the user, not to the repository.
+            if (!isBlank(GitCommitterEmail) || !isBlank(GitCommitterFullName)) {
+                initializeCurrentUserConfiguration();
+                new GitUserContextManager().setIdentity(GitCommitterFullName, GitCommitterEmail);
+            }
+            boolean hasSignIn = !isBlank(GitCommitterUser) || !isBlank(GitCommitterPassword);
+            // Sign-in is saved for the origin remote below. Without a URL there is no remote yet,
+            // so it is kept as the repository-wide sign-in, which the upgrade manager moves to
+            // the remotes once they exist.
+            if (hasSignIn && isBlank(GitRepoURL)) {
                 InfoTable credentialResult =
                         GitCredentialCreate(
                                 nullToEmpty(GitCommitterUser),
                                 nullToEmpty(GitCommitterPassword),
-                                nullToEmpty(GitCommitterEmail),
-                                nullToEmpty(GitCommitterFullName),
+                                "",
+                                "",
                                 RepoName,
                                 "");
                 ValueCollection credentialRow =
@@ -263,6 +274,29 @@ public class GitUtilityThingShape extends Thing {
                                             ? "no result"
                                             : credentialRow.getStringValue("Message")));
                 }
+            }
+            // The remote is recorded only in the new repository's .git/config.
+            if (!isBlank(GitRepoURL)) {
+                FileRepositoryManager created = new FileRepositoryManager(repoThing);
+                try {
+                    Remotes.add(created.git(), Remotes.DEFAULT_REMOTE, GitRepoURL);
+                    if (hasSignIn) {
+                        initializeCurrentUserConfiguration();
+                        new GitUserContextManager()
+                                .saveRemoteCredentials(
+                                        RepoName,
+                                        Remotes.DEFAULT_REMOTE,
+                                        GitCommitterUser,
+                                        nullToEmpty(GitCommitterPassword),
+                                        "",
+                                        Remotes.approvedOrigins(
+                                                created.git().getRepository(),
+                                                Remotes.DEFAULT_REMOTE));
+                    }
+                } finally {
+                    created.close();
+                }
+                bindApprovedOrigins(RepoName);
             }
             gitActionLog("RepositoryCreate", RepoName, "Repository created.");
             return DapResults.success(
@@ -290,6 +324,141 @@ public class GitUtilityThingShape extends Thing {
         return value == null ? "" : value;
     }
 
+    /**
+     * Returns whether the calling user may see and read the given project. {@code
+     * EntityUtilities.findEntity} is not a permission-checked lookup, so services that accept a
+     * project name must apply this before using the project.
+     */
+    /** True when the caller is a member of the Administrators group. */
+    private static boolean callerIsAdmin() {
+        try {
+            UserUtilities.validateAdminMembership();
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /** True when the caller may read a repository Thing's design-time entity. */
+    private static boolean callerCanReadRepository(String repoName) {
+        if (repoName == null || repoName.isBlank()) return false;
+        try {
+            RootEntity entity =
+                    EntityUtilities.findEntity(repoName, ThingworxRelationshipTypes.Thing);
+            return entity != null
+                    && entity.isVisible()
+                    && Boolean.TRUE.equals(entity.CheckDesignTimePermission("Read"));
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    static boolean callerCanAccessProject(RootEntity project) {
+        try {
+            return project != null
+                    && project.isVisible()
+                    && Boolean.TRUE.equals(project.CheckDesignTimePermission("Read"));
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * Returns the origins of the remotes currently configured for a repository Thing. Credentials
+     * are bound to these values when the user saves them, so a later remote change cannot redirect
+     * a stored token. Returns an empty string when the repository or its Git directory is not yet
+     * available.
+     */
+    private static String approvedOriginsFor(String gitThing) {
+        if (gitThing == null || gitThing.isBlank()) return "";
+        FileRepositoryManager repository = null;
+        try {
+            Object entity = EntityUtilities.findEntity(gitThing, ThingworxRelationshipTypes.Thing);
+            if (!(entity instanceof Thing)) return "";
+            repository = new FileRepositoryManager((Thing) entity);
+            return Remotes.approvedOrigins(repository.git().getRepository());
+        } catch (Exception e) {
+            return "";
+        } finally {
+            if (repository != null) repository.close();
+        }
+    }
+
+    /** Refreshes the current user's approved origins after a remote is added or changed. */
+    private static void bindApprovedOrigins(String gitThing) {
+        try {
+            String origins = approvedOriginsFor(gitThing);
+            new GitUserContextManager().setApprovedOriginsIfConfigured(gitThing, origins);
+        } catch (Exception ignored) {
+            // A user without a credential row has nothing to bind.
+        }
+    }
+
+    /**
+     * Fails unless the calling user may invoke the named EntityServices service. Calling
+     * EntityServices from Java bypasses the platform's own check of the caller's permissions.
+     */
+    private static void requireEntityServicePermission(String serviceName) throws Exception {
+        RootEntity entityServices =
+                EntityUtilities.findEntity("EntityServices", ThingworxRelationshipTypes.Resource);
+        if (entityServices == null)
+            throw new IllegalStateException("EntityServices is unavailable.");
+        if (!Boolean.TRUE.equals(entityServices.CheckPermission("ServiceInvoke", serviceName))) {
+            throw new SecurityException("Service permission denied for " + serviceName);
+        }
+    }
+
+    /**
+     * Resolves a repository Thing for deletion. The Thing must exist, be a repository created by
+     * this extension, and the calling user must hold design-time Delete permission on it.
+     */
+    private static Thing requireDeletableRepository(String repoName) throws Exception {
+        RootEntity entity = EntityUtilities.findEntity(repoName, ThingworxRelationshipTypes.Thing);
+        // A Thing the caller cannot see is reported like a missing one.
+        if (!(entity instanceof Thing) || !entity.isVisible())
+            throw new IllegalArgumentException("Repository '" + repoName + "' was not found.");
+        Thing thing = (Thing) entity;
+        boolean repositoryTemplate =
+                Const.RepositoryThingTemplateName.equals(thing.getThingTemplateName())
+                        || Boolean.TRUE.equals(
+                                thing.IsDerivedFromTemplate(Const.RepositoryThingTemplateName));
+        if (!(thing instanceof FileRepositoryThing)
+                || !repositoryTemplate
+                || !Const.RepositoryProjectName.equals(thing.GetProjectName())) {
+            throw new IllegalArgumentException(
+                    "Thing '" + repoName + "' is not a Git repository created by this extension.");
+        }
+        if (!Boolean.TRUE.equals(thing.CheckDesignTimePermission("Delete"))) {
+            throw new SecurityException("Delete permission denied for Thing " + repoName);
+        }
+        requireEntityServicePermission("DeleteThing");
+        return thing;
+    }
+
+    /**
+     * Copies GPG key rows for a service result. Only the fingerprint and label are copied; the
+     * private key and passphrase fields of the data shape are left unset.
+     */
+    private static InfoTable withoutGpgSecrets(InfoTable keys) throws Exception {
+        InfoTable result =
+                InfoTableInstanceFactory.createInfoTableFromDataShape(
+                        Const.UserGpgKeyDataShapeName);
+        if (keys == null) return result;
+        for (int i = 0; i < keys.getRowCount(); i++) {
+            ValueCollection source = keys.getRow(i);
+            ValueCollection row = new ValueCollection();
+            row.put(
+                    Const.GpgKeyFingerprint,
+                    new StringPrimitive(
+                            nullToEmpty(source.getStringValue(Const.GpgKeyFingerprint))));
+            row.put(
+                    Const.GpgKeyLabel,
+                    new StringPrimitive(nullToEmpty(source.getStringValue(Const.GpgKeyLabel))));
+            result.addRow(row);
+        }
+        return result;
+    }
+
     /** Lists projects a new repository can track, for the repository create form. */
     @DapServicePayload(TrackedProjectSpec.class)
     @ThingworxServiceDefinition(
@@ -309,15 +478,84 @@ public class GitUtilityThingShape extends Thing {
             })
     public InfoTable GetTrackableProjects() {
         try {
+            // The Java project lookup is not permission-checked; keep only projects the caller
+            // can see and read.
+            List<String> names = new java.util.ArrayList<>();
+            for (String name : FileRepositoryManager.trackableProjectNames()) {
+                if (callerCanAccessProject(
+                        EntityUtilities.findEntity(name, ThingworxRelationshipTypes.Project)))
+                    names.add(name);
+            }
             return DapResults.success(
                     "GetTrackableProjects",
                     TrackedProjectTable.SERVICE_RESULT,
-                    TrackedProjectTable.wrap(
-                            FileRepositoryManager.projectTable(
-                                    FileRepositoryManager.trackableProjectNames())));
+                    TrackedProjectTable.wrap(FileRepositoryManager.projectTable(names)));
         } catch (Exception e) {
             return DapResults.failure(
                     "GetTrackableProjects", e, TrackedProjectTable.SERVICE_RESULT);
+        }
+    }
+
+    @DapServicePayload(StringResultSpec.class)
+    @ThingworxServiceDefinition(
+            name = "ProjectCreate",
+            description =
+                    "Creates an empty ThingWorx project that a repository can track. The caller needs permission to run EntityServices.CreateProject.",
+            category = "Projects",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
+    public InfoTable ProjectCreate(
+            @ThingworxServiceParameter(
+                            name = "ProjectName",
+                            description =
+                                    "Letters, digits, '.', '_' and '-'; also the folder name in the repository",
+                            baseType = "STRING")
+                    String ProjectName,
+            @ThingworxServiceParameter(
+                            name = "Description",
+                            description = "Optional project description",
+                            baseType = "STRING")
+                    String Description) {
+        try {
+            String name = FileRepositoryManager.validateNewProjectName(ProjectName);
+            if (EntityUtilities.findEntity(name, ThingworxRelationshipTypes.Project) != null) {
+                throw new IllegalArgumentException(
+                        "A project named '"
+                                + name
+                                + "' already exists. Select it in the list instead.");
+            }
+            // EntityServices called from Java does not apply the caller's permissions.
+            requireEntityServicePermission("CreateProject");
+            new EntityServices()
+                    .CreateProject(
+                            name,
+                            "Component",
+                            isBlank(Description)
+                                    ? "Created by "
+                                            + UserUtilities.getCurrentUser()
+                                            + " for Git tracking"
+                                    : Description.trim(),
+                            "",
+                            new TagCollection());
+            var project = EntityUtilities.findEntity(name, ThingworxRelationshipTypes.Project);
+            if (!FileRepositoryManager.isTrackableProject(project)) {
+                throw new IllegalStateException(
+                        "Project '"
+                                + name
+                                + "' was created, but you cannot read it, so it cannot be tracked.");
+            }
+            gitActionLog("ProjectCreate", "", "Project '" + name + "' created.");
+            return DapResults.success(
+                    "ProjectCreate",
+                    "Project '" + name + "' created.",
+                    StringResultContract.SERVICE_RESULT);
+        } catch (Exception e) {
+            return DapResults.failure("ProjectCreate", e, StringResultContract.SERVICE_RESULT);
         }
     }
 
@@ -420,6 +658,10 @@ public class GitUtilityThingShape extends Thing {
             @ThingworxServiceParameter(name = "RepoName", description = "", baseType = "STRING")
                     String RepoName) {
         try {
+            if (RepoName == null || RepoName.isBlank())
+                throw new IllegalArgumentException("RepoName is required.");
+            RepoName = RepoName.trim();
+            requireDeletableRepository(RepoName);
             EntityServices es = new EntityServices();
             es.DeleteThing(RepoName);
             String CurrentUser = UserUtilities.getCurrentUser();
@@ -441,6 +683,7 @@ public class GitUtilityThingShape extends Thing {
                     user.setPropertyValue(
                             "UserRepositoryConfiguration", new InfoTablePrimitive(creds));
                 }
+                new GitUserContextManager().removeRemoteCredentials(RepoName, null);
             }
             _logger.warn(
                     "GIT Repository Thing "
@@ -453,6 +696,42 @@ public class GitUtilityThingShape extends Thing {
             gitActionLog(
                     "RepositoryDelete", RepoName, e == null ? "" : String.valueOf(e.getMessage()));
             return DapResults.failure("RepositoryDelete", e, StringResultContract.SERVICE_RESULT);
+        }
+    }
+
+    /** Upgrades every repository and every user's settings to the current storage format. */
+    @DapServicePayload(UpgradeStepSpec.class)
+    @ThingworxServiceDefinition(
+            name = "RunUpgrade",
+            description =
+                    "Upgrades every repository and every user's saved Git settings to the current format: moves retired repository settings into .git/config, gives each remote its own copy of the repository-wide sign-in, and moves per-repository commit identities to the user. Safe to run again. Administrators only.",
+            category = "",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {
+                "isEntityDataShape:true",
+                "dataShape:GIT.UpgradeStep.ServiceResult.DataShape"
+            })
+    public InfoTable RunUpgrade() {
+        try {
+            UserUtilities.validateAdminMembership();
+            UpgradeStepTable table = UpgradeStepTable.create();
+            for (UpgradeManager.Step step : UpgradeManager.run()) {
+                table.add(
+                        UpgradeStepRow.create()
+                                .scope(step.scope())
+                                .name(step.name())
+                                .item(step.item())
+                                .action(step.action())
+                                .detail(step.detail()));
+            }
+            return DapResults.success("RunUpgrade", UpgradeStepTable.SERVICE_RESULT, table);
+        } catch (Exception e) {
+            return DapResults.failure("RunUpgrade", e, UpgradeStepTable.SERVICE_RESULT);
         }
     }
 
@@ -471,10 +750,41 @@ public class GitUtilityThingShape extends Thing {
             aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
     public InfoTable InitUserExtensionProperties() {
         try {
+            UserUtilities.validateAdminMembership();
+            return initializeUserExtensionProperties(true);
+        } catch (Exception e) {
+            return DapResults.failure(
+                    "InitUserExtensionProperties", e, StringResultContract.SERVICE_RESULT);
+        }
+    }
+
+    /**
+     * Ensures the current user's rows use the current data shapes. It never changes ThingShape
+     * property definitions, so an ordinary user cannot trigger a platform-wide restart.
+     */
+    private void initializeCurrentUserConfiguration() {
+        try {
+            initializeUserExtensionProperties(false);
+        } catch (Exception e) {
+            _logger.warn("Could not initialize the current user's Git configuration.", e);
+        }
+    }
+
+    private InfoTable initializeUserExtensionProperties(boolean includeGlobalDefinitions) {
+        try {
             ThingShape userExtensions =
                     (ThingShape)
                             EntityUtilities.findEntity(
                                     "UserExtensions", ThingworxRelationshipTypes.ThingShape);
+            if (userExtensions == null) {
+                throw new IllegalStateException("UserExtensions ThingShape is unavailable.");
+            }
+            if (!includeGlobalDefinitions && !userDefinitionsPresent(userExtensions)) {
+                return DapResults.success(
+                        "InitUserExtensionProperties",
+                        "User extension properties are not initialized. An administrator must run InitUserExtensionProperties.",
+                        StringResultContract.SERVICE_RESULT);
+            }
 
             String CurrentUser = UserUtilities.getCurrentUser();
             User user = UserUtilities.findUser(CurrentUser);
@@ -483,7 +793,7 @@ public class GitUtilityThingShape extends Thing {
             if (user != null) {
                 hasGitCredentials = user.getPropertyValue("UserRepositoryConfiguration") != null;
             }
-            if (!hasGitCredentials) {
+            if (includeGlobalDefinitions && !hasGitCredentials) {
                 ValueCollection addPropParams = new ValueCollection();
                 addPropParams.put("defaultValue", new StringPrimitive(""));
                 addPropParams.put(
@@ -578,30 +888,13 @@ public class GitUtilityThingShape extends Thing {
                     user.setPropertyValue(
                             "UserRepositoryConfiguration", new InfoTablePrimitive(empty));
                 }
-
-                String[] oldProps = {
-                    "UseGitCommitUserValues",
-                    "GitCommitterEmail",
-                    "GitCommitterPassword",
-                    "GitCommitterName"
-                };
-                for (String prop : oldProps) {
-                    Object val = user.getPropertyValue(prop);
-                    if (val != null) {
-                        ValueCollection removeParams = new ValueCollection();
-                        removeParams.put("name", new StringPrimitive(prop));
-                        userExtensions.processServiceRequest(
-                                "RemovePropertyDefinition", removeParams);
-                        new EntityServices().RestartDependenciesForThingShape("UserExtensions");
-                    }
-                }
             }
 
             boolean hasUserGpgKeys = false;
             if (user != null) {
                 hasUserGpgKeys = user.getPropertyValue(Const.UserGpgKeys) != null;
             }
-            if (!hasUserGpgKeys) {
+            if (includeGlobalDefinitions && !hasUserGpgKeys) {
                 ValueCollection addPropParams = new ValueCollection();
                 addPropParams.put("defaultValue", new StringPrimitive(""));
                 addPropParams.put(
@@ -652,6 +945,90 @@ public class GitUtilityThingShape extends Thing {
                 }
                 user.setPropertyValue(Const.UserGpgKeys, new InfoTablePrimitive(keys));
             }
+            boolean identityAdded = false;
+            for (String property : new String[] {Const.GitUserName, Const.GitUserEmail}) {
+                if (!includeGlobalDefinitions) break;
+                if (userExtensions.getEffectivePropertyDefinition(property) != null) continue;
+                ValueCollection addPropParams = new ValueCollection();
+                addPropParams.put("defaultValue", new StringPrimitive(""));
+                addPropParams.put(
+                        "description",
+                        new StringPrimitive(
+                                Const.GitUserName.equals(property)
+                                        ? "Name recorded on the user's Git commits."
+                                        : "Email recorded on the user's Git commits."));
+                addPropParams.put("readOnly", new BooleanPrimitive(false));
+                addPropParams.put("type", new StringPrimitive("STRING"));
+                addPropParams.put("name", new StringPrimitive(property));
+                addPropParams.put("persistent", new BooleanPrimitive(true));
+                userExtensions.processServiceRequest("AddPropertyDefinition", addPropParams);
+                identityAdded = true;
+            }
+            if (identityAdded) {
+                new EntityServices().RestartDependenciesForThingShape("UserExtensions");
+                if (user != null) user = UserUtilities.findUser(CurrentUser);
+            }
+            if (includeGlobalDefinitions
+                    && userExtensions.getEffectivePropertyDefinition(Const.UserSshKeys) == null) {
+                ValueCollection addPropParams = new ValueCollection();
+                addPropParams.put("defaultValue", new StringPrimitive(""));
+                addPropParams.put(
+                        "description",
+                        new StringPrimitive("User-owned SSH keys reusable across repositories."));
+                addPropParams.put("readOnly", new BooleanPrimitive(false));
+                addPropParams.put("type", new StringPrimitive("INFOTABLE"));
+                addPropParams.put("name", new StringPrimitive(Const.UserSshKeys));
+                addPropParams.put("persistent", new BooleanPrimitive(true));
+                addPropParams.put("dataShape", new StringPrimitive(Const.UserSshKeyDataShapeName));
+                userExtensions.processServiceRequest("AddPropertyDefinition", addPropParams);
+                new EntityServices().RestartDependenciesForThingShape("UserExtensions");
+                if (user != null) user = UserUtilities.findUser(CurrentUser);
+            }
+            if (includeGlobalDefinitions
+                    && userExtensions.getEffectivePropertyDefinition(Const.UserRemoteCredentials)
+                            == null) {
+                ValueCollection addPropParams = new ValueCollection();
+                addPropParams.put("defaultValue", new StringPrimitive(""));
+                addPropParams.put(
+                        "description",
+                        new StringPrimitive("User-specific sign-in for each repository remote."));
+                addPropParams.put("readOnly", new BooleanPrimitive(false));
+                addPropParams.put("type", new StringPrimitive("INFOTABLE"));
+                addPropParams.put("name", new StringPrimitive(Const.UserRemoteCredentials));
+                addPropParams.put("persistent", new BooleanPrimitive(true));
+                addPropParams.put(
+                        "dataShape", new StringPrimitive(Const.RemoteCredentialsDataShapeName));
+                userExtensions.processServiceRequest("AddPropertyDefinition", addPropParams);
+                new EntityServices().RestartDependenciesForThingShape("UserExtensions");
+                if (user != null) user = UserUtilities.findUser(CurrentUser);
+            }
+            if (user != null
+                    && userExtensions.getEffectivePropertyDefinition(Const.UserRemoteCredentials)
+                            != null
+                    && new GitUserContextManager().remoteCredentials() == null) {
+                user.setPropertyValue(
+                        Const.UserRemoteCredentials,
+                        new InfoTablePrimitive(
+                                InfoTableInstanceFactory.createInfoTableFromDataShape(
+                                        Const.RemoteCredentialsDataShapeName)));
+            }
+            if (user != null && new GitUserContextManager().sshKeys() == null) {
+                user.setPropertyValue(
+                        Const.UserSshKeys,
+                        new InfoTablePrimitive(
+                                InfoTableInstanceFactory.createInfoTableFromDataShape(
+                                        Const.UserSshKeyDataShapeName)));
+            }
+            if (user != null) {
+                // Tables created from an empty default have no fields and lose their rows on
+                // reload; store them with their data shape.
+                for (String repaired : new GitUserContextManager().repairStoredTables()) {
+                    _logger.warn(
+                            "Repaired user property {} for {}: it was stored without its data shape.",
+                            repaired,
+                            CurrentUser);
+                }
+            }
             return DapResults.success(
                     "InitUserExtensionProperties",
                     "User extension properties initialized.",
@@ -660,6 +1037,21 @@ public class GitUtilityThingShape extends Thing {
             return DapResults.failure(
                     "InitUserExtensionProperties", e, StringResultContract.SERVICE_RESULT);
         }
+    }
+
+    private static boolean userDefinitionsPresent(ThingShape userExtensions) {
+        for (String property :
+                new String[] {
+                    Const.UserRepositoryConfiguration,
+                    Const.UserGpgKeys,
+                    Const.GitUserName,
+                    Const.GitUserEmail,
+                    Const.UserSshKeys,
+                    Const.UserRemoteCredentials
+                }) {
+            if (userExtensions.getEffectivePropertyDefinition(property) == null) return false;
+        }
+        return true;
     }
 
     private InfoTable getGpgKeysTable(User user) throws Exception {
@@ -982,11 +1374,8 @@ public class GitUtilityThingShape extends Thing {
     public InfoTable GpgKeyList() {
         try {
             User currentUser = new GitUserContextManager().requireUser();
-            InfoTable gpgKeys = getGpgKeysTable(currentUser);
-            if (gpgKeys == null)
-                gpgKeys =
-                        InfoTableInstanceFactory.createInfoTableFromDataShape(
-                                Const.UserGpgKeyDataShapeName);
+            // Stored rows hold the private key and passphrase; services never return them.
+            InfoTable gpgKeys = withoutGpgSecrets(getGpgKeysTable(currentUser));
             return DapResults.success(
                     "GpgKeyList", GpgKeyTable.SERVICE_RESULT, GpgKeyTable.wrap(gpgKeys));
         } catch (Exception e) {
@@ -1095,7 +1484,7 @@ public class GitUtilityThingShape extends Thing {
             else if (!derivedFingerprint.equalsIgnoreCase(GpgKeyFingerprint))
                 throw new IllegalArgumentException(
                         "GpgKeyFingerprint does not match the supplied GpgPrivateKey.");
-            InitUserExtensionProperties();
+            initializeCurrentUserConfiguration();
             InfoTable gpgKeys = getGpgKeysTable(currentUser);
             if (gpgKeys == null)
                 gpgKeys =
@@ -1193,7 +1582,9 @@ public class GitUtilityThingShape extends Thing {
                                         ? "label '" + label + "'"
                                         : "fingerprint " + fingerprint));
             return DapResults.success(
-                    "GpgKeyGet", GpgKeyTable.SERVICE_RESULT, GpgKeyTable.wrap(result));
+                    "GpgKeyGet",
+                    GpgKeyTable.SERVICE_RESULT,
+                    GpgKeyTable.wrap(withoutGpgSecrets(result)));
         } catch (Exception e) {
             return DapResults.failure("GpgKeyGet", e, GpgKeyTable.SERVICE_RESULT);
         }
@@ -1309,8 +1700,12 @@ public class GitUtilityThingShape extends Thing {
                             }
                         }
                     }
-                    row.put(Const.GpgPrivateKey, new PasswordPrimitive(privateKey));
-                    row.put(Const.GpgKeyPassphrase, new PasswordPrimitive(passphrase));
+                    // Services do not return key material, so an edit form cannot send it
+                    // back: a blank private key keeps the stored key and passphrase.
+                    if (privateKey != null && !privateKey.isBlank()) {
+                        row.put(Const.GpgPrivateKey, new PasswordPrimitive(privateKey));
+                        row.put(Const.GpgKeyPassphrase, new PasswordPrimitive(passphrase));
+                    }
                     if (hasLabel) row.put(Const.GpgKeyLabel, new StringPrimitive(GpgKeyLabel));
                     found = true;
                 }
@@ -1447,7 +1842,10 @@ public class GitUtilityThingShape extends Thing {
                                             + " repositories."
                                     : "");
             return DapResults.success(
-                    "GpgKeyDelete", message, GpgKeyTable.SERVICE_RESULT, GpgKeyTable.wrap(deleted));
+                    "GpgKeyDelete",
+                    message,
+                    GpgKeyTable.SERVICE_RESULT,
+                    GpgKeyTable.wrap(withoutGpgSecrets(deleted)));
         } catch (Exception e) {
             return DapResults.failure("GpgKeyDelete", e, GpgKeyTable.SERVICE_RESULT);
         }
@@ -1497,7 +1895,7 @@ public class GitUtilityThingShape extends Thing {
                             baseType = "STRING")
                     String GpgKeyFingerprint) {
         try {
-            InitUserExtensionProperties();
+            initializeCurrentUserConfiguration();
             User currentUser = new GitUserContextManager().requireUser();
             if (!GpgKeyFingerprint.isBlank()) {
                 validateGpgKeyOwnership(currentUser, GpgKeyFingerprint);
@@ -1524,14 +1922,16 @@ public class GitUtilityThingShape extends Thing {
             ValueCollection entry = new ValueCollection();
             entry.put("GitCommitterUser", new StringPrimitive(GitCommitterUser));
             entry.put("GitCommitterPassword", new PasswordPrimitive(GitCommitterPassword));
-            entry.put("GitCommitterEmail", new StringPrimitive(GitCommitterEmail));
-            entry.put("GitCommitterFullName", new StringPrimitive(GitCommitterFullName));
             entry.put("GitThing", new StringPrimitive(GitThing));
+            entry.put(
+                    Const.ApprovedRemoteOrigins, new StringPrimitive(approvedOriginsFor(GitThing)));
             if (!GpgKeyFingerprint.isBlank())
                 entry.put(Const.GpgKeyFingerprint, new StringPrimitive(GpgKeyFingerprint));
             creds.addRow(entry);
             currentUser.setPropertyValue(
                     "UserRepositoryConfiguration", new InfoTablePrimitive(creds));
+            // The commit identity belongs to the user, not to one repository.
+            new GitUserContextManager().setIdentity(GitCommitterFullName, GitCommitterEmail);
             return DapResults.success(
                     "GitCredentialCreate",
                     "Git credentials created.",
@@ -1542,10 +1942,11 @@ public class GitUtilityThingShape extends Thing {
         }
     }
 
-    @DapServicePayload(RepositoryConfigurationSpec.class)
+    @DapServicePayload(RepositoryConfigurationSummarySpec.class)
     @ThingworxServiceDefinition(
             name = "GitCredentialList",
-            description = "Lists the current user's repository credentials",
+            description =
+                    "Lists the current user's repository settings; passwords are never returned",
             category = "",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
@@ -1555,30 +1956,27 @@ public class GitUtilityThingShape extends Thing {
             baseType = "INFOTABLE",
             aspects = {
                 "isEntityDataShape:true",
-                "dataShape:GIT.RepositoryConfiguration.ServiceResult.DataShape"
+                "dataShape:GIT.RepositoryConfigurationSummary.ServiceResult.DataShape"
             })
     public InfoTable GitCredentialList() {
         try {
-            InfoTable result = new GitUserContextManager().credentials();
-            if (result == null)
-                result =
-                        InfoTableInstanceFactory.createInfoTableFromDataShape(
-                                Const.GitCredentialsDataShapeName);
             return DapResults.success(
                     "GitCredentialList",
-                    RepositoryConfigurationTable.SERVICE_RESULT,
-                    RepositoryConfigurationTable.wrap(result));
+                    RepositoryConfigurationSummaryTable.SERVICE_RESULT,
+                    RepositoryConfigurationSummaryTable.wrap(
+                            credentialSummaries(new GitUserContextManager().credentials(), null)));
         } catch (Exception e) {
             _logger.error("GitCredentialList failed", e);
             return DapResults.failure(
-                    "GitCredentialList", e, RepositoryConfigurationTable.SERVICE_RESULT);
+                    "GitCredentialList", e, RepositoryConfigurationSummaryTable.SERVICE_RESULT);
         }
     }
 
-    @DapServicePayload(RepositoryConfigurationSpec.class)
+    @DapServicePayload(RepositoryConfigurationSummarySpec.class)
     @ThingworxServiceDefinition(
             name = "GitCredentialGet",
-            description = "Returns credentials for one repository",
+            description =
+                    "Returns the current user's settings for one repository; the password is never returned",
             category = "",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
@@ -1588,7 +1986,7 @@ public class GitUtilityThingShape extends Thing {
             baseType = "INFOTABLE",
             aspects = {
                 "isEntityDataShape:true",
-                "dataShape:GIT.RepositoryConfiguration.ServiceResult.DataShape"
+                "dataShape:GIT.RepositoryConfigurationSummary.ServiceResult.DataShape"
             })
     public InfoTable GitCredentialGet(
             @ThingworxServiceParameter(
@@ -1598,24 +1996,128 @@ public class GitUtilityThingShape extends Thing {
                     String gitThing) {
         try {
             InfoTable result =
-                    InfoTableInstanceFactory.createInfoTableFromDataShape(
-                            Const.GitCredentialsDataShapeName);
-            InfoTable all = new GitUserContextManager().credentials();
-            if (all != null)
-                for (int i = 0; i < all.getRowCount(); i++)
-                    if (gitThing != null
-                            && gitThing.equals(all.getRow(i).getStringValue("GitThing")))
-                        result.addRow(all.getRow(i));
+                    gitThing == null
+                            ? credentialSummaries(null, null)
+                            : credentialSummaries(
+                                    new GitUserContextManager().credentials(), gitThing);
             if (result.getRowCount() == 0)
                 throw new IllegalArgumentException(
                         "Credentials not found for repository: " + gitThing);
             return DapResults.success(
                     "GitCredentialGet",
-                    RepositoryConfigurationTable.SERVICE_RESULT,
-                    RepositoryConfigurationTable.wrap(result));
+                    RepositoryConfigurationSummaryTable.SERVICE_RESULT,
+                    RepositoryConfigurationSummaryTable.wrap(result));
         } catch (Exception e) {
             return DapResults.failure(
-                    "GitCredentialGet", e, RepositoryConfigurationTable.SERVICE_RESULT);
+                    "GitCredentialGet", e, RepositoryConfigurationSummaryTable.SERVICE_RESULT);
+        }
+    }
+
+    /**
+     * Copies stored repository settings without the password. {@code onlyThing} limits the rows to
+     * one repository when it is not {@code null}.
+     */
+    private static InfoTable credentialSummaries(InfoTable stored, String onlyThing)
+            throws Exception {
+        InfoTable result =
+                InfoTableInstanceFactory.createInfoTableFromDataShape(
+                        "GIT.RepositoryConfigurationSummary.DataShape");
+        if (stored == null) return result;
+        GitUserContextManager context = new GitUserContextManager();
+        for (int i = 0; i < stored.getRowCount(); i++) {
+            ValueCollection row = stored.getRow(i);
+            String thing = row.getStringValue("GitThing");
+            if (onlyThing != null && !onlyThing.equals(thing)) continue;
+            String password = row.getStringValue(Const.GitCommitterPassword);
+            GitUserContextManager.Identity identity = context.identityFor(thing);
+            ValueCollection summary = new ValueCollection();
+            summary.put("GitThing", new StringPrimitive(nullToEmpty(thing)));
+            summary.put(
+                    Const.GitCommitterUser,
+                    new StringPrimitive(nullToEmpty(row.getStringValue(Const.GitCommitterUser))));
+            summary.put(
+                    "HasPassword", new BooleanPrimitive(password != null && !password.isEmpty()));
+            summary.put(Const.GitCommitterEmail, new StringPrimitive(identity.email()));
+            summary.put(Const.GitCommitterName, new StringPrimitive(identity.name()));
+            summary.put(
+                    Const.GpgKeyFingerprint,
+                    new StringPrimitive(nullToEmpty(row.getStringValue(Const.GpgKeyFingerprint))));
+            summary.put(
+                    Const.SshKeyFingerprint,
+                    new StringPrimitive(nullToEmpty(row.getStringValue(Const.SshKeyFingerprint))));
+            result.addRow(summary);
+        }
+        return result;
+    }
+
+    @DapServicePayload(UserIdentitySpec.class)
+    @ThingworxServiceDefinition(
+            name = "GitIdentityGet",
+            description = "Returns the current user's commit name and email",
+            category = "Identity",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {
+                "isEntityDataShape:true",
+                "dataShape:GIT.UserIdentity.ServiceResult.DataShape"
+            })
+    public InfoTable GitIdentityGet() {
+        try {
+            GitUserContextManager.Identity identity = new GitUserContextManager().identityFor(null);
+            UserIdentityTable table = UserIdentityTable.create();
+            table.add(
+                    UserIdentityRow.create()
+                            .gitUserName(identity.name())
+                            .gitUserEmail(identity.email()));
+            return DapResults.success("GitIdentityGet", UserIdentityTable.SERVICE_RESULT, table);
+        } catch (Exception e) {
+            return DapResults.failure("GitIdentityGet", e, UserIdentityTable.SERVICE_RESULT);
+        }
+    }
+
+    @DapServicePayload(StringResultSpec.class)
+    @ThingworxServiceDefinition(
+            name = "GitIdentitySave",
+            description =
+                    "Saves the name and email recorded on the current user's commits in every repository",
+            category = "Identity",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
+    public InfoTable GitIdentitySave(
+            @ThingworxServiceParameter(
+                            name = "GitUserName",
+                            description = "Name recorded on commits",
+                            baseType = "STRING")
+                    String name,
+            @ThingworxServiceParameter(
+                            name = "GitUserEmail",
+                            description = "Email recorded on commits",
+                            baseType = "STRING")
+                    String email) {
+        try {
+            if (isBlank(name) || isBlank(email)) {
+                throw new IllegalArgumentException("Commit name and email are both required.");
+            }
+            if (!email.trim().matches("[^@\\s<>]+@[^@\\s<>]+")) {
+                throw new IllegalArgumentException("Enter a valid email address.");
+            }
+            initializeCurrentUserConfiguration();
+            new GitUserContextManager().setIdentity(name, email);
+            return DapResults.success(
+                    "GitIdentitySave",
+                    "Commit identity saved. It applies to your commits in every repository.",
+                    StringResultContract.SERVICE_RESULT);
+        } catch (Exception e) {
+            return DapResults.failure("GitIdentitySave", e, StringResultContract.SERVICE_RESULT);
         }
     }
 
@@ -1623,7 +2125,7 @@ public class GitUtilityThingShape extends Thing {
     @ThingworxServiceDefinition(
             name = "GitCommitIdentityUpdate",
             description =
-                    "Updates the current user's commit identity for a repository without changing credentials or signing settings",
+                    "Deprecated: use GitIdentitySave. Saves the current user's commit identity, which applies to every repository; GitThing is ignored",
             category = "",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
@@ -1651,25 +2153,8 @@ public class GitUtilityThingShape extends Thing {
         try {
             if (fullName == null || fullName.isBlank() || email == null || email.isBlank())
                 throw new IllegalArgumentException("Commit name and email are required.");
-            GitUserContextManager context = new GitUserContextManager();
-            InfoTable all = context.credentials();
-            ValueCollection row = null;
-            if (all != null && gitThing != null && !gitThing.isBlank()) {
-                for (int i = 0; i < all.getRowCount(); i++) {
-                    if (gitThing.equals(all.getRow(i).getStringValue("GitThing"))) {
-                        row = all.getRow(i);
-                        break;
-                    }
-                }
-            }
-            if (row == null)
-                throw new IllegalArgumentException(
-                        "Credentials not found for repository: " + gitThing);
-            row.put(Const.GitCommitterName, new StringPrimitive(fullName.trim()));
-            row.put(Const.GitCommitterEmail, new StringPrimitive(email.trim()));
-            context.requireUser()
-                    .setPropertyValue(
-                            Const.UserRepositoryConfiguration, new InfoTablePrimitive(all));
+            initializeCurrentUserConfiguration();
+            new GitUserContextManager().setIdentity(fullName, email);
             return DapResults.success(
                     "GitCommitIdentityUpdate",
                     "Commit identity saved.",
@@ -1721,6 +2206,7 @@ public class GitUtilityThingShape extends Thing {
                             baseType = "STRING")
                     String GpgKeyFingerprint) {
         try {
+            initializeCurrentUserConfiguration();
             User current = new GitUserContextManager().requireUser();
             if (!GpgKeyFingerprint.isBlank()) {
                 validateGpgKeyOwnership(current, GpgKeyFingerprint);
@@ -1735,8 +2221,9 @@ public class GitUtilityThingShape extends Thing {
                     ValueCollection row = all.getRow(i);
                     row.put("GitCommitterUser", new StringPrimitive(user));
                     row.put("GitCommitterPassword", new PasswordPrimitive(password));
-                    row.put("GitCommitterEmail", new StringPrimitive(email));
-                    row.put("GitCommitterFullName", new StringPrimitive(fullName));
+                    row.put(
+                            Const.ApprovedRemoteOrigins,
+                            new StringPrimitive(approvedOriginsFor(gitThing)));
                     if (!GpgKeyFingerprint.isBlank())
                         row.put(Const.GpgKeyFingerprint, new StringPrimitive(GpgKeyFingerprint));
                     else row.put(Const.GpgKeyFingerprint, new StringPrimitive(""));
@@ -1747,6 +2234,7 @@ public class GitUtilityThingShape extends Thing {
                         "Credentials not found for repository: " + gitThing);
             current.setPropertyValue(
                     Const.UserRepositoryConfiguration, new InfoTablePrimitive(all));
+            new GitUserContextManager().setIdentity(fullName, email);
             return DapResults.success(
                     "GitCredentialUpdate",
                     "Git credentials updated.",
@@ -1888,6 +2376,277 @@ public class GitUtilityThingShape extends Thing {
         }
     }
 
+    @DapServicePayload(SshKeySummarySpec.class)
+    @ThingworxServiceDefinition(
+            name = "SshKeyGenerate",
+            description =
+                    "Generates an SSH key for the current user and returns its public key; the private key is stored encrypted and never returned",
+            category = "SSH",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {
+                "isEntityDataShape:true",
+                "dataShape:GIT.SshKeySummary.ServiceResult.DataShape"
+            })
+    public InfoTable SshKeyGenerate(
+            @ThingworxServiceParameter(
+                            name = "SshKeyLabel",
+                            description = "Label for the new key",
+                            baseType = "STRING")
+                    String SshKeyLabel) {
+        try {
+            SshKeys.Generated generated = SshKeys.generate(SshKeyLabel);
+            return sshKeySummaryResult(
+                    "SshKeyGenerate",
+                    storeSshKey(generated.privateKey(), "", generated.parsed(), SshKeyLabel));
+        } catch (Exception e) {
+            return DapResults.failure("SshKeyGenerate", e, SshKeySummaryTable.SERVICE_RESULT);
+        }
+    }
+
+    @DapServicePayload(SshKeySummarySpec.class)
+    @ThingworxServiceDefinition(
+            name = "SshKeyImport",
+            description =
+                    "Stores an existing SSH private key for the current user; the key is stored encrypted and never returned",
+            category = "SSH",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {
+                "isEntityDataShape:true",
+                "dataShape:GIT.SshKeySummary.ServiceResult.DataShape"
+            })
+    public InfoTable SshKeyImport(
+            @ThingworxServiceParameter(
+                            name = "SshPrivateKey",
+                            description = "OpenSSH or PEM private key",
+                            baseType = "STRING")
+                    String SshPrivateKey,
+            @ThingworxServiceParameter(
+                            name = "SshKeyPassphrase",
+                            description = "Passphrase, or blank when the key has none",
+                            baseType = "STRING")
+                    String SshKeyPassphrase,
+            @ThingworxServiceParameter(
+                            name = "SshKeyLabel",
+                            description = "Label for the key",
+                            baseType = "STRING")
+                    String SshKeyLabel) {
+        try {
+            String passphrase = nullToEmpty(SshKeyPassphrase);
+            SshKeys.Parsed parsed = SshKeys.parse(SshPrivateKey, passphrase, SshKeyLabel);
+            return sshKeySummaryResult(
+                    "SshKeyImport",
+                    storeSshKey(SshPrivateKey.trim() + "\n", passphrase, parsed, SshKeyLabel));
+        } catch (Exception e) {
+            return DapResults.failure("SshKeyImport", e, SshKeySummaryTable.SERVICE_RESULT);
+        }
+    }
+
+    @DapServicePayload(SshKeySummarySpec.class)
+    @ThingworxServiceDefinition(
+            name = "SshKeyListSummary",
+            description = "Lists the current user's SSH keys without private key material",
+            category = "SSH",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {
+                "isEntityDataShape:true",
+                "dataShape:GIT.SshKeySummary.ServiceResult.DataShape"
+            })
+    public InfoTable SshKeyListSummary() {
+        try {
+            InfoTable result =
+                    InfoTableInstanceFactory.createInfoTableFromDataShape(
+                            Const.SshKeySummaryDataShapeName);
+            InfoTable keys = new GitUserContextManager().sshKeys();
+            if (keys != null) {
+                for (int i = 0; i < keys.getRowCount(); i++) {
+                    result.addRow(sshKeySummary(keys.getRow(i)));
+                }
+            }
+            return DapResults.success(
+                    "SshKeyListSummary",
+                    SshKeySummaryTable.SERVICE_RESULT,
+                    SshKeySummaryTable.wrap(result));
+        } catch (Exception e) {
+            return DapResults.failure("SshKeyListSummary", e, SshKeySummaryTable.SERVICE_RESULT);
+        }
+    }
+
+    @DapServicePayload(StringResultSpec.class)
+    @ThingworxServiceDefinition(
+            name = "SshKeyDelete",
+            description =
+                    "Removes one of the current user's SSH keys and clears it from the user's repositories",
+            category = "SSH",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
+    public InfoTable SshKeyDelete(
+            @ThingworxServiceParameter(
+                            name = "SshKeyFingerprint",
+                            description = "Fingerprint of the key to delete",
+                            baseType = "STRING")
+                    String SshKeyFingerprint) {
+        try {
+            GitUserContextManager context = new GitUserContextManager();
+            if (context.sshKey(SshKeyFingerprint) == null) {
+                throw new IllegalArgumentException("SSH key not found: " + SshKeyFingerprint);
+            }
+            InfoTable keys = context.sshKeys();
+            InfoTable kept =
+                    InfoTableInstanceFactory.createInfoTableFromDataShape(
+                            Const.UserSshKeyDataShapeName);
+            for (int i = 0; i < keys.getRowCount(); i++) {
+                ValueCollection row = keys.getRow(i);
+                if (!SshKeyFingerprint.equals(row.getStringValue(Const.SshKeyFingerprint))) {
+                    kept.addRow(row);
+                }
+            }
+            User user = context.requireUser();
+            user.setPropertyValue(Const.UserSshKeys, new InfoTablePrimitive(kept));
+            InfoTable configurations = context.credentials();
+            if (configurations != null) {
+                boolean changed = false;
+                for (int i = 0; i < configurations.getRowCount(); i++) {
+                    ValueCollection row = configurations.getRow(i);
+                    if (SshKeyFingerprint.equals(row.getStringValue(Const.SshKeyFingerprint))) {
+                        row.put(Const.SshKeyFingerprint, new StringPrimitive(""));
+                        changed = true;
+                    }
+                }
+                if (changed) {
+                    user.setPropertyValue(
+                            Const.UserRepositoryConfiguration,
+                            new InfoTablePrimitive(configurations));
+                }
+            }
+            context.clearRemoteSshKey(SshKeyFingerprint);
+            return DapResults.success(
+                    "SshKeyDelete", "SSH key deleted.", StringResultContract.SERVICE_RESULT);
+        } catch (Exception e) {
+            return DapResults.failure("SshKeyDelete", e, StringResultContract.SERVICE_RESULT);
+        }
+    }
+
+    @DapServicePayload(StringResultSpec.class)
+    @ThingworxServiceDefinition(
+            name = "SetRepositorySshKey",
+            description =
+                    "Selects which of the current user's SSH keys is used for a repository's SSH remotes; blank clears it",
+            category = "SSH",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
+    public InfoTable SetRepositorySshKey(
+            @ThingworxServiceParameter(
+                            name = "GitThing",
+                            description = "Repository Thing",
+                            baseType = "THINGNAME")
+                    String GitThing,
+            @ThingworxServiceParameter(
+                            name = "SshKeyFingerprint",
+                            description = "Key fingerprint, or blank to clear",
+                            baseType = "STRING")
+                    String SshKeyFingerprint) {
+        try {
+            if (GitThing == null || GitThing.isBlank()) {
+                throw new IllegalArgumentException("Repository is required.");
+            }
+            String fingerprint = nullToEmpty(SshKeyFingerprint).trim();
+            GitUserContextManager context = new GitUserContextManager();
+            if (!fingerprint.isEmpty() && context.sshKey(fingerprint) == null) {
+                throw new IllegalArgumentException(
+                        "SSH key is not owned by the current user: " + fingerprint);
+            }
+            context.setRepositorySshKey(GitThing, fingerprint);
+            return DapResults.success(
+                    "SetRepositorySshKey",
+                    fingerprint.isEmpty() ? "SSH key cleared." : "SSH key selected.",
+                    StringResultContract.SERVICE_RESULT);
+        } catch (Exception e) {
+            return DapResults.failure(
+                    "SetRepositorySshKey", e, StringResultContract.SERVICE_RESULT);
+        }
+    }
+
+    /** Adds a key to the current user's SSH keys and returns its summary row. */
+    private InfoTable storeSshKey(
+            String privateKey, String passphrase, SshKeys.Parsed parsed, String label)
+            throws Exception {
+        initializeCurrentUserConfiguration();
+        GitUserContextManager context = new GitUserContextManager();
+        if (context.sshKey(parsed.fingerprint()) != null) {
+            throw new IllegalArgumentException(
+                    "This SSH key is already stored: " + parsed.fingerprint());
+        }
+        InfoTable keys = context.sshKeys();
+        if (keys == null) {
+            keys =
+                    InfoTableInstanceFactory.createInfoTableFromDataShape(
+                            Const.UserSshKeyDataShapeName);
+        }
+        ValueCollection row = new ValueCollection();
+        row.put(Const.SshKeyFingerprint, new StringPrimitive(parsed.fingerprint()));
+        row.put(Const.SshPrivateKey, new PasswordPrimitive(privateKey));
+        row.put(Const.SshKeyPassphrase, new PasswordPrimitive(passphrase));
+        row.put(Const.SshPublicKey, new StringPrimitive(parsed.publicKey()));
+        row.put(Const.SshKeyLabel, new StringPrimitive(nullToEmpty(label).trim()));
+        keys.addRow(row);
+        context.requireUser().setPropertyValue(Const.UserSshKeys, new InfoTablePrimitive(keys));
+        InfoTable result =
+                InfoTableInstanceFactory.createInfoTableFromDataShape(
+                        Const.SshKeySummaryDataShapeName);
+        result.addRow(sshKeySummary(row));
+        return result;
+    }
+
+    private static ValueCollection sshKeySummary(ValueCollection key) {
+        ValueCollection row = new ValueCollection();
+        row.put(
+                Const.SshKeyFingerprint,
+                new StringPrimitive(nullToEmpty(key.getStringValue(Const.SshKeyFingerprint))));
+        row.put(
+                Const.SshKeyLabel,
+                new StringPrimitive(nullToEmpty(key.getStringValue(Const.SshKeyLabel))));
+        row.put(
+                Const.SshPublicKey,
+                new StringPrimitive(nullToEmpty(key.getStringValue(Const.SshPublicKey))));
+        return row;
+    }
+
+    /** Result for a newly stored key; the message gives the public key to register. */
+    private static InfoTable sshKeySummaryResult(String service, InfoTable rows) throws Exception {
+        String publicKey = rows.getRow(0).getStringValue(Const.SshPublicKey);
+        return DapResults.success(
+                service,
+                "SSH key stored. Add this public key to your account's SSH keys on the Git server: "
+                        + publicKey,
+                SshKeySummaryTable.SERVICE_RESULT,
+                SshKeySummaryTable.wrap(rows));
+    }
+
     private void validateGpgKeyOwnership(User user, String fingerprint) throws Exception {
         new GitUserContextManager().validateGpgKeyOwnership(fingerprint);
     }
@@ -1971,30 +2730,27 @@ public class GitUtilityThingShape extends Thing {
                     MaxEntries == null || MaxEntries < 1
                             ? 100
                             : (int) Math.min(MaxEntries.doubleValue(), 1000.0);
+            boolean admin = callerIsAdmin();
             GitLogTable log = GitLogTable.create();
-            for (ExtensionLog.Entry entry : ExtensionLog.read(GitActionLogger.class, maxEntries)) {
-                String content = entry.content();
-                if (!content.startsWith(GitActionLogger.ACTION_PREFIX)) continue;
-                // Content format: "GIT.ACTION | action | repoName | message | user"
-                String rest = content.substring(GitActionLogger.ACTION_PREFIX.length()).trim();
-                if (rest.startsWith("|")) rest = rest.substring(1).trim();
-                String front = rest;
-                String loggedUser = entry.user();
-                int lastSep = rest.lastIndexOf(" | ");
-                if (lastSep > 0) {
-                    front = rest.substring(0, lastSep).trim();
-                    String tailUser = rest.substring(lastSep + 3).trim();
-                    if (!tailUser.isEmpty()) loggedUser = tailUser;
-                }
-                String[] parts = front.split("\\s*\\|\\s*", 3);
+            java.util.List<ExtensionLog.Entry> entries;
+            try {
+                entries = ExtensionLog.read(GitActionLogger.class, maxEntries);
+            } catch (IllegalArgumentException e) {
+                if (!"ApplicationLog entity is not available".equals(e.getMessage())) throw e;
+                entries = java.util.List.of();
+            }
+            for (ExtensionLog.Entry entry : entries) {
+                GitActionLogger.Action action = GitActionLogger.parse(entry.content());
+                if (action == null) continue;
+                if (!admin && !callerCanReadRepository(action.repoName())) continue;
                 log.add(
                         GitLogRow.create()
                                 .timestamp(entry.timestamp())
-                                .user(loggedUser)
-                                .action(parts.length > 0 ? parts[0] : "")
-                                .repoName(parts.length > 1 ? parts[1] : "")
+                                .user(action.user().isBlank() ? entry.user() : action.user())
+                                .action(action.action())
+                                .repoName(action.repoName())
                                 .level(entry.level())
-                                .message(parts.length > 2 ? parts[2] : ""));
+                                .message(action.message()));
             }
             return DapResults.success("GetGitLog", GitLogTable.SERVICE_RESULT, log);
         } catch (Exception e) {
@@ -2042,6 +2798,7 @@ public class GitUtilityThingShape extends Thing {
                             baseType = "STRING")
                     String SearchText) {
         try {
+            UserUtilities.validateAdminMembership();
             int maxEntries =
                     MaxEntries == null || MaxEntries < 1 ? 200 : Math.min(MaxEntries, 2000);
             ExtensionLogTable log = ExtensionLogTable.create();

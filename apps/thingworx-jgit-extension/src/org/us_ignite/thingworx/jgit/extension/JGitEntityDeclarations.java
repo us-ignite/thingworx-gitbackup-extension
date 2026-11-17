@@ -612,9 +612,33 @@ public final class JGitEntityDeclarations {
     }
 
     @DapDataShape(
+            name = "GIT.UserIdentity.DataShape",
+            description = "The name and email recorded on a user's commits.",
+            serviceResultName = "GIT.UserIdentity.ServiceResult.DataShape",
+            serviceResultDescription = "Service result carrying a user's commit identity",
+            payloadDescription = "Commit identity")
+    public static final class UserIdentitySpec {
+        @DapField(
+                name = "GitUserName",
+                baseType = DapBaseType.STRING,
+                ordinal = 1,
+                description = "Name recorded on commits")
+        private String gitUserName;
+
+        @DapField(
+                name = "GitUserEmail",
+                baseType = DapBaseType.STRING,
+                ordinal = 2,
+                description = "Email recorded on commits")
+        private String gitUserEmail;
+    }
+
+    @DapDataShape(
             name = "GIT.Remote.DataShape",
-            description = "A configured local Git remote.",
-            generateServiceResult = false)
+            description = "A remote configured in the repository's .git/config.",
+            serviceResultName = "GIT.Remote.ServiceResult.DataShape",
+            serviceResultDescription = "Service result carrying configured Git remotes",
+            payloadDescription = "Configured Git remotes")
     public static final class RemoteSpec {
         @DapField(
                 name = "Name",
@@ -659,6 +683,14 @@ public final class JGitEntityDeclarations {
                 primaryKey = true,
                 description = "ThingWorx project name")
         private String projectName;
+
+        @DapField(
+                name = "Path",
+                baseType = DapBaseType.STRING,
+                ordinal = 2,
+                description =
+                        "Folder holding the project's entities, relative to the repository root; blank means <ProjectName> at the repository root")
+        private String path;
     }
 
     @DapDataShape(
@@ -677,6 +709,74 @@ public final class JGitEntityDeclarations {
 
         @DapField(name = "GpgKeyLabel", baseType = DapBaseType.STRING, ordinal = 2)
         private String label;
+    }
+
+    @DapDataShape(
+            name = "GIT.SshKey.UserExtension.DataShape",
+            description =
+                    "SSH keys owned by a user and reusable across repositories; private keys are stored encrypted",
+            generateServiceResult = false)
+    public static final class SshKeySpec {
+        @DapField(
+                name = "SshKeyFingerprint",
+                baseType = DapBaseType.STRING,
+                ordinal = 1,
+                primaryKey = true,
+                description = "SHA256 fingerprint of the public key")
+        private String sshKeyFingerprint;
+
+        @DapField(
+                name = "SshPrivateKey",
+                baseType = DapBaseType.PASSWORD,
+                ordinal = 2,
+                description = "OpenSSH private key")
+        private String sshPrivateKey;
+
+        @DapField(
+                name = "SshKeyPassphrase",
+                baseType = DapBaseType.PASSWORD,
+                ordinal = 3,
+                description = "Passphrase of the private key, if it has one")
+        private String sshKeyPassphrase;
+
+        @DapField(
+                name = "SshPublicKey",
+                baseType = DapBaseType.STRING,
+                ordinal = 4,
+                description = "Public key in authorized_keys format")
+        private String sshPublicKey;
+
+        @DapField(
+                name = "SshKeyLabel",
+                baseType = DapBaseType.STRING,
+                ordinal = 5,
+                description = "Human-readable label")
+        private String sshKeyLabel;
+    }
+
+    @DapDataShape(
+            name = "GIT.SshKeySummary.DataShape",
+            description = "Public details of a user's SSH key",
+            serviceResultName = "GIT.SshKeySummary.ServiceResult.DataShape",
+            serviceResultDescription = "Service result carrying SSH key public details",
+            payloadDescription = "SSH key public details")
+    public static final class SshKeySummarySpec {
+        @DapField(
+                name = "SshKeyFingerprint",
+                baseType = DapBaseType.STRING,
+                ordinal = 1,
+                primaryKey = true)
+        private String sshKeyFingerprint;
+
+        @DapField(name = "SshKeyLabel", baseType = DapBaseType.STRING, ordinal = 2)
+        private String sshKeyLabel;
+
+        @DapField(
+                name = "SshPublicKey",
+                baseType = DapBaseType.STRING,
+                ordinal = 3,
+                description = "Paste this into your account's SSH keys on the Git server")
+        private String sshPublicKey;
     }
 
     @DapDataShape(
@@ -806,6 +906,351 @@ public final class JGitEntityDeclarations {
                 description =
                         "Fingerprint of the user's GPG key used for this repository; signing is enabled when this field is non-empty")
         private String gpgKeyFingerprint;
+
+        @DapField(
+                name = "SshKeyFingerprint",
+                baseType = DapBaseType.STRING,
+                ordinal = 7,
+                description = "Fingerprint of the user's SSH key used for SSH remotes")
+        private String sshKeyFingerprint;
+
+        @DapField(
+                name = "ApprovedRemoteOrigins",
+                baseType = DapBaseType.STRING,
+                ordinal = 8,
+                description =
+                        "Newline-separated remote origins approved for these credentials; a changed remote URL requires saving the settings again")
+        private String approvedRemoteOrigins;
+    }
+
+    @DapDataShape(
+            name = "GIT.RemoteCredentials.UserExtension.DataShape",
+            description =
+                    "A user's sign-in for one remote of one repository; the password is stored encrypted",
+            generateServiceResult = false)
+    public static final class RemoteCredentialsSpec {
+        @DapField(
+                name = "GitThing",
+                baseType = DapBaseType.STRING,
+                ordinal = 1,
+                description = "GIT Repository Thing the remote belongs to")
+        private String gitThing;
+
+        @DapField(
+                name = "Remote",
+                baseType = DapBaseType.STRING,
+                ordinal = 2,
+                description = "Remote name, such as origin")
+        private String remote;
+
+        @DapField(
+                name = "GitCommitterUser",
+                baseType = DapBaseType.STRING,
+                ordinal = 3,
+                description = "Git username for http(s) URLs of this remote")
+        private String gitCommitterUser;
+
+        @DapField(
+                name = "GitCommitterPassword",
+                baseType = DapBaseType.PASSWORD,
+                ordinal = 4,
+                description = "Password or access token for http(s) URLs of this remote")
+        private String gitCommitterPassword;
+
+        @DapField(
+                name = "SshKeyFingerprint",
+                baseType = DapBaseType.STRING,
+                ordinal = 5,
+                description =
+                        "Fingerprint of the user's SSH key used for ssh:// URLs of this remote")
+        private String sshKeyFingerprint;
+
+        @DapField(
+                name = "ApprovedRemoteOrigins",
+                baseType = DapBaseType.STRING,
+                ordinal = 6,
+                description =
+                        "Newline-separated origins of this remote when the sign-in was saved; the password is only sent to these")
+        private String approvedRemoteOrigins;
+    }
+
+    @DapDataShape(
+            name = "GIT.UpgradeStep.DataShape",
+            description = "One change the upgrade manager made, or chose not to make",
+            serviceResultName = "GIT.UpgradeStep.ServiceResult.DataShape",
+            serviceResultDescription = "Service result carrying the upgrade report.",
+            payloadDescription = "Upgrade report")
+    public static final class UpgradeStepSpec {
+        @DapField(
+                name = "Scope",
+                baseType = DapBaseType.STRING,
+                ordinal = 1,
+                description = "system, repository or user")
+        private String scope;
+
+        @DapField(
+                name = "Name",
+                baseType = DapBaseType.STRING,
+                ordinal = 2,
+                description = "Repository Thing or user name")
+        private String name;
+
+        @DapField(
+                name = "Item",
+                baseType = DapBaseType.STRING,
+                ordinal = 3,
+                description = "The setting, repository or remote concerned")
+        private String item;
+
+        @DapField(
+                name = "Action",
+                baseType = DapBaseType.STRING,
+                ordinal = 4,
+                description = "What was done, such as moved, copied, removed or kept")
+        private String action;
+
+        @DapField(
+                name = "Detail",
+                baseType = DapBaseType.STRING,
+                ordinal = 5,
+                description = "Why, or what to do next")
+        private String detail;
+    }
+
+    @DapDataShape(
+            name = "GIT.RemoteSignIn.DataShape",
+            description =
+                    "The current user's sign-in for one remote, without the password. Inherited is true when the remote has no sign-in of its own and uses the repository-wide one.",
+            serviceResultName = "GIT.RemoteSignIn.ServiceResult.DataShape",
+            serviceResultDescription = "Service result carrying the sign-in of each remote.",
+            payloadDescription = "Remote sign-in")
+    public static final class RemoteSignInSpec {
+        @DapField(
+                name = "Remote",
+                baseType = DapBaseType.STRING,
+                ordinal = 1,
+                primaryKey = true,
+                description = "Remote name")
+        private String remote;
+
+        @DapField(
+                name = "GitCommitterUser",
+                baseType = DapBaseType.STRING,
+                ordinal = 2,
+                description = "Git username")
+        private String gitCommitterUser;
+
+        @DapField(
+                name = "HasPassword",
+                baseType = DapBaseType.BOOLEAN,
+                ordinal = 3,
+                description = "True when a password or token is saved")
+        private Boolean hasPassword;
+
+        @DapField(
+                name = "SshKeyFingerprint",
+                baseType = DapBaseType.STRING,
+                ordinal = 4,
+                description = "Selected SSH key")
+        private String sshKeyFingerprint;
+
+        @DapField(
+                name = "Inherited",
+                baseType = DapBaseType.BOOLEAN,
+                ordinal = 5,
+                description =
+                        "True when these values come from the repository-wide sign-in saved by earlier versions")
+        private Boolean inherited;
+    }
+
+    @DapDataShape(
+            name = "GIT.SshHostKey.DataShape",
+            description = "The SSH host key a repository remote currently presents",
+            serviceResultName = "GIT.SshHostKey.ServiceResult.DataShape",
+            serviceResultDescription = "Service result carrying an SSH host key fingerprint.",
+            payloadDescription = "SSH host key")
+    public static final class SshHostKeySpec {
+        @DapField(
+                name = "Remote",
+                baseType = DapBaseType.STRING,
+                ordinal = 1,
+                description = "Remote name the host key was probed from")
+        private String remote;
+
+        @DapField(
+                name = "Host",
+                baseType = DapBaseType.STRING,
+                ordinal = 2,
+                description = "SSH server host name")
+        private String host;
+
+        @DapField(
+                name = "Port",
+                baseType = DapBaseType.INTEGER,
+                ordinal = 3,
+                description = "SSH server port")
+        private Integer port;
+
+        @DapField(
+                name = "Fingerprint",
+                baseType = DapBaseType.STRING,
+                ordinal = 4,
+                description = "SHA-256 fingerprint of the server host key")
+        private String fingerprint;
+
+        @DapField(
+                name = "PublicKey",
+                baseType = DapBaseType.STRING,
+                ordinal = 5,
+                description = "OpenSSH-encoded server host public key")
+        private String publicKey;
+    }
+
+    @DapDataShape(
+            name = "GIT.RemoteStatus.DataShape",
+            description =
+                    "Which setup steps a remote still needs before the current user can pull and push. Step fields are ok, missing or n/a.",
+            serviceResultName = "GIT.RemoteStatus.ServiceResult.DataShape",
+            serviceResultDescription = "Service result carrying the setup status of each remote.",
+            payloadDescription = "Remote setup status")
+    public static final class RemoteStatusSpec {
+        @DapField(
+                name = "Remote",
+                baseType = DapBaseType.STRING,
+                ordinal = 1,
+                primaryKey = true,
+                description = "Remote name")
+        private String remote;
+
+        @DapField(
+                name = "URL",
+                baseType = DapBaseType.STRING,
+                ordinal = 2,
+                description = "Fetch and push URLs, without any embedded password")
+        private String url;
+
+        @DapField(
+                name = "Transport",
+                baseType = DapBaseType.STRING,
+                ordinal = 3,
+                description = "https, http or ssh")
+        private String transport;
+
+        @DapField(
+                name = "IsDefault",
+                baseType = DapBaseType.BOOLEAN,
+                ordinal = 4,
+                description = "True for the remote Pull, Push and Fetch use when none is named")
+        private Boolean isDefault;
+
+        @DapField(
+                name = "Network",
+                baseType = DapBaseType.STRING,
+                ordinal = 5,
+                description = "Whether the egress policy allows the server's address")
+        private String network;
+
+        @DapField(
+                name = "SignIn",
+                baseType = DapBaseType.STRING,
+                ordinal = 6,
+                description = "Whether the current user saved a password or token, or SSH key")
+        private String signIn;
+
+        @DapField(
+                name = "CredentialOrigin",
+                baseType = DapBaseType.STRING,
+                ordinal = 7,
+                description = "Whether the saved password is approved for this remote's server")
+        private String credentialOrigin;
+
+        @DapField(
+                name = "HostKey",
+                baseType = DapBaseType.STRING,
+                ordinal = 8,
+                description = "Whether an SSH host key is approved for this remote's server")
+        private String hostKey;
+
+        @DapField(
+                name = "Ready",
+                baseType = DapBaseType.BOOLEAN,
+                ordinal = 9,
+                description = "True when every step is done")
+        private Boolean ready;
+
+        @DapField(
+                name = "NextStep",
+                baseType = DapBaseType.STRING,
+                ordinal = 10,
+                description = "What to do next, in a sentence")
+        private String nextStep;
+    }
+
+    @DapDataShape(
+            name = "GIT.RepositoryConfigurationSummary.DataShape",
+            description =
+                    "A user's repository settings without secrets; reports whether a password is stored",
+            serviceResultName = "GIT.RepositoryConfigurationSummary.ServiceResult.DataShape",
+            serviceResultDescription =
+                    "Service result carrying repository settings without secrets.",
+            payloadDescription = "Repository settings")
+    public static final class RepositoryConfigurationSummarySpec {
+        @DapField(
+                name = "GitThing",
+                baseType = DapBaseType.STRING,
+                ordinal = 1,
+                primaryKey = true,
+                description = "GIT Repository Thing for which these settings apply")
+        private String gitThing;
+
+        @DapField(
+                name = "GitCommitterUser",
+                baseType = DapBaseType.STRING,
+                ordinal = 2,
+                description = "Git username used for authentication")
+        private String gitCommitterUser;
+
+        @DapField(
+                name = "HasPassword",
+                baseType = DapBaseType.BOOLEAN,
+                ordinal = 3,
+                description = "True when a password or token is stored")
+        private Boolean hasPassword;
+
+        @DapField(
+                name = "GitCommitterEmail",
+                baseType = DapBaseType.STRING,
+                ordinal = 4,
+                description = "Committer email address")
+        private String gitCommitterEmail;
+
+        @DapField(
+                name = "GitCommitterFullName",
+                baseType = DapBaseType.STRING,
+                ordinal = 5,
+                description = "Committer full name")
+        private String gitCommitterFullName;
+
+        @DapField(
+                name = "GpgKeyFingerprint",
+                baseType = DapBaseType.STRING,
+                ordinal = 6,
+                description = "Fingerprint of the GPG key used for this repository")
+        private String gpgKeyFingerprint;
+
+        @DapField(
+                name = "SshKeyFingerprint",
+                baseType = DapBaseType.STRING,
+                ordinal = 7,
+                description = "Fingerprint of the SSH key used for SSH remotes")
+        private String sshKeyFingerprint;
+
+        @DapField(
+                name = "ApprovedRemoteOrigins",
+                baseType = DapBaseType.STRING,
+                ordinal = 8,
+                description = "Remote origins approved for the saved credentials")
+        private String approvedRemoteOrigins;
     }
 
     @DapDataShape(
@@ -971,7 +1416,7 @@ public final class JGitEntityDeclarations {
                         name = "InitializeUserExtensionsOnStartup",
                         eventName = "ThingStart",
                         script =
-                                "try { me.InitUserExtensionProperties(); } catch(e) { logger.warn(\"InitializeUserExtensionsOnStartup: InitUserExtensionProperties failed: \" + e); }")
+                                "try { me.InitUserExtensionProperties(); } catch(e) { logger.warn(\"InitializeUserExtensionsOnStartup: InitUserExtensionProperties failed: \" + e); } try { me.RunUpgrade(); } catch(e) { logger.warn(\"InitializeUserExtensionsOnStartup: RunUpgrade failed: \" + e); }")
             })
     public static final class UtilityThingSpec {}
 

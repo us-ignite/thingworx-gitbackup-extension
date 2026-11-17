@@ -6,6 +6,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.us_ignite.thingworx.operator.api.DatabaseSpec;
 import org.us_ignite.thingworx.operator.api.ImageSet;
+import org.us_ignite.thingworx.operator.api.IngressSpec;
 import org.us_ignite.thingworx.operator.api.SecretKeyReference;
 import org.us_ignite.thingworx.operator.api.StorageSpec;
 import org.us_ignite.thingworx.operator.api.ThingWorxClusterSpec;
@@ -17,6 +18,29 @@ import org.us_ignite.thingworx.operator.reconcile.ClusterSpecValidator;
  * No Kubernetes mock — validates all {@code validate()} branches except existence checks.
  */
 class ClusterSpecValidatorTest {
+
+    @Test
+    void ingressRequiresTlsOrExplicitTrustedUpstream() {
+        var spec = validSpec();
+        var ingress = new IngressSpec();
+        spec.setIngress(ingress);
+        assertThat(validate(spec)).isNull();
+        ingress.setHost("thingworx.example.test");
+        assertThat(validate(spec)).isEqualTo(
+                "spec.ingress requires TLS or an explicitly trusted upstream TLS terminator.");
+        ingress.setTlsSecretName("   ");
+        assertThat(validate(spec)).isNotNull();
+        ingress.setTlsSecretName("thingworx-tls");
+        assertThat(validate(spec)).isNull();
+        ingress.setTlsSecretName(null);
+        ingress.setCertManagerIssuer("production-ca");
+        assertThat(validate(spec)).isNull();
+        ingress.setCertManagerIssuer(null);
+        ingress.setTrustedUpstreamTls(true);
+        assertThat(validate(spec)).isNull();
+        ingress.setHost("  ");
+        assertThat(validate(spec)).isEqualTo("spec.ingress.host must not be blank.");
+    }
 
     @Test
     void nullSpecIsRejected() {

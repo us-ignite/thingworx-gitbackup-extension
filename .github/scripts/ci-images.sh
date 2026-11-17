@@ -88,18 +88,9 @@ case "$cmd" in
     echo "Pulled cached images for TWX ${twx} (key ${key})"
     ;;
   push)
-    # Licences are mounted at runtime and must never be baked into an image
-    # we publish. Scan each image's filesystem before anything is pushed.
-    for img in "${local_images[@]}"; do
-      cid=$(docker create "$img")
-      found=$(docker export "$cid" | tar -t | grep -E '(^|/)(license\.bin|trial\.bin)$' || true)
-      docker rm "$cid" >/dev/null
-      if [ -n "$found" ]; then
-        echo "Refusing to push ${img}: it contains licence files:" >&2
-        echo "$found" >&2
-        exit 1
-      fi
-    done
+    # Scan every layer, including files hidden by later whiteouts, before
+    # publishing any of this cache set.
+    python3 images/scripts/check-image-licenses.py "${local_images[@]}"
     for i in "${!remote_images[@]}"; do
       docker tag "${local_images[$i]}" "${remote_images[$i]}"
       docker push --quiet "${remote_images[$i]}"

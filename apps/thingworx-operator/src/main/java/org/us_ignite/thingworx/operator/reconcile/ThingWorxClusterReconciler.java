@@ -68,6 +68,11 @@ public class ThingWorxClusterReconciler implements Reconciler<ThingWorxCluster> 
         try {
             var validation = validate(resource);
             if (validation != null) {
+                if ("spec.ingress requires TLS or an explicitly trusted upstream TLS terminator."
+                        .equals(validation)
+                        || "spec.ingress.host must not be blank.".equals(validation)) {
+                    removeUnsafeManagedIngress(resource);
+                }
                 result = status(resource, LifecyclePhase.INVALID, validation, false);
             } else {
                 result = doReconcileInternal(resource, context);
@@ -91,6 +96,18 @@ public class ThingWorxClusterReconciler implements Reconciler<ThingWorxCluster> 
                     resource.getMetadata() == null ? null : resource.getMetadata().getGeneration());
         }
         return result;
+    }
+
+    /** Remove a previously generated plaintext ingress when an old configuration becomes invalid. */
+    private void removeUnsafeManagedIngress(ThingWorxCluster cluster) {
+        var metadata = cluster.getMetadata();
+        if (metadata == null || blank(metadata.getName()) || blank(metadata.getNamespace())) return;
+        var ingress = client.network().v1().ingresses().inNamespace(metadata.getNamespace())
+                .withName(ThingWorxResources.name(cluster, "ingress")).get();
+        if (ingress != null && isManaged(ingress, metadata.getName())) {
+            LOG.warn("Removing unsafe managed ingress {}/{}", metadata.getNamespace(), ingress.getMetadata().getName());
+            client.resource(ingress).delete();
+        }
     }
 
     private UpdateControl<ThingWorxCluster> doReconcileInternal(

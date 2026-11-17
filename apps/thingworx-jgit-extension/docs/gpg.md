@@ -15,6 +15,11 @@ The extension can sign Git commits with an ASCII-armored private PGP key supplie
 `GpgKeyGet` and `GpgKeyDelete` accept `GpgKeyFingerprint` and/or `GpgKeyLabel`; when both are
 supplied both must match. At least one selector is required.
 
+`GpgKeyList`, `GpgKeyGet` and `GpgKeyDelete` return only the fingerprint and label of a key. No
+service returns the private key or passphrase. To change a key's label, call `GpgKeyUpdate` with a
+blank `GpgPrivateKey`; the stored key and passphrase are kept. To replace the key or its
+passphrase, supply both `GpgPrivateKey` and `GpgKeyPassphrase`.
+
 ## Verifying keys (`VerifyGpgKey`)
 
 All arguments are **optional**; precedence is `All` > `GpgKeyFingerprint`/`GpgKeyLabel` > `GpgPrivateKey`/`GpgKeyPassphrase`. No `GitThing` is involved. `GpgPrivateKey` is required when `All=false` and no fingerprint/label is supplied; blank is now an error (fallback removed). Result is `GIT.GpgKeyVerification.ServiceResult` wrapping `INFOTABLE<GIT.GpgKeyVerificationResult>` rows:

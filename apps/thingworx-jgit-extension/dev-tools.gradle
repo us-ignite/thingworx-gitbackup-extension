@@ -1,0 +1,187 @@
+import groovy.json.JsonOutput
+import groovy.json.JsonSlurper
+import groovy.xml.XmlSlurper
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+import java.util.zip.ZipFile
+import java.util.zip.ZipOutputStream
+import java.util.zip.ZipEntry
+
+ext.devRequest = { String url, String auth, Object payload = null, Map headers = [:] ->
+    def conn = (HttpURLConnection) new URL(url).openConnection()
+    conn.connectTimeout = 30000
+    conn.readTimeout = 30000
+    conn.setRequestProperty('Authorization', "Basic ${auth}")
+    conn.setRequestProperty('Accept', 'application/json')
+    headers.each { k, v -> conn.setRequestProperty(k, v) }
+    if (payload != null) {
+        conn.requestMethod = 'POST'
+        conn.doOutput = true
+        conn.setRequestProperty('Content-Type', 'application/json')
+        conn.outputStream.withCloseable { it.write(JsonOutput.toJson(payload).getBytes('UTF-8')) }
+    }
+    new JsonSlurper().parse(conn.inputStream, 'UTF-8')
+}
+
+ext.saveDevMashups = { File sourceDir, File outputDir, String mashup ->
+    def sources = sourceDir.listFiles().findAll { it.name ==~ /Mashups_GIT\.Mashup\..*\.xml/ && (!mashup || it.name == "Mashups_GIT.Mashup.${mashup}.xml") }.sort { it.name }
+    if (!sources) throw new GradleException("No GIT mashup source files found in ${sourceDir}")
+    def url = (System.getenv('TWX_URL') ?: 'http://localhost:8080/Thingworx').replaceAll('/+$', '')
+    def auth = "${System.getenv('TWX_USERNAME') ?: 'Administrator'}:${System.getenv('TWX_PASSWORD') ?: 'AdminP@ssw0rd!123'}".getBytes('UTF-8').encodeBase64().toString()
+    def exports = sources.collect { source ->
+        def name = source.name.substring(8, source.name.length() - 4)
+        def conn = (HttpURLConnection) new URL("${url}/Exporter/Mashups/${URLEncoder.encode(name, 'UTF-8').replace('+', '%20')}").openConnection()
+        conn.connectTimeout = 30000
+        conn.readTimeout = 30000
+        conn.setRequestProperty('Authorization', "Basic ${auth}")
+        conn.setRequestProperty('Accept', 'text/xml')
+        def data = conn.inputStream.withCloseable { it.bytes }
+        def xml = new XmlSlurper().parse(new ByteArrayInputStream(data))
+        def entities = xml.Mashups.Mashup
+        if (xml.name() != 'Entities' || entities.size() != 1 || entities[0].@name.text() != name) throw new GradleException("Unexpected exporter response for ${name}")
+        if (!(new JsonSlurper().parseText(entities[0].mashupContent.text()) instanceof Map)) throw new GradleException("Invalid mashup content for ${name}")
+        if (!new String(data, 'UTF-8').contains('<mashupContent><![CDATA[')) throw new GradleException("Export for ${name} is not in the CDATA format required by the build")
+        [source: source, data: data]
+    }
+    outputDir.mkdirs()
+    exports.each { entry ->
+        def destination = new File(outputDir, entry.source.name)
+        def temporary = Files.createTempFile(outputDir.toPath(), 'mashup-', '.tmp')
+        try {
+            Files.write(temporary, entry.data as byte[])
+            try { Files.setPosixFilePermissions(temporary, Files.getPosixFilePermissions(entry.source.toPath())) } catch (UnsupportedOperationException ignored) { }
+            Files.move(temporary, destination.toPath(), StandardCopyOption.REPLACE_EXISTING)
+        } finally { Files.deleteIfExists(temporary) }
+        logger.lifecycle("Saved ${destination}")
+    }
+    logger.lifecycle('Embedded TypeScript and CSS are generated from ui/src during packaging; sync edits there as well.')
+}
+
+ext.makeDevPackage = { File source, File destination ->
+    def parseVersion = { value ->
+        if (!(value instanceof String) || !(value ==~ /\d+\.\d+\.\d+/)) throw new GradleException("Expected a three-part extension version, got ${value}")
+        value.tokenize('.').collect { it as BigInteger }
+    }
+    def conn = (HttpURLConnection) new URL('http://localhost:8080/Thingworx/ExtensionPackages/JGitExtension').openConnection()
+    conn.connectTimeout = 10000; conn.readTimeout = 10000
+    conn.setRequestProperty('Authorization', 'Basic ' + 'Administrator:AdminP@ssw0rd!123'.bytes.encodeBase64().toString())
+    conn.setRequestProperty('Accept', 'application/json')
+    def installed = conn.responseCode == 404 ? null : parseVersion(new JsonSlurper().parse(conn.inputStream).packageVersion)
+    def zip = new ZipFile(source)
+    try {
+        def metadata = zip.getInputStream(zip.getEntry('metadata.xml')).getText('UTF-8')
+        def matcher = metadata =~ /(<ExtensionPackage\b[^>]*\bpackageVersion=")([^"]+)(")/
+        if (matcher.count != 1) throw new GradleException('Expected exactly one ExtensionPackage version in metadata.xml')
+        def built = parseVersion(matcher[0][2])
+        def base = installed && (0..2).findResult { i -> built[i] == installed[i] ? null : (built[i] < installed[i]) } ? installed : built
+        def version = "${base[0]}.${base[1]}.${base[2] + 1}"
+        def updated = metadata.substring(0, matcher.start(2)) + version + metadata.substring(matcher.end(2))
+        destination.withOutputStream { out ->
+            def output = new ZipOutputStream(out)
+            try {
+                zip.entries().each { entry ->
+                    def copy = new ZipEntry(entry.name)
+                    copy.time = entry.time
+                    output.putNextEntry(copy)
+                    if (entry.name == 'metadata.xml') output.write(updated.getBytes('UTF-8'))
+                    else zip.getInputStream(entry).withCloseable { it.transferTo(output) }
+                    output.closeEntry()
+                }
+            } finally { output.close() }
+        }
+        version
+    } finally { zip.close() }
+}
+
+ext.setupDevGpgKey = {
+    def base = 'http://localhost:8080/Thingworx/Things/GIT.Utility.Thing/Services/'
+    def gitea = 'http://localhost:3000/api/v1/user/gpg_keys'
+    def label = 'Dev Setup Test Key'
+    def publicFile = layout.buildDirectory.file('dev-setup-gpg-public.asc').get().asFile
+    def auth = 'Administrator:AdminP@ssw0rd!123'.bytes.encodeBase64().toString()
+    def giteaAuth = 'giteauser:giteapass123'.bytes.encodeBase64().toString()
+    def invoke = { service, payload ->
+        def result = devRequest(base + service, auth, payload, ['X-XSRF-TOKEN': 'TWX-XSRF-TOKEN-VALUE', 'X-Requested-By': 'ThingWorx'])
+        if (result.rows.size() != 1 || !result.rows[0].containsKey('Error')) throw new GradleException("${service} returned an invalid service result")
+        if (result.rows[0].Error) throw new GradleException("${service} failed: ${result.rows[0].Message ?: ''}")
+        result.rows[0]
+    }
+    def runGpg = { List args, String input = null ->
+        def process = new ProcessBuilder(['gpg'] + args).start()
+        process.outputStream.withCloseable { if (input != null) it.write(input.getBytes('UTF-8')) }
+        def stdout = new ByteArrayOutputStream(); def stderr = new ByteArrayOutputStream()
+        process.waitForProcessOutput(stdout, stderr)
+        if (process.exitValue() != 0) throw new GradleException("GPG failed: ${stderr.toString('UTF-8')}")
+        stdout.toString('UTF-8')
+    }
+    def withHome = { Closure action ->
+        def home = Files.createTempDirectory('thingworx-dev-gpg-').toFile()
+        try { action(home) } finally { project.delete(home) }
+    }
+    def fingerprint = { key ->
+        withHome { home ->
+            def output = runGpg(['--homedir', home.absolutePath, '--batch', '--with-colons', '--import-options', 'show-only', '--import'], key)
+            def line = output.readLines().find { it.startsWith('fpr:') }
+            if (!line) throw new GradleException('GPG did not return a fingerprint')
+            line.split(':')[9]
+        }
+    }
+    def registered = { fp ->
+        int page = 1
+        while (true) {
+            def keys = devRequest("${gitea}?page=${page}&limit=50", giteaAuth)
+            if (keys.any { (it.key_id ?: '').equalsIgnoreCase(fp[-16..-1]) }) return true
+            if (keys.size() < 50) return false
+            page++
+        }
+    }
+    def existing = invoke('GpgKeyList', [:]).Result.rows.find { it.GpgKeyLabel == label }
+    if (existing && registered(existing.GpgKeyFingerprint)) {
+        logger.lifecycle("GPG key '${label}' is already registered with ThingWorx and Gitea.")
+        return
+    }
+    def publicKey = null
+    if (existing && publicFile.exists()) {
+        def candidate = publicFile.getText('UTF-8')
+        if (fingerprint(candidate).equalsIgnoreCase(existing.GpgKeyFingerprint)) publicKey = candidate
+    }
+    withHome { home ->
+        def common = ['--homedir', home.absolutePath, '--batch', '--pinentry-mode', 'loopback', '--passphrase', '']
+        if (!existing) {
+            runGpg(common + ['--quick-generate-key', 'ThingWorx Dev Test <test@example.com>', 'rsa2048', 'sign', '0'])
+            def privateKey = runGpg(common + ['--armor', '--export-secret-keys'])
+            publicKey = runGpg(common + ['--armor', '--export'])
+            if (!privateKey.trim() || !publicKey.trim()) throw new GradleException('GPG did not export the generated test key')
+            publicFile.parentFile.mkdirs(); publicFile.setText(publicKey, 'UTF-8')
+            invoke('GpgKeyCreate', [GpgPrivateKey: privateKey, GpgKeyPassphrase: '', GpgKeyLabel: label])
+        } else if (publicKey == null) {
+            def privateKey = invoke('GpgKeyGet', [GpgKeyLabel: label]).Result.rows[0].GpgPrivateKey ?: ''
+            if (!privateKey.contains('PRIVATE KEY BLOCK')) throw new GradleException("Cannot recover the existing dev key's public half. Delete '${label}' using GpgKeyDelete and rerun devSetup, or register its public key in Gitea manually.")
+            runGpg(common + ['--import'], privateKey)
+            publicKey = runGpg(common + ['--armor', '--export'])
+            if (!fingerprint(publicKey).equalsIgnoreCase(existing.GpgKeyFingerprint)) throw new GradleException('Recovered public key does not match the ThingWorx key')
+            publicFile.parentFile.mkdirs(); publicFile.setText(publicKey, 'UTF-8')
+        }
+    }
+    if (!registered(fingerprint(publicKey))) devRequest(gitea, giteaAuth, [armored_public_key: publicKey])
+    logger.lifecycle("GPG key '${label}' is registered with ThingWorx and Gitea.")
+}
+
+// Materialize the runtime license without introducing a separate shell dependency.
+tasks.register('materializeLicense') {
+    group = 'development'
+    description = 'Create vendor/license.bin from TWX_LICENSE_B64 if it is missing'
+    doLast {
+        def destination = rootProject.file('vendor/license.bin')
+        if (destination.isFile() && destination.length() > 0) {
+            logger.lifecycle("license present: ${destination}")
+            return
+        }
+        def encoded = System.getenv('TWX_LICENSE_B64')
+        if (!encoded) throw new GradleException('no vendor/license.bin and TWX_LICENSE_B64 is unset')
+        def bytes = Base64.mimeDecoder.decode(encoded)
+        destination.parentFile.mkdirs()
+        destination.bytes = bytes
+        logger.lifecycle("wrote ${destination} from TWX_LICENSE_B64")
+    }
+}

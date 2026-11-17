@@ -2124,16 +2124,24 @@ class CustomHyperlinkRenderer {
           ? params.data[linkFieldName]
           : params.value;
       }
+      let url: URL;
+      try {
+        url = new URL(String(params.value), document.baseURI);
+      } catch (_error) {
+        return;
+      }
+      if (url.protocol !== "https:" && url.protocol !== "http:") return;
       this.anchorElement = document.createElement("a");
-      this.anchorElement.setAttribute("href", params.value);
+      this.anchorElement.setAttribute("href", url.href);
       if (this.anchorLinkText) {
         this.log("using anchorLinkText = " + this.anchorLinkText);
-        this.anchorElement.innerHTML = this.anchorLinkText;
+        this.anchorElement.textContent = String(this.anchorLinkText);
       } else {
         this.log("using open external link icon");
         this.anchorElement.appendChild(this.arrowElement);
       }
       this.anchorElement.target = "_blank";
+      this.anchorElement.rel = "noopener noreferrer";
       this.container.appendChild(this.anchorElement);
       this.log("this.container = " + this.container);
     }

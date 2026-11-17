@@ -8,7 +8,7 @@ import com.thingworx.relationships.RelationshipTypes.ThingworxRelationshipTypes;
 import com.thingworx.things.Thing;
 import org.slf4j.Logger;
 
-/** Initializes extension-owned per-user properties after a ThingWorx import or upgrade. */
+/** Initializes extension-owned per-user properties and runs the upgrade after an import. */
 public class ExtMigrator extends ExtensionMigratorBase {
 
     private static Logger _logger =
@@ -33,5 +33,8 @@ public class ExtMigrator extends ExtensionMigratorBase {
         }
         thing.processServiceRequest("InitUserExtensionProperties", null);
         _logger.warn("ExtMigrator: UserExtension properties initialized.");
+        // Moves repositories and every user's settings to the current format; see UpgradeManager.
+        thing.processServiceRequest("RunUpgrade", null);
+        _logger.warn("ExtMigrator: Upgrade finished.");
     }
 }

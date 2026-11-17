@@ -44,6 +44,7 @@ import org.eclipse.jgit.api.ListBranchCommand.ListMode;
 import org.eclipse.jgit.api.MergeResult;
 import org.eclipse.jgit.api.PullResult;
 import org.eclipse.jgit.api.RebaseResult;
+import org.eclipse.jgit.api.RemoteSetUrlCommand;
 import org.eclipse.jgit.api.errors.NotMergedException;
 import org.eclipse.jgit.api.errors.RefNotFoundException;
 import org.eclipse.jgit.diff.DiffEntry;
@@ -72,10 +73,11 @@ import org.eclipse.jgit.revwalk.RevTag;
 import org.eclipse.jgit.revwalk.RevTree;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.storage.file.WindowCacheConfig;
-import org.eclipse.jgit.transport.CredentialsProvider;
 import org.eclipse.jgit.transport.PushResult;
 import org.eclipse.jgit.transport.RefSpec;
+import org.eclipse.jgit.transport.RemoteConfig;
 import org.eclipse.jgit.transport.RemoteRefUpdate;
+import org.eclipse.jgit.transport.URIish;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import org.eclipse.jgit.treewalk.AbstractTreeIterator;
 import org.eclipse.jgit.treewalk.CanonicalTreeParser;
@@ -102,6 +104,10 @@ import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.CurrentBran
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.FileContentSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.HistoryRefSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.ReflogEntrySpec;
+import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.RemoteSignInSpec;
+import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.RemoteSpec;
+import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.RemoteStatusSpec;
+import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.SshHostKeySpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.StatusSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.StringResultSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.TagListSpec;
@@ -132,7 +138,8 @@ import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.TrackedProj
                     baseType = DapBaseType.STRING,
                     ordinal = 2,
                     category = "Repository",
-                    description = "Repository path within this FileRepository"),
+                    description =
+                            "Retired: earlier parent folder of every project folder. The upgrade moves it into each tracked project's Path and clears it."),
             @DapProperty(
                     name = "BranchName",
                     baseType = DapBaseType.STRING,
@@ -172,7 +179,7 @@ import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.TrackedProj
                     ordinal = 9,
                     category = "Repository",
                     description =
-                            "Legacy single ThingWorx project; superseded by TrackedProjects once that list is edited"),
+                            "Retired: earlier single ThingWorx project. The upgrade moves it into TrackedProjects and clears it."),
             @DapProperty(
                     name = "TrackedProjects",
                     baseType = DapBaseType.INFOTABLE,
@@ -381,8 +388,10 @@ public class GitRepositoryShape extends Thing {
             GitUserContextManager userContext = new GitUserContextManager();
             ValueCollection RepoCredentials =
                     userContext.credentialsFor(resolveTargetThing().getName());
-            String CommitterName = RepoCredentials.getStringValue(Const.GitCommitterName);
-            String CommitterEmail = RepoCredentials.getStringValue(Const.GitCommitterEmail);
+            GitUserContextManager.Identity committer =
+                    userContext.identityFor(resolveTargetThing().getName());
+            String CommitterName = committer.name();
+            String CommitterEmail = committer.email();
             if (CommitterName == null
                     || CommitterName.isBlank()
                     || CommitterEmail == null
@@ -421,7 +430,7 @@ public class GitRepositoryShape extends Thing {
             var commitCmd =
                     myGitObject
                             .commit()
-                            .setMessage(Message)
+                            .setMessage(CommitAttribution.withAuthenticatedUser(Message))
                             .setCommitter(CommitterName, CommitterEmail);
 
             gpgSigner = configureSigning(commitCmd);
@@ -471,7 +480,8 @@ public class GitRepositoryShape extends Thing {
     public InfoTable Push(
             @ThingworxServiceParameter(
                             name = "Remote",
-                            description = "Optional remote name; defaults to origin",
+                            description =
+                                    "Optional remote name; blank uses the branch upstream remote, or origin",
                             baseType = "STRING")
                     String Remote,
             @ThingworxServiceParameter(
@@ -500,6 +510,7 @@ public class GitRepositoryShape extends Thing {
         log.trace("Entering Service: Push");
 
         String CurrentMethodName = "Push";
+        GitTransport transport = null;
         try {
             long startTimePush = System.nanoTime();
             long endTimeOpenRepository = System.nanoTime();
@@ -508,20 +519,10 @@ public class GitRepositoryShape extends Thing {
                                     (double) (endTimeOpenRepository - startTimePush)
                                             / (double) 1000000)
                             .setScale(3, RoundingMode.HALF_DOWN);
-            ValueCollection RepoCredentials =
-                    new GitUserContextManager().credentialsFor(resolveTargetThing().getName());
-            String User = RepoCredentials.getStringValue(Const.GitCommitterUser);
-            String Password = RepoCredentials.getStringValue(Const.GitCommitterPassword);
-            if (User.isBlank() || Password.isBlank()) {
-
-                GitActionLogger.logAction(
-                        "Push", resolveTargetThing().getName(), "no credentials configured");
-                return DapResults.failure(
-                        "Push",
-                        "Push Error: " + Const.ERR_PREFIX_AUTH + Const.ERR_NO_CREDENTIALS,
-                        StringResultContract.SERVICE_RESULT);
-            }
+            transport = GitTransport.forRepository(resolveTargetThing().getName());
             var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            // Fail before any Git change if the later import would be refused.
+            fileRepo.requireSyncPermissions();
             fileRepo.exportProjectEntities();
             Git myGitObject = fileRepo.git();
             Repository repository = myGitObject.getRepository();
@@ -559,12 +560,7 @@ public class GitRepositoryShape extends Thing {
             }
             String upstreamRemote =
                     repository.getConfig().getString("branch", sourceBranch, "remote");
-            String remote =
-                    Remote == null || Remote.isBlank()
-                            ? (upstreamRemote == null || upstreamRemote.isBlank()
-                                    ? "origin"
-                                    : upstreamRemote)
-                            : Remote;
+            String remote = Remotes.resolve(repository, Remote, sourceBranch);
             String upstreamMerge =
                     repository.getConfig().getString("branch", sourceBranch, "merge");
             String destinationBranch =
@@ -575,13 +571,10 @@ public class GitRepositoryShape extends Thing {
                                     ? upstreamMerge.substring("refs/heads/".length())
                                     : sourceBranch)
                             : RemoteBranchName;
-            CredentialsProvider credentialsProvider =
-                    new UsernamePasswordCredentialsProvider(User, Password);
             var pushCommand =
-                    myGitObject
-                            .push()
+                    transport
+                            .configure(myGitObject.push(), remote)
                             .setRemote(remote)
-                            .setCredentialsProvider(credentialsProvider)
                             .setForce(Boolean.TRUE.equals(Force));
             pushCommand.setRefSpecs(
                     new RefSpec("refs/heads/" + sourceBranch + ":refs/heads/" + destinationBranch));
@@ -643,12 +636,26 @@ public class GitRepositoryShape extends Thing {
             GitActionLogger.logAction("Push", resolveTargetThing().getName(), LogResult);
             return DapResults.success("Push", LogResult, StringResultContract.SERVICE_RESULT);
         } catch (Exception e) {
-            GitActionLogger.logAction(
-                    "Push",
-                    resolveTargetThing().getName(),
-                    e == null ? "" : String.valueOf(e.getMessage()));
-            return DapResults.failure(CurrentMethodName, e, StringResultContract.SERVICE_RESULT);
+            return transportFailure(CurrentMethodName, transport, e);
+        } finally {
+            if (transport != null) transport.close();
         }
+    }
+
+    /**
+     * Logs and returns a failed network operation, replacing JGit's authentication errors with a
+     * message that says what to fix.
+     */
+    private InfoTable transportFailure(String operation, GitTransport transport, Exception e) {
+        String auth = transport == null ? null : transport.authenticationFailure(e);
+        String repository = resolveTargetThing().getName();
+        if (auth != null) {
+            GitActionLogger.logAction(operation, repository, auth);
+            return DapResults.failure(
+                    operation, operation + " Error: " + auth, StringResultContract.SERVICE_RESULT);
+        }
+        GitActionLogger.logAction(operation, repository, String.valueOf(e.getMessage()));
+        return DapResults.failure(operation, e, StringResultContract.SERVICE_RESULT);
     }
 
     @DapServicePayload(StringResultSpec.class)
@@ -724,11 +731,18 @@ public class GitRepositoryShape extends Thing {
      * before importing. An unborn local repository is bootstrapped without exporting untracked
      * project files first.
      *
+     * @param Remote remote name; blank selects the branch upstream remote or {@code origin}
      * @param Force when true, discard local divergence and reset to the fetched remote state
      * @return a pull summary, or a prefixed error message; conflicts are reported rather than
      *     silently discarded
      */
     public InfoTable Pull(
+            @ThingworxServiceParameter(
+                            name = "Remote",
+                            description =
+                                    "Optional remote name; blank uses the branch upstream remote, or origin",
+                            baseType = "STRING")
+                    String Remote,
             @ThingworxServiceParameter(
                             name = "Force",
                             description = "Forces a hard reset instead of a normal pull",
@@ -737,20 +751,13 @@ public class GitRepositoryShape extends Thing {
                     Boolean Force) {
         String CurrentMethodName = "Pull";
         FileRepositoryManager fileRepo = null;
+        GitTransport transport = null;
         try {
-            ValueCollection RepoCredentials =
-                    new GitUserContextManager().credentialsFor(resolveTargetThing().getName());
-            String User = RepoCredentials.getStringValue(Const.GitCommitterUser);
-            String Password = RepoCredentials.getStringValue(Const.GitCommitterPassword);
-            if (User == null || User.isBlank() || Password == null || Password.isBlank()) {
-                GitActionLogger.logAction(
-                        "Pull", resolveTargetThing().getName(), "no credentials configured");
-                return DapResults.failure(
-                        CurrentMethodName,
-                        "Pull Error: " + Const.ERR_PREFIX_AUTH + Const.ERR_NO_CREDENTIALS,
-                        StringResultContract.SERVICE_RESULT);
-            }
+            transport = GitTransport.forRepository(resolveTargetThing().getName());
+            final GitTransport pullTransport = transport;
             fileRepo = new FileRepositoryManager(resolveTargetThing());
+            // Fail before any Git change if the export or the later import would be refused.
+            fileRepo.requireSyncPermissions();
             Git myGitFolder = fileRepo.git();
             // An unborn repository has no local Git state to preserve. Exporting
             // ThingWorx entities before the first checkout would create untracked
@@ -758,25 +765,33 @@ public class GitRepositoryShape extends Thing {
             if (myGitFolder.getRepository().resolve("HEAD") != null) {
                 fileRepo.exportProjectEntities();
             }
-            CredentialsProvider credentialsProvider =
-                    new UsernamePasswordCredentialsProvider(User, Password);
             String LogResult;
             if (Boolean.TRUE.equals(Force)) {
-                String target = ForcePull.resetToOrigin(myGitFolder, credentialsProvider);
+                String target = ForcePull.resetToRemote(myGitFolder, transport, Remote);
                 LogResult = "Force pull reset to " + target + ".";
             } else {
+                Repository pullRepository = myGitFolder.getRepository();
+                String pullBranch = pullRepository.getBranch();
+                String pullRemote = Remotes.resolve(pullRepository, Remote, pullBranch);
+                // The upstream branch name only applies to the remote the branch tracks. For
+                // any other remote, pull the branch of the same name.
+                boolean tracksPullRemote =
+                        pullRemote.equals(
+                                pullRepository
+                                        .getConfig()
+                                        .getString("branch", pullBranch, "remote"));
                 PullResult[] pulled = new PullResult[1];
                 ConflictWorkflow.Outcome outcome =
                         ConflictWorkflow.run(
                                 myGitFolder,
                                 "Pull",
                                 () -> {
-                                    pulled[0] =
-                                            myGitFolder
-                                                    .pull()
-                                                    .setRemote("origin")
-                                                    .setCredentialsProvider(credentialsProvider)
-                                                    .call();
+                                    var pull =
+                                            pullTransport
+                                                    .configure(myGitFolder.pull(), pullRemote)
+                                                    .setRemote(pullRemote);
+                                    if (!tracksPullRemote) pull.setRemoteBranchName(pullBranch);
+                                    pulled[0] = pull.call();
                                     return ConflictWorkflow.outcome(pulled[0]);
                                 });
                 if (outcome == ConflictWorkflow.Outcome.CONFLICTS) {
@@ -816,12 +831,9 @@ public class GitRepositoryShape extends Thing {
             return DapResults.success(
                     CurrentMethodName, LogResult, StringResultContract.SERVICE_RESULT);
         } catch (Exception e) {
-            GitActionLogger.logAction(
-                    "Pull",
-                    resolveTargetThing().getName(),
-                    e == null ? "" : String.valueOf(e.getMessage()));
-            return DapResults.failure(CurrentMethodName, e, StringResultContract.SERVICE_RESULT);
+            return transportFailure(CurrentMethodName, transport, e);
         } finally {
+            if (transport != null) transport.close();
             if (fileRepo != null) {
                 try {
                     fileRepo.close();
@@ -835,7 +847,7 @@ public class GitRepositoryShape extends Thing {
     @ThingworxServiceDefinition(
             name = "Fetch",
             description =
-                    "Fetches refs and objects from a remote without merging, checking out, resetting, or synchronizing entities. The remote defaults to origin.",
+                    "Fetches refs and objects from a remote without merging, checking out, resetting, or synchronizing entities. A blank remote uses the current branch's upstream remote, or origin.",
             category = "",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
@@ -848,54 +860,720 @@ public class GitRepositoryShape extends Thing {
      * Fetches refs from the configured remote without merging them or importing entities into
      * ThingWorx. The remote-tracking refs are updated in the local repository.
      *
-     * @param Remote remote name; blank selects {@code origin}
+     * @param Remote remote name; blank selects the branch upstream remote or {@code origin}
      * @return a fetch summary or a prefixed error message
      */
     public InfoTable Fetch(
             @ThingworxServiceParameter(
                             name = "Remote",
-                            description = "Optional remote name; defaults to origin",
-                            baseType = "STRING",
-                            aspects = {"defaultValue:origin"})
+                            description =
+                                    "Optional remote name; blank uses the branch upstream remote, or origin",
+                            baseType = "STRING")
                     String Remote) {
         String CurrentMethodName = "Fetch";
+        GitTransport transport = null;
         try {
             var fileRepo = new FileRepositoryManager(resolveTargetThing());
 
             Git myGitFolder = fileRepo.git();
-            ValueCollection RepoCredentials =
-                    new GitUserContextManager().credentialsFor(resolveTargetThing().getName());
-            String User = RepoCredentials.getStringValue(Const.GitCommitterUser);
-            String Password = RepoCredentials.getStringValue(Const.GitCommitterPassword);
-            if (User.isBlank() || Password.isBlank()) {
-
-                GitActionLogger.logAction(
-                        "Fetch", resolveTargetThing().getName(), "no credentials configured");
-                return DapResults.failure(
-                        CurrentMethodName,
-                        "Fetch Error: " + Const.ERR_PREFIX_AUTH + Const.ERR_NO_CREDENTIALS,
-                        StringResultContract.SERVICE_RESULT);
-            }
-            CredentialsProvider credentialsProvider =
-                    new UsernamePasswordCredentialsProvider(User, Password);
-            String remote = Remote == null || Remote.isBlank() ? "origin" : Remote;
-            myGitFolder
-                    .fetch()
-                    .setRemote(remote)
-                    .setCredentialsProvider(credentialsProvider)
-                    .call();
+            transport = GitTransport.forRepository(resolveTargetThing().getName());
+            Repository fetchRepository = myGitFolder.getRepository();
+            String remote = Remotes.resolve(fetchRepository, Remote, fetchRepository.getBranch());
+            transport.configure(myGitFolder.fetch(), remote).setRemote(remote).call();
             String LogResult = "Fetch from '" + remote + "' completed successfully.";
 
             GitActionLogger.logAction("Fetch", resolveTargetThing().getName(), LogResult);
             return DapResults.success(
                     CurrentMethodName, LogResult, StringResultContract.SERVICE_RESULT);
         } catch (Exception e) {
-            GitActionLogger.logAction(
-                    "Fetch",
-                    resolveTargetThing().getName(),
-                    e == null ? "" : String.valueOf(e.getMessage()));
-            return DapResults.failure(CurrentMethodName, e, StringResultContract.SERVICE_RESULT);
+            return transportFailure(CurrentMethodName, transport, e);
+        } finally {
+            if (transport != null) transport.close();
         }
+    }
+
+    @DapServicePayload(RemoteSpec.class)
+    @ThingworxServiceDefinition(
+            name = "GetRemotes",
+            description = "Lists the remotes configured in this repository's .git/config",
+            category = "Remotes",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "Result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.Remote.ServiceResult.DataShape"})
+    /**
+     * Lists remotes as {@code git remote -v} does. URLs are shown without any embedded password.
+     *
+     * @return a {@code GIT.Remote.ServiceResult.DataShape} table
+     */
+    public InfoTable GetRemotes() {
+        FileRepositoryManager fileRepo = null;
+        try {
+            fileRepo = new FileRepositoryManager(resolveTargetThing());
+            RemoteTable remotes = RemoteTable.create();
+            for (RemoteConfig remote : Remotes.list(fileRepo.git())) {
+                StringBuilder specs = new StringBuilder();
+                for (RefSpec spec : remote.getFetchRefSpecs()) {
+                    if (specs.length() > 0) specs.append('\n');
+                    specs.append(spec);
+                }
+                remotes.add(
+                        RemoteRow.create()
+                                .name(remote.getName())
+                                .urls(Remotes.describe(remote.getURIs()))
+                                .pushUrls(Remotes.describe(remote.getPushURIs()))
+                                .fetchSpecs(specs.toString()));
+            }
+            return DapResults.success("GetRemotes", RemoteTable.SERVICE_RESULT, remotes);
+        } catch (Exception e) {
+            return DapResults.failure("GetRemotes", e, RemoteTable.SERVICE_RESULT);
+        } finally {
+            if (fileRepo != null) fileRepo.close();
+        }
+    }
+
+    @DapServicePayload(RemoteStatusSpec.class)
+    @ThingworxServiceDefinition(
+            name = "GetConnectionStatus",
+            description =
+                    "Reports, for each remote, which setup steps the current user still needs before pulling and pushing: an allowed server address, saved sign-in, an approved credential origin and an approved SSH host key. Nothing is contacted except DNS.",
+            category = "Remotes",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "Result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {
+                "isEntityDataShape:true",
+                "dataShape:GIT.RemoteStatus.ServiceResult.DataShape"
+            })
+    /**
+     * Lists each remote with the setup steps it still needs for the calling user.
+     *
+     * @return a {@code GIT.RemoteStatus.ServiceResult.DataShape} table
+     */
+    public InfoTable GetConnectionStatus() {
+        FileRepositoryManager fileRepo = null;
+        try {
+            Thing thing = resolveTargetThing();
+            fileRepo = new FileRepositoryManager(thing);
+            Git git = fileRepo.git();
+            Repository repository = git.getRepository();
+            String defaultRemote;
+            try {
+                defaultRemote = Remotes.resolve(repository, null, repository.getBranch());
+            } catch (IllegalArgumentException e) {
+                defaultRemote = "";
+            }
+            GitUserContextManager context = new GitUserContextManager();
+            boolean allowInsecure = NetworkPolicy.allowInsecureCredentials();
+
+            RemoteStatusTable result = RemoteStatusTable.create();
+            for (RemoteConfig remote : Remotes.list(git)) {
+                ValueCollection credentials =
+                        context.credentialsFor(thing.getName(), remote.getName());
+                String username = storedText(credentials, Const.GitCommitterUser);
+                String password = storedText(credentials, Const.GitCommitterPassword);
+                String sshFingerprint = storedText(credentials, Const.SshKeyFingerprint);
+                boolean sshKeyAvailable = context.sshKey(sshFingerprint) != null;
+                String approvedOrigins = storedText(credentials, Const.ApprovedRemoteOrigins);
+                List<URIish> uris = new ArrayList<>(remote.getURIs());
+                for (URIish push : remote.getPushURIs()) if (!uris.contains(push)) uris.add(push);
+                List<URIish> approvedHostKeys = new ArrayList<>();
+                List<String> networkProblems = new ArrayList<>();
+                for (URIish uri : uris) {
+                    if ("ssh".equals(ConnectionStatus.transport(uri))
+                            && SshHostKeys.isApproved(repository, uri)) {
+                        approvedHostKeys.add(uri);
+                    }
+                    try {
+                        NetworkPolicy.requireAllowed(uri);
+                    } catch (Exception e) {
+                        networkProblems.add(e.getMessage());
+                    }
+                }
+                ConnectionStatus.Status status =
+                        ConnectionStatus.evaluate(
+                                new ConnectionStatus.Inputs(
+                                        remote.getName(),
+                                        uris,
+                                        remote.getName().equals(defaultRemote),
+                                        username,
+                                        password != null && !password.isEmpty(),
+                                        approvedOrigins,
+                                        sshFingerprint,
+                                        sshKeyAvailable,
+                                        approvedHostKeys,
+                                        networkProblems,
+                                        allowInsecure));
+                result.add(
+                        RemoteStatusRow.create()
+                                .remote(status.remote())
+                                .url(status.url())
+                                .transport(status.transport())
+                                .isDefault(status.isDefault())
+                                .network(status.network())
+                                .signIn(status.signIn())
+                                .credentialOrigin(status.credentialOrigin())
+                                .hostKey(status.hostKey())
+                                .ready(status.ready())
+                                .nextStep(status.nextStep()));
+            }
+            return DapResults.success(
+                    "GetConnectionStatus", RemoteStatusTable.SERVICE_RESULT, result);
+        } catch (Exception e) {
+            return DapResults.failure("GetConnectionStatus", e, RemoteStatusTable.SERVICE_RESULT);
+        } finally {
+            if (fileRepo != null) fileRepo.close();
+        }
+    }
+
+    /** Reads a stored settings field; a user without settings for this repository has none. */
+    private static String storedText(ValueCollection row, String field) {
+        try {
+            String value = row.getStringValue(field);
+            return value == null ? "" : value;
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    @DapServicePayload(StringResultSpec.class)
+    @ThingworxServiceDefinition(
+            name = "RemoteAdd",
+            description =
+                    "Adds a remote to this repository's .git/config. Only https://, http:// and ssh:// URLs without an embedded password are accepted.",
+            category = "Remotes",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "Result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
+    public InfoTable RemoteAdd(
+            @ThingworxServiceParameter(
+                            name = "Name",
+                            description = "Remote name, such as origin",
+                            baseType = "STRING")
+                    String Name,
+            @ThingworxServiceParameter(
+                            name = "URL",
+                            description = "https://, http:// or ssh:// repository URL",
+                            baseType = "STRING")
+                    String URL) {
+        return changeRemotes(
+                "RemoteAdd",
+                git -> {
+                    String name = Name == null ? "" : Name.trim();
+                    Remotes.add(git, name, URL);
+                    return "Remote '" + name + "' added.";
+                });
+    }
+
+    @DapServicePayload(StringResultSpec.class)
+    @ThingworxServiceDefinition(
+            name = "RemoteSetUrl",
+            description =
+                    "Changes the URL of a remote in this repository's .git/config. With Push true, sets the separate push URL instead; a blank URL with Push true removes the push URL.",
+            category = "Remotes",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "Result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
+    public InfoTable RemoteSetUrl(
+            @ThingworxServiceParameter(
+                            name = "Name",
+                            description = "Existing remote name",
+                            baseType = "STRING")
+                    String Name,
+            @ThingworxServiceParameter(
+                            name = "URL",
+                            description = "https://, http:// or ssh:// repository URL",
+                            baseType = "STRING")
+                    String URL,
+            @ThingworxServiceParameter(
+                            name = "Push",
+                            description = "Set the push URL instead of the fetch URL",
+                            baseType = "BOOLEAN",
+                            aspects = {"defaultValue:false"})
+                    Boolean Push) {
+        return changeRemotes(
+                "RemoteSetUrl",
+                git -> {
+                    String name = Name == null ? "" : Name.trim();
+                    if (!Remotes.names(git.getRepository()).contains(name)) {
+                        throw new IllegalArgumentException("Remote '" + name + "' does not exist.");
+                    }
+                    boolean push = Boolean.TRUE.equals(Push);
+                    if (push && (URL == null || URL.isBlank())) {
+                        return Remotes.clearPushUrls(git, name)
+                                ? "Remote '"
+                                        + name
+                                        + "' push URL removed. Pushes use the fetch URL."
+                                : "Remote '" + name + "' has no separate push URL.";
+                    }
+                    git.remoteSetUrl()
+                            .setRemoteName(name)
+                            .setRemoteUri(Remotes.parseUrl(URL))
+                            .setUriType(
+                                    push
+                                            ? RemoteSetUrlCommand.UriType.PUSH
+                                            : RemoteSetUrlCommand.UriType.FETCH)
+                            .call();
+                    return "Remote '" + name + "' " + (push ? "push " : "") + "URL updated.";
+                });
+    }
+
+    @DapServicePayload(StringResultSpec.class)
+    @ThingworxServiceDefinition(
+            name = "RemoteRemove",
+            description =
+                    "Removes a remote from this repository's .git/config, with its remote-tracking branches and the upstream settings of branches that tracked it",
+            category = "Remotes",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "Result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
+    public InfoTable RemoteRemove(
+            @ThingworxServiceParameter(
+                            name = "Name",
+                            description = "Existing remote name",
+                            baseType = "STRING")
+                    String Name) {
+        return changeRemotes(
+                "RemoteRemove",
+                git -> {
+                    String name = Name == null ? "" : Name.trim();
+                    Remotes.remove(git, name);
+                    return "Remote '" + name + "' removed.";
+                });
+    }
+
+    /**
+     * Keeps the current user's sign-in bound to the remotes as they are now: each remote's own
+     * sign-in to that remote's origins, and the repository-wide sign-in to every origin. Sign-in
+     * saved for a remote that no longer exists is dropped, so a new remote with the same name
+     * starts without it.
+     */
+    private static void bindApprovedOrigins(String repository, Git git) {
+        try {
+            GitUserContextManager context = new GitUserContextManager();
+            Repository repo = git.getRepository();
+            context.setApprovedOriginsIfConfigured(repository, Remotes.approvedOrigins(repo));
+            Set<String> names = Remotes.names(repo);
+            for (String name : names) {
+                context.setRemoteApprovedOriginsIfConfigured(
+                        repository, name, Remotes.approvedOrigins(repo, name));
+            }
+            InfoTable saved = context.remoteCredentials();
+            if (saved == null) return;
+            Set<String> gone = new HashSet<>();
+            for (int i = 0; i < saved.getRowCount(); i++) {
+                ValueCollection row = saved.getRow(i);
+                String remote = row.getStringValue(Const.RemoteName);
+                if (repository.equals(row.getStringValue("GitThing")) && !names.contains(remote)) {
+                    gone.add(remote);
+                }
+            }
+            for (String remote : gone) context.removeRemoteCredentials(repository, remote);
+        } catch (Exception ignored) {
+            // A user without stored credentials has nothing to bind.
+        }
+    }
+
+    @DapServicePayload(RemoteSignInSpec.class)
+    @ThingworxServiceDefinition(
+            name = "RemoteSignInList",
+            description =
+                    "Lists each remote with the current user's sign-in for it: username, whether a password is saved and the SSH key. Passwords are never returned.",
+            category = "Remotes",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "Result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {
+                "isEntityDataShape:true",
+                "dataShape:GIT.RemoteSignIn.ServiceResult.DataShape"
+            })
+    public InfoTable RemoteSignInList() {
+        FileRepositoryManager fileRepo = null;
+        try {
+            String repository = resolveTargetThing().getName();
+            fileRepo = new FileRepositoryManager(resolveTargetThing());
+            GitUserContextManager context = new GitUserContextManager();
+            RemoteSignInTable result = RemoteSignInTable.create();
+            for (RemoteConfig remote : Remotes.list(fileRepo.git())) {
+                ValueCollection own = context.remoteCredentialsRow(repository, remote.getName());
+                ValueCollection row = own != null ? own : context.credentialsFor(repository);
+                result.add(
+                        RemoteSignInRow.create()
+                                .remote(remote.getName())
+                                .gitCommitterUser(storedText(row, Const.GitCommitterUser))
+                                .hasPassword(!storedText(row, Const.GitCommitterPassword).isEmpty())
+                                .sshKeyFingerprint(storedText(row, Const.SshKeyFingerprint))
+                                .inherited(own == null));
+            }
+            return DapResults.success("RemoteSignInList", RemoteSignInTable.SERVICE_RESULT, result);
+        } catch (Exception e) {
+            return DapResults.failure("RemoteSignInList", e, RemoteSignInTable.SERVICE_RESULT);
+        } finally {
+            if (fileRepo != null) fileRepo.close();
+        }
+    }
+
+    @DapServicePayload(StringResultSpec.class)
+    @ThingworxServiceDefinition(
+            name = "RemoteSignInSave",
+            description =
+                    "Saves the current user's sign-in for one remote: a username and password or token for http(s) URLs and an SSH key for ssh:// URLs. A blank password keeps the saved one. The password is only sent to the remote's URLs as they are now.",
+            category = "Remotes",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "Result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
+    public InfoTable RemoteSignInSave(
+            @ThingworxServiceParameter(
+                            name = "Remote",
+                            description = "Remote name",
+                            baseType = "STRING")
+                    String Remote,
+            @ThingworxServiceParameter(
+                            name = "GitCommitterUser",
+                            description = "Git username",
+                            baseType = "STRING")
+                    String GitCommitterUser,
+            @ThingworxServiceParameter(
+                            name = "GitCommitterPassword",
+                            description = "New password or token, or blank to keep the saved one",
+                            baseType = "STRING")
+                    String GitCommitterPassword,
+            @ThingworxServiceParameter(
+                            name = "SshKeyFingerprint",
+                            description = "One of your SSH keys, or blank for none",
+                            baseType = "STRING")
+                    String SshKeyFingerprint) {
+        FileRepositoryManager fileRepo = null;
+        String repository = resolveTargetThing().getName();
+        try {
+            String name = Remote == null ? "" : Remote.trim();
+            fileRepo = new FileRepositoryManager(resolveTargetThing());
+            Repository repo = fileRepo.git().getRepository();
+            if (!Remotes.names(repo).contains(name)) {
+                throw new IllegalArgumentException("Remote '" + name + "' does not exist.");
+            }
+            GitUserContextManager context = new GitUserContextManager();
+            String fingerprint = SshKeyFingerprint == null ? "" : SshKeyFingerprint.trim();
+            if (!fingerprint.isEmpty() && context.sshKey(fingerprint) == null) {
+                throw new IllegalArgumentException(
+                        "SSH key is not owned by the current user: " + fingerprint);
+            }
+            // A username and password are only kept for remotes with an http(s) URL.
+            boolean http = false;
+            RemoteConfig config = new RemoteConfig(repo.getConfig(), name);
+            for (URIish uri : config.getURIs())
+                http |= !"ssh".equals(ConnectionStatus.transport(uri));
+            for (URIish uri : config.getPushURIs()) {
+                http |= !"ssh".equals(ConnectionStatus.transport(uri));
+            }
+            String password =
+                    !http
+                            ? ""
+                            : GitCommitterPassword == null || GitCommitterPassword.isEmpty()
+                                    ? null
+                                    : GitCommitterPassword;
+            context.saveRemoteCredentials(
+                    repository,
+                    name,
+                    http ? GitCommitterUser : "",
+                    password,
+                    fingerprint,
+                    Remotes.approvedOrigins(repo, name));
+            String message = "Sign-in for '" + name + "' saved.";
+            GitActionLogger.logAction("RemoteSignInSave", repository, message);
+            return DapResults.success(
+                    "RemoteSignInSave", message, StringResultContract.SERVICE_RESULT);
+        } catch (Exception e) {
+            return DapResults.failure("RemoteSignInSave", e, StringResultContract.SERVICE_RESULT);
+        } finally {
+            if (fileRepo != null) fileRepo.close();
+        }
+    }
+
+    @DapServicePayload(StringResultSpec.class)
+    @ThingworxServiceDefinition(
+            name = "RemoteSignInClear",
+            description =
+                    "Deletes the current user's own sign-in for one remote. The remote then uses the repository-wide sign-in saved by earlier versions, if there is one.",
+            category = "Remotes",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "Result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
+    public InfoTable RemoteSignInClear(
+            @ThingworxServiceParameter(
+                            name = "Remote",
+                            description = "Remote name",
+                            baseType = "STRING")
+                    String Remote) {
+        String repository = resolveTargetThing().getName();
+        try {
+            String name = Remote == null ? "" : Remote.trim();
+            boolean removed = new GitUserContextManager().removeRemoteCredentials(repository, name);
+            String message =
+                    removed
+                            ? "Sign-in for '" + name + "' deleted."
+                            : "'" + name + "' has no sign-in of its own.";
+            GitActionLogger.logAction("RemoteSignInClear", repository, message);
+            return DapResults.success(
+                    "RemoteSignInClear", message, StringResultContract.SERVICE_RESULT);
+        } catch (Exception e) {
+            return DapResults.failure("RemoteSignInClear", e, StringResultContract.SERVICE_RESULT);
+        }
+    }
+
+    private interface RemoteChange {
+        String apply(Git git) throws Exception;
+    }
+
+    private InfoTable changeRemotes(String service, RemoteChange change) {
+        FileRepositoryManager fileRepo = null;
+        String repository = resolveTargetThing().getName();
+        try {
+            fileRepo = new FileRepositoryManager(resolveTargetThing());
+            String message = change.apply(fileRepo.git());
+            bindApprovedOrigins(repository, fileRepo.git());
+            GitActionLogger.logAction(service, repository, message);
+            return DapResults.success(service, message, StringResultContract.SERVICE_RESULT);
+        } catch (Exception e) {
+            GitActionLogger.logAction(service, repository, String.valueOf(e.getMessage()));
+            return DapResults.failure(service, e, StringResultContract.SERVICE_RESULT);
+        } finally {
+            if (fileRepo != null) fileRepo.close();
+        }
+    }
+
+    @DapServicePayload(StringResultSpec.class)
+    @ThingworxServiceDefinition(
+            name = "TestRemote",
+            description =
+                    "Connects to a configured remote with the current user's credentials and reports how many branches and tags it offers. Nothing is fetched.",
+            category = "Remotes",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "Result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
+    public InfoTable TestRemote(
+            @ThingworxServiceParameter(
+                            name = "Remote",
+                            description =
+                                    "Optional remote name; blank uses the branch upstream remote, or origin",
+                            baseType = "STRING")
+                    String Remote) {
+        FileRepositoryManager fileRepo = null;
+        GitTransport transport = null;
+        try {
+            fileRepo = new FileRepositoryManager(resolveTargetThing());
+            Git git = fileRepo.git();
+            Repository repository = git.getRepository();
+            String remote = Remotes.resolve(repository, Remote, repository.getBranch());
+            transport = GitTransport.forRepository(resolveTargetThing().getName());
+            java.util.Collection<Ref> refs =
+                    transport
+                            .configure(git.lsRemote(), remote)
+                            .setRemote(remote)
+                            .setHeads(true)
+                            .setTags(true)
+                            .call();
+            long branches =
+                    refs.stream().filter(r -> r.getName().startsWith(Constants.R_HEADS)).count();
+            String message =
+                    "Connected to '"
+                            + remote
+                            + "': "
+                            + branches
+                            + " branch(es), "
+                            + (refs.size() - branches)
+                            + " tag(s).";
+            GitActionLogger.logAction("TestRemote", resolveTargetThing().getName(), message);
+            return DapResults.success("TestRemote", message, StringResultContract.SERVICE_RESULT);
+        } catch (Exception e) {
+            return transportFailure("TestRemote", transport, e);
+        } finally {
+            if (transport != null) transport.close();
+            if (fileRepo != null) fileRepo.close();
+        }
+    }
+
+    @DapServicePayload(StringResultSpec.class)
+    @ThingworxServiceDefinition(
+            name = "ResetSshHostKeys",
+            description =
+                    "Forgets the SSH host keys trusted for this repository; the next SSH connection trusts the server's current key",
+            category = "SSH",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "Result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
+    public InfoTable ResetSshHostKeys() {
+        FileRepositoryManager fileRepo = null;
+        try {
+            fileRepo = new FileRepositoryManager(resolveTargetThing());
+            boolean removed = GitTransport.resetKnownHosts(fileRepo.git().getRepository());
+            String message =
+                    removed
+                            ? "Trusted SSH host keys were reset. The next SSH connection will trust the server's current key."
+                            : "No SSH host keys were trusted for this repository.";
+            GitActionLogger.logAction("ResetSshHostKeys", resolveTargetThing().getName(), message);
+            return DapResults.success(
+                    "ResetSshHostKeys", message, StringResultContract.SERVICE_RESULT);
+        } catch (Exception e) {
+            return DapResults.failure("ResetSshHostKeys", e, StringResultContract.SERVICE_RESULT);
+        } finally {
+            if (fileRepo != null) fileRepo.close();
+        }
+    }
+
+    @DapServicePayload(SshHostKeySpec.class)
+    @ThingworxServiceDefinition(
+            name = "SshHostKeyProbe",
+            description =
+                    "Connects to an SSH remote only far enough to read and display its host key fingerprint. Nothing is trusted until SshHostKeyApprove is called.",
+            category = "SSH",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "Result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {
+                "isEntityDataShape:true",
+                "dataShape:GIT.SshHostKey.ServiceResult.DataShape"
+            })
+    public InfoTable SshHostKeyProbe(
+            @ThingworxServiceParameter(
+                            name = "Remote",
+                            description =
+                                    "Optional remote name; blank uses the branch upstream remote, or origin",
+                            baseType = "STRING")
+                    String Remote) {
+        FileRepositoryManager fileRepo = null;
+        try {
+            fileRepo = new FileRepositoryManager(resolveTargetThing());
+            Git git = fileRepo.git();
+            String remote =
+                    Remotes.resolve(git.getRepository(), Remote, git.getRepository().getBranch());
+            URIish uri = sshRemoteUri(git, remote);
+            NetworkPolicy.requireAllowed(uri);
+            SshHostKeys.HostKey key = SshHostKeys.probe(uri);
+            SshHostKeyTable result = SshHostKeyTable.create();
+            result.add(
+                    SshHostKeyRow.create()
+                            .remote(remote)
+                            .host(key.host())
+                            .port(key.port())
+                            .fingerprint(key.fingerprint())
+                            .publicKey(key.publicKey()));
+            GitActionLogger.logAction(
+                    "SshHostKeyProbe",
+                    resolveTargetThing().getName(),
+                    "Probed SSH host key " + key.fingerprint());
+            return DapResults.success("SshHostKeyProbe", SshHostKeyTable.SERVICE_RESULT, result);
+        } catch (Exception e) {
+            return DapResults.failure("SshHostKeyProbe", e, SshHostKeyTable.SERVICE_RESULT);
+        } finally {
+            if (fileRepo != null) fileRepo.close();
+        }
+    }
+
+    @DapServicePayload(StringResultSpec.class)
+    @ThingworxServiceDefinition(
+            name = "SshHostKeyApprove",
+            description =
+                    "Probes an SSH remote again, verifies the displayed SHA-256 fingerprint, and records the host key for this repository",
+            category = "SSH",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "Result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
+    public InfoTable SshHostKeyApprove(
+            @ThingworxServiceParameter(
+                            name = "Remote",
+                            description =
+                                    "Optional remote name; blank uses the branch upstream remote, or origin",
+                            baseType = "STRING")
+                    String Remote,
+            @ThingworxServiceParameter(
+                            name = "Fingerprint",
+                            description =
+                                    "SHA-256 fingerprint shown by SshHostKeyProbe and verified out of band",
+                            baseType = "STRING")
+                    String Fingerprint) {
+        FileRepositoryManager fileRepo = null;
+        try {
+            if (Fingerprint == null || Fingerprint.isBlank()) {
+                throw new IllegalArgumentException("A host key fingerprint is required.");
+            }
+            fileRepo = new FileRepositoryManager(resolveTargetThing());
+            Git git = fileRepo.git();
+            String remote =
+                    Remotes.resolve(git.getRepository(), Remote, git.getRepository().getBranch());
+            URIish uri = sshRemoteUri(git, remote);
+            NetworkPolicy.requireAllowed(uri);
+            SshHostKeys.approve(git.getRepository(), uri, Fingerprint);
+            String message =
+                    "Approved SSH host key " + Fingerprint.trim() + " for remote '" + remote + "'.";
+            GitActionLogger.logAction("SshHostKeyApprove", resolveTargetThing().getName(), message);
+            return DapResults.success(
+                    "SshHostKeyApprove", message, StringResultContract.SERVICE_RESULT);
+        } catch (Exception e) {
+            return DapResults.failure("SshHostKeyApprove", e, StringResultContract.SERVICE_RESULT);
+        } finally {
+            if (fileRepo != null) fileRepo.close();
+        }
+    }
+
+    private static URIish sshRemoteUri(Git git, String remote) throws Exception {
+        for (RemoteConfig config : Remotes.list(git)) {
+            if (!remote.equals(config.getName())) continue;
+            List<URIish> uris = config.getURIs();
+            if (uris.isEmpty())
+                throw new IllegalArgumentException("Remote '" + remote + "' has no URL.");
+            URIish uri = uris.get(0);
+            String scheme = uri.getScheme();
+            if (!(scheme == null || "ssh".equalsIgnoreCase(scheme))) {
+                throw new IllegalArgumentException("Remote '" + remote + "' is not an SSH remote.");
+            }
+            return uri;
+        }
+        throw new IllegalArgumentException("Remote '" + remote + "' is not configured.");
     }
 
     @DapServicePayload(StringResultSpec.class)
@@ -943,6 +1621,8 @@ public class GitRepositoryShape extends Thing {
         try {
 
             var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            // Fail before any Git change if the later import would be refused.
+            fileRepo.requireSyncPermissions();
             fileRepo.exportProjectEntities();
             Git myGitFolder = fileRepo.git();
             StartPoint = (StartPoint == null || StartPoint.isBlank()) ? "HEAD" : StartPoint;
@@ -1027,6 +1707,8 @@ public class GitRepositoryShape extends Thing {
         String CurrentMethodName = "Checkout";
         try {
             var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            // Fail before any Git change if the later import would be refused.
+            fileRepo.requireSyncPermissions();
             fileRepo.exportProjectEntities();
             Git myGitFolder = fileRepo.git();
             Ref[] checkedOut = new Ref[1];
@@ -1042,22 +1724,18 @@ public class GitRepositoryShape extends Thing {
                             checkedOut[0] = checkout.call();
                         } catch (RefNotFoundException ex) {
                             if (CreateBranch.booleanValue()) throw ex;
-                            if (myGitFolder
-                                            .getRepository()
-                                            .findRef("refs/remotes/origin/" + BranchNameOrCommit)
-                                    == null) {
-                                throw ex;
-                            }
-                            log.warn(
-                                    "Checkout: creating tracking branch from origin/"
-                                            + BranchNameOrCommit);
+                            String startPoint =
+                                    Remotes.trackingStartPoint(
+                                            myGitFolder.getRepository(), BranchNameOrCommit);
+                            if (startPoint == null) throw ex;
+                            log.warn("Checkout: creating tracking branch from " + startPoint);
                             checkedOut[0] =
                                     myGitFolder
                                             .checkout()
                                             .setCreateBranch(true)
                                             .setName(BranchNameOrCommit)
                                             .setUpstreamMode(SetupUpstreamMode.TRACK)
-                                            .setStartPoint("origin/" + BranchNameOrCommit)
+                                            .setStartPoint(startPoint)
                                             .call();
                         }
                         return ConflictWorkflow.Outcome.COMPLETED;
@@ -1081,7 +1759,7 @@ public class GitRepositoryShape extends Thing {
     @ThingworxServiceDefinition(
             name = "BranchSwitch",
             description =
-                    "Switches to an existing local branch or creates a tracking branch for a matching origin branch.",
+                    "Switches to an existing local branch or creates a tracking branch for a matching remote branch, preferring origin.",
             category = "",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
@@ -1111,6 +1789,8 @@ public class GitRepositoryShape extends Thing {
                         "BranchName is required.",
                         StringResultContract.SERVICE_RESULT);
             var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            // Fail before any Git change if the later import would be refused.
+            fileRepo.requireSyncPermissions();
             fileRepo.exportProjectEntities();
             Git git = fileRepo.git();
             Ref[] switched = new Ref[1];
@@ -1123,12 +1803,15 @@ public class GitRepositoryShape extends Thing {
                                             .setForced(Boolean.TRUE.equals(Force))
                                             .call();
                         } catch (RefNotFoundException e) {
+                            String startPoint =
+                                    Remotes.trackingStartPoint(git.getRepository(), BranchName);
+                            if (startPoint == null) throw e;
                             switched[0] =
                                     git.checkout()
                                             .setCreateBranch(true)
                                             .setName(BranchName)
                                             .setUpstreamMode(SetupUpstreamMode.TRACK)
-                                            .setStartPoint("origin/" + BranchName)
+                                            .setStartPoint(startPoint)
                                             .call();
                         }
                         return ConflictWorkflow.Outcome.COMPLETED;
@@ -1198,6 +1881,8 @@ public class GitRepositoryShape extends Thing {
         }
         try {
             var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            // Fail before any Git change if the later import would be refused.
+            fileRepo.requireSyncPermissions();
             fileRepo.exportProjectEntities();
             Git git = fileRepo.git();
             StartPoint = (StartPoint == null || StartPoint.isBlank()) ? "HEAD" : StartPoint;
@@ -1341,7 +2026,8 @@ public class GitRepositoryShape extends Thing {
                         ("HEAD".equals(LongBranchName))
                                 ? "HEAD"
                                 : LongBranchName.replace("refs/heads/", "")
-                                        .replace("refs/remotes/origin/", "");
+                                        .replace("refs/remotes/origin/", "")
+                                        .replace("refs/remotes/", "");
                 BranchType =
                         ("HEAD".equals(LongBranchName))
                                 ? "HEAD"
@@ -1420,8 +2106,11 @@ public class GitRepositoryShape extends Thing {
                             + "Remote is required when DeleteRemote is true.",
                     StringResultContract.SERVICE_RESULT);
         }
+        GitTransport transport = null;
         try {
             var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            // Fail before any Git change if the later import would be refused.
+            fileRepo.requireSyncPermissions();
             fileRepo.exportProjectEntities();
             Git myGitFolder = fileRepo.git();
 
@@ -1441,16 +2130,14 @@ public class GitRepositoryShape extends Thing {
             fileRepo.importProjectEntities();
 
             if (DeleteRemote.booleanValue()) {
-                ValueCollection credentials =
-                        new GitUserContextManager().credentialsFor(resolveTargetThing().getName());
-                String userName = credentials.getStringValue(Const.GitCommitterUser);
-                String password = credentials.getStringValue(Const.GitCommitterPassword);
+                transport = GitTransport.forRepository(resolveTargetThing().getName());
+                Repository deleteRepository = myGitFolder.getRepository();
+                String deleteRemote =
+                        Remotes.resolve(deleteRepository, Remote, deleteRepository.getBranch());
                 Iterable<PushResult> results =
-                        myGitFolder
-                                .push()
-                                .setRemote(Remote)
-                                .setCredentialsProvider(
-                                        new UsernamePasswordCredentialsProvider(userName, password))
+                        transport
+                                .configure(myGitFolder.push(), deleteRemote)
+                                .setRemote(deleteRemote)
                                 .setRefSpecs(new RefSpec(":refs/heads/" + BranchName))
                                 .call();
                 LogResult += " Remote delete: " + results.iterator().next();
@@ -1487,11 +2174,9 @@ public class GitRepositoryShape extends Thing {
                                 + "' cannot be deleted. It may be the current branch. Checkout a different branch first.",
                         StringResultContract.SERVICE_RESULT);
             }
-            GitActionLogger.logAction(
-                    "BranchDelete",
-                    resolveTargetThing().getName(),
-                    e == null ? "" : String.valueOf(e.getMessage()));
-            return DapResults.failure("BranchDelete", e, StringResultContract.SERVICE_RESULT);
+            return transportFailure("BranchDelete", transport, e);
+        } finally {
+            if (transport != null) transport.close();
         }
     }
 
@@ -2079,7 +2764,8 @@ public class GitRepositoryShape extends Thing {
     @DapServicePayload(StringResultSpec.class)
     @ThingworxServiceDefinition(
             name = "ReadConflictFile",
-            description = "Reads a conflicted repository file for UI editing.",
+            description =
+                    "Reads the working-tree copy of a file that is currently in conflict. Other paths are refused.",
             category = "",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
@@ -2094,21 +2780,26 @@ public class GitRepositoryShape extends Thing {
                             description = "Repository-relative file path",
                             baseType = "STRING")
                     String File) {
+        FileRepositoryManager fileRepo = null;
         try {
-            var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            fileRepo = new FileRepositoryManager(resolveTargetThing());
+            java.nio.file.Path file = fileRepo.requireConflictFile(File, false);
             return DapResults.success(
                     "ReadConflictFile",
-                    fileRepo.fileRepository().LoadText(File),
+                    Files.readString(file, StandardCharsets.UTF_8),
                     StringResultContract.SERVICE_RESULT);
         } catch (Exception e) {
             return DapResults.failure("ReadConflictFile", e, StringResultContract.SERVICE_RESULT);
+        } finally {
+            if (fileRepo != null) fileRepo.close();
         }
     }
 
     @DapServicePayload(StringResultSpec.class)
     @ThingworxServiceDefinition(
             name = "WriteConflictFile",
-            description = "Writes a UI-resolved repository file while a merge or rebase is paused.",
+            description =
+                    "Writes the working-tree copy of a file that is currently in conflict. Other paths are refused.",
             category = "",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
@@ -2128,15 +2819,26 @@ public class GitRepositoryShape extends Thing {
                             description = "Resolved file content",
                             baseType = "STRING")
                     String Content) {
+        FileRepositoryManager fileRepo = null;
         try {
-            var fileRepo = new FileRepositoryManager(resolveTargetThing());
-            fileRepo.fileRepository().SaveText(File, Content == null ? "" : Content);
+            fileRepo = new FileRepositoryManager(resolveTargetThing());
+            java.nio.file.Path file = fileRepo.requireConflictFile(File, true);
+            Files.createDirectories(file.getParent());
+            Files.write(
+                    file,
+                    (Content == null ? "" : Content).getBytes(StandardCharsets.UTF_8),
+                    java.nio.file.StandardOpenOption.CREATE,
+                    java.nio.file.StandardOpenOption.TRUNCATE_EXISTING,
+                    java.nio.file.StandardOpenOption.WRITE,
+                    java.nio.file.LinkOption.NOFOLLOW_LINKS);
             return DapResults.success(
                     "WriteConflictFile",
                     "Wrote conflict file " + File,
                     StringResultContract.SERVICE_RESULT);
         } catch (Exception e) {
             return DapResults.failure("WriteConflictFile", e, StringResultContract.SERVICE_RESULT);
+        } finally {
+            if (fileRepo != null) fileRepo.close();
         }
     }
 
@@ -2795,12 +3497,14 @@ public class GitRepositoryShape extends Thing {
         PastedKeyGpgSigner[] signer = new PastedKeyGpgSigner[1];
         try {
             fileRepo = new FileRepositoryManager(resolveTargetThing());
+            // Fail before the operation completes if the import that follows would be refused.
+            fileRepo.requireImportPermissions();
             Git git = fileRepo.git();
             String operation = ConflictWorkflow.state(git).operation();
-            ValueCollection identity =
-                    new GitUserContextManager().credentialsFor(resolveTargetThing().getName());
-            String name = identity.getStringValue(Const.GitCommitterName);
-            String email = identity.getStringValue(Const.GitCommitterEmail);
+            GitUserContextManager.Identity identity =
+                    new GitUserContextManager().identityFor(resolveTargetThing().getName());
+            String name = identity.name();
+            String email = identity.email();
             RepositoryState repositoryState = git.getRepository().getRepositoryState();
             boolean merging =
                     repositoryState == RepositoryState.MERGING
@@ -2859,6 +3563,8 @@ public class GitRepositoryShape extends Thing {
         FileRepositoryManager fileRepo = null;
         try {
             fileRepo = new FileRepositoryManager(resolveTargetThing());
+            // Fail before the operation completes if the import that follows would be refused.
+            fileRepo.requireImportPermissions();
             Git git = fileRepo.git();
             String operation = ConflictWorkflow.state(git).operation();
             if (ConflictWorkflow.skip(git) == ConflictWorkflow.Outcome.CONFLICTS)
@@ -3336,8 +4042,8 @@ public class GitRepositoryShape extends Thing {
                 "dataShape:GIT.TrackedProject.ServiceResult.DataShape"
             })
     /**
-     * Lists tracked projects. A repository configured with only the legacy {@code ProjectName}
-     * property reports that project.
+     * Lists tracked projects with their configured {@code Path} (blank for the default {@code
+     * <ProjectName>} folder at the repository root).
      *
      * @return a {@code GIT.TrackedProject.ServiceResult.DataShape} table
      */
@@ -3348,7 +4054,9 @@ public class GitRepositoryShape extends Thing {
                 return DapResults.success(
                         "GetTrackedProjects",
                         TrackedProjectTable.SERVICE_RESULT,
-                        TrackedProjectTable.wrap(projectTable(fileRepo.trackedProjects())));
+                        TrackedProjectTable.wrap(
+                                FileRepositoryManager.trackedProjectTable(
+                                        fileRepo.trackedProjectEntries())));
             } finally {
                 fileRepo.close();
             }
@@ -3419,6 +4127,8 @@ public class GitRepositoryShape extends Thing {
      * repository operation; nothing is staged.
      *
      * @param ProjectName an existing, trackable ThingWorx project
+     * @param Path optional folder for the project's entities, relative to the repository root;
+     *     blank means {@code <ProjectName>} at the repository root
      * @return a {@code GIT.StringResult.DataShape} status table
      */
     public InfoTable AddTrackedProject(
@@ -3426,11 +4136,19 @@ public class GitRepositoryShape extends Thing {
                             name = "ProjectName",
                             description = "ThingWorx project to track",
                             baseType = "STRING")
-                    String ProjectName) {
+                    String ProjectName,
+            @ThingworxServiceParameter(
+                            name = "Path",
+                            description =
+                                    "Optional folder for the project's entities, relative to the repository root; blank means <ProjectName> at the repository root",
+                            baseType = "STRING")
+                    String Path) {
         String repoName = "";
         try {
             String name = FileRepositoryManager.validateProjectFolderName(ProjectName);
-            var project = EntityUtilities.findEntity(name, ThingworxRelationshipTypes.Project);
+            String path = FileRepositoryManager.validateProjectPath(Path);
+            // A project the caller may not see or read is reported exactly like a missing one.
+            var project = FileRepositoryManager.findAccessibleProject(name);
             if (project == null) {
                 throw new IllegalArgumentException(
                         String.format(Const.ERR_PROJECT_NOT_FOUND, name));
@@ -3443,18 +4161,22 @@ public class GitRepositoryShape extends Thing {
             repoName = fileRepo.repositoryThingName();
             try {
                 synchronized (StatusExportReconciler.class) {
-                    List<String> projects = new ArrayList<>(fileRepo.trackedProjects());
-                    if (projects.contains(name)) {
+                    var projects = new ArrayList<>(fileRepo.trackedProjectEntries());
+                    if (projects.stream().anyMatch(p -> p.name().equals(name))) {
                         throw new IllegalArgumentException(
                                 "Project '" + name + "' is already tracked.");
                     }
-                    projects.add(name);
+                    projects.add(new FileRepositoryManager.TrackedProject(name, path));
                     fileRepo.setTrackedProjects(projects);
                 }
             } finally {
                 fileRepo.close();
             }
-            String message = "Project '" + name + "' is now tracked.";
+            String message =
+                    "Project '"
+                            + name
+                            + "' is now tracked"
+                            + (path.isEmpty() ? "." : " in folder '" + path + "'.");
             GitActionLogger.logAction("AddTrackedProject", repoName, message);
             return DapResults.success(
                     "AddTrackedProject", message, StringResultContract.SERVICE_RESULT);
@@ -3480,8 +4202,9 @@ public class GitRepositoryShape extends Thing {
             aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
     /**
      * Removes a project from the tracked list. ThingWorx entities are never deleted. When {@code
-     * DeleteFiles} is true, {@code <RepoPath>/<ProjectName>/} is deleted from the working tree and
-     * the deletion is left unstaged for review in Changes.
+     * DeleteFiles} is true, the project folder (its {@code Path}, or {@code <ProjectName>/} at the
+     * root) is deleted from the working tree and the deletion is left unstaged for review in
+     * Changes.
      *
      * @param ProjectName a tracked project
      * @param DeleteFiles whether to delete the project's exported folder
@@ -3507,13 +4230,15 @@ public class GitRepositoryShape extends Thing {
             boolean deleted = false;
             try {
                 synchronized (StatusExportReconciler.class) {
-                    List<String> projects = new ArrayList<>(fileRepo.trackedProjects());
-                    if (!projects.remove(name)) {
+                    var projects = new ArrayList<>(fileRepo.trackedProjectEntries());
+                    var removed = projects.stream().filter(p -> p.name().equals(name)).findFirst();
+                    if (removed.isEmpty()) {
                         throw new IllegalArgumentException(
                                 "Project '" + name + "' is not tracked.");
                     }
+                    projects.remove(removed.get());
                     if (Boolean.TRUE.equals(DeleteFiles)) {
-                        deleted = fileRepo.deleteProjectExport(name);
+                        deleted = fileRepo.deleteProjectExport(removed.get());
                     }
                     fileRepo.setTrackedProjects(projects);
                 }
@@ -3537,6 +4262,106 @@ public class GitRepositoryShape extends Thing {
                     "RemoveTrackedProject", repoName, String.valueOf(e.getMessage()));
             return DapResults.failure(
                     "RemoveTrackedProject", e, StringResultContract.SERVICE_RESULT);
+        }
+    }
+
+    @DapServicePayload(StringResultSpec.class)
+    @ThingworxServiceDefinition(
+            name = "SetTrackedProjectPath",
+            description =
+                    "Changes the repository folder a tracked project's entities are exported to and imported from",
+            category = "Projects",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "Result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
+    /**
+     * Sets a tracked project's folder. Unless {@code MoveFiles} is false, the files in the old
+     * folder are moved to the new one like {@code git mv}: tracked files are renamed in the index
+     * with their staged content unchanged and untracked files are moved on disk. Nothing is moved
+     * or changed when a destination file already exists, when one folder contains the other, or
+     * while a conflict is in progress. The renames appear in Changes for review and commit.
+     *
+     * @param ProjectName a tracked project
+     * @param Path folder relative to the repository root; blank means {@code <ProjectName>} at the
+     *     repository root
+     * @param MoveFiles whether to move the project's files; blank means true
+     * @return a {@code GIT.StringResult.DataShape} status table
+     */
+    public InfoTable SetTrackedProjectPath(
+            @ThingworxServiceParameter(
+                            name = "ProjectName",
+                            description = "Tracked ThingWorx project",
+                            baseType = "STRING")
+                    String ProjectName,
+            @ThingworxServiceParameter(
+                            name = "Path",
+                            description =
+                                    "Folder for the project's entities, relative to the repository root; blank means <ProjectName> at the repository root",
+                            baseType = "STRING")
+                    String Path,
+            @ThingworxServiceParameter(
+                            name = "MoveFiles",
+                            description =
+                                    "Move the project's files from the old folder to the new one, like git mv; blank means true",
+                            baseType = "BOOLEAN")
+                    Boolean MoveFiles) {
+        String repoName = "";
+        try {
+            String name = FileRepositoryManager.validateProjectFolderName(ProjectName);
+            String path = FileRepositoryManager.validateProjectPath(Path);
+            boolean move = !Boolean.FALSE.equals(MoveFiles);
+            var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            repoName = fileRepo.repositoryThingName();
+            FileRepositoryManager.FolderChange change;
+            try {
+                synchronized (StatusExportReconciler.class) {
+                    var projects = new ArrayList<>(fileRepo.trackedProjectEntries());
+                    int index = -1;
+                    for (int i = 0; i < projects.size(); i++) {
+                        if (projects.get(i).name().equals(name)) index = i;
+                    }
+                    if (index < 0) {
+                        throw new IllegalArgumentException(
+                                "Project '" + name + "' is not tracked.");
+                    }
+                    change = fileRepo.changeProjectFolder(projects, index, path, move);
+                }
+            } finally {
+                fileRepo.close();
+            }
+            String message =
+                    "Project '"
+                            + name
+                            + "' now uses folder '"
+                            + change.to()
+                            + "'. "
+                            + (change.from().equals(change.to())
+                                    ? "The folder is unchanged."
+                                    : !move
+                                            ? "Existing files in '"
+                                                    + change.from()
+                                                    + "' were not moved."
+                                            : change.moved() == 0
+                                                    ? "There were no files to move."
+                                                    : change.moved()
+                                                            + (change.moved() == 1
+                                                                    ? " file was"
+                                                                    : " files were")
+                                                            + " moved from '"
+                                                            + change.from()
+                                                            + "'; review and commit the move in Changes.");
+            GitActionLogger.logAction("SetTrackedProjectPath", repoName, message);
+            return DapResults.success(
+                    "SetTrackedProjectPath", message, StringResultContract.SERVICE_RESULT);
+        } catch (Exception e) {
+            GitActionLogger.logAction(
+                    "SetTrackedProjectPath", repoName, String.valueOf(e.getMessage()));
+            return DapResults.failure(
+                    "SetTrackedProjectPath", e, StringResultContract.SERVICE_RESULT);
         }
     }
 
@@ -3607,6 +4432,8 @@ public class GitRepositoryShape extends Thing {
         }
         try {
             var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            // Fail before any Git change if the later import would be refused.
+            fileRepo.requireSyncPermissions();
             fileRepo.exportProjectEntities();
             Git myGitFolder = fileRepo.git();
             ObjectId mergeBase = myGitFolder.getRepository().resolve(BranchName);
@@ -3672,6 +4499,8 @@ public class GitRepositoryShape extends Thing {
         }
         try {
             var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            // Fail before any Git change if the later import would be refused.
+            fileRepo.requireSyncPermissions();
             fileRepo.exportProjectEntities();
             Git myGitFolder = fileRepo.git();
             ObjectId upstream = myGitFolder.getRepository().resolve(UpstreamBranch);

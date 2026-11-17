@@ -54,7 +54,7 @@ class ForcePullTest {
                                 .setAuthor("Test", "test@example.com")
                                 .call();
                 source.push().setRemote("origin").call();
-                ForcePull.resetToOrigin(local, null);
+                ForcePull.resetToRemote(local, null, null);
                 assertEquals(remoteCommit.getId(), local.getRepository().resolve("HEAD"));
                 assertEquals("remote update", Files.readString(localFile));
                 assertEquals("keep", Files.readString(directory.resolve("local/untracked.txt")));
@@ -81,7 +81,8 @@ class ForcePullTest {
             config.setString("remote", "origin", "url", remote.toUri().toString());
             config.setString("remote", "origin", "fetch", "+refs/heads/*:refs/remotes/origin/*");
             config.save();
-            assertThrows(IllegalStateException.class, () -> ForcePull.resetToOrigin(local, null));
+            assertThrows(
+                    IllegalStateException.class, () -> ForcePull.resetToRemote(local, null, null));
             assertEquals(commit.getId(), local.getRepository().resolve("HEAD"));
             assertEquals("dirty", Files.readString(file));
         }

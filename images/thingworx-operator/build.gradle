@@ -48,6 +48,7 @@ tasks.register('pushImage') {
             "ghcr.io/us-ignite/thingworx/thingworx-operator:${localVersion}",
             'ghcr.io/us-ignite/thingworx/thingworx-operator:latest',
         ]
+        project.ext.assertNoImageLicences(tags)
         tags.each { tag ->
             println "Pushing ${tag}..."
             project.ext.dockerPush(tag)

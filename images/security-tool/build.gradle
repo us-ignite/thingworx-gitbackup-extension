@@ -79,6 +79,9 @@ tasks.register('fetchJdk') {
     def localBuildDir = new File(IMG_BUILD_DIR).canonicalPath
     def localTwx = ALL_TWX
     doLast {
+        def tags = localTwx.collect { twxVersion, cfg -> "ghcr.io/us-ignite/thingworx/security-tool:${cfg.versionTag}" }
+        tags << 'ghcr.io/us-ignite/thingworx/security-tool:latest'
+        project.ext.assertNoImageLicences(tags)
         localTwx.each { twxVersion, cfg ->
             def archiveName = twxVersion == '9.6' ? jdkCorretto11 : jdkCorretto21
             def stage = new File("${localBuildDir}/vendor-extracted/security-tool/${twxVersion}/staging")

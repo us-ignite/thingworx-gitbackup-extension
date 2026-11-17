@@ -1,6 +1,26 @@
 /* Repository settings and tracked projects share the page card treatment. */
 [id$="repository-settings-card"],
-[id$="settings-projects"] {
+[id$="settings-projects"],
+[id$="settings-projects-add"],
+[id$="settings-remotes"] {
   align-self: stretch !important;
   padding: var(--git-card-inset);
+}
+
+/*
+ * Connection setup, sign-in and the SSH host key are sections of the Remotes card, each below a
+ * divider, and all apply to the remote selected in the list.
+ */
+[id$="settings-remote-status"],
+[id$="settings-signin"],
+[id$="settings-hostkey"] {
+  align-self: stretch !important;
+  border-top: 1px solid var(--git-border);
+  margin-top: 12px !important;
+  padding-top: 8px;
+}
+
+/* The connection checklist keeps its line breaks and indentation. */
+[id$="settings-status-list"] {
+  line-height: 1.6;
 }

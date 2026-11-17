@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: adminpass_P@ssw0rd!
       POSTGRES_DB: postgres
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
@@ -67,7 +67,7 @@ services:
     image: ghcr.io/us-ignite/thingworx/platform-postgres:10.2.1-openjdk
     container_name: twx-platform
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     environment:
       DATABASE_HOST: postgresql
       DATABASE_PORT: "5432"
@@ -84,6 +84,10 @@ services:
       ENABLE_CONSOLE_OUTPUT: "true"
       CATALINA_OPTS: -Xms1g -Xmx2g --add-opens=java.base/java.net=ALL-UNNAMED
       THINGWORX_PLATFORM_SCRIPTTIMEOUT: "30"
+      # The bundled Gitea container is on a private Docker address. Add any other internal
+      # Git servers here; public hosts do not need to be listed. Credentials are still only
+      # sent over HTTP when THINGWORX_JGIT_ALLOW_INSECURE_CREDENTIALS is explicitly true.
+      THINGWORX_JGIT_NETWORK_ALLOWLIST: ${THINGWORX_JGIT_NETWORK_ALLOWLIST:-gitea}
       TOMCAT_KEEPALIVETIMEOUT: "20000"
       TOMCAT_CONNECTIONTIMEOUT: "20000"
       TOMCAT_MAXCONNECTION: "10000"
@@ -120,12 +124,18 @@ services:
     image: gitea/gitea:1.20.4
     container_name: twx-gitea
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
+      # SSH for testing ssh:// remotes. ThingWorx reaches it as gitea:22 on the
+      # Docker network; the host can clone through localhost:2222.
+      - "127.0.0.1:2222:22"
     environment:
       GITEA__security__INSTALL_LOCK: "true"
       GITEA__server__DOMAIN: localhost
       GITEA__server__HTTP_PORT: "3000"
       GITEA__server__ROOT_URL: "http://localhost:3000/"
+      GITEA__server__DISABLE_SSH: "false"
+      GITEA__server__SSH_DOMAIN: gitea
+      GITEA__server__SSH_PORT: "22"
       GITEA__database__DB_TYPE: sqlite3
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:3000/ > /dev/null 2>&1 || exit 1"]
@@ -195,7 +205,7 @@ services:
       GITEA_PASSWORD: giteapass123
       GITEA_REPO_NAME: jgit-test-repo
       DEMO_REPO_NAME: demo
-      DEMO_REPO_PATH: examples/thingworx-jgit-extension-export
+      DEMO_PROJECT_PATH: examples/thingworx-jgit-extension-export/Example
       DEMO_PROJECT_NAME: Example
     depends_on:
       thingworx:

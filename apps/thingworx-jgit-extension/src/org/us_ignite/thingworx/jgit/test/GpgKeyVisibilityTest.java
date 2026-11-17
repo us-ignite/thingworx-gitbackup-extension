@@ -179,6 +179,7 @@ public class GpgKeyVisibilityTest {
                 "ci-signing-key",
                 firstRow.get("GpgKeyLabel").getAsString(),
                 "GpgKeyLabel should match the one we set");
+        assertNoSecrets("GpgKeyList", getRes.body());
 
         var getByLabelBody = new JsonObject();
         getByLabelBody.addProperty("GpgKeyLabel", "ci-signing-key");
@@ -203,15 +204,64 @@ public class GpgKeyVisibilityTest {
                 testFingerprint,
                 labelRows.get(0).getAsJsonObject().get("GpgKeyFingerprint").getAsString(),
                 "Get by label should return the matching key");
+        assertNoSecrets("GpgKeyGet", getByLabelRes.body());
+
+        // Renaming without resupplying the key must keep the stored key usable.
+        var renameBody = new JsonObject();
+        renameBody.addProperty("GpgKeyFingerprint", testFingerprint);
+        renameBody.addProperty("GpgKeyLabel", "ci-signing-key-renamed");
+        renameBody.addProperty("GpgPrivateKey", "");
+        renameBody.addProperty("GpgKeyPassphrase", "");
+        var renameReq =
+                stack.thingworx
+                        .serviceRequest("GIT.Utility.Thing", "GpgKeyUpdate", renameBody.toString())
+                        .timeout(Duration.ofSeconds(10))
+                        .build();
+        var renameRes = stack.httpClient.send(renameReq, HttpResponse.BodyHandlers.ofString());
+        assertSuccess(renameRes.body());
+        var verifyBody = new JsonObject();
+        verifyBody.addProperty("GpgKeyLabel", "ci-signing-key-renamed");
+        var verifyReq =
+                stack.thingworx
+                        .serviceRequest("GIT.Utility.Thing", "VerifyGpgKey", verifyBody.toString())
+                        .timeout(Duration.ofSeconds(10))
+                        .build();
+        var verifyRes = stack.httpClient.send(verifyReq, HttpResponse.BodyHandlers.ofString());
+        var verifyRows = responseRows(verifyRes.body());
+        assertEquals(1, verifyRows.size(), "Renamed key should verify: " + verifyRes.body());
+        assertTrue(
+                verifyRows.get(0).getAsJsonObject().get("Valid").getAsBoolean(),
+                "A blank GpgPrivateKey on update must keep the stored key: " + verifyRes.body());
 
         var deleteBody = new JsonObject();
-        deleteBody.addProperty("GpgKeyLabel", "ci-signing-key");
+        deleteBody.addProperty("GpgKeyLabel", "ci-signing-key-renamed");
         var deleteReq =
                 stack.thingworx
                         .serviceRequest("GIT.Utility.Thing", "GpgKeyDelete", deleteBody.toString())
                         .timeout(Duration.ofSeconds(10))
                         .build();
-        stack.httpClient.send(deleteReq, HttpResponse.BodyHandlers.ofString());
+        var deleteRes = stack.httpClient.send(deleteReq, HttpResponse.BodyHandlers.ofString());
+        assertNoSecrets("GpgKeyDelete", deleteRes.body());
+    }
+
+    /**
+     * Key services return fingerprint and label only: no row may carry a value for the private key
+     * or passphrase, and the armored key and passphrase must not appear anywhere in the response.
+     */
+    private void assertNoSecrets(String service, String body) {
+        for (var element : responseRows(body)) {
+            var row = element.getAsJsonObject();
+            for (String field : new String[] {"GpgPrivateKey", "GpgKeyPassphrase"}) {
+                assertTrue(
+                        !row.has(field)
+                                || row.get(field).isJsonNull()
+                                || row.get(field).getAsString().isEmpty(),
+                        service + " must not return " + field);
+            }
+        }
+        assertTrue(
+                !body.contains("BEGIN PGP PRIVATE KEY") && !body.contains("test-passphrase"),
+                service + " response must not contain key material");
     }
 
     @Test

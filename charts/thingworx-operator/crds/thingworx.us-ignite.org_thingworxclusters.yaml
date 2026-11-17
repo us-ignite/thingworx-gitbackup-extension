@@ -90,11 +90,15 @@ spec:
                       additionalProperties: {type: string}
                 ingress:
                   type: object
+                  x-kubernetes-validations:
+                    - rule: "!has(self.host) || ((has(self.tlsSecretName) && size(self.tlsSecretName) > 0) || (has(self.certManagerIssuer) && size(self.certManagerIssuer) > 0) || (has(self.trustedUpstreamTls) && self.trustedUpstreamTls))"
+                      message: "ingress host requires TLS or an explicitly trusted upstream TLS terminator"
                   properties:
-                    host: {type: string}
+                    host: {type: string, minLength: 1, pattern: '\S'}
                     className: {type: string}
-                    tlsSecretName: {type: string}
-                    certManagerIssuer: {type: string}
+                    tlsSecretName: {type: string, minLength: 1, pattern: '\S'}
+                    certManagerIssuer: {type: string, minLength: 1, pattern: '\S'}
+                    trustedUpstreamTls: {type: boolean, default: false}
                 settingsConfigMap: {type: string}
                 licenseSecret: {type: string}
                 imagePullSecret: {type: string}

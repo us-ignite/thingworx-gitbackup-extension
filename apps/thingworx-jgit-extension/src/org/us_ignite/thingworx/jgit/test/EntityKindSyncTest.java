@@ -245,15 +245,18 @@ public class EntityKindSyncTest {
     }
 
     private JsonObject repositoryCreateBody() {
-        JsonObject field = new JsonObject();
-        field.addProperty("name", "ProjectName");
-        field.addProperty("baseType", "STRING");
         JsonObject fields = new JsonObject();
-        fields.add("ProjectName", field);
+        for (String name : new String[] {"ProjectName", "Path"}) {
+            JsonObject field = new JsonObject();
+            field.addProperty("name", name);
+            field.addProperty("baseType", "STRING");
+            fields.add(name, field);
+        }
         JsonObject shape = new JsonObject();
         shape.add("fieldDefinitions", fields);
         JsonObject row = new JsonObject();
         row.addProperty("ProjectName", PROJECT);
+        row.addProperty("Path", REPO_PATH + "/" + PROJECT);
         JsonArray rows = new JsonArray();
         rows.add(row);
         JsonObject tracked = new JsonObject();
@@ -265,7 +268,6 @@ public class EntityKindSyncTest {
         body.addProperty(
                 "GitRepoURL",
                 "http://gitea:3000/" + credentials.giteaUser + "/" + credentials.repoName + ".git");
-        body.addProperty("RepoPath", "/" + REPO_PATH);
         body.addProperty("BranchName", "main");
         body.add("TrackedProjects", tracked);
         body.addProperty("GitCommitterUser", credentials.giteaUser);
