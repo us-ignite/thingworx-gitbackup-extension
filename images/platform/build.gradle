@@ -381,6 +381,12 @@ tasks.register('pushAll') {
         ]
         def allVariants = ['openjdk', 'corretto', 'graalvm']
         def pfx = 'ghcr.io/us-ignite/thingworx'
+        def tags = allVersions.collectMany { vcfg ->
+            allVariants.collectMany { v ->
+                ['base', 'platform-base', 'platform-postgres', 'postgres-init'].collect { img -> "${pfx}/${img}:${vcfg.platformVersion}-${v}" }
+            } + ['base', 'platform-base', 'platform-postgres', 'postgres-init'].collect { img -> "${pfx}/${img}:${vcfg.platformVersion}" }
+        }
+        project.ext.assertNoImageLicences(tags)
         allVersions.each { vcfg ->
             allVariants.each { v ->
                 ['base', 'platform-base', 'platform-postgres', 'postgres-init'].each { img ->

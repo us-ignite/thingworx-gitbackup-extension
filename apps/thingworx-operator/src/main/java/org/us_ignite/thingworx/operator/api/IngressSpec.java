@@ -1,11 +1,12 @@
 package org.us_ignite.thingworx.operator.api;
 
-/** Ingress exposure. Set either tlsSecretName or certManagerIssuer. */
+/** Ingress exposure. Configure TLS or explicitly acknowledge a trusted upstream TLS terminator. */
 public class IngressSpec {
     private String host;
     private String className;
     private String tlsSecretName;
     private String certManagerIssuer;
+    private boolean trustedUpstreamTls;
 
     public String getHost() {
         return host;
@@ -37,5 +38,13 @@ public class IngressSpec {
 
     public void setCertManagerIssuer(String value) {
         certManagerIssuer = value;
+    }
+
+    public boolean isTrustedUpstreamTls() {
+        return trustedUpstreamTls;
+    }
+
+    public void setTrustedUpstreamTls(boolean value) {
+        trustedUpstreamTls = value;
     }
 }

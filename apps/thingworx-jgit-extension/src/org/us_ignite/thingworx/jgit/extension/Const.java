@@ -3,12 +3,25 @@ package org.us_ignite.thingworx.jgit.extension;
 public final class Const {
     // GIT Configuration names
     public static final String GitRepoURL = "GitRepoURL";
+
+    /** Retired Thing property; converted into TrackedProjects by the upgrade. */
     public static final String RepoPath = "RepoPath";
+
     public static final String InitialBranch = "BranchName";
     public static final String DefaultProjectToExport = "DefaultExportProject";
     public static final String LocalizationTokensPrefix = "LocalizationTokensPrefix";
+
+    /** Column of GIT.TrackedProject.DataShape holding the project name. */
     public static final String ProjectName = "ProjectName";
+
+    /** Retired single-project Thing property; converted into TrackedProjects by the upgrade. */
+    public static final String LegacyProjectName = "ProjectName";
+
     public static final String TrackedProjects = "TrackedProjects";
+
+    /** Optional repository-relative entity folder of a tracked project. */
+    public static final String TrackedProjectPath = "Path";
+
     public static final String TrackedProjectDataShapeName = "GIT.TrackedProject.DataShape";
     public static final String GitRepoURLDefaultValue = "";
 
@@ -35,9 +48,20 @@ public final class Const {
     public static final String MaxDiffSize = "MaxDiffSize";
     public static final String GitCommitterUser = "GitCommitterUser";
     public static final String GitCommitterPassword = "GitCommitterPassword";
+
+    /** User-level commit identity, like git's user.name and user.email. */
+    public static final String GitUserName = "GitUserName";
+
+    public static final String GitUserEmail = "GitUserEmail";
     public static final String GitCommitterName = "GitCommitterFullName";
     public static final String GitCommitterEmail = "GitCommitterEmail";
     public static final String UserRepositoryConfiguration = "UserRepositoryConfiguration";
+
+    /**
+     * Newline-separated remote origins this user's stored credentials were approved for. Changing a
+     * remote URL requires saving the settings again before the token is sent to the new URL.
+     */
+    public static final String ApprovedRemoteOrigins = "ApprovedRemoteOrigins";
 
     // GPG Key related constants
     public static final String UserGpgKeys = "UserGpgKeys";
@@ -51,6 +75,22 @@ public final class Const {
     public static final String UserGpgKeyDataShapeName = "GIT.GpgKey.UserExtension.DataShape";
     public static final String GpgKeyVerificationResultDataShapeName =
             "GIT.GpgKeyVerificationResult.DataShape";
+
+    // SSH key related constants
+    public static final String UserSshKeys = "UserSshKeys";
+    public static final String SshKeyFingerprint = "SshKeyFingerprint";
+    public static final String SshPrivateKey = "SshPrivateKey";
+    public static final String SshKeyPassphrase = "SshKeyPassphrase";
+    public static final String SshPublicKey = "SshPublicKey";
+    public static final String SshKeyLabel = "SshKeyLabel";
+    public static final String UserSshKeyDataShapeName = "GIT.SshKey.UserExtension.DataShape";
+    public static final String SshKeySummaryDataShapeName = "GIT.SshKeySummary.DataShape";
+
+    // Per-remote sign-in. A remote without its own row uses the repository row, if any.
+    public static final String UserRemoteCredentials = "UserRemoteCredentials";
+    public static final String RemoteCredentialsDataShapeName =
+            "GIT.RemoteCredentials.UserExtension.DataShape";
+    public static final String RemoteName = "Remote";
 
     // Error message constants
     public static final String ERR_PREFIX_CONFIG = "[CONFIG] ";
@@ -70,14 +110,24 @@ public final class Const {
     public static final String ERR_CONFLICTS_STOPPED =
             "%s stopped because of conflicts in %d file(s). Resolve the conflicts, or cancel to restore the repository.";
 
-    public static final String ERR_NO_REPO_URL =
-            "No Git repository URL configured. Set the GitRepoURL Thing property and restart the Thing.";
-    public static final String ERR_NO_REPO_URL_PUSH =
-            "No Git repository URL configured for this thing. Set the GitRepoURL Thing property.";
     public static final String ERR_NO_CREDENTIALS =
-            "Missing Git credentials (username/password). Configure credentials for this repository in the current user's ThingWorx UserExtensions properties.";
+            "The remote requires authentication, but no Git credentials are saved for this repository. Add a username and password or token in Repository Settings.";
+    public static final String ERR_CREDENTIALS_OTHER_SERVER =
+            "The remote redirected to another server (%s), which asked for sign-in. Saved credentials are only sent to the server in the remote URL. Update the remote URL in Repository Settings if the repository has moved.";
+    public static final String ERR_NO_SSH_KEY =
+            "This repository uses an SSH remote, but no SSH key is selected. Generate or import an SSH key and select it in Repository Settings.";
+    public static final String ERR_SSH_AUTH_FAILED =
+            "The SSH server rejected the selected key. Add its public key to your account on the Git server, or select a different key in Repository Settings.";
+    public static final String ERR_SSH_HOST_KEY_CHANGED =
+            "The SSH server's host key is not trusted or does not match the approved key. Probe the host key, compare its fingerprint with the Git server operator, and approve it in Repository Settings; otherwise do not connect.";
+    public static final String ERR_CREDENTIALS_NOT_APPROVED =
+            "Saved credentials are not approved for this remote URL. Save Repository Settings again to approve the current remote origin before connecting.";
+    public static final String ERR_CREDENTIALS_INSECURE =
+            "Saved credentials are never sent over plain HTTP. Use an https:// remote URL, or an SSH remote with an SSH key.";
+    public static final String ERR_AUTH_FAILED_GENERIC =
+            "The remote rejected the saved credentials. Check the username and password or token in Repository Settings.";
     public static final String ERR_NO_COMMITTER =
-            "Missing committer identity (name/email). Configure 'GitCommitterFullName' and 'GitCommitterEmail' in the current user's ThingWorx UserExtensions properties.";
+            "Your commit name and email are not set. Add them under Commit identity in Settings.";
     public static final String ERR_COMMIT_MESSAGE_REQUIRED = "Commit message is required.";
     public static final String ERR_NO_STAGED_CHANGES =
             "No staged changes to commit. Stage files before committing.";

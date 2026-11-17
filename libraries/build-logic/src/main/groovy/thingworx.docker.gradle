@@ -51,6 +51,17 @@ ext.dockerPush = { String tag ->
     }
 }
 
+// Inspect every image layer before the first push. A final-filesystem export
+// misses licence files deleted in later layers. The scanner fails closed.
+ext.assertNoImageLicences = { Collection<String> tags ->
+    def scanner = new File(rootDir, 'images/scripts/check-image-licenses.py')
+    def proc = new ProcessBuilder(['python3', scanner.absolutePath] + tags.collect { it.toString() })
+        .inheritIO().start()
+    if (proc.waitFor() != 0) {
+        throw new GradleException('Image licence layer scan failed; no images were pushed')
+    }
+}
+
 // Shared `build/` staging cleanup. Root `clean` aggregates `cleanVendor`.
 tasks.register('cleanImages', Delete) {
     description = 'Delete all extracted vendor files and build contexts'

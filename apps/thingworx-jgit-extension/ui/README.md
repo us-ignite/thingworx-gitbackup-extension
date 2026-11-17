@@ -6,7 +6,7 @@ the default item in the Git menu. `src/HomeNavigation.ts` is embedded during
 packaging by `embedHomeNavigation`.
 
 `Mashups_GIT.Mashup.RepositoryCreate.xml` is the New Repository form, opened from the **New repository**
-button in the Home header. It collects the repository name, remote URL, initial branch, storage path,
+button in the Home header. It collects the repository name, remote URL, initial branch,
 optional credentials and signing key, tracked projects (from `GetTrackableProjects`), and proxy and
 localization options, then calls `RepositoryCreate`. A signing key is applied afterwards with
 `SetGPGKeyForSigning` on the new Thing. On success it opens Repository Settings for the new repository.
@@ -16,6 +16,13 @@ localization options, then calls `RepositoryCreate`. A signing key is applied af
 committer identity, and signing key for the selected repository. A blank password
 keeps an existing password. `src/RepositorySettings.ts` is embedded by
 `embedRepositorySettings`; the user-level Settings mashup manages reusable GPG keys.
+Its Tracked ThingWorx projects card lists each project with its folder in the repository
+(`GetTrackedProjects`; a project without a folder of its own shows `<ProjectName>/ (default)`).
+Selecting one project fills **Folder of selected project** with its folder; **Change folder**
+(`SetTrackedProjectPath`) applies it, a blank field meaning the default folder, and with **Move
+existing files** checked (the default) moves the project's files like `git mv`. **Remove selected**
+stops tracking the selected projects. The separate Add a tracked project card has its own project
+list, **Folder (optional)** field and message, and calls `AddTrackedProject`.
 
 `Mashups_GIT.Mashup.Changes.xml` uses the repository selected on Home and provides working-tree
 status, selected-file stage/unstage/untrack actions, Remove Source Files, Remove from Everywhere, and
@@ -24,7 +31,13 @@ Remove Source Files deletes the selected files and stages tracked deletions, but
 entities in place. The Git Changes menu item is in
 `Menus_GIT.Menu.GitBackup.xml`.
 
-Every page except Home embeds `GIT.Mashup.GitHeader` in a `git-header-slot` container. The shared
+Every page except Home embeds `GIT.Mashup.GitHeader` in a `git-header-slot` container. The
+`git-header-slot` and the page's `*-main` body sit together inside one column container (`<page>-page`,
+`settings-page` on User Settings) rather than directly under the mashup root. The runtime makes each
+top-level container the full viewport height, so a body at the root would be header-height too tall and
+the page would get a second scrollbar. The body is the only scroll container; cards, rows, and grid areas
+inside a column have `flex-shrink: 0`, so a short viewport (for example at 150% display scaling) scrolls
+the page instead of squashing each card into its own scroller. The shared
 header shows the Home breadcrumb, an optional User Settings crumb, an optional repository crumb, the
 page name, and the current branch. It takes these mashup parameters:
 

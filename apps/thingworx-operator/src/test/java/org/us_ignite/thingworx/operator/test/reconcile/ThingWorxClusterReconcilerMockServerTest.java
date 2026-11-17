@@ -43,6 +43,21 @@ class ThingWorxClusterReconcilerMockServerTest {
     KubernetesMockServer server;
 
     @Test
+    void insecureIngressConfigurationRemovesOnlyManagedIngress() {
+        var cluster = cluster();
+        cluster.getSpec().getIngress().setHost("thingworx.example.test");
+        createOrphanIngress("demo-ingress");
+        var result = new ThingWorxClusterReconciler(client).reconcile(cluster, null);
+        assertThat(result.getResource().orElseThrow().getStatus().getPhase()).isEqualTo("INVALID");
+        assertThat(client.network().v1().ingresses().inNamespace("thingworx").withName("demo-ingress").get()).isNull();
+        client.resource(new IngressBuilder()
+                        .withNewMetadata().withName("demo-ingress").withNamespace("thingworx").endMetadata()
+                        .withNewSpec().endSpec().build()).create();
+        new ThingWorxClusterReconciler(client).reconcile(cluster, null);
+        assertThat(client.network().v1().ingresses().inNamespace("thingworx").withName("demo-ingress").get()).isNotNull();
+    }
+
+    @Test
     void creatingAClusterAppliesPrecheckResourcesAndAdvancesToDatabasePhase() {
         var cluster = cluster();
         var reconciler = new ThingWorxClusterReconciler(client);
@@ -692,6 +707,7 @@ class ThingWorxClusterReconcilerMockServerTest {
         cluster.getSpec().getImages().setHaProxy("registry.example/haproxy@sha256:haproxy");
         cluster.getSpec().getIngress().setHost("thingworx.example.test");
         cluster.getSpec().getIngress().setClassName("nginx");
+        cluster.getSpec().getIngress().setTlsSecretName("thingworx-tls");
         var cxKey = new SecretKeyReference();
         cxKey.setName("cx-key");
         cxKey.setKey("key");

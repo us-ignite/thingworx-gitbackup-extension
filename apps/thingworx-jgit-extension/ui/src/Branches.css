@@ -30,7 +30,8 @@
   box-sizing: border-box;
 }
 [id$="branches-list-card"] { min-height: 360px; }
-[id$="branches-create-card"] { flex: 0 0 auto !important; }
+/* The card sits in a row-direction bounding box, so it must grow to fill the width. */
+[id$="branches-create-card"] { flex: 1 1 auto !important; }
 [id$="branches-list-card"] [id$="branches-grid-area"] { flex: 1 1 320px; }
 [id$="branches-create-card"] [id$="flexcontainer-59"],
 [id$="branches-list-card"] [id$="flexcontainer-110"] { flex-wrap: wrap !important; }

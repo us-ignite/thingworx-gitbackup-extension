@@ -232,6 +232,10 @@ tasks.register('pushAll') {
     group = 'publishing'
     dependsOn 'buildAll'
     doLast {
+        def tags = ['9.2.2.2', '9.3.0.4', 'latest'].collect { v -> "ghcr.io/us-ignite/thingworx-cxserver-base:${v}" }
+        tags.addAll(ALL_TWX.keySet().collect { v -> "ghcr.io/us-ignite/thingworx-cxserver:${v}" })
+        tags << 'ghcr.io/us-ignite/thingworx-cxserver:latest'
+        project.ext.assertNoImageLicences(tags)
         ['9.2.2.2', '9.3.0.4'].each { cxVersion ->
             def p = new ProcessBuilder('docker', 'push', "ghcr.io/us-ignite/thingworx-cxserver-base:${cxVersion}").inheritIO().start()
             if (p.waitFor() != 0) throw new GradleException("docker push failed")

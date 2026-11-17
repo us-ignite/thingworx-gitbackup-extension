@@ -246,19 +246,25 @@ public class GiteaGitOperationsTest {
                         + response.body());
     }
 
-    /** Builds a GIT.TrackedProject.DataShape InfoTable payload for RepositoryCreate. */
-    private static JsonObject trackedProjects(String... projects) {
-        JsonObject field = new JsonObject();
-        field.addProperty("name", "ProjectName");
-        field.addProperty("baseType", "STRING");
+    /**
+     * Builds a GIT.TrackedProject.DataShape InfoTable payload for RepositoryCreate, placing each
+     * project in {@code <parent>/<ProjectName>}.
+     */
+    private static JsonObject trackedProjects(String parent, String... projects) {
         JsonObject fields = new JsonObject();
-        fields.add("ProjectName", field);
+        for (String name : new String[] {"ProjectName", "Path"}) {
+            JsonObject field = new JsonObject();
+            field.addProperty("name", name);
+            field.addProperty("baseType", "STRING");
+            fields.add(name, field);
+        }
         JsonObject shape = new JsonObject();
         shape.add("fieldDefinitions", fields);
         com.google.gson.JsonArray rows = new com.google.gson.JsonArray();
         for (String project : projects) {
             JsonObject row = new JsonObject();
             row.addProperty("ProjectName", project);
+            row.addProperty("Path", parent.replaceAll("^/+|/+$", "") + "/" + project);
             rows.add(row);
         }
         JsonObject table = new JsonObject();
@@ -277,9 +283,8 @@ public class GiteaGitOperationsTest {
         JsonObject body = new JsonObject();
         body.addProperty("RepoName", GIT_THING_NAME);
         body.addProperty("GitRepoURL", giteaRepoUrl);
-        body.addProperty("RepoPath", GIT_THING_PATH);
         body.addProperty("BranchName", "main");
-        body.add("TrackedProjects", trackedProjects("GiteaGitOperationsProject"));
+        body.add("TrackedProjects", trackedProjects(GIT_THING_PATH, "GiteaGitOperationsProject"));
         body.addProperty("GitCommitterUser", credentials.giteaUser);
         body.addProperty("GitCommitterPassword", credentials.giteaPass);
         body.addProperty("GitCommitterEmail", "test@example.com");

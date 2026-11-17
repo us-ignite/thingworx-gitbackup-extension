@@ -97,7 +97,12 @@ dependencies {
         exclude group: 'commons-codec'
         exclude group: 'org.slf4j'
     }
-    packageDependencies 'com.jcraft:jsch:0.1.55'
+    // SSH transport for JGit (Apache MINA sshd). Core JGit has no SSH implementation.
+    packageDependencies('org.eclipse.jgit:org.eclipse.jgit.ssh.apache:7.6.0.202603022253-r') {
+        exclude group: 'org.slf4j'
+        exclude group: 'org.bouncycastle'
+        exclude group: 'commons-codec'
+    }
     packageDependencies('org.bouncycastle:bcpg-jdk18on:1.72') {
         exclude group: 'org.slf4j'
         exclude group: 'org.bouncycastle', module: 'bcprov-jdk18on'

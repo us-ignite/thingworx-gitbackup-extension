@@ -1,1 +1,4 @@
 [id$="home-title"] { font-size: 24px; font-weight: 600; }
+/* The runtime centres flex-container bounding boxes with margin: auto, which
+   overrides the header's space-between; pin the actions to the right edge. */
+[id$="home-header-actions-bounding-box"] { margin: 0 0 0 auto !important; }

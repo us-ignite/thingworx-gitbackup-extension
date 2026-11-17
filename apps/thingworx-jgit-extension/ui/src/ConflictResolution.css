@@ -47,7 +47,13 @@
   min-width: 0;
   box-sizing: border-box;
 }
-[id$="conflictresolution-helper-bounding-box"],
+/* The bounding box carries the 5px widget margin, so it stretches rather than
+   taking 100%, which would overflow the page by 10px. */
+[id$="conflictresolution-helper-bounding-box"] {
+  width: auto !important;
+  max-width: none !important;
+  box-sizing: border-box;
+}
 [id$="conflictresolution-helper"] {
   width: 100% !important;
   max-width: none !important;

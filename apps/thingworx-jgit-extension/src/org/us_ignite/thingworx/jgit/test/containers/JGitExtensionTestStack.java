@@ -26,6 +26,10 @@ public class JGitExtensionTestStack extends ThingWorxTestStack {
             boolean enableGitea)
             throws Exception {
         super(dbInitImage, platformImage, credentials, false);
+        // The test stack talks to Gitea by Docker service name over plain HTTP. Production
+        // defaults block private addresses and refuse to send credentials over HTTP.
+        thingworx.withEnv("THINGWORX_JGIT_NETWORK_ALLOWLIST", "gitea");
+        thingworx.withEnv("THINGWORX_JGIT_ALLOW_INSECURE_CREDENTIALS", "true");
         gitea = enableGitea ? new GiteaRepo(network, credentials) : null;
         giteaInit = enableGitea ? new GiteaInit(gitea, network, credentials) : null;
         var zipPath =

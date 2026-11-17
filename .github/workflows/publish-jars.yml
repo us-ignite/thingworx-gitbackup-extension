@@ -21,7 +21,7 @@ jobs:
     outputs:
       dap_version: ${{ steps.version.outputs.changed == 'true' && steps.release.outputs.published == 'false' }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
       - id: version
@@ -51,7 +51,7 @@ jobs:
       contents: write
       packages: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           lfs: true
       - name: Register twx-file filter + decrypt vendor archives
@@ -63,11 +63,11 @@ jobs:
           # filter would never run on files an earlier checkout already wrote.
           rm -f vendor/*.zip vendor/*.gz vendor/*.tar.gz
           git checkout HEAD -- vendor/
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: corretto
           java-version: 21
-      - uses: gradle/actions/setup-gradle@v5
+      - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5
       - name: Verify committed DAP version pair
         shell: bash
         run: |

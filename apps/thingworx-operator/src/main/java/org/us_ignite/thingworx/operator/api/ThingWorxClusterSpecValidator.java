@@ -23,6 +23,14 @@ public final class ThingWorxClusterSpecValidator {
 
     /** Nullable variant for call-sites that historically used {@code String null == valid}. */
     public static String validateSpecNullable(ThingWorxClusterSpec spec) {
+        IngressSpec ingress = spec == null ? null : spec.getIngress();
+        if (ingress != null && ingress.getHost() != null) {
+            if (blank(ingress.getHost())) return "spec.ingress.host must not be blank.";
+            if (blank(ingress.getTlsSecretName()) && blank(ingress.getCertManagerIssuer())
+                    && !ingress.isTrustedUpstreamTls()) {
+                return "spec.ingress requires TLS or an explicitly trusted upstream TLS terminator.";
+            }
+        }
         if (spec == null
                 || spec.getImages() == null
                 || blank(spec.getImages().getPlatform())) {
