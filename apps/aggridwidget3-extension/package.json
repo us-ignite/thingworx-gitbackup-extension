@@ -1,15 +1,15 @@
 {
-  "name": "aggridwidget2-build",
+  "name": "aggridwidget3-build",
   "private": true,
   "workspaces": [
     "ide",
     "runtime"
   ],
   "scripts": {
-    "build": "npm run build --workspace @aggridwidget2/ide && npm run build --workspace @aggridwidget2/runtime && npm run smoke",
+    "build": "npm run build --workspace @aggridwidget3/ide && npm run build --workspace @aggridwidget3/runtime && npm run smoke",
     "smoke": "node scripts/smoke-bundles.cjs",
     "verify:parity": "npm run build && node scripts/differential-bundles.cjs",
-    "typecheck": "npm run typecheck --workspace @aggridwidget2/ide && npm run typecheck --workspace @aggridwidget2/runtime"
+    "typecheck": "npm run typecheck --workspace @aggridwidget3/ide && npm run typecheck --workspace @aggridwidget3/runtime"
   },
   "devDependencies": {
     "@babel/core": "7.29.7",

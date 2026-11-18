@@ -1467,7 +1467,7 @@
                           "Sorting": "none",
                           "Top": 87.19998168945312,
                           "TreePathFieldDelimeter": ",",
-                          "Type": "AgGridWidget2",
+                          "Type": "AgGridWidget3",
                           "Visible": true,
                           "Width": 900,
                           "Z-index": 10,

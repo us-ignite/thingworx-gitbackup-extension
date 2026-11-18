@@ -27,7 +27,7 @@ ext {
 
 def widgetDependencyPackages = [
         [path: ':apps:bmwidgets-extension', zip: 'BMCoreUIWidgets-min-2.9.3.zip'],
-        [path: ':apps:aggridwidget2-extension', zip: 'agGridWidget2-extension-1.0.1.zip'],
+        [path: ':apps:aggridwidget3-extension', zip: 'agGridWidget3-extension-1.0.1.zip'],
         [path: ':apps:git-history-widget-extension', zip: 'GitHistoryWidget-1.0.1.zip'],
 ]
 

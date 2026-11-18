@@ -48,7 +48,7 @@ for (const artifact of ['ide', 'runtime']) {
   context.globalThis = context;
 
   const bundle = path.join(__dirname, '..', 'build', 'vite', artifact,
-    `agGridWidget2.${artifact}.bundle.js`);
+    `agGridWidget3.${artifact}.bundle.js`);
   const source = fs.readFileSync(bundle, 'utf8');
   acorn.parse(source, { ecmaVersion: artifact === 'ide' ? 5 : 2020, sourceType: 'script' });
   vm.runInNewContext(source, context, {
@@ -57,11 +57,12 @@ for (const artifact of ['ide', 'runtime']) {
   });
 
   const registry = artifact === 'ide' ? TW.IDE.Widgets : TW.Runtime.Widgets;
-  assert.equal(typeof registry.AgGridWidget2, 'function');
+  assert.equal(typeof registry.AgGridWidget3, 'function');
   assert.ok(styles.length > 0, `${artifact} styles were not injected`);
   if (artifact === 'runtime') {
     assert.equal(typeof $.fn.multipleSelect, 'function');
-    assert.equal(typeof context.relatedDropdownValues, 'object');
+    // Must not overwrite the original agGridWidget2's global when both are installed.
+    assert.equal(context.relatedDropdownValues, undefined);
   }
-  console.log(`${artifact} bundle registers AgGridWidget2`);
+  console.log(`${artifact} bundle registers AgGridWidget3`);
 }

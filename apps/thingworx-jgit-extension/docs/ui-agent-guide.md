@@ -36,10 +36,10 @@ these imported widgets:
 
 | Widget | Provider | Check before editing |
 | --- | --- | --- |
-| `AgGridWidget2` | `apps/aggridwidget2-extension` | `src/metadata.xml` and the packaged IDE/runtime bundles; the source here is a vendored bundle. |
+| `AgGridWidget3` | `apps/aggridwidget3-extension` | `src/metadata.xml`, `ide/src` and `runtime/src`; packaged as `agGridWidget3` so it never collides with the original `agGridWidget2`. |
 | `BMTypescriptClassHost` | `apps/bmwidgets-extension` / BMCoreUIWidgets | `src/GitHelper.ts`, `src/types/`, and the pinned upstream release described in that extension's README. |
 
-The Branches mashup has one `AgGridWidget2` instance and two
+The Branches mashup has one `AgGridWidget3` instance and two
 `BMTypescriptClassHost` widgets. Settings uses only platform widgets. These are
 **package dependencies**, not Java services. Install the widget extensions
 before importing a mashup that names their widget types. A widget's property,

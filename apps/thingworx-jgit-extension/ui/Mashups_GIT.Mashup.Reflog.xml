@@ -792,7 +792,7 @@
                       "SingleClickEdit": true,
                       "Sorting": "multiple",
                       "TreePathFieldDelimeter": ",",
-                      "Type": "AgGridWidget2",
+                      "Type": "AgGridWidget3",
                       "Visible": true,
                       "Z-index": 10,
                       "__TypeDisplayName": "AG Grid 2",

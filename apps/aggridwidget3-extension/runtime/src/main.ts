@@ -2275,7 +2275,7 @@ HEADERS.append("Content-Type", "application/json");
 HEADERS.append("Accept", "application/json");
 const relatedDropdownValues = {};
 @TWWidgetDefinition
-class AgGridWidget2 extends TWRuntimeWidget {
+class AgGridWidget3 extends TWRuntimeWidget {
   constructor(...args: any[]) {
     super(...args);
     const _this = this;
@@ -4534,5 +4534,5 @@ class AgGridWidget2 extends TWRuntimeWidget {
   declare SelectedRowsChanged: any;
 }
 
-// Preserve the webpack entry's public window export.
-(window as any).relatedDropdownValues = relatedDropdownValues;
+// The original widget also published relatedDropdownValues on window. This rebuild keeps it
+// private so it never overwrites the original agGridWidget2's object when both are installed.

@@ -10,9 +10,9 @@ export default defineConfig({
     minify: 'esbuild',
     lib: {
       entry: 'src/main.ts',
-      name: 'AgGridWidget2Runtime',
+      name: 'AgGridWidget3Runtime',
       formats: ['iife'],
-      fileName: () => 'agGridWidget2.runtime.bundle.js',
+      fileName: () => 'agGridWidget3.runtime.bundle.js',
     },
   },
 });

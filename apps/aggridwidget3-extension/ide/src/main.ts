@@ -451,7 +451,7 @@ if (TW.IDE && typeof TW.IDE.Widget == "function") {
 
 @description("AG Grid widget")
 @TWWidgetDefinition("AG Grid 2", autoResizable)
-class AgGridWidget2 extends TWComposerWidget {
+class AgGridWidget3 extends TWComposerWidget {
   [key: string]: any;
   constructor(...args: any[]) {
     super(...args);

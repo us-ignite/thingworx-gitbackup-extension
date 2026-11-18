@@ -66,16 +66,18 @@ function createHost() {
 
 function loadBundle(artifact, version) {
   const file = version === 'original'
-    ? path.join(extensionRoot, 'src', 'ui', 'agGridWidget2', `agGridWidget2.${artifact}.bundle.js`)
-    : path.join(extensionRoot, 'build', 'vite', artifact, `agGridWidget2.${artifact}.bundle.js`);
+    ? path.join(extensionRoot, 'original', `agGridWidget2.${artifact}.bundle.js`)
+    : path.join(extensionRoot, 'build', 'vite', artifact, `agGridWidget3.${artifact}.bundle.js`);
+  // The original Sabel bundles register AgGridWidget2; this rebuild registers AgGridWidget3.
+  const widgetName = version === 'original' ? 'AgGridWidget2' : 'AgGridWidget3';
   const host = createHost();
   vm.runInNewContext(fs.readFileSync(file, 'utf8'), host.context, {
     filename: file,
     timeout: 20000,
   });
   const registry = artifact === 'ide' ? host.TW.IDE.Widgets : host.TW.Runtime.Widgets;
-  assert.equal(typeof registry.AgGridWidget2, 'function', `${version} ${artifact} registration`);
-  return { ...host, factory: registry.AgGridWidget2 };
+  assert.equal(typeof registry[widgetName], 'function', `${version} ${artifact} registration`);
+  return { ...host, factory: registry[widgetName] };
 }
 
 function snapshot(value) {
