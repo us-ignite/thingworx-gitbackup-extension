@@ -76,7 +76,6 @@ import org.eclipse.jgit.transport.RefSpec;
 import org.eclipse.jgit.transport.RemoteConfig;
 import org.eclipse.jgit.transport.RemoteRefUpdate;
 import org.eclipse.jgit.transport.URIish;
-import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import org.eclipse.jgit.treewalk.AbstractTreeIterator;
 import org.eclipse.jgit.treewalk.CanonicalTreeParser;
 import org.eclipse.jgit.treewalk.EmptyTreeIterator;
@@ -352,6 +351,27 @@ public class GitRepositoryShape extends Thing {
     private Signer configureSigning(
             CommitCommand commitCmd, String overrideFormat, String overrideFingerprint)
             throws Exception {
+        Signer signer = resolveSigner(overrideFormat, overrideFingerprint);
+        if (signer == null) return null;
+        commitCmd.setSign(true).setSigningKey(null).setSigner(signer);
+        if (signer instanceof PastedKeyGpgSigner) {
+            Signers.set(GpgConfig.GpgFormat.OPENPGP, signer);
+        }
+        return signer;
+    }
+
+    /**
+     * The signer for the current user's signing key in this repository, or for the key chosen for
+     * one operation. The caller must pass it to {@link #clearSigner(Signer)} when done.
+     *
+     * @param overrideFormat blank for the saved choice, {@code none} for unsigned, or {@code
+     *     openpgp}/{@code ssh} with {@code overrideFingerprint}
+     * @return the signer, or {@code null} when commits are not signed
+     * @throws IllegalStateException when the repository requires signing and no key applies, or the
+     *     selected key has no stored private key
+     */
+    private Signer resolveSigner(String overrideFormat, String overrideFingerprint)
+            throws Exception {
         String repository = resolveTargetThing().getName();
         GitUserContextManager userContext = new GitUserContextManager();
         if (userContext.user() == null) return null;
@@ -384,11 +404,8 @@ public class GitRepositoryShape extends Thing {
                                 + " selected for signing has no stored private key. Add the key"
                                 + " again, or choose another signing key.");
             }
-            StoredKeySshSigner signer =
-                    new StoredKeySshSigner(
-                            privateKey, GitUserContextManager.secret(key, Const.SshKeyPassphrase));
-            commitCmd.setSign(true).setSigningKey(null).setSigner(signer);
-            return signer;
+            return new StoredKeySshSigner(
+                    privateKey, GitUserContextManager.secret(key, Const.SshKeyPassphrase));
         }
 
         ValueCollection gpgKey = userContext.gpgKey(choice.fingerprint());
@@ -422,13 +439,8 @@ public class GitRepositoryShape extends Thing {
         }
         // A key without a passphrase is stored with an empty one.
         String passphrase = GitUserContextManager.secret(gpgKey, Const.GpgKeyPassphrase);
-        PastedKeyGpgSigner gpgSigner =
-                new PastedKeyGpgSigner(
-                        PastedKeyGpgSigner.normalizePrivateKey(storedKey), passphrase);
-        Signers.set(GpgConfig.GpgFormat.OPENPGP, gpgSigner);
-        commitCmd.setSign(true).setSigningKey(null).setSigner(gpgSigner);
-        commitCmd.setCredentialsProvider(new UsernamePasswordCredentialsProvider(null, passphrase));
-        return gpgSigner;
+        return new PastedKeyGpgSigner(
+                PastedKeyGpgSigner.normalizePrivateKey(storedKey), passphrase);
     }
 
     /** Clears the key material a signer from {@link #configureSigning} holds. */
@@ -684,12 +696,20 @@ public class GitRepositoryShape extends Thing {
                         } else {
                             hint = " Check the remote repository policy and credentials.";
                         }
+                        String serverReason = update.getMessage();
+                        String serverMessages = pr.getMessages();
                         pushError =
                                 "Remote rejected "
                                         + update.getRemoteName()
                                         + " with status "
                                         + status
                                         + "."
+                                        + (serverReason != null && !serverReason.isBlank()
+                                                ? " Server reason: " + serverReason.trim() + "."
+                                                : "")
+                                        + (serverMessages != null && !serverMessages.isBlank()
+                                                ? " Server messages: " + serverMessages.trim()
+                                                : "")
                                         + hint;
                     }
                 }
@@ -1991,6 +2011,113 @@ public class GitRepositoryShape extends Thing {
                             + BranchName
                             + "' already exists. Use a different branch name or delete the existing branch first.",
                     StringResultContract.SERVICE_RESULT);
+        }
+    }
+
+    /**
+     * Squashes consecutive commits on the current branch into one signed commit and rebuilds the
+     * commits after them, also signed. File contents, the working tree and the index do not change.
+     * Commits that were already pushed need a forced push afterwards.
+     *
+     * @param CommitIDs comma-separated IDs of at least two consecutive commits
+     * @param Message message for the squashed commit; blank joins the selected messages
+     * @param SigningKey optional key, as for {@code CommitStaged}; blank uses the repository's key
+     */
+    @DapServicePayload(StringResultSpec.class)
+    @ThingworxServiceDefinition(
+            name = "SquashCommits",
+            description =
+                    "Squashes consecutive commits on the current branch into one commit, signed with the repository's signing key. Later commits are rebuilt on top of it and signed too. Files are not changed. Already-pushed commits need a forced push afterwards.",
+            category = "",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "Result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
+    public InfoTable SquashCommits(
+            @ThingworxServiceParameter(
+                            name = "CommitIDs",
+                            description =
+                                    "Comma-separated IDs of two or more consecutive commits on the current branch",
+                            baseType = "STRING")
+                    String CommitIDs,
+            @ThingworxServiceParameter(
+                            name = "Message",
+                            description =
+                                    "Message for the squashed commit. Blank joins the selected commits' messages, oldest first.",
+                            baseType = "STRING")
+                    String Message,
+            @ThingworxServiceParameter(
+                            name = "SigningKey",
+                            description =
+                                    "Optional key, as GetSigningKeyOptions returns it: openpgp:<fingerprint>, ssh:<fingerprint>, or none for unsigned. Blank uses the repository's signing key.",
+                            baseType = "STRING")
+                    String SigningKey) {
+        final String serviceName = "SquashCommits";
+        log.trace("Entering Service: " + serviceName);
+        FileRepositoryManager fileRepo = null;
+        Signer signer = null;
+        try {
+            String repository = resolveTargetThing().getName();
+            GitUserContextManager.Identity committer =
+                    new GitUserContextManager().identityFor(repository);
+            if (committer.name() == null
+                    || committer.name().isBlank()
+                    || committer.email() == null
+                    || committer.email().isBlank()) {
+                return DapResults.failure(
+                        serviceName,
+                        serviceName + " Error: " + Const.ERR_PREFIX_CONFIG + Const.ERR_NO_COMMITTER,
+                        StringResultContract.SERVICE_RESULT);
+            }
+            fileRepo = new FileRepositoryManager(resolveTargetThing());
+            Git git = fileRepo.git();
+            ConflictWorkflow.requireNotInProgress(git);
+
+            SigningSelection.Choice override = SigningSelection.parseKey(SigningKey);
+            signer = resolveSigner(override.format(), override.fingerprint());
+            String message =
+                    Message == null || Message.isBlank()
+                            ? ""
+                            : CommitAttribution.withAuthenticatedUser(Message);
+            SquashCommits.Result result =
+                    org.us_ignite.thingworx.jgit.extension.SquashCommits.squash(
+                            git.getRepository(),
+                            List.of(CommitIDs == null ? new String[0] : CommitIDs.split(",")),
+                            message,
+                            new PersonIdent(committer.name(), committer.email()),
+                            signer);
+
+            String text =
+                    "Squashed "
+                            + result.squashed()
+                            + " commits into "
+                            + result.squashedId().abbreviate(8).name()
+                            + (signer != null ? " (signed)" : " (unsigned)")
+                            + "."
+                            + (result.rewritten() > 0
+                                    ? " Rebuilt "
+                                            + result.rewritten()
+                                            + " later commit"
+                                            + (result.rewritten() == 1 ? "" : "s")
+                                            + (signer != null ? ", also signed." : ".")
+                                    : "")
+                            + (result.published()
+                                    ? " Some of these commits were already pushed: tick Force push"
+                                            + " on Changes when you push, or the remote will"
+                                            + " reject it."
+                                    : "");
+            GitActionLogger.logAction(serviceName, repository, text);
+            return DapResults.success(serviceName, text, StringResultContract.SERVICE_RESULT);
+        } catch (Exception e) {
+            GitActionLogger.logAction(
+                    serviceName, resolveTargetThing().getName(), String.valueOf(e.getMessage()));
+            return DapResults.failure(serviceName, e, StringResultContract.SERVICE_RESULT);
+        } finally {
+            clearSigner(signer);
+            if (fileRepo != null) fileRepo.close();
         }
     }
 

@@ -277,6 +277,8 @@ const element = (tag: string, cls: string, text = ''): HTMLElement => { const e 
 class GitHistoryWidget extends TWRuntimeWidget {
   [key: string]: any;
   root: HTMLElement; tab = 'Content'; query = '';
+  /** Commits ticked for squashing, and the squash message the user is editing. */
+  squashIds: string[] = []; squashDraft = ''; squashEdited = false;
   renderHtml() { return '<div class="widget-content git-history"></div>'; }
   afterRender() {
     const host = this.jqElement[0];
@@ -287,8 +289,57 @@ class GitHistoryWidget extends TWRuntimeWidget {
     if (info.TargetProperty === 'Repository' && this.Repository !== info.RawSinglePropertyValue) {
       this.SelectedCommitID = ''; this.SelectedFilePath = ''; this.SelectedRef = ''; this.AllBranches = false; this.Commits = null; this.CommitInfo = null;
       this.TreeEntries = null; this.FileContent = null; this.Diff = '';
+      this.squashIds = []; this.squashEdited = false;
     }
-    super.updateProperty(info); if (this.root) this.render();
+    super.updateProperty(info);
+    if (info.TargetProperty === 'Commits') {
+      // A squash replaces the ticked commits, so drop ticks for commits no longer listed.
+      const listed = new Set(rows(this.Commits).map(c => String(c.CommitID)));
+      const kept = this.squashIds.filter(id => listed.has(id));
+      if (kept.length !== this.squashIds.length) { this.squashIds = kept; this.squashEdited = false; this.syncSquash(); }
+    }
+    if (this.root) this.render();
+  }
+  /** Ticked commits in list order (newest first). */
+  squashCommits(): any[] { const ids = new Set(this.squashIds); return rows(this.Commits).filter(c => ids.has(String(c.CommitID))); }
+  /** Publishes the ticked commits and the message to the bindable properties. */
+  syncSquash() {
+    const picked = this.squashCommits();
+    if (!this.squashEdited) this.squashDraft = picked.slice().reverse().map(c => String(c.CommitName || '').trim()).filter(Boolean).join('\n\n');
+    this.SquashCommitIDs = picked.map(c => String(c.CommitID)).join(',');
+    this.SquashMessage = this.squashDraft;
+  }
+  toggleSquash(id: string, on: boolean) {
+    this.squashIds = on ? [...new Set([...this.squashIds, id])] : this.squashIds.filter(x => x !== id);
+    if (!this.squashIds.length) this.squashEdited = false;
+    this.syncSquash(); this.render();
+  }
+  /** Why the ticked commits cannot be squashed, or '' when they can. The server checks again. */
+  squashProblem(): string {
+    const commits = rows(this.Commits); const picked = this.squashCommits();
+    if (picked.length < 2) return 'Tick at least two commits next to each other.';
+    if (this.AllBranches || this.SelectedRef) return 'Squash works on the checked-out branch. Choose "Current branch" and untick "All branches".';
+    if (rows(this.CurrentBranch)[0]?.DetachedHEAD) return 'HEAD is detached. Check out a branch first.';
+    const positions = picked.map(c => commits.indexOf(c));
+    if (Math.max(...positions) - Math.min(...positions) + 1 !== picked.length) return 'The ticked commits must be next to each other, with no unticked commit between them.';
+    if (picked.some(c => String(c.ParentCommitIDs || '').split(',').filter(Boolean).length > 1)) return 'Merge commits cannot be squashed.';
+    return '';
+  }
+  renderSquash(): HTMLElement {
+    const picked = this.squashCommits(); const panel = element('div', 'gh-squash');
+    const unsigned = picked.filter(c => !c.SignatureFormat).length;
+    panel.append(element('h4', '', picked.length + ' commit' + (picked.length === 1 ? '' : 's') + ' selected for squashing' + (unsigned ? ' (' + unsigned + ' unsigned)' : '')));
+    const text = document.createElement('textarea'); text.rows = 4; text.value = this.squashDraft; text.setAttribute('aria-label', 'Squashed commit message');
+    text.oninput = () => { this.squashDraft = text.value; this.squashEdited = true; this.SquashMessage = text.value; };
+    panel.append(text);
+    const problem = this.squashProblem(); const actions = element('div', 'gh-actions');
+    const go = element('button', 'gh-checkout', 'Squash ' + picked.length + ' commits') as HTMLButtonElement; go.disabled = !!problem;
+    go.title = 'Replace these commits with one commit signed with your signing key. Commits after them are rebuilt and signed too; files do not change.';
+    go.onclick = () => { this.syncSquash(); this.emit('SquashRequested'); };
+    const clear = element('button', 'gh-clear', 'Clear selection'); clear.onclick = () => { this.squashIds = []; this.squashEdited = false; this.syncSquash(); this.render(); };
+    actions.append(go, clear); panel.append(actions);
+    panel.append(element('small', 'gh-squash-hint', problem || 'If any of these commits were already pushed, tick Force push on Changes for the next push.'));
+    return panel;
   }
   beforeDestroy() { if (this.root) this.root.replaceChildren(); }
   emit(name: string) { this.jqElement.triggerHandler(name); }
@@ -344,9 +395,10 @@ class GitHistoryWidget extends TWRuntimeWidget {
     if (commits.length) { try { const timeline=commits.map(c=>({id:String(c.CommitID),predecessorIds:String(c.ParentCommitIDs||'').split(',').filter(Boolean)})); const primitives=buildSvgPrimitives(buildLaneLayout(timeline),{rowHeight:56,showLabels:false},timeline); graph.style.width=`${Math.max(40, primitives.graphWidth)}px`; graph.innerHTML=renderToSvgString(primitives); const svg=graph.querySelector('svg'); if(svg){svg.style.transform='translateY(-28px) scaleY(-1)'; svg.style.display='block';} } catch(e) { console.error('Git history graph',e); } }
     list.append(graph); const commitRows=element('div','gh-rows');
     const head=this.headCommitID();
-    for (const c of commits) {const b=element('button','gh-commit'+(c.CommitID===this.SelectedCommitID?' selected':'')); const labels=[...(head && c.CommitID===head ? ['HEAD'] : []),...rows(this.Branches).filter(b=>b.CommitID===c.CommitID).map(b=>b.ShortBranchName),...rows(this.Tags).filter(t=>t.CommitID===c.CommitID).map(t=>t.TagName)].filter(Boolean); const title=element('strong','',(labels.length ? '['+labels.join(', ')+'] ' : '')+(c.CommitName||'(no message)')); const date=c.CommitTime ? new Date(c.CommitTime).toLocaleString() : ''; const meta=element('small','',`${c.AuthorName||''} · ${date} · ${String(c.CommitID).slice(0,8)}`); if(this.query && !(`${c.CommitName} ${c.AuthorName} ${c.CommitID}`.toLowerCase().includes(this.query))) b.style.opacity='0.3'; const lock=lockIcon(c); if(lock) title.prepend(lock); b.append(title,meta); b.onclick=()=>this.chooseCommit(c.CommitID); commitRows.append(b); }
+    for (const c of commits) {const b=element('button','gh-commit'+(c.CommitID===this.SelectedCommitID?' selected':'')); const labels=[...(head && c.CommitID===head ? ['HEAD'] : []),...rows(this.Branches).filter(b=>b.CommitID===c.CommitID).map(b=>b.ShortBranchName),...rows(this.Tags).filter(t=>t.CommitID===c.CommitID).map(t=>t.TagName)].filter(Boolean); const title=element('strong','',(labels.length ? '['+labels.join(', ')+'] ' : '')+(c.CommitName||'(no message)')); const date=c.CommitTime ? new Date(c.CommitTime).toLocaleString() : ''; const meta=element('small','',`${c.AuthorName||''} · ${date} · ${String(c.CommitID).slice(0,8)}`); if(this.query && !(`${c.CommitName} ${c.AuthorName} ${c.CommitID}`.toLowerCase().includes(this.query))) b.style.opacity='0.3'; const lock=lockIcon(c); if(lock) title.prepend(lock); b.append(title,meta); b.onclick=()=>this.chooseCommit(c.CommitID); const row=element('div','gh-row'); const tick=document.createElement('input'); tick.type='checkbox'; tick.className='gh-tick'; tick.checked=this.squashIds.includes(String(c.CommitID)); tick.title='Select for squashing'; tick.setAttribute('aria-label','Select '+String(c.CommitID).slice(0,8)+' for squashing'); tick.onchange=()=>this.toggleSquash(String(c.CommitID),tick.checked); row.append(tick,b); commitRows.append(row); }
     if(!commits.length) commitRows.append(element('div','gh-empty','Select a repository to view its history.')); list.append(commitRows); history.append(list); body.append(history);
     const detail=element('div','gh-details'); const info=rows(this.CommitInfo)[0];
+    if(this.squashIds.length) detail.append(this.renderSquash());
     if(!this.SelectedCommitID) detail.append(element('div','gh-empty','Select a commit to inspect its files.'));
     else if (!info || info.CommitID !== this.SelectedCommitID) detail.append(element('div','gh-empty','Loading commit…'));
     else {detail.append(element('h3','',info.CommitDescription||'Commit'),element('small','',`${info.Author||''} · ${info.Date ? new Date(info.Date).toLocaleString() : ''} · ${String(info.CommitID).slice(0,8)}`));
@@ -374,4 +426,6 @@ class GitHistoryWidget extends TWRuntimeWidget {
   @property declare MaxEntries: any;
   @property declare AllBranches: any;
   @property declare CurrentBranch: any;
+  @property declare SquashCommitIDs: any;
+  @property declare SquashMessage: any;
 }

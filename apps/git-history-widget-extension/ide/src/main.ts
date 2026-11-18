@@ -476,4 +476,10 @@ class GitHistoryWidget extends TWComposerWidget {
   @widgetIDESupport_event declare LoadMoreRequested: any;
   @description("Fires when the user asks to check out the selected commit (SelectedCommitID)")
   @widgetIDESupport_event declare CheckoutRequested: any;
+  @description("Comma-separated IDs of the commits ticked for squashing, newest first")
+  @property("STRING", bindingSource) declare SquashCommitIDs: any;
+  @description("Message for the squashed commit, as the user edited it")
+  @property("STRING", bindingSource) declare SquashMessage: any;
+  @description("Fires when the user asks to squash the ticked commits (SquashCommitIDs, SquashMessage)")
+  @widgetIDESupport_event declare SquashRequested: any;
 }

@@ -151,6 +151,23 @@
           "Parameters": {},
           "RefreshInterval": 0,
           "Target": "GetCurrentBranch"
+        },
+        {
+          "APIMethod": "post",
+          "Caching": {
+            "cache": false,
+            "cacheKeyParams": [],
+            "cacheStrategy": "INSTANCE",
+            "maxResultSets": "10"
+          },
+          "Characteristic": "Services",
+          "Id": "1699fd92-d43c-4c74-98ce-370597153db1",
+          "Name": "SquashCommits",
+          "Parameters": {
+            "SigningKey": ""
+          },
+          "RefreshInterval": 0,
+          "Target": "SquashCommits"
         }
       ]
     },
@@ -699,6 +716,54 @@
       "TargetArea": "UI",
       "TargetId": "navigate-history-conflict-resolution",
       "TargetSection": ""
+    },
+    {
+      "Id": "8ceab84a-33f2-4670-b7be-8f46bdef95a2",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "SquashCommitIDs",
+          "SourcePropertyBaseType": "STRING",
+          "SourcePropertyType": "Property",
+          "TargetProperty": "CommitIDs",
+          "TargetPropertyBaseType": "STRING",
+          "TargetPropertyType": "Parameter"
+        },
+        {
+          "SourceProperty": "SquashMessage",
+          "SourcePropertyBaseType": "STRING",
+          "SourcePropertyType": "Property",
+          "TargetProperty": "Message",
+          "TargetPropertyBaseType": "STRING",
+          "TargetPropertyType": "Parameter"
+        }
+      ],
+      "SourceArea": "UI",
+      "SourceDetails": "",
+      "SourceId": "history-widget",
+      "SourceSection": "",
+      "TargetArea": "Data",
+      "TargetId": "SquashCommits",
+      "TargetSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate"
+    },
+    {
+      "Id": "6754a429-e270-400e-8a96-434757fcb977",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "Message",
+          "SourcePropertyBaseType": "STRING",
+          "SourcePropertyType": "Field",
+          "TargetProperty": "gitMessage",
+          "TargetPropertyBaseType": "STRING",
+          "TargetPropertyType": "property"
+        }
+      ],
+      "SourceArea": "Data",
+      "SourceDetails": "AllData",
+      "SourceId": "SquashCommits",
+      "SourceSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "TargetArea": "UI",
+      "TargetId": "git-result-popover",
+      "TargetSection": ""
     }
   ],
   "DesignTimePermissions": {},
@@ -972,6 +1037,86 @@
       "EventTriggerId": "git-result-popover",
       "EventTriggerSection": "",
       "Id": "6d78d310-d8f5-4ab1-aca8-faf55d7bcb90"
+    },
+    {
+      "EventHandlerArea": "UI",
+      "EventHandlerId": "history-squash-confirm",
+      "EventHandlerService": "OpenConfirmation",
+      "EventTriggerArea": "UI",
+      "EventTriggerEvent": "SquashRequested",
+      "EventTriggerId": "history-widget",
+      "EventTriggerSection": "",
+      "Id": "1f29a786-5fe7-4a1e-a439-bc9781ecf2be"
+    },
+    {
+      "EventHandlerArea": "Data",
+      "EventHandlerId": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "EventHandlerService": "SquashCommits",
+      "EventTriggerArea": "UI",
+      "EventTriggerEvent": "ActionClick",
+      "EventTriggerId": "history-squash-confirm",
+      "EventTriggerSection": "",
+      "Id": "9b54f78d-e758-4e8a-bab6-ecb34c1855c5"
+    },
+    {
+      "EventHandlerArea": "UI",
+      "EventHandlerId": "git-result-popover",
+      "EventHandlerService": "showGitResult",
+      "EventTriggerArea": "Data",
+      "EventTriggerEvent": "ServiceInvokeCompleted",
+      "EventTriggerId": "SquashCommits",
+      "EventTriggerSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "Id": "f45fe56d-3f01-46e6-aa9c-6799bcfe75db"
+    },
+    {
+      "EventHandlerArea": "Data",
+      "EventHandlerId": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "EventHandlerService": "GetCurrentBranch",
+      "EventTriggerArea": "Data",
+      "EventTriggerEvent": "ServiceInvokeCompleted",
+      "EventTriggerId": "SquashCommits",
+      "EventTriggerSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "Id": "927edb83-4f5f-4e9b-ab22-c49b8c0c928a"
+    },
+    {
+      "EventHandlerArea": "Data",
+      "EventHandlerId": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "EventHandlerService": "GetLog",
+      "EventTriggerArea": "Data",
+      "EventTriggerEvent": "ServiceInvokeCompleted",
+      "EventTriggerId": "SquashCommits",
+      "EventTriggerSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "Id": "3cf1592f-d8bc-4373-b14d-6dee8af48092"
+    },
+    {
+      "EventHandlerArea": "Data",
+      "EventHandlerId": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "EventHandlerService": "GetBranchList",
+      "EventTriggerArea": "Data",
+      "EventTriggerEvent": "ServiceInvokeCompleted",
+      "EventTriggerId": "SquashCommits",
+      "EventTriggerSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "Id": "baeb1071-3023-48c2-93cf-fb31f47607d5"
+    },
+    {
+      "EventHandlerArea": "Data",
+      "EventHandlerId": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "EventHandlerService": "GetTagList",
+      "EventTriggerArea": "Data",
+      "EventTriggerEvent": "ServiceInvokeCompleted",
+      "EventTriggerId": "SquashCommits",
+      "EventTriggerSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "Id": "14e2293d-886f-4636-bfcb-9706fa87df1c"
+    },
+    {
+      "EventHandlerArea": "UI",
+      "EventHandlerId": "git-header",
+      "EventHandlerService": "Refresh",
+      "EventTriggerArea": "Data",
+      "EventTriggerEvent": "ServiceInvokeCompleted",
+      "EventTriggerId": "SquashCommits",
+      "EventTriggerSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "Id": "16a99d69-25e6-4f22-9d37-73588ea5e7e2"
     }
   ],
   "Reminders": [],
@@ -1962,6 +2107,41 @@
           "SecondButtonTooltipField": "",
           "ShowDataLoading": true,
           "TitleText": "Check out this commit?",
+          "Top": 0,
+          "Type": "ptcsconfirmation",
+          "UseTheme": true,
+          "Visible": true,
+          "Z-index": 10,
+          "__TypeDisplayName": "Confirmation",
+          "_baseVersion": "9.7.0"
+        },
+        "Widgets": []
+      },
+      {
+        "Properties": {
+          "ActionButtonLabel": "Squash",
+          "ActionButtonPosition": "left",
+          "ActionButtonTooltipField": "",
+          "ActionButtonType": "primary",
+          "Area": "UI",
+          "CancelButtonLabel": "Cancel",
+          "CancelButtonTooltipField": "",
+          "CloseButtonTooltipField": "close",
+          "DialogHeight": "260",
+          "DialogWidth": "600",
+          "DisplayCloseButton": false,
+          "DisplayName": "history-squash-confirm",
+          "DisplaySecondaryAction": false,
+          "Id": "history-squash-confirm",
+          "LastContainer": false,
+          "Left": 0,
+          "Margin": "5",
+          "MessageText": "The selected commits are replaced by one commit, signed with your signing key for this repository. Commits after them are rebuilt with new IDs and signed too. Files, the working tree and ThingWorx do not change. If any of these commits were already pushed, tick Force push on Changes for the next push, which replaces them on the remote for everyone.",
+          "ResponsiveLayout": false,
+          "SecondButtonLabel": "Action",
+          "SecondButtonTooltipField": "",
+          "ShowDataLoading": true,
+          "TitleText": "Squash the selected commits?",
           "Top": 0,
           "Type": "ptcsconfirmation",
           "UseTheme": true,
