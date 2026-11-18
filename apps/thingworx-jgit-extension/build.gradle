@@ -201,14 +201,16 @@ tasks.register('javadoc', Sync) {
 }
 
 tasks.register('buildAll', Sync) {
-    description = 'Build extension packages for all ThingWorx versions (9.6.x, 9.7.x, 10.0.x, 10.1.x, 10.2.x) in one daemon'
+    description = 'Build the extension and the full extension pack for all ThingWorx versions (9.6.x, 9.7.x, 10.0.x, 10.1.x, 10.2.x) in one daemon'
     group = 'build'
     dependsOn TwxVersions.ALL.collect { ver -> ":apps:thingworx-jgit-extension:v${TwxVersions.sanitize(ver)}:packageExtension" }
+    dependsOn tasks.named('packageExtensionPacks')
     TwxVersions.ALL.each { ver ->
         from(project(":apps:thingworx-jgit-extension:v${TwxVersions.sanitize(ver)}").layout.buildDirectory.dir('distributions')) {
             include "JGitExtension-v${project.ext.packageVersion}-${TwxVersions.SDK_CONFIGS[ver].outputSuffix}.zip"
         }
     }
+    from(layout.buildDirectory.dir('packs'))
     into layout.buildDirectory.dir('distributions')
 }
 
@@ -241,24 +243,57 @@ tasks.register('fetchMonacoEditor') {
 }
 
 // Distribution archive contains installable extension zips, not nested ThingWorx resources.
-tasks.register('packageExtensionPack', Zip) {
-    description = 'Bundle the JGit extension and its separately installable widget dependencies'
-    group = 'build'
-    dependsOn tasks.named('packageExtension'), tasks.named('fetchMonacoEditor')
-    widgetDependencyPackages.each { dependency ->
-        dependsOn "${dependency.path}:packageExtension"
-    }
-    archiveFileName = "JGitExtension-pack-v${project.ext.packageVersion}-${defaultSdkCfg.outputSuffix}.zip"
-    destinationDirectory = layout.buildDirectory.dir('distributions')
-    from(project(defaultProjectPath).layout.buildDirectory.dir('distributions')) {
-        include "${project.ext.defaultPackageName}.zip"
-    }
-    widgetDependencyPackages.each { dependency ->
-        from(project(dependency.path).layout.buildDirectory.dir('distributions')) {
-            include dependency.zip
+// A full extension pack holds the JGit extension for one ThingWorx version plus every
+// separately installable widget extension its mashups use. Installing JGitExtension alone
+// leaves screens such as History blank, so releases ship a pack for every version.
+def packTaskName = { ver -> "packageExtensionPack_${TwxVersions.sanitize(ver)}" }
+TwxVersions.ALL.each { ver ->
+    def versionProjectPath = ":apps:thingworx-jgit-extension:v${TwxVersions.sanitize(ver)}"
+    def suffix = TwxVersions.SDK_CONFIGS[ver].outputSuffix
+    tasks.register(packTaskName(ver), Zip) {
+        description = "Bundle the JGit extension for ThingWorx ${suffix} with its widget extensions"
+        group = 'build'
+        dependsOn "${versionProjectPath}:packageExtension", tasks.named('fetchMonacoEditor')
+        widgetDependencyPackages.each { dependency ->
+            dependsOn "${dependency.path}:packageExtension"
+        }
+        archiveFileName = "JGitExtension-pack-v${project.ext.packageVersion}-${suffix}.zip"
+        destinationDirectory = layout.buildDirectory.dir('packs')
+        from(project(versionProjectPath).layout.buildDirectory.dir('distributions')) {
+            include "JGitExtension-v${project.ext.packageVersion}-${suffix}.zip"
+        }
+        widgetDependencyPackages.each { dependency ->
+            from(project(dependency.path).layout.buildDirectory.dir('distributions')) {
+                include dependency.zip
+            }
+        }
+        from(monacoZip)
+        doLast {
+            // A pack missing a widget installs cleanly but leaves screens blank, so fail instead.
+            def expected = ["JGitExtension-v${project.ext.packageVersion}-${suffix}.zip", monacoName] +
+                    widgetDependencyPackages.collect { it.zip }
+            expected = expected*.toString()
+            def actual = new java.util.zip.ZipFile(archiveFile.get().asFile).withCloseable { zip ->
+                zip.entries().collect { it.name } as Set
+            }
+            def missing = expected.findAll { !actual.contains(it) }
+            if (missing) throw new GradleException("${archiveFileName.get()} is missing ${missing.join(', ')}")
         }
     }
-    from(monacoZip)
+}
+
+tasks.register('packageExtensionPacks') {
+    description = 'Build the full extension pack for every ThingWorx version'
+    group = 'build'
+    dependsOn TwxVersions.ALL.collect { ver -> packTaskName(ver) }
+}
+
+tasks.register('packageExtensionPack', Copy) {
+    description = 'Build the full extension pack for the default ThingWorx version into build/distributions'
+    group = 'build'
+    dependsOn packTaskName(defaultTwx)
+    from(layout.buildDirectory.file("packs/JGitExtension-pack-v${project.ext.packageVersion}-${defaultSdkCfg.outputSuffix}.zip"))
+    into layout.buildDirectory.dir('distributions')
 }
 
 tasks.register('testAll') {

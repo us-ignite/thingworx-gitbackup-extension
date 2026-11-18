@@ -146,7 +146,7 @@ placeholder `build.gradle:10`). Its tag **is** `OPERATOR_VERSION` from
 
 | Workflow | Trigger on `main` | What it builds + tags on `main` |
 |---|---|---|
-| `publish-extensions.yml` | `apps/thingworx-jgit-extension/.version` diff | `:apps:thingworx-jgit-extension:buildAll` + matrix `test` 9.6/9.7/10.1/10.2 → `jgit-v<version>` tag + GH Release zips |
+| `publish-extensions.yml` | `apps/thingworx-jgit-extension/.version` diff | `:apps:thingworx-jgit-extension:buildAll` (extension zip + full pack with widgets, per TWX version) + matrix `test` 9.6/9.7/10.1/10.2 → `jgit-v<version>` tag + GH Release zips (`JGitExtension-v*` and `JGitExtension-pack-v*`) |
 | `publish-jars.yml` (ex `publish-dap.yml:23`) | `libraries/thingworx-dap(-runtime)/.version` diff | `:libraries:thingworx-dap:check` + `publish` → `GH Packages` + `dap-v<version>` tag |
 | `publish-charts.yml` | `apps/thingworx-operator/.version` or `charts/thingworx-operator/.version` or `Chart.yaml` diff | `verifyVersions` + `chartTest` → `helm package` → artifact `thingworx-operator-chart-<version>` + `chart-v<version>` tag + Release |
 | `publish-images.yml` (+ `workflow_dispatch` `inputs.image`) | `apps/thingworx-operator/.version|images/thingworx-operator/**|Chart.yaml` → operator; `images/platform/**|vendor/MED-61268|61111` → platform; `MED-61282` → security-tool; `MED-61352` → connection-server | Operator: `verifyVersions` → `:images:thingworx-operator:buildImage` → `ghcr.io/.../thingworx-operator:<version>` + `operator-v*` tag; Vendor: `setup-twx-file` + re-checkout (needs `GPG_PASSPHRASE`) → `:images:platform:buildAll` etc. → `ghcr.io/...` vendor tags (no `.version`) |
