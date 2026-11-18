@@ -210,7 +210,9 @@ tasks.register('buildAll', Sync) {
             include "JGitExtension-v${project.ext.packageVersion}-${TwxVersions.SDK_CONFIGS[ver].outputSuffix}.zip"
         }
     }
-    from(layout.buildDirectory.dir('packs'))
+    from(layout.buildDirectory.dir('packs')) {
+        include "JGitExtension-pack-v${project.ext.packageVersion}-*.zip"
+    }
     into layout.buildDirectory.dir('distributions')
 }
 
