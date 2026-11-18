@@ -14,8 +14,8 @@ temporary folder and reconciles it into the project's folder in the working tree
 overwrite their files, and the file of an entity that left the project is deleted; both appear in
 `Status` as unstaged changes. Files whose content did not change are not rewritten, and nothing is
 staged; the sync only refreshes the file timestamps the Git index keeps for unchanged files, so
-`Status` does not have to re-read them. Users are never exported, and files that
-cannot be identified as canonical entity exports are left alone. It refuses to run while a merge,
+`Status` does not have to re-read them. Users are exported without their server-local parts; see
+[Users](#users). Files that cannot be identified as canonical entity exports are left alone. It refuses to run while a merge,
 rebase or carried-change conflict is waiting.
 
 `Status` only reads Git, so it stays fast on large projects. Use Sync from ThingWorx first when you
@@ -42,8 +42,56 @@ of exporting, so it is quick. It does not see entities deleted in ThingWorx, or 
 written at runtime, because neither changes a modified date. A repository that was never synced
 treats every entity in its tracked projects as changed.
 
-Users, and ApplicationKeys whose stored secret ThingWorx cannot decrypt, are never imported; see
+Users are imported first, one at a time, so Groups and Organizations can refer to them; see
+[Users](#users). ApplicationKeys whose stored secret ThingWorx cannot decrypt are never imported; see
 the extension log for any key that was skipped. Review ThingWorx logs after an import, especially
 when an entity depends on another entity that is not present in the same revision.
+
+## Entity types
+
+Each tracked project synchronizes every entity type unless you choose a subset under **Entity types to
+sync** in Repository Settings (`SetTrackedProjectEntityTypes`; `GetEntityTypeOptions` lists the
+choices). A type is named by its collection, which is also its folder in the export: `Things`,
+`ThingTemplates`, `Mashups`, `DataShapes`, `Users`, and so on. The project's `EntityTypes` column
+stores the choice as a comma-separated list; blank, or every type selected, means all types,
+including types not in the list.
+
+With a subset, both directions only touch the chosen types' folders:
+
+- Sync from ThingWorx drops other collection folders from the export, and never deletes the files of
+  types that are not synchronized.
+- Sync to ThingWorx imports only the chosen collection folders. Files directly in the project folder,
+  outside any collection folder, are not imported.
+- The changed-since-sync check only reports entities of the chosen types.
+
+The project's own `Projects/<ProjectName>.xml` is always synchronized. Changing the types never
+deletes or moves files: files of a type you deselect stay in the repository, unchanged, until you
+remove them yourself.
+
+## Users
+
+Users in a tracked project travel through Git like any other entity, except for what belongs to the
+server they live on. That is never written to Git, and an import never changes it:
+
+- the password hash;
+- account state: `enabled`, `locked` and `lockedTime`;
+- every PASSWORD value in the user's extension properties, such as SSH and GPG private keys, key
+  passphrases and per-remote Git sign-ins. This applies to PASSWORD properties and to the PASSWORD
+  fields of INFOTABLE properties.
+
+Everything else is exported and imported: description, tags, home mashups, project, permissions,
+avatar, and every non-secret extension property (names, email addresses, Git identity, public keys,
+key labels and fingerprints).
+
+On import, the extension builds each User's file from the Git copy plus that user's live hash,
+account state and server-encrypted secrets, and imports it on its own. The secrets are never
+decrypted. Within an INFOTABLE property that has PASSWORD fields, rows are matched on the primary
+key: a matched row keeps its secrets, and a row only the server has is kept. An extension property
+the Git copy does not have keeps its server value.
+
+A User that exists in Git but not on the server is created **disabled**, with a random password
+nobody knows. The result of Sync to ThingWorx names it: set a password and enable it. A User that
+fails to import, for example because the licence has no named users, is named in the result too, and
+the other Users still import. Users are never deleted by a sync.
 
 Always review changes in Git before importing them into a shared or production ThingWorx instance.

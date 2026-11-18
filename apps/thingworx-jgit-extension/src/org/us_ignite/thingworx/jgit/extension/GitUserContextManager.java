@@ -35,6 +35,11 @@ final class GitUserContextManager {
         this.user = user;
     }
 
+    /** The user whose settings these are, or {@code null} without an authenticated user. */
+    User user() {
+        return user;
+    }
+
     User requireUser() {
         if (user == null)
             throw new IllegalStateException("No authenticated user context is available.");
@@ -42,8 +47,39 @@ final class GitUserContextManager {
     }
 
     InfoTable credentials() throws Exception {
-        return typedTable(
-                Const.UserRepositoryConfiguration, Const.GitCredentialsDataShapeName, "GitThing");
+        InfoTable table =
+                typedTable(
+                        Const.UserRepositoryConfiguration,
+                        Const.GitCredentialsDataShapeName,
+                        "GitThing");
+        return table == null ? null : withSigningFields(table);
+    }
+
+    /** An empty {@code GIT.RepositoryConfiguration.UserExtension.DataShape} table. */
+    static InfoTable newCredentialsTable() throws Exception {
+        return withSigningFields(
+                InfoTableInstanceFactory.createInfoTableFromDataShape(
+                        Const.GitCredentialsDataShapeName));
+    }
+
+    /**
+     * Adds the signing fields when the table lacks them. An upgrade keeps the earlier copy of the
+     * data shape, which is an editable extension object, and values outside a table's fields are
+     * dropped when the user is saved.
+     */
+    static InfoTable withSigningFields(InfoTable table) {
+        addField(table, Const.SigningFormat, 9);
+        addField(table, Const.SigningSshKeyFingerprint, 10);
+        return table;
+    }
+
+    private static void addField(InfoTable table, String name, int ordinal) {
+        if (table.hasField(name)) return;
+        var field =
+                new com.thingworx.metadata.FieldDefinition(
+                        name, com.thingworx.types.BaseTypes.STRING);
+        field.setOrdinal(ordinal);
+        table.addField(field);
     }
 
     InfoTable gpgKeys() throws Exception {
@@ -656,7 +692,34 @@ final class GitUserContextManager {
     }
 
     void setRepositoryGpgKey(String repositoryThingName, String fingerprint) throws Exception {
-        setRepositoryField(repositoryThingName, Const.GpgKeyFingerprint, fingerprint);
+        setRepositorySigning(
+                repositoryThingName,
+                fingerprint == null || fingerprint.isBlank() ? "" : SigningSelection.OPENPGP,
+                fingerprint);
+    }
+
+    /**
+     * Saves the repository's commit signing choice. {@code openpgp} and {@code ssh} store the
+     * fingerprint in that format's field and keep the other field. A blank format turns signing off
+     * and clears the GPG fingerprint, because a blank format with a GPG fingerprint still means
+     * OpenPGP for rows saved by earlier versions.
+     */
+    void setRepositorySigning(String repositoryThingName, String format, String fingerprint)
+            throws Exception {
+        String normalized = SigningSelection.format(format);
+        if (normalized.equals(SigningSelection.NONE)) normalized = "";
+        String value = fingerprint == null ? "" : fingerprint.trim();
+        RepositoryRow entry = repositoryRow(repositoryThingName);
+        ValueCollection row = entry.row();
+        row.put(Const.SigningFormat, new StringPrimitive(normalized));
+        switch (normalized) {
+            case SigningSelection.OPENPGP ->
+                    row.put(Const.GpgKeyFingerprint, new StringPrimitive(value));
+            case SigningSelection.SSH ->
+                    row.put(Const.SigningSshKeyFingerprint, new StringPrimitive(value));
+            default -> row.put(Const.GpgKeyFingerprint, new StringPrimitive(""));
+        }
+        save(entry);
     }
 
     /**
@@ -680,30 +743,35 @@ final class GitUserContextManager {
                 Const.UserRepositoryConfiguration, new InfoTablePrimitive(configurations));
     }
 
+    /** A repository row and the table it belongs to, which is saved as a whole. */
+    private record RepositoryRow(InfoTable table, ValueCollection row) {}
+
+    /** The user's row for a repository, added to the table when missing. */
+    private RepositoryRow repositoryRow(String repositoryThingName) throws Exception {
+        requireUser();
+        InfoTable configurations = credentials();
+        if (configurations == null) configurations = newCredentialsTable();
+        for (int i = 0; i < configurations.getRowCount(); i++) {
+            if (repositoryThingName.equals(configurations.getRow(i).getStringValue("GitThing")))
+                return new RepositoryRow(configurations, configurations.getRow(i));
+        }
+        ValueCollection row = new ValueCollection();
+        row.put("GitThing", new StringPrimitive(repositoryThingName));
+        configurations.addRow(row);
+        return new RepositoryRow(configurations, row);
+    }
+
+    private void save(RepositoryRow row) throws Exception {
+        requireUser()
+                .setPropertyValue(
+                        Const.UserRepositoryConfiguration, new InfoTablePrimitive(row.table()));
+    }
+
     private void setRepositoryField(String repositoryThingName, String field, String fingerprint)
             throws Exception {
-        User currentUser = requireUser();
-        InfoTable configurations = credentials();
-        if (configurations == null) {
-            configurations =
-                    InfoTableInstanceFactory.createInfoTableFromDataShape(
-                            Const.GitCredentialsDataShapeName);
-        }
-        ValueCollection row = null;
-        for (int i = 0; i < configurations.getRowCount(); i++) {
-            if (repositoryThingName.equals(configurations.getRow(i).getStringValue("GitThing"))) {
-                row = configurations.getRow(i);
-                break;
-            }
-        }
-        if (row == null) {
-            row = new ValueCollection();
-            row.put("GitThing", new StringPrimitive(repositoryThingName));
-            configurations.addRow(row);
-        }
-        row.put(field, new StringPrimitive(fingerprint == null ? "" : fingerprint));
-        currentUser.setPropertyValue(
-                Const.UserRepositoryConfiguration, new InfoTablePrimitive(configurations));
+        RepositoryRow entry = repositoryRow(repositoryThingName);
+        entry.row().put(field, new StringPrimitive(fingerprint == null ? "" : fingerprint));
+        save(entry);
     }
 
     /**
@@ -716,9 +784,7 @@ final class GitUserContextManager {
         boolean changed = false;
         InfoTable rows = credentials();
         if (rows != null) {
-            InfoTable kept =
-                    InfoTableInstanceFactory.createInfoTableFromDataShape(
-                            Const.GitCredentialsDataShapeName);
+            InfoTable kept = newCredentialsTable();
             for (int i = 0; i < rows.getRowCount(); i++) {
                 ValueCollection row = rows.getRow(i);
                 if (repositoryThingName.equals(row.getStringValue("GitThing"))) changed = true;

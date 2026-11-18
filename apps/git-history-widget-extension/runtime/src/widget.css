@@ -4,3 +4,4 @@
 
 .gh-tree {padding-left:14px}.gh-tree summary {cursor:pointer;color:#536579;padding:3px}.gh-tree-file {display:block;border:0;background:transparent;padding:4px;color:#2b5275;text-align:left;cursor:pointer}.gh-tree-file:hover {text-decoration:underline}
 .gh-actions {display:flex; gap:8px; align-items:center; margin:10px 0}.gh-checkout {padding:6px 10px; border:1px solid #2f6fb3; background:#2f6fb3; color:white; border-radius:4px; cursor:pointer}.gh-checkout:hover {background:#255d98}
+.gh-lock {display:inline-flex; vertical-align:-1px; margin-right:4px; color:#2e7d4f; cursor:help}.gh-signed {display:inline-flex; align-items:center; gap:2px; cursor:help}

@@ -182,7 +182,11 @@ public class GitUtilityThingShape extends Thing {
                         throw new IllegalArgumentException(
                                 "Project '" + name + "' cannot be tracked by a repository.");
                     }
-                    projects.add(new FileRepositoryManager.TrackedProject(name, path));
+                    String types =
+                            row.containsKey(Const.TrackedProjectEntityTypes)
+                                    ? row.getStringValue(Const.TrackedProjectEntityTypes)
+                                    : "";
+                    projects.add(new FileRepositoryManager.TrackedProject(name, path, types));
                 }
             }
             projects = FileRepositoryManager.normalizeTrackedProjects(projects);
@@ -2373,9 +2377,7 @@ public class GitUtilityThingShape extends Thing {
             if (all == null)
                 throw new IllegalArgumentException(
                         "Credentials not found for repository: " + gitThing);
-            InfoTable kept =
-                    InfoTableInstanceFactory.createInfoTableFromDataShape(
-                            Const.GitCredentialsDataShapeName);
+            InfoTable kept = GitUserContextManager.newCredentialsTable();
             boolean found = false;
             for (int i = 0; i < all.getRowCount(); i++) {
                 ValueCollection row = all.getRow(i);
@@ -2551,6 +2553,11 @@ public class GitUtilityThingShape extends Thing {
                     ValueCollection row = configurations.getRow(i);
                     if (SshKeyFingerprint.equals(row.getStringValue(Const.SshKeyFingerprint))) {
                         row.put(Const.SshKeyFingerprint, new StringPrimitive(""));
+                        changed = true;
+                    }
+                    if (SshKeyFingerprint.equals(
+                            row.getStringValue(Const.SigningSshKeyFingerprint))) {
+                        row.put(Const.SigningSshKeyFingerprint, new StringPrimitive(""));
                         changed = true;
                     }
                 }

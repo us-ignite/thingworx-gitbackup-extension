@@ -132,7 +132,10 @@ final class FileRepositoryManager {
             result.add(
                     project.hasCustomPath() || base.isEmpty()
                             ? project
-                            : new TrackedProject(project.name(), base + "/" + project.name()));
+                            : new TrackedProject(
+                                    project.name(),
+                                    base + "/" + project.name(),
+                                    project.entityTypes()));
         }
         result = normalizeTrackedProjects(result);
         requireDistinctProjectFolders(result);
@@ -230,18 +233,36 @@ final class FileRepositoryManager {
     }
 
     /**
-     * A tracked project and its optional custom entity folder. A blank {@code path} means the
-     * default folder {@code <ProjectName>} at the repository root; otherwise it is the folder that
-     * holds the project's entities, relative to the repository root, normalized without leading or
-     * trailing slashes.
+     * A tracked project, its optional custom entity folder, and the entity types it synchronizes. A
+     * blank {@code path} means the default folder {@code <ProjectName>} at the repository root;
+     * otherwise it is the folder that holds the project's entities, relative to the repository
+     * root, normalized without leading or trailing slashes. {@code entityTypes} is a
+     * comma-separated list of collections, such as {@code Things,Mashups}; blank means every type
+     * (see {@link SyncedEntityTypes}).
      */
-    record TrackedProject(String name, String path) {
+    record TrackedProject(String name, String path, String entityTypes) {
         TrackedProject {
             path = path == null ? "" : path;
+            entityTypes = entityTypes == null ? "" : entityTypes;
+        }
+
+        /** A project that synchronizes every entity type. */
+        TrackedProject(String name, String path) {
+            this(name, path, "");
         }
 
         boolean hasCustomPath() {
             return !path.isEmpty();
+        }
+
+        /** Whether this project synchronizes the collection, such as {@code Things}. */
+        boolean syncs(String collection) {
+            return SyncedEntityTypes.syncs(entityTypes, collection);
+        }
+
+        /** Whether this project synchronizes only some entity types. */
+        boolean filtersEntityTypes() {
+            return !entityTypes.isEmpty();
         }
     }
 
@@ -263,9 +284,17 @@ final class FileRepositoryManager {
                         row.containsKey(Const.TrackedProjectPath)
                                 ? row.getStringValue(Const.TrackedProjectPath)
                                 : "";
+                // Rows written before the EntityTypes column existed sync every type.
+                String types =
+                        row.containsKey(Const.TrackedProjectEntityTypes)
+                                ? row.getStringValue(Const.TrackedProjectEntityTypes)
+                                : "";
                 projects.putIfAbsent(
                         name.trim(),
-                        new TrackedProject(name.trim(), path == null ? "" : path.trim()));
+                        new TrackedProject(
+                                name.trim(),
+                                path == null ? "" : path.trim(),
+                                types == null ? "" : types.trim()));
             }
         }
         return List.copyOf(projects.values());
@@ -288,14 +317,19 @@ final class FileRepositoryManager {
     }
 
     /**
-     * Validates names and paths and drops repeated names, keeping the first. Paths are returned in
-     * normalized form.
+     * Validates names, paths and entity types and drops repeated names, keeping the first. Paths
+     * and entity types are returned in normalized form.
      */
     static List<TrackedProject> normalizeTrackedProjects(List<TrackedProject> projects) {
         java.util.LinkedHashMap<String, TrackedProject> result = new java.util.LinkedHashMap<>();
         for (TrackedProject project : projects) {
             String name = validateProjectFolderName(project.name());
-            result.putIfAbsent(name, new TrackedProject(name, validateProjectPath(project.path())));
+            result.putIfAbsent(
+                    name,
+                    new TrackedProject(
+                            name,
+                            validateProjectPath(project.path()),
+                            SyncedEntityTypes.normalize(project.entityTypes())));
         }
         return List.copyOf(result.values());
     }
@@ -462,21 +496,26 @@ final class FileRepositoryManager {
                 InfoTableInstanceFactory.createInfoTableFromDataShape(
                         Const.TrackedProjectDataShapeName);
         // An upgrade can keep an earlier copy of the data shape, which is an editable extension
-        // object, so add the Path field when it is missing rather than dropping the values.
-        if (!table.hasField(Const.TrackedProjectPath)) {
-            var field =
-                    new com.thingworx.metadata.FieldDefinition(
-                            Const.TrackedProjectPath, com.thingworx.types.BaseTypes.STRING);
-            field.setOrdinal(2);
-            table.addField(field);
-        }
+        // object, so add fields that are missing rather than dropping the values.
+        addStringFieldIfMissing(table, Const.TrackedProjectPath, 2);
+        addStringFieldIfMissing(table, Const.TrackedProjectEntityTypes, 3);
         for (TrackedProject project : projects) {
             ValueCollection row = new ValueCollection();
             row.put(Const.ProjectName, new StringPrimitive(project.name()));
             row.put(Const.TrackedProjectPath, new StringPrimitive(project.path()));
+            row.put(Const.TrackedProjectEntityTypes, new StringPrimitive(project.entityTypes()));
             table.addRow(row);
         }
         return table;
+    }
+
+    private static void addStringFieldIfMissing(InfoTable table, String name, int ordinal) {
+        if (table.hasField(name)) return;
+        var field =
+                new com.thingworx.metadata.FieldDefinition(
+                        name, com.thingworx.types.BaseTypes.STRING);
+        field.setOrdinal(ordinal);
+        table.addField(field);
     }
 
     /**
@@ -514,10 +553,12 @@ final class FileRepositoryManager {
     }
 
     /**
-     * Exports a project into {@code <temporary>/<slot>/<ProjectName>/}, removes volatile metadata,
-     * and returns that folder.
+     * Exports a project into {@code <temporary>/<slot>/<ProjectName>/}, removes volatile metadata
+     * and the entity types the project does not synchronize, and returns that folder.
      */
-    private Path exportSnapshot(Path temporary, String slot, String project) throws Exception {
+    private Path exportSnapshot(Path temporary, String slot, TrackedProject tracked)
+            throws Exception {
+        String project = tracked.name();
         String exportDirectory = "/" + temporary.getFileName() + "/" + slot;
         exportProjectEntitiesTo(exportDirectory, project);
         Path snapshot = temporary.resolve(slot).resolve(project).normalize();
@@ -525,19 +566,39 @@ final class FileRepositoryManager {
             throw new IOException(
                     "ThingWorx did not produce the expected export for project '" + project + "'.");
         }
+        removeUnsyncedCollections(snapshot, tracked);
         sanitizeXmlIn(snapshot.toFile());
-        List<SyncExclusions.Excluded> users =
-                SyncExclusions.removeIn(snapshot, SyncExclusions.EXPORT);
-        if (!users.isEmpty()) {
-            com.thingworx.logging.LogUtilities.getInstance()
-                    .getApplicationLogger(FileRepositoryManager.class)
-                    .warn(
-                            "Left Users out of the export of project '{}' in {}: {}",
-                            project,
-                            fileRepository.getName(),
-                            users);
-        }
+        // Users are exported without their password hash, account state or secrets.
+        UserSync.sanitizeExportIn(snapshot, UserSync.passwordProperties());
         return snapshot;
+    }
+
+    /**
+     * Deletes the entries of an export that the project does not synchronize: collection folders of
+     * other entity types, and, when only some types are synchronized, files outside any collection
+     * folder.
+     */
+    static void removeUnsyncedCollections(Path snapshot, TrackedProject project)
+            throws IOException {
+        if (!project.filtersEntityTypes()) return;
+        try (var children = Files.list(snapshot)) {
+            for (Path child : children.toList()) {
+                boolean folder = Files.isDirectory(child, LinkOption.NOFOLLOW_LINKS);
+                if (!project.syncs(folder ? child.getFileName().toString() : null)) {
+                    deleteRecursively(child);
+                }
+            }
+        }
+    }
+
+    /**
+     * The collection of a path relative to a project folder: its first segment, or {@code null} for
+     * a file directly in the project folder.
+     */
+    static String collectionOfPath(String relative) {
+        String clean = relative.replace('\\', '/');
+        int slash = clean.indexOf('/');
+        return slash <= 0 ? null : clean.substring(0, slash);
     }
 
     private static final String EXPORT_SERVICE = "ExportSourceControlledEntities";
@@ -613,8 +674,8 @@ final class FileRepositoryManager {
     /**
      * Sync from ThingWorx: exports every tracked project and reconciles its folder in the working
      * tree, without staging anything; only the cached file stats of unchanged files are refreshed
-     * (see {@link IndexStatRefresh}). Files of entities that left a project are deleted; Users are
-     * never touched. Records the sync time, see {@link #changedSinceSync()}.
+     * (see {@link IndexStatRefresh}). Files of entities that left a project are deleted. Records
+     * the sync time, see {@link #changedSinceSync()}.
      */
     void syncFromThingWorx() throws Exception {
         requireExportPermissions();
@@ -636,12 +697,16 @@ final class FileRepositoryManager {
             // working tree untouched. Each project gets its own export directory.
             List<Path> snapshots = new ArrayList<>();
             for (int i = 0; i < projects.size(); i++) {
-                snapshots.add(exportSnapshot(temporary, String.valueOf(i), projects.get(i).name()));
+                snapshots.add(exportSnapshot(temporary, String.valueOf(i), projects.get(i)));
             }
             for (int i = 0; i < projects.size(); i++) {
                 TrackedProject project = projects.get(i);
                 StatusExportReconciler.reconcileFolder(
-                        git, snapshots.get(i), projectFolder(project), project.name());
+                        git,
+                        snapshots.get(i),
+                        projectFolder(project),
+                        project.name(),
+                        project::syncs);
             }
             // Keeps Status fast: files that are unchanged but were rewritten (by an earlier
             // version of this sync, or by hand) would otherwise be re-hashed on every Status.
@@ -690,7 +755,9 @@ final class FileRepositoryManager {
             List<TrackedProject> projects, int index, String path, boolean moveFiles)
             throws Exception {
         TrackedProject current = projects.get(index);
-        TrackedProject updated = new TrackedProject(current.name(), validateProjectPath(path));
+        TrackedProject updated =
+                new TrackedProject(
+                        current.name(), validateProjectPath(path), current.entityTypes());
         List<TrackedProject> next = new ArrayList<>(projects);
         next.set(index, updated);
         next = normalizeTrackedProjects(next);
@@ -886,7 +953,9 @@ final class FileRepositoryManager {
         List<TrackedProject> projects = requireTrackedProjects();
         IServiceProvider resource = requireSourceControlPermission(IMPORT_SERVICE);
         java.util.Set<String> trackedPaths = trackedPaths();
-        boolean imported = false;
+        // Users first, so Groups and Organizations imported below can refer to them.
+        UserImport users = importUsers(resource, projects, trackedPaths);
+        boolean imported = !users.imported().isEmpty();
         List<String> untracked = new ArrayList<>();
         for (TrackedProject project : projects) {
             String relative = projectFolder(project);
@@ -895,20 +964,88 @@ final class FileRepositoryManager {
                             .toFile();
             if (!folder.isDirectory() || !containsXmlFile(folder)) continue;
             if (importTracked(
-                    resource, folder.toPath(), relative, project.name(), trackedPaths, untracked)) {
+                    resource, folder.toPath(), relative, project, trackedPaths, untracked)) {
                 imported = true;
             }
         }
         // Imported entities now carry modified dates up to this point, so take it afterwards.
         recordSync(System.currentTimeMillis());
-        return new ImportResult(imported, untracked);
+        return new ImportResult(imported, untracked, users.created(), users.failed());
     }
 
     /**
-     * The outcome of {@link #importProjectEntities()}: whether anything was imported, and the
-     * repository-relative paths of untracked files that were left out.
+     * The outcome of {@link #importProjectEntities()}: whether anything was imported, the
+     * repository-relative paths of untracked files that were left out, the Users that were created
+     * disabled, and the Users that could not be imported, each with the reason.
      */
-    record ImportResult(boolean imported, List<String> untracked) {}
+    record ImportResult(
+            boolean imported,
+            List<String> untracked,
+            List<String> createdUsers,
+            List<String> failedUsers) {}
+
+    /** The Users imported, those of them created disabled, and those that failed with why. */
+    record UserImport(List<String> imported, List<String> created, List<String> failed) {}
+
+    /**
+     * Imports the tracked Users of every tracked project, each on its own, with what the server
+     * holds for it kept: see {@link UserSync}. A User that fails to import is reported and the
+     * others still import; a server whose licence has no named users cannot create one, for
+     * example. Each User is staged in its own temporary folder, deleted as soon as it is imported,
+     * because the staged file carries the live password hash and server-encrypted secrets.
+     */
+    private UserImport importUsers(
+            IServiceProvider resource,
+            List<TrackedProject> projects,
+            java.util.Set<String> trackedPaths)
+            throws Exception {
+        java.util.Map<String, UserSync.GitUser> users = new java.util.LinkedHashMap<>();
+        Path root = new File(fileRepository.getRootPath()).toPath();
+        for (TrackedProject project : projects) {
+            if (!project.syncs(UserSync.USERS)) continue;
+            String relative = projectFolder(project);
+            Path folder = resolveRepositoryPath(root, relative);
+            if (!Files.isDirectory(folder, LinkOption.NOFOLLOW_LINKS)) continue;
+            String prefix = relative.replace('\\', '/').replaceAll("^/+|/+$", "") + "/";
+            for (UserSync.GitUser user :
+                    UserSync.collect(folder, path -> trackedPaths.contains(prefix + path))) {
+                users.putIfAbsent(user.name(), user);
+            }
+        }
+        List<String> imported = new ArrayList<>();
+        List<String> created = new ArrayList<>();
+        List<String> failed = new ArrayList<>();
+        if (users.isEmpty()) return new UserImport(imported, created, failed);
+        var isPasswordProperty = UserSync.passwordProperties();
+        Path base = root.toRealPath();
+        for (UserSync.GitUser user : users.values()) {
+            Path temporary = Files.createTempDirectory(base, ".jgit-user-");
+            try {
+                UserSync.LiveUser live = UserSync.readLive(user.name());
+                Path file = temporary.resolve("0").resolve(UserSync.USERS).resolve("User.xml");
+                Files.createDirectories(file.getParent());
+                Files.writeString(
+                        file,
+                        UserSync.prepareImport(user, live, isPasswordProperty),
+                        StandardCharsets.UTF_8);
+                importFolder(resource, "/" + temporary.getFileName() + "/0");
+                imported.add(user.name());
+                if (live == null) created.add(user.name());
+            } catch (Exception e) {
+                failed.add(user.name() + " (" + e.getMessage() + ")");
+                com.thingworx.logging.LogUtilities.getInstance()
+                        .getApplicationLogger(FileRepositoryManager.class)
+                        .warn(
+                                "Could not import User '{}' into {}",
+                                user.name(),
+                                fileRepository.getName(),
+                                e);
+            } finally {
+                deleteRecursively(temporary);
+            }
+        }
+        return new UserImport(imported, created, failed);
+    }
 
     /** The repository-relative paths of every file in the Git index. */
     private java.util.Set<String> trackedPaths() throws IOException {
@@ -940,10 +1077,10 @@ final class FileRepositoryManager {
     /**
      * The tracked-project entities changed in ThingWorx since the last sync, as {@code "<Type>
      * <name>"}, which Sync to ThingWorx would overwrite. It reads each entity's modified date
-     * rather than exporting, so it stays fast for large projects. Users are never imported and are
-     * left out, as are Project entities themselves. Entities deleted in ThingWorx, and property
-     * values written at runtime, do not change a modified date and are not reported. When the
-     * repository was never synced, every entity in the tracked projects counts as changed.
+     * rather than exporting, so it stays fast for large projects. Project entities themselves are
+     * left out. Entities deleted in ThingWorx, and property values written at runtime, do not
+     * change a modified date and are not reported. When the repository was never synced, every
+     * entity in the tracked projects counts as changed.
      */
     List<String> changedSinceSync() throws Exception {
         requireImportPermissions();
@@ -954,10 +1091,10 @@ final class FileRepositoryManager {
                     EntityUtilities.findEntity(tracked.name(), ThingworxRelationshipTypes.Project);
             if (!(found instanceof com.thingworx.projects.Project project)) continue;
             for (var reference : project.getProjectEntities()) {
-                // Users are never imported. The Project itself only groups the entities and changes
-                // whenever one is added, so it is not a change worth protecting.
-                if (reference.getType() == ThingworxRelationshipTypes.User
-                        || reference.getType() == ThingworxRelationshipTypes.Project) continue;
+                // The Project itself only groups the entities and changes whenever one is added,
+                // so it is not a change worth protecting.
+                if (reference.getType() == ThingworxRelationshipTypes.Project) continue;
+                if (!tracked.syncs(SyncedEntityTypes.collectionOf(reference.getType()))) continue;
                 RootEntity entity =
                         EntityUtilities.findEntity(reference.getName(), reference.getType());
                 if (entity != null && modifiedAfter(entity, since)) {
@@ -985,9 +1122,9 @@ final class FileRepositoryManager {
 
     /**
      * Imports a project folder from a temporary copy that holds only its files tracked by Git,
-     * without the entities sync must not import: Users, and ApplicationKeys ThingWorx cannot
-     * update. See {@link SyncExclusions}. Every skipped ApplicationKey is reported in the extension
-     * log with how to repair it, and untracked files are added to {@code untracked}.
+     * without Users, which {@link #importUsers} has already imported, and ApplicationKeys ThingWorx
+     * cannot update. See {@link SyncExclusions}. Every skipped ApplicationKey is reported in the
+     * extension log with how to repair it, and untracked files are added to {@code untracked}.
      *
      * @return whether the import service ran
      */
@@ -995,10 +1132,11 @@ final class FileRepositoryManager {
             IServiceProvider resource,
             Path folder,
             String relative,
-            String project,
+            TrackedProject tracked,
             java.util.Set<String> trackedPaths,
             List<String> untracked)
             throws Exception {
+        String project = tracked.name();
         String prefix = relative.replace('\\', '/').replaceAll("^/+|/+$", "") + "/";
         Path base = new File(fileRepository.getRootPath()).toPath().toRealPath();
         Path temporary = Files.createTempDirectory(base, ".jgit-import-");
@@ -1010,6 +1148,8 @@ final class FileRepositoryManager {
                             staged,
                             SyncExclusions.IMPORT,
                             path -> {
+                                // Entity types the project does not sync are left alone.
+                                if (!tracked.syncs(collectionOfPath(path))) return false;
                                 if (trackedPaths.contains(prefix + path)) return true;
                                 untracked.add(prefix + path);
                                 return false;

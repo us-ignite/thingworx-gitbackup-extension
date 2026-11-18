@@ -90,5 +90,16 @@ for (const part of ['ide', 'runtime']) {
   assert.match(root.querySelector('.gh-commit strong').textContent, /^\[main\]/);
   assert.ok(root.querySelector('.gh-checkout'));
   console.log('commit checkout request and HEAD marker verified');
+
+  // Signed commits show a lock whose hover gives the signature details, never "verified".
+  widget.updateProperty({ TargetProperty: 'Commits', RawSinglePropertyValue: { rows: [
+    { CommitID: 'a', CommitName: 'signed', AuthorName: 'Ann', AuthorEmail: 'ann@example.com', SignatureFormat: 'ssh', SignatureKey: 'SHA256:abc' },
+    { CommitID: 'b', CommitName: 'unsigned', AuthorName: 'Bob', SignatureFormat: '' },
+  ] } });
+  const locks = root.querySelectorAll('.gh-commit .gh-lock');
+  assert.equal(locks.length, 1);
+  assert.match(locks[0].title, /^Signed \(not verified\)\nFormat: SSH\nKey: SHA256:abc\nAuthor: Ann <ann@example.com>/);
+  assert.match(root.querySelector('.gh-actions').textContent, /Signed \(not verified\)/);
+  console.log('signature lock and hover verified');
   dom.window.close();
 }

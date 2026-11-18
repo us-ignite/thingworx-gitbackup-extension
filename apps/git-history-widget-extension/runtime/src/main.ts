@@ -254,6 +254,24 @@ import javaLanguage from 'highlight.js/lib/languages/java';
 hljs.registerLanguage('diff', diffLanguage); hljs.registerLanguage('xml', xmlLanguage);
 hljs.registerLanguage('javascript', jsLanguage); hljs.registerLanguage('json', jsonLanguage); hljs.registerLanguage('java', javaLanguage);
 const rows = (value: any): any[] => value && Array.isArray(value.rows) ? value.rows : [];
+const SIGNATURE_FORMATS: {[format: string]: string} = {openpgp: 'OpenPGP (GPG)', ssh: 'SSH', x509: 'X.509'};
+/**
+ * A lock for a signed commit, with the signature details in its hover. The signature is not
+ * verified: the extension keeps no list of trusted signers to check the key against.
+ */
+const lockIcon = (c: any): HTMLElement | null => {
+  if (!c || !c.SignatureFormat) return null;
+  const lock = document.createElement('span');
+  lock.className = 'gh-lock';
+  lock.setAttribute('aria-label', 'Signed commit');
+  lock.innerHTML = '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path fill="currentColor" d="M4 7V5a4 4 0 1 1 8 0v2h1a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h1zm2 0h4V5a2 2 0 1 0-4 0v2z"/></svg>';
+  lock.title = ['Signed (not verified)',
+    'Format: ' + (SIGNATURE_FORMATS[c.SignatureFormat] || c.SignatureFormat),
+    'Key: ' + (c.SignatureKey || 'unknown'),
+    'Author: ' + (c.AuthorName || '') + (c.AuthorEmail ? ' <' + c.AuthorEmail + '>' : ''),
+    'There is no list of trusted signers here, so this does not check that the key belongs to the author.'].join('\n');
+  return lock;
+};
 const element = (tag: string, cls: string, text = ''): HTMLElement => { const e = document.createElement(tag); e.className = cls; e.textContent = text; return e; };
 @TWWidgetDefinition
 class GitHistoryWidget extends TWRuntimeWidget {
@@ -326,13 +344,14 @@ class GitHistoryWidget extends TWRuntimeWidget {
     if (commits.length) { try { const timeline=commits.map(c=>({id:String(c.CommitID),predecessorIds:String(c.ParentCommitIDs||'').split(',').filter(Boolean)})); const primitives=buildSvgPrimitives(buildLaneLayout(timeline),{rowHeight:56,showLabels:false},timeline); graph.style.width=`${Math.max(40, primitives.graphWidth)}px`; graph.innerHTML=renderToSvgString(primitives); const svg=graph.querySelector('svg'); if(svg){svg.style.transform='translateY(-28px) scaleY(-1)'; svg.style.display='block';} } catch(e) { console.error('Git history graph',e); } }
     list.append(graph); const commitRows=element('div','gh-rows');
     const head=this.headCommitID();
-    for (const c of commits) {const b=element('button','gh-commit'+(c.CommitID===this.SelectedCommitID?' selected':'')); const labels=[...(head && c.CommitID===head ? ['HEAD'] : []),...rows(this.Branches).filter(b=>b.CommitID===c.CommitID).map(b=>b.ShortBranchName),...rows(this.Tags).filter(t=>t.CommitID===c.CommitID).map(t=>t.TagName)].filter(Boolean); const title=element('strong','',(labels.length ? '['+labels.join(', ')+'] ' : '')+(c.CommitName||'(no message)')); const date=c.CommitTime ? new Date(c.CommitTime).toLocaleString() : ''; const meta=element('small','',`${c.AuthorName||''} · ${date} · ${String(c.CommitID).slice(0,8)}`); if(this.query && !(`${c.CommitName} ${c.AuthorName} ${c.CommitID}`.toLowerCase().includes(this.query))) b.style.opacity='0.3'; b.append(title,meta); b.onclick=()=>this.chooseCommit(c.CommitID); commitRows.append(b); }
+    for (const c of commits) {const b=element('button','gh-commit'+(c.CommitID===this.SelectedCommitID?' selected':'')); const labels=[...(head && c.CommitID===head ? ['HEAD'] : []),...rows(this.Branches).filter(b=>b.CommitID===c.CommitID).map(b=>b.ShortBranchName),...rows(this.Tags).filter(t=>t.CommitID===c.CommitID).map(t=>t.TagName)].filter(Boolean); const title=element('strong','',(labels.length ? '['+labels.join(', ')+'] ' : '')+(c.CommitName||'(no message)')); const date=c.CommitTime ? new Date(c.CommitTime).toLocaleString() : ''; const meta=element('small','',`${c.AuthorName||''} · ${date} · ${String(c.CommitID).slice(0,8)}`); if(this.query && !(`${c.CommitName} ${c.AuthorName} ${c.CommitID}`.toLowerCase().includes(this.query))) b.style.opacity='0.3'; const lock=lockIcon(c); if(lock) title.prepend(lock); b.append(title,meta); b.onclick=()=>this.chooseCommit(c.CommitID); commitRows.append(b); }
     if(!commits.length) commitRows.append(element('div','gh-empty','Select a repository to view its history.')); list.append(commitRows); history.append(list); body.append(history);
     const detail=element('div','gh-details'); const info=rows(this.CommitInfo)[0];
     if(!this.SelectedCommitID) detail.append(element('div','gh-empty','Select a commit to inspect its files.'));
     else if (!info || info.CommitID !== this.SelectedCommitID) detail.append(element('div','gh-empty','Loading commit…'));
     else {detail.append(element('h3','',info.CommitDescription||'Commit'),element('small','',`${info.Author||''} · ${info.Date ? new Date(info.Date).toLocaleString() : ''} · ${String(info.CommitID).slice(0,8)}`));
       const actions=element('div','gh-actions');
+      const signed=commits.find(c=>c.CommitID===info.CommitID); const lock=signed && lockIcon(signed); if(lock){const badge=element('span','gh-badge gh-signed',' Signed (not verified)'); badge.prepend(lock); badge.title=lock.title; actions.append(badge);}
       if (head && head===info.CommitID) actions.append(element('span','gh-badge','Checked out (HEAD)'));
       else { const checkout=element('button','gh-checkout','Check out this commit'); checkout.title='Move the working tree to this commit (detached HEAD)'; checkout.onclick=()=>this.emit('CheckoutRequested'); actions.append(checkout); }
       detail.append(actions);

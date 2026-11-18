@@ -85,9 +85,11 @@ services:
       CATALINA_OPTS: -Xms1g -Xmx2g --add-opens=java.base/java.net=ALL-UNNAMED
       THINGWORX_PLATFORM_SCRIPTTIMEOUT: "30"
       # The bundled Gitea container is on a private Docker address. Add any other internal
-      # Git servers here; public hosts do not need to be listed. Credentials are still only
-      # sent over HTTP when THINGWORX_JGIT_ALLOW_INSECURE_CREDENTIALS is explicitly true.
+      # Git servers here; public hosts do not need to be listed.
       THINGWORX_JGIT_NETWORK_ALLOWLIST: ${THINGWORX_JGIT_NETWORK_ALLOWLIST:-gitea}
+      # Development only: the bundled Gitea serves plain HTTP, so allow saved sign-ins to be
+      # sent over http:// remotes. Never enable this in a shared or production environment.
+      THINGWORX_JGIT_ALLOW_INSECURE_CREDENTIALS: ${THINGWORX_JGIT_ALLOW_INSECURE_CREDENTIALS:-true}
       TOMCAT_KEEPALIVETIMEOUT: "20000"
       TOMCAT_CONNECTIONTIMEOUT: "20000"
       TOMCAT_MAXCONNECTION: "10000"

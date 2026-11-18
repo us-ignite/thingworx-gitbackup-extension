@@ -22,6 +22,9 @@ public final class Const {
     /** Optional repository-relative entity folder of a tracked project. */
     public static final String TrackedProjectPath = "Path";
 
+    /** Entity types a tracked project synchronizes, comma-separated; blank means all. */
+    public static final String TrackedProjectEntityTypes = "EntityTypes";
+
     public static final String TrackedProjectDataShapeName = "GIT.TrackedProject.DataShape";
     public static final String GitRepoURLDefaultValue = "";
 
@@ -85,6 +88,17 @@ public final class Const {
     public static final String SshKeyLabel = "SshKeyLabel";
     public static final String UserSshKeyDataShapeName = "GIT.SshKey.UserExtension.DataShape";
     public static final String SshKeySummaryDataShapeName = "GIT.SshKeySummary.DataShape";
+
+    // Commit signing. SigningFormat picks which fingerprint field of the repository row is read.
+    public static final String SigningFormat = "SigningFormat";
+    public static final String SigningSshKeyFingerprint = "SigningSshKeyFingerprint";
+    public static final String KeyFingerprint = "KeyFingerprint";
+
+    /** Repository Thing property: when true, commits fail unless they can be signed. */
+    public static final String RequireSigning = "RequireSigning";
+
+    public static final String SignatureFormat = "SignatureFormat";
+    public static final String SignatureKey = "SignatureKey";
 
     // Per-remote sign-in. A remote without its own row uses the repository row, if any.
     public static final String UserRemoteCredentials = "UserRemoteCredentials";

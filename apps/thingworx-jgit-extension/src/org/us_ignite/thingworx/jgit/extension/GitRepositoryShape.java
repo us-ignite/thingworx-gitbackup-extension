@@ -2,14 +2,12 @@ package org.us_ignite.thingworx.jgit.extension;
 
 import com.thingworx.data.util.InfoTableInstanceFactory;
 import com.thingworx.entities.utils.EntityUtilities;
-import com.thingworx.entities.utils.UserUtilities;
 import com.thingworx.logging.LogUtilities;
 import com.thingworx.metadata.annotations.ThingworxBaseTemplateDefinition;
 import com.thingworx.metadata.annotations.ThingworxServiceDefinition;
 import com.thingworx.metadata.annotations.ThingworxServiceParameter;
 import com.thingworx.metadata.annotations.ThingworxServiceResult;
 import com.thingworx.relationships.RelationshipTypes.ThingworxRelationshipTypes;
-import com.thingworx.security.users.User;
 import com.thingworx.system.ContextType;
 import com.thingworx.things.Thing;
 import com.thingworx.types.InfoTable;
@@ -63,6 +61,7 @@ import org.eclipse.jgit.lib.ReflogReader;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.RepositoryCache;
 import org.eclipse.jgit.lib.RepositoryState;
+import org.eclipse.jgit.lib.Signer;
 import org.eclipse.jgit.lib.Signers;
 import org.eclipse.jgit.lib.StoredConfig;
 import org.eclipse.jgit.revwalk.RevCommit;
@@ -100,12 +99,15 @@ import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.CommitTreeE
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.ConflictFileSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.ConflictStateSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.CurrentBranchStatusSpec;
+import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.EntityTypeOptionSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.FileContentSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.HistoryRefSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.ReflogEntrySpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.RemoteSignInSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.RemoteSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.RemoteStatusSpec;
+import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.RepositorySigningSpec;
+import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.SigningKeyOptionSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.SshHostKeySpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.StatusSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.StringResultSpec;
@@ -185,7 +187,15 @@ import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.TrackedProj
                     dataShape = "GIT.TrackedProject.DataShape",
                     ordinal = 10,
                     category = "Repository",
-                    description = "ThingWorx projects synchronized with this repository")
+                    description = "ThingWorx projects synchronized with this repository"),
+            @DapProperty(
+                    name = "RequireSigning",
+                    baseType = DapBaseType.BOOLEAN,
+                    ordinal = 11,
+                    category = "Repository",
+                    defaultValue = "false",
+                    description =
+                            "When true, commits in this repository fail unless they can be signed")
         })
 public class GitRepositoryShape extends Thing {
     // set background file system resolution to false and enable debugging
@@ -274,8 +284,14 @@ public class GitRepositoryShape extends Thing {
                             name = "Message",
                             description = "The commit message",
                             baseType = "STRING")
-                    String Message) {
-        return commitIndex("Commit", Message);
+                    String Message,
+            @ThingworxServiceParameter(
+                            name = "SigningKey",
+                            description =
+                                    "Optional key for this commit only, as GetSigningKeyOptions returns it: openpgp:<fingerprint>, ssh:<fingerprint>, or none for unsigned. Blank uses the repository's signing key.",
+                            baseType = "STRING")
+                    String SigningKey) {
+        return commitIndex("Commit", Message, SigningKey);
     }
 
     /**
@@ -304,80 +320,144 @@ public class GitRepositoryShape extends Thing {
                             name = "Message",
                             description = "The commit message",
                             baseType = "STRING")
-                    String Message) {
-        return commitIndex("CommitStaged", Message);
+                    String Message,
+            @ThingworxServiceParameter(
+                            name = "SigningKey",
+                            description =
+                                    "Optional key for this commit only, as GetSigningKeyOptions returns it: openpgp:<fingerprint>, ssh:<fingerprint>, or none for unsigned. Blank uses the repository's signing key.",
+                            baseType = "STRING")
+                    String SigningKey) {
+        return commitIndex("CommitStaged", Message, SigningKey);
     }
 
     /**
-     * Signs {@code commitCmd} with the current user's GPG key selected for this repository, when
-     * one is configured. The caller must clear the returned signer after the commit.
-     *
-     * @return the signer, or {@code null} when the commit is not signed
+     * Signs with the repository's saved choice; see {@link #configureSigning(CommitCommand, String,
+     * String)}.
      */
-    private PastedKeyGpgSigner configureSigning(CommitCommand commitCmd) throws Exception {
-        User currentUser = UserUtilities.findUser(UserUtilities.getCurrentUser());
+    private Signer configureSigning(CommitCommand commitCmd) throws Exception {
+        return configureSigning(commitCmd, null, null);
+    }
+
+    /**
+     * Signs {@code commitCmd} with the current user's signing key for this repository, or with the
+     * key chosen for this one commit. The caller must pass the returned signer to {@link
+     * #clearSigner(Signer)} after the commit.
+     *
+     * @param overrideFormat blank for the saved choice, {@code none} for unsigned, or {@code
+     *     openpgp}/{@code ssh} with {@code overrideFingerprint}
+     * @return the signer, or {@code null} when the commit is not signed
+     * @throws IllegalStateException when the repository requires signing and no key applies, or the
+     *     selected key has no stored private key
+     */
+    private Signer configureSigning(
+            CommitCommand commitCmd, String overrideFormat, String overrideFingerprint)
+            throws Exception {
+        String repository = resolveTargetThing().getName();
         GitUserContextManager userContext = new GitUserContextManager();
-        PastedKeyGpgSigner gpgSigner = null;
-        String GpgPrivateKey = null;
-        String GpgPassphrase = null;
-        ValueCollection GpgKey = null;
-        if (currentUser != null) {
-            ValueCollection repositoryConfig =
-                    userContext.credentialsFor(resolveTargetThing().getName());
-            String fingerprint = repositoryConfig.getStringValue(Const.GpgKeyFingerprint);
-            if (fingerprint != null && !fingerprint.isBlank()) {
-                Object property = currentUser.getPropertyValue(Const.UserGpgKeys);
-                if (property instanceof InfoTablePrimitive) {
-                    InfoTable keys = ((InfoTablePrimitive) property).getValue();
-                    if (keys != null) {
-                        for (int i = 0; i < keys.getRowCount(); i++) {
-                            ValueCollection key = keys.getRow(i);
-                            if (fingerprint.equals(key.getStringValue(Const.GpgKeyFingerprint))) {
-                                GpgKey = key;
-                                break;
-                            }
-                        }
-                    }
-                }
-                if (GpgKey == null)
-                    log.warn(
-                            "Repository {} references GPG key {} which is not owned by the current user; commit will not be signed.",
-                            resolveTargetThing().getName(),
-                            fingerprint);
+        if (userContext.user() == null) return null;
+        ValueCollection row = userContext.credentialsFor(repository);
+        SigningSelection.Choice choice =
+                SigningSelection.resolve(
+                        storedText(row, Const.SigningFormat),
+                        storedText(row, Const.GpgKeyFingerprint),
+                        storedText(row, Const.SigningSshKeyFingerprint),
+                        overrideFormat,
+                        overrideFingerprint,
+                        requireSigning());
+        if (!choice.signs()) return null;
+        if (SigningSelection.SSH.equals(choice.format())) {
+            ValueCollection key = userContext.sshKey(choice.fingerprint());
+            if (key == null) {
+                throw new IllegalStateException(
+                        Const.ERR_PREFIX_CONFIG
+                                + "The SSH key "
+                                + choice.fingerprint()
+                                + " selected for signing is not one of your SSH keys. Choose"
+                                + " another signing key in Repository Settings.");
             }
+            String privateKey = GitUserContextManager.secret(key, Const.SshPrivateKey);
+            if (privateKey.isBlank()) {
+                throw new IllegalStateException(
+                        Const.ERR_PREFIX_CONFIG
+                                + "The SSH key "
+                                + choice.fingerprint()
+                                + " selected for signing has no stored private key. Add the key"
+                                + " again, or choose another signing key.");
+            }
+            StoredKeySshSigner signer =
+                    new StoredKeySshSigner(
+                            privateKey, GitUserContextManager.secret(key, Const.SshKeyPassphrase));
+            commitCmd.setSign(true).setSigningKey(null).setSigner(signer);
+            return signer;
         }
-        if (GpgKey != null) {
-            String storedKey = GitUserContextManager.secret(GpgKey, Const.GpgPrivateKey);
-            if (storedKey.isBlank()) {
-                // Signing was requested, so do not fall back to an unsigned commit.
+
+        ValueCollection gpgKey = userContext.gpgKey(choice.fingerprint());
+        if (gpgKey == null) {
+            if (overrideFormat != null && !overrideFormat.isBlank() || requireSigning()) {
                 throw new IllegalStateException(
                         Const.ERR_PREFIX_CONFIG
                                 + "The GPG key "
-                                + GpgKey.getStringValue(Const.GpgKeyFingerprint)
-                                + " selected for signing in this repository has no stored private"
-                                + " key (it may have been cleared). Add the key again in User"
-                                + " Identity, or clear the repository's GPG key to commit"
-                                + " unsigned.");
+                                + choice.fingerprint()
+                                + " selected for signing is not one of your GPG keys.");
             }
-            GpgPrivateKey = PastedKeyGpgSigner.normalizePrivateKey(storedKey);
-            // A key without a passphrase is stored with an empty one.
-            GpgPassphrase = GitUserContextManager.secret(GpgKey, Const.GpgKeyPassphrase);
+            // Earlier versions committed unsigned here, and repositories rely on that.
+            log.warn(
+                    "Repository {} references GPG key {} which is not owned by the current user;"
+                            + " commit will not be signed.",
+                    repository,
+                    choice.fingerprint());
+            return null;
         }
-
-        if (GpgPrivateKey != null && !GpgPrivateKey.isBlank()) {
-            gpgSigner = new PastedKeyGpgSigner(GpgPrivateKey, GpgPassphrase);
-            Signers.set(GpgConfig.GpgFormat.OPENPGP, gpgSigner);
-            commitCmd.setSign(true).setSigningKey(null).setSigner(gpgSigner);
-            commitCmd.setCredentialsProvider(
-                    new UsernamePasswordCredentialsProvider(null, GpgPassphrase));
+        String storedKey = GitUserContextManager.secret(gpgKey, Const.GpgPrivateKey);
+        if (storedKey.isBlank()) {
+            // Signing was requested, so do not fall back to an unsigned commit.
+            throw new IllegalStateException(
+                    Const.ERR_PREFIX_CONFIG
+                            + "The GPG key "
+                            + choice.fingerprint()
+                            + " selected for signing in this repository has no stored private"
+                            + " key (it may have been cleared). Add the key again in User"
+                            + " Identity, or clear the repository's GPG key to commit"
+                            + " unsigned.");
         }
+        // A key without a passphrase is stored with an empty one.
+        String passphrase = GitUserContextManager.secret(gpgKey, Const.GpgKeyPassphrase);
+        PastedKeyGpgSigner gpgSigner =
+                new PastedKeyGpgSigner(
+                        PastedKeyGpgSigner.normalizePrivateKey(storedKey), passphrase);
+        Signers.set(GpgConfig.GpgFormat.OPENPGP, gpgSigner);
+        commitCmd.setSign(true).setSigningKey(null).setSigner(gpgSigner);
+        commitCmd.setCredentialsProvider(new UsernamePasswordCredentialsProvider(null, passphrase));
         return gpgSigner;
     }
 
-    private InfoTable commitIndex(String serviceName, String Message) {
+    /** Clears the key material a signer from {@link #configureSigning} holds. */
+    private static void clearSigner(Signer signer) {
+        if (signer instanceof PastedKeyGpgSigner gpg) gpg.clearSensitiveData();
+        else if (signer instanceof StoredKeySshSigner ssh) ssh.clearSensitiveData();
+    }
+
+    /**
+     * This repository's RequireSigning property. False when the property is missing, which happens
+     * on a repository Thing that predates the property until the upgrade adds it.
+     */
+    private boolean requireSigning() {
+        try {
+            Object value = resolveTargetThing().getPropertyValue(Const.RequireSigning);
+            Object raw =
+                    value instanceof com.thingworx.types.primitives.IPrimitiveType<?, ?> primitive
+                            ? primitive.getValue()
+                            : value;
+            return Boolean.TRUE.equals(raw);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private InfoTable commitIndex(String serviceName, String Message, String signingKey) {
         log.trace("Entering Service: " + serviceName);
         FileRepositoryManager fileRepo = null;
-        PastedKeyGpgSigner gpgSigner = null;
+        Signer gpgSigner = null;
         try {
             if (Message == null || Message.isBlank()) {
                 GitActionLogger.logAction(
@@ -440,7 +520,8 @@ public class GitRepositoryShape extends Thing {
                             .setMessage(CommitAttribution.withAuthenticatedUser(Message))
                             .setCommitter(CommitterName, CommitterEmail);
 
-            gpgSigner = configureSigning(commitCmd);
+            SigningSelection.Choice override = SigningSelection.parseKey(signingKey);
+            gpgSigner = configureSigning(commitCmd, override.format(), override.fingerprint());
 
             commitCmd.call();
 
@@ -454,7 +535,7 @@ public class GitRepositoryShape extends Thing {
                     e == null ? "" : String.valueOf(e.getMessage()));
             return DapResults.failure(serviceName, e, StringResultContract.SERVICE_RESULT);
         } finally {
-            if (gpgSigner != null) gpgSigner.clearSensitiveData();
+            clearSigner(gpgSigner);
             if (fileRepo != null) fileRepo.close();
         }
     }
@@ -712,6 +793,300 @@ public class GitRepositoryShape extends Thing {
 
             return DapResults.failure(
                     "SetGPGKeyForSigning", e, StringResultContract.SERVICE_RESULT);
+        }
+    }
+
+    /**
+     * Saves the current user's commit signing key for this repository, in either format. The key
+     * must be one of the user's own keys.
+     */
+    @DapServicePayload(StringResultSpec.class)
+    @ThingworxServiceDefinition(
+            name = "SetRepositorySigningKey",
+            description =
+                    "Selects the current user's commit signing key for this repository: an OpenPGP (GPG) key or an SSH key. A blank SigningFormat turns signing off.",
+            category = "",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
+    public InfoTable SetRepositorySigningKey(
+            @ThingworxServiceParameter(
+                            name = "SigningFormat",
+                            description = "openpgp, ssh, or blank to stop signing",
+                            baseType = "STRING")
+                    String SigningFormat,
+            @ThingworxServiceParameter(
+                            name = "KeyFingerprint",
+                            description =
+                                    "Fingerprint of one of the current user's GPG keys (openpgp) or SSH keys (ssh)",
+                            baseType = "STRING")
+                    String KeyFingerprint) {
+        try {
+            GitUserContextManager userContext = new GitUserContextManager();
+            userContext.requireUser();
+            String format = SigningSelection.format(SigningFormat);
+            if (format.equals(SigningSelection.NONE)) format = "";
+            String fingerprint = KeyFingerprint == null ? "" : KeyFingerprint.trim();
+            if (!format.isEmpty() && fingerprint.isEmpty())
+                throw new IllegalArgumentException(
+                        "KeyFingerprint is required when SigningFormat is " + format + ".");
+            if (format.equals(SigningSelection.OPENPGP)) {
+                userContext.validateGpgKeyOwnership(fingerprint);
+            } else if (format.equals(SigningSelection.SSH)
+                    && userContext.sshKey(fingerprint) == null) {
+                throw new IllegalArgumentException(
+                        "SSH key is not owned by the current user: fingerprint " + fingerprint);
+            }
+            userContext.setRepositorySigning(resolveTargetThing().getName(), format, fingerprint);
+            String message =
+                    format.isEmpty()
+                            ? "Commits are no longer signed."
+                            : format.equals(SigningSelection.SSH)
+                                    ? "Commits are signed with SSH key " + fingerprint + "."
+                                    : "Commits are signed with GPG key " + fingerprint + ".";
+            if (format.isEmpty() && requireSigning())
+                message +=
+                        " This repository requires signing, so commits will fail until a key is chosen.";
+            GitActionLogger.logAction(
+                    "SetRepositorySigningKey", resolveTargetThing().getName(), message);
+            return DapResults.success(
+                    "SetRepositorySigningKey", message, StringResultContract.SERVICE_RESULT);
+        } catch (Exception e) {
+            return DapResults.failure(
+                    "SetRepositorySigningKey", e, StringResultContract.SERVICE_RESULT);
+        }
+    }
+
+    /** Returns the current user's signing choice for this repository and RequireSigning. */
+    @DapServicePayload(RepositorySigningSpec.class)
+    @ThingworxServiceDefinition(
+            name = "GetRepositorySigning",
+            description =
+                    "Returns the current user's commit signing key for this repository and whether the repository requires signing",
+            category = "",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {
+                "isEntityDataShape:true",
+                "dataShape:GIT.RepositorySigning.ServiceResult.DataShape"
+            })
+    public InfoTable GetRepositorySigning() {
+        try {
+            GitUserContextManager userContext = new GitUserContextManager();
+            userContext.requireUser();
+            ValueCollection stored = userContext.credentialsFor(resolveTargetThing().getName());
+            String gpg = storedText(stored, Const.GpgKeyFingerprint);
+            String ssh = storedText(stored, Const.SigningSshKeyFingerprint);
+            SigningSelection.Choice choice =
+                    SigningSelection.saved(storedText(stored, Const.SigningFormat), gpg, ssh);
+            InfoTable table =
+                    InfoTableInstanceFactory.createInfoTableFromDataShape(
+                            "GIT.RepositorySigning.DataShape");
+            ValueCollection row = new ValueCollection();
+            row.put(Const.SigningFormat, new StringPrimitive(choice.format()));
+            row.put(Const.KeyFingerprint, new StringPrimitive(choice.fingerprint()));
+            row.put(Const.GpgKeyFingerprint, new StringPrimitive(gpg));
+            row.put(Const.SigningSshKeyFingerprint, new StringPrimitive(ssh));
+            row.put(Const.RequireSigning, new BooleanPrimitive(requireSigning()));
+            row.put(
+                    "CanChangeRequireSigning",
+                    new BooleanPrimitive(
+                            hasRequireSigningProperty()
+                                    && Boolean.TRUE.equals(
+                                            resolveTargetThing()
+                                                    .CheckDesignTimePermission("Update"))));
+            table.addRow(row);
+            return DapResults.success(
+                    "GetRepositorySigning",
+                    RepositorySigningTable.SERVICE_RESULT,
+                    RepositorySigningTable.wrap(table));
+        } catch (Exception e) {
+            return DapResults.failure(
+                    "GetRepositorySigning", e, RepositorySigningTable.SERVICE_RESULT);
+        }
+    }
+
+    /**
+     * Lists the keys the current user can sign commits with in this repository: None, then the
+     * user's GPG and SSH keys. The saved key comes first, so a dropdown that selects its first row
+     * starts on the repository's default. None is left out when the repository requires signing.
+     */
+    @DapServicePayload(SigningKeyOptionSpec.class)
+    @ThingworxServiceDefinition(
+            name = "GetSigningKeyOptions",
+            description =
+                    "Lists the current user's GPG and SSH keys that can sign commits in this repository, the saved key first",
+            category = "",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {
+                "isEntityDataShape:true",
+                "dataShape:GIT.SigningKeyOption.ServiceResult.DataShape"
+            })
+    public InfoTable GetSigningKeyOptions() {
+        try {
+            String repository = resolveTargetThing().getName();
+            GitUserContextManager userContext = new GitUserContextManager();
+            userContext.requireUser();
+            ValueCollection stored = userContext.credentialsFor(repository);
+            String saved =
+                    SigningSelection.key(
+                            SigningSelection.saved(
+                                    storedText(stored, Const.SigningFormat),
+                                    storedText(stored, Const.GpgKeyFingerprint),
+                                    storedText(stored, Const.SigningSshKeyFingerprint)));
+            java.util.Set<String> signIn = new java.util.HashSet<>();
+            signIn.add(storedText(stored, Const.SshKeyFingerprint));
+            InfoTable remotes = userContext.remoteCredentials();
+            if (remotes != null)
+                for (int i = 0; i < remotes.getRowCount(); i++)
+                    if (repository.equals(remotes.getRow(i).getStringValue("GitThing")))
+                        signIn.add(storedText(remotes.getRow(i), Const.SshKeyFingerprint));
+            signIn.remove("");
+
+            java.util.List<ValueCollection> rows = new ArrayList<>();
+            if (!requireSigning())
+                rows.add(signingOption(SigningSelection.NONE, "", "", "None (not signed)", false));
+            InfoTable gpg = userContext.gpgKeys();
+            if (gpg != null)
+                for (int i = 0; i < gpg.getRowCount(); i++) {
+                    ValueCollection key = gpg.getRow(i);
+                    rows.add(
+                            signingOption(
+                                    SigningSelection.OPENPGP,
+                                    storedText(key, Const.GpgKeyFingerprint),
+                                    storedText(key, Const.GpgKeyLabel),
+                                    "GPG",
+                                    false));
+                }
+            InfoTable ssh = userContext.sshKeys();
+            if (ssh != null)
+                for (int i = 0; i < ssh.getRowCount(); i++) {
+                    ValueCollection key = ssh.getRow(i);
+                    String fingerprint = storedText(key, Const.SshKeyFingerprint);
+                    rows.add(
+                            signingOption(
+                                    SigningSelection.SSH,
+                                    fingerprint,
+                                    storedText(key, Const.SshKeyLabel),
+                                    "SSH",
+                                    signIn.contains(fingerprint)));
+                }
+            InfoTable table =
+                    InfoTableInstanceFactory.createInfoTableFromDataShape(
+                            "GIT.SigningKeyOption.DataShape");
+            String defaultValue = saved.isEmpty() ? SigningSelection.NONE : saved;
+            rows.stream()
+                    .filter(row -> defaultValue.equals(row.getStringValue("Value")))
+                    .findFirst()
+                    .ifPresent(
+                            row -> {
+                                row.put("IsRepositoryDefault", new BooleanPrimitive(true));
+                                row.put(
+                                        "Display",
+                                        new StringPrimitive(
+                                                row.getStringValue("Display")
+                                                        + " (repository default)"));
+                                table.addRow(row);
+                            });
+            for (ValueCollection row : rows)
+                if (!defaultValue.equals(row.getStringValue("Value"))) table.addRow(row);
+            return DapResults.success(
+                    "GetSigningKeyOptions",
+                    SigningKeyOptionTable.SERVICE_RESULT,
+                    SigningKeyOptionTable.wrap(table));
+        } catch (Exception e) {
+            return DapResults.failure(
+                    "GetSigningKeyOptions", e, SigningKeyOptionTable.SERVICE_RESULT);
+        }
+    }
+
+    private static ValueCollection signingOption(
+            String format, String fingerprint, String label, String kind, boolean signIn) {
+        ValueCollection row = new ValueCollection();
+        boolean none = format.equals(SigningSelection.NONE);
+        row.put("Value", new StringPrimitive(none ? format : format + ":" + fingerprint));
+        String display =
+                none
+                        ? kind
+                        : kind
+                                + "  "
+                                + (label.isBlank() ? "" : label + "  ")
+                                + fingerprint
+                                + (signIn ? "  (also sign-in)" : "");
+        row.put("Display", new StringPrimitive(display));
+        row.put("Format", new StringPrimitive(none ? "" : format));
+        row.put("Fingerprint", new StringPrimitive(fingerprint));
+        row.put("IsRepositoryDefault", new BooleanPrimitive(false));
+        row.put("IsSignInKey", new BooleanPrimitive(signIn));
+        return row;
+    }
+
+    /**
+     * Turns RequireSigning on or off for this repository. It applies to every user, so it needs
+     * design-time Update permission on the repository Thing.
+     */
+    @DapServicePayload(StringResultSpec.class)
+    @ThingworxServiceDefinition(
+            name = "SetRequireSigning",
+            description =
+                    "Turns RequireSigning on or off for every user of this repository. Needs design-time Update permission on the repository Thing.",
+            category = "",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
+    public InfoTable SetRequireSigning(
+            @ThingworxServiceParameter(
+                            name = "RequireSigning",
+                            description = "true to refuse unsigned commits",
+                            baseType = "BOOLEAN")
+                    Boolean RequireSigning) {
+        try {
+            Thing thing = resolveTargetThing();
+            if (!Boolean.TRUE.equals(thing.CheckDesignTimePermission("Update")))
+                throw new SecurityException(
+                        "Update permission denied for Thing " + thing.getName());
+            if (!hasRequireSigningProperty())
+                throw new IllegalStateException(
+                        Const.ERR_PREFIX_CONFIG
+                                + "This repository Thing has no RequireSigning property yet."
+                                + " Restart the extension's Utility Thing to finish the upgrade.");
+            boolean value = Boolean.TRUE.equals(RequireSigning);
+            thing.setPropertyValue(Const.RequireSigning, new BooleanPrimitive(value));
+            String message =
+                    value
+                            ? "This repository now requires signed commits."
+                            : "This repository no longer requires signed commits.";
+            GitActionLogger.logAction("SetRequireSigning", thing.getName(), message);
+            return DapResults.success(
+                    "SetRequireSigning", message, StringResultContract.SERVICE_RESULT);
+        } catch (Exception e) {
+            return DapResults.failure("SetRequireSigning", e, StringResultContract.SERVICE_RESULT);
+        }
+    }
+
+    private boolean hasRequireSigningProperty() {
+        try {
+            return resolveTargetThing().getEffectivePropertyDefinition(Const.RequireSigning)
+                    != null;
+        } catch (Exception e) {
+            return false;
         }
     }
 
@@ -2175,6 +2550,9 @@ public class GitRepositoryShape extends Thing {
             InfoTable result =
                     InfoTableInstanceFactory.createInfoTableFromDataShape(
                             Const.CommitLogDataShapeName);
+            // An upgrade can keep the earlier data shape without the signature columns.
+            addStatusField(result, Const.SignatureFormat, com.thingworx.types.BaseTypes.STRING, 9);
+            addStatusField(result, Const.SignatureKey, com.thingworx.types.BaseTypes.STRING, 10);
             var fileRepo = new FileRepositoryManager(resolveTargetThing());
             Repository repository = fileRepo.git().getRepository();
             int count = 0;
@@ -2245,6 +2623,10 @@ public class GitRepositoryShape extends Thing {
     private static void addCommitLogRow(InfoTable result, RevCommit commit) {
         ValueCollection row = new ValueCollection();
         row.put("CommitID", new StringPrimitive(commit.getId().name()));
+        CommitSignatures.Description signature =
+                CommitSignatures.describe(commit.getRawGpgSignature());
+        row.put(Const.SignatureFormat, new StringPrimitive(signature.format()));
+        row.put(Const.SignatureKey, new StringPrimitive(signature.key()));
         row.put("CommitName", new StringPrimitive(commit.getShortMessage()));
         row.put(
                 "CommitTime",
@@ -2548,6 +2930,31 @@ public class GitRepositoryShape extends Thing {
     private static final int UNTRACKED_SHOWN = 10;
 
     /** Names the untracked files a Sync to ThingWorx left out, or returns blank. */
+    /** Names the Users created disabled and the Users that could not be imported. */
+    static String usersNote(List<String> created, List<String> failed) {
+        String note = "";
+        if (!created.isEmpty()) {
+            note +=
+                    " "
+                            + (created.size() == 1 ? "User " : "Users ")
+                            + String.join(", ", created)
+                            + (created.size() == 1 ? " was" : " were")
+                            + " created disabled with a random password; set a password and"
+                            + " enable "
+                            + (created.size() == 1 ? "it." : "them.");
+        }
+        if (!failed.isEmpty()) {
+            note +=
+                    " "
+                            + failed.size()
+                            + (failed.size() == 1 ? " User was" : " Users were")
+                            + " not imported: "
+                            + String.join("; ", failed)
+                            + ".";
+        }
+        return note;
+    }
+
     static String untrackedNote(List<String> untracked) {
         if (untracked.isEmpty()) return "";
         List<String> shown = untracked.subList(0, Math.min(untracked.size(), UNTRACKED_SHOWN));
@@ -2621,6 +3028,7 @@ public class GitRepositoryShape extends Thing {
                             ? "Repository entities imported into ThingWorx."
                             : "No tracked XML entities found to import.";
             message += untrackedNote(result.untracked());
+            message += usersNote(result.createdUsers(), result.failedUsers());
             GitActionLogger.logAction("SyncToThingWorx", resolveTargetThing().getName(), message);
             return DapResults.success(
                     "SyncToThingWorx", message, StringResultContract.SERVICE_RESULT);
@@ -3567,7 +3975,7 @@ public class GitRepositoryShape extends Thing {
                             baseType = "STRING")
                     String Message) {
         FileRepositoryManager fileRepo = null;
-        PastedKeyGpgSigner[] signer = new PastedKeyGpgSigner[1];
+        Signer[] signer = new Signer[1];
         try {
             fileRepo = new FileRepositoryManager(resolveTargetThing());
             Git git = fileRepo.git();
@@ -3613,7 +4021,7 @@ public class GitRepositoryShape extends Thing {
                     String.valueOf(e.getMessage()));
             return DapResults.failure("ConflictContinue", e, StringResultContract.SERVICE_RESULT);
         } finally {
-            if (signer[0] != null) signer[0].clearSensitiveData();
+            clearSigner(signer[0]);
             if (fileRepo != null) fileRepo.close();
         }
     }
@@ -4094,6 +4502,48 @@ public class GitRepositoryShape extends Thing {
         }
     }
 
+    @DapServicePayload(FileContentSpec.class)
+    @ThingworxServiceDefinition(
+            name = "GetReadme",
+            description =
+                    "Returns the README at the root of the commit HEAD points at (README.md"
+                            + " preferred, name case ignored). The result has no rows when the"
+                            + " repository has no commit or no README.",
+            category = "",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "Result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {
+                "isEntityDataShape:true",
+                "dataShape:GIT.FileContent.ServiceResult.DataShape"
+            })
+    public InfoTable GetReadme() {
+        log.trace("Entering Service: GetReadme");
+        try {
+            var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            InfoTable result =
+                    InfoTableInstanceFactory.createInfoTableFromDataShape(
+                            Const.FileContentDataShapeName);
+            var readme = RepositoryReadme.read(fileRepo.git().getRepository(), 1000000);
+            if (readme.isPresent()) {
+                ValueCollection row = new ValueCollection();
+                row.put("Path", new StringPrimitive(readme.get().path()));
+                row.put("Content", new StringPrimitive(readme.get().content()));
+                DapValues.putLong(row, "Size", readme.get().size());
+                row.put("Binary", new BooleanPrimitive(readme.get().binary()));
+                row.put("Truncated", new BooleanPrimitive(readme.get().truncated()));
+                result.addRow(row);
+            }
+            return DapResults.success(
+                    "GetReadme", FileContentTable.SERVICE_RESULT, FileContentTable.wrap(result));
+        } catch (Exception ex) {
+            return DapResults.failure("GetReadme", ex, FileContentTable.SERVICE_RESULT);
+        }
+    }
+
     @DapServicePayload(TrackedProjectSpec.class)
     @ThingworxServiceDefinition(
             name = "GetTrackedProjects",
@@ -4430,6 +4880,129 @@ public class GitRepositoryShape extends Thing {
                     "SetTrackedProjectPath", repoName, String.valueOf(e.getMessage()));
             return DapResults.failure(
                     "SetTrackedProjectPath", e, StringResultContract.SERVICE_RESULT);
+        }
+    }
+
+    @DapServicePayload(EntityTypeOptionSpec.class)
+    @ThingworxServiceDefinition(
+            name = "GetEntityTypeOptions",
+            description = "Lists the entity types a tracked project can synchronize",
+            category = "Projects",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "Result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {
+                "isEntityDataShape:true",
+                "dataShape:GIT.EntityTypeOption.ServiceResult.DataShape"
+            })
+    /**
+     * Lists the entity types {@link #SetTrackedProjectEntityTypes} accepts, by collection name,
+     * with a readable label.
+     *
+     * @return a {@code GIT.EntityTypeOption.ServiceResult.DataShape} table
+     */
+    public InfoTable GetEntityTypeOptions() {
+        try {
+            InfoTable table =
+                    InfoTableInstanceFactory.createInfoTableFromDataShape(
+                            "GIT.EntityTypeOption.DataShape");
+            for (String type : SyncedEntityTypes.SELECTABLE) {
+                ValueCollection row = new ValueCollection();
+                row.put("EntityType", new StringPrimitive(type));
+                row.put("Label", new StringPrimitive(SyncedEntityTypes.label(type)));
+                table.addRow(row);
+            }
+            return DapResults.success(
+                    "GetEntityTypeOptions",
+                    EntityTypeOptionTable.SERVICE_RESULT,
+                    EntityTypeOptionTable.wrap(table));
+        } catch (Exception e) {
+            return DapResults.failure(
+                    "GetEntityTypeOptions", e, EntityTypeOptionTable.SERVICE_RESULT);
+        }
+    }
+
+    @DapServicePayload(StringResultSpec.class)
+    @ThingworxServiceDefinition(
+            name = "SetTrackedProjectEntityTypes",
+            description =
+                    "Chooses which entity types a tracked project synchronizes with this repository",
+            category = "Projects",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "Result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
+    /**
+     * Sets the entity types a tracked project exports and imports. Files of other types are kept in
+     * the repository and in ThingWorx, but no longer exported, imported or deleted by a sync.
+     *
+     * @param ProjectName a tracked project
+     * @param EntityTypes comma-separated collections from {@link #GetEntityTypeOptions}, such as
+     *     {@code Things,Mashups}; blank, or every option, means all types
+     * @return a {@code GIT.StringResult.DataShape} status table
+     */
+    public InfoTable SetTrackedProjectEntityTypes(
+            @ThingworxServiceParameter(
+                            name = "ProjectName",
+                            description = "Tracked ThingWorx project",
+                            baseType = "STRING")
+                    String ProjectName,
+            @ThingworxServiceParameter(
+                            name = "EntityTypes",
+                            description =
+                                    "Comma-separated entity types, such as Things,Mashups; blank means all types",
+                            baseType = "STRING")
+                    String EntityTypes) {
+        String repoName = "";
+        try {
+            String name = FileRepositoryManager.validateProjectFolderName(ProjectName);
+            String types = SyncedEntityTypes.normalize(EntityTypes);
+            var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            repoName = fileRepo.repositoryThingName();
+            try {
+                synchronized (StatusExportReconciler.class) {
+                    var projects = new ArrayList<>(fileRepo.trackedProjectEntries());
+                    int index = -1;
+                    for (int i = 0; i < projects.size(); i++) {
+                        if (projects.get(i).name().equals(name)) index = i;
+                    }
+                    if (index < 0) {
+                        throw new IllegalArgumentException(
+                                "Project '" + name + "' is not tracked.");
+                    }
+                    var current = projects.get(index);
+                    projects.set(
+                            index,
+                            new FileRepositoryManager.TrackedProject(
+                                    current.name(), current.path(), types));
+                    fileRepo.setTrackedProjects(projects);
+                }
+            } finally {
+                fileRepo.close();
+            }
+            String message =
+                    types.isEmpty()
+                            ? "Project '" + name + "' now synchronizes every entity type."
+                            : "Project '"
+                                    + name
+                                    + "' now synchronizes "
+                                    + SyncedEntityTypes.describe(types)
+                                    + ". Files of other entity types stay in the repository but"
+                                    + " are no longer exported, imported or deleted.";
+            GitActionLogger.logAction("SetTrackedProjectEntityTypes", repoName, message);
+            return DapResults.success(
+                    "SetTrackedProjectEntityTypes", message, StringResultContract.SERVICE_RESULT);
+        } catch (Exception e) {
+            GitActionLogger.logAction(
+                    "SetTrackedProjectEntityTypes", repoName, String.valueOf(e.getMessage()));
+            return DapResults.failure(
+                    "SetTrackedProjectEntityTypes", e, StringResultContract.SERVICE_RESULT);
         }
     }
 

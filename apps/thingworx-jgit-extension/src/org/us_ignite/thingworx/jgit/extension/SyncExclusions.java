@@ -25,13 +25,12 @@ import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 
 /**
- * Entities that Git synchronization leaves out of imports and exports.
+ * Entities that the project import leaves out.
  *
  * <ul>
- *   <li><b>Users</b> are never imported, exported or deleted. A User carries the user's password
- *       and extension properties, including the per-remote Git sign-in. Source-control exports
- *       leave PASSWORD values blank, so importing a User from Git would overwrite the live user
- *       with empty credentials. Users are managed in ThingWorx, not through the repository.
+ *   <li><b>Users</b> are left out of the project import because {@link UserSync} imports them
+ *       first, one at a time, keeping each user's password, account state and secrets. Importing a
+ *       User as exported would overwrite the live user with blank PASSWORD values.
  *   <li><b>ApplicationKeys whose stored secret cannot be decrypted</b> are left out of imports.
  *       ThingWorx refuses to update such a key ("Existing ApplicationKey property decode fail,
  *       cannot update"), which would otherwise fail the whole import after the Git change has been
@@ -61,9 +60,6 @@ final class SyncExclusions {
             return collection + "/" + name;
         }
     }
-
-    /** The rule for exports: every User. */
-    static final Rule EXPORT = (collection, name) -> USERS.equals(collection);
 
     /** The rule for imports: every User, and every ApplicationKey ThingWorx cannot update. */
     static final Rule IMPORT =
@@ -95,15 +91,6 @@ final class SyncExclusions {
     /** Whether the XML text may contain a collection that a rule looks at. */
     static boolean mayContainFiltered(String xml) {
         return xml != null && FILTERED_COLLECTION.matcher(xml).find();
-    }
-
-    /** Whether a repository-relative path lies in a {@code Users/} export folder. */
-    static boolean isUsersPath(String relativePath) {
-        if (relativePath == null) return false;
-        for (String part : relativePath.replace('\\', '/').split("/")) {
-            if (USERS.equals(part)) return true;
-        }
-        return false;
     }
 
     /** The entities below {@code folder} that the rule leaves out, without changing anything. */
@@ -166,28 +153,6 @@ final class SyncExclusions {
             }
             String kept = without(xml, rule, removed);
             if (kept != null) Files.writeString(destination, kept, StandardCharsets.UTF_8);
-        }
-        return removed;
-    }
-
-    /**
-     * Removes the entities the rule leaves out from every XML file below {@code folder}, in place.
-     * Files left with no entities are deleted.
-     *
-     * @return the entities that were removed
-     */
-    static List<Excluded> removeIn(Path folder, Rule rule) throws Exception {
-        List<Excluded> removed = new ArrayList<>();
-        if (!Files.isDirectory(folder, LinkOption.NOFOLLOW_LINKS)) return removed;
-        List<java.io.File> files = new ArrayList<>();
-        FileRepositoryManager.collectXmlFilesOnDisk(folder.toFile(), files);
-        for (java.io.File file : files) {
-            Path path = file.toPath();
-            String xml = Files.readString(path, StandardCharsets.UTF_8);
-            if (!mayContainFiltered(xml)) continue;
-            String kept = without(xml, rule, removed);
-            if (kept == null) Files.delete(path);
-            else if (!kept.equals(xml)) Files.writeString(path, kept, StandardCharsets.UTF_8);
         }
         return removed;
     }

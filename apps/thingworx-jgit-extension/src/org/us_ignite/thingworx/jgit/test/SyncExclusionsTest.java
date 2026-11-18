@@ -28,6 +28,9 @@ class SyncExclusionsTest {
                     + "<ApplicationKey name=\"Healthy\" keyId=\"\"/>"
                     + "</ApplicationKeys></Entities>";
 
+    private static final SyncExclusions.Rule USERS_ONLY =
+            (collection, name) -> SyncExclusions.USERS.equals(collection);
+
     /** Users always, plus the ApplicationKey named Broken, standing in for an undecodable key. */
     private static final SyncExclusions.Rule IMPORT_WITH_BROKEN_KEY =
             (collection, name) ->
@@ -81,21 +84,7 @@ class SyncExclusionsTest {
         Path source = directory.resolve("source");
         write(source.resolve("ApplicationKeys/keys.xml"), KEYS);
         write(source.resolve("Things/T.xml"), THING);
-        assertTrue(SyncExclusions.find(source, SyncExclusions.EXPORT).isEmpty());
-    }
-
-    @Test
-    void exportSnapshotDropsUsersOnly() throws Exception {
-        Path snapshot = directory.resolve("snapshot");
-        write(snapshot.resolve("Users/alice.xml"), USER);
-        write(snapshot.resolve("Things/T.xml"), THING);
-        write(snapshot.resolve("ApplicationKeys/keys.xml"), KEYS);
-        assertEquals(
-                List.of("Users/alice"),
-                names(SyncExclusions.removeIn(snapshot, SyncExclusions.EXPORT)));
-        assertFalse(Files.exists(snapshot.resolve("Users/alice.xml")));
-        assertEquals(THING, Files.readString(snapshot.resolve("Things/T.xml")));
-        assertEquals(KEYS, Files.readString(snapshot.resolve("ApplicationKeys/keys.xml")));
+        assertTrue(SyncExclusions.find(source, USERS_ONLY).isEmpty());
     }
 
     @Test
@@ -105,13 +94,11 @@ class SyncExclusionsTest {
         assertEquals(
                 "<NotEntities><Users/></NotEntities>",
                 SyncExclusions.without(
-                        "<NotEntities><Users/></NotEntities>",
-                        SyncExclusions.EXPORT,
-                        new ArrayList<>()));
+                        "<NotEntities><Users/></NotEntities>", USERS_ONLY, new ArrayList<>()));
     }
 
     @Test
-    void reconcilerNeverDeletesTrackedUserFiles() throws Exception {
+    void reconcilerKeepsUserFilesOfProjectMembersAndDeletesTheRest() throws Exception {
         Path root = directory.resolve("repository");
         Path users = root.resolve("Example/Users");
         write(users.resolve("alice.xml"), USER);
@@ -122,9 +109,12 @@ class SyncExclusionsTest {
             write(snapshot.resolve("Things/T.xml"), THING);
 
             StatusExportReconciler.reconcileFolder(
-                    git, snapshot, "Example", "Example", (type, name, project) -> false);
-
+                    git, snapshot, "Example", "Example", (type, name, project) -> true);
             assertEquals(USER, Files.readString(users.resolve("alice.xml")));
+
+            StatusExportReconciler.reconcileFolder(
+                    git, snapshot, "Example", "Example", (type, name, project) -> false);
+            assertFalse(Files.exists(users.resolve("alice.xml")));
         }
     }
 }
