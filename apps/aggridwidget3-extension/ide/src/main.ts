@@ -1095,6 +1095,14 @@ class AgGridWidget3 extends TWComposerWidget {
   @service
   declare ClearAllFilters: any;
   @description(
+    "Selects every row that passes the current column, floating and quick filters",
+  )
+  @service
+  declare SelectAllFiltered: any;
+  @description("Clears the row selection")
+  @service
+  declare DeselectAll: any;
+  @description(
     "Performs quick search of grid with text from QuickFilterText property",
   )
   @service

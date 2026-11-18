@@ -203,6 +203,16 @@ key is still approved is refused.
 Only public-key authentication is used for SSH. The HTTPS username and password are not sent to SSH
 servers.
 
+## Deleting a repository
+
+**Delete repository…** at the bottom of Repository Settings deletes the repository for every user
+after a confirmation (it calls `RepositoryDelete`). The working files and any uncommitted changes are
+removed, and every user's settings and sign-ins for the repository are forgotten. The Git directory
+is moved to `jgit/deleted/<name>-<timestamp>.git` without its remotes, so an administrator can still
+recover commits that were never pushed. ThingWorx entities in the tracked projects are not changed.
+The button needs design-time Delete permission on the repository Thing and permission to run
+`EntityServices.DeleteThing`.
+
 ## Recommendations
 
 Use repository-specific credentials with the minimum permissions needed for the required Git operations. Do not put passwords or private keys in repository URLs, source files, or exported documentation.

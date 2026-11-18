@@ -18,6 +18,12 @@ names, base types, and result shapes.
 
 Use `BranchCreate` to create a branch without changing the working tree and `BranchSwitch` to move to a branch. Use `Checkout` for tags, commits, detached HEAD, or the combined create-and-checkout workflow. `BranchDelete` is local-only by default; remote deletion requires both `Remote` and `DeleteRemote=true`.
 
+To go back to an earlier version, select a commit on the History page and choose **Check out this
+commit**. After a confirmation, the repository moves to that commit on a detached HEAD, which History
+marks as `HEAD`; uncommitted changes are carried over, and a conflict offers **Resolve conflicts**.
+Create a branch there to keep new commits, or use Switch Branch on the Branches page to return. Use
+`SyncToThingWorx` to load that version into ThingWorx.
+
 Git operations never move entities between ThingWorx and the repository. Use `SyncFromThingWorx` to
 export the tracked projects before committing, and `SyncToThingWorx` to import the repository into
 ThingWorx after `Pull`, `Checkout`, `Merge` or `Rebase`; see [Import and export](import-export.md).

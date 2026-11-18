@@ -117,8 +117,17 @@ const originalIdeWidget = newIdeWidget(originalIde);
 const rewrittenIdeWidget = newIdeWidget(rewrittenIde);
 originalIdeWidget._props = {};
 rewrittenIdeWidget._props = {};
+// Services added deliberately in agGridWidget3; everything else must match the original exactly.
+const ADDED_SERVICES = ['SelectAllFiltered', 'DeselectAll'];
+function withoutAddedServices(services) {
+  for (const name of ADDED_SERVICES) assert.ok(name in services, `missing added service ${name}`);
+  const copy = { ...services };
+  for (const name of ADDED_SERVICES) delete copy[name];
+  return copy;
+}
 const originalMetadata = metadata(originalIdeWidget);
 const rewrittenMetadata = metadata(rewrittenIdeWidget);
+rewrittenMetadata.services = withoutAddedServices(rewrittenMetadata.services);
 const expectedDateFormatDescription = 'Day.js format to use to render date values (AdvancedFormat and LocalizedFormat plugins enabled); see https://day.js.org/docs/en/display/format';
 assert.equal(rewrittenMetadata.properties.properties.DateFormat.description, expectedDateFormatDescription);
 const comparableOriginalMetadata = structuredClone(originalMetadata);
@@ -141,7 +150,8 @@ function runtimeMap(host, widget, name) {
 const originalProperties = runtimeMap(originalRuntime, originalRuntimeWidget, 'decoratedProperties');
 const rewrittenProperties = runtimeMap(rewrittenRuntime, rewrittenRuntimeWidget, 'decoratedProperties');
 const originalServices = runtimeMap(originalRuntime, originalRuntimeWidget, 'decoratedServices');
-const rewrittenServices = runtimeMap(rewrittenRuntime, rewrittenRuntimeWidget, 'decoratedServices');
+const rewrittenServices = withoutAddedServices(
+  runtimeMap(rewrittenRuntime, rewrittenRuntimeWidget, 'decoratedServices'));
 compare('runtime property bindings', originalProperties, rewrittenProperties);
 compare('runtime service bindings', originalServices, rewrittenServices);
 compare('runtime property order', Object.keys(originalProperties), Object.keys(rewrittenProperties));
@@ -250,3 +260,43 @@ console.log(`IDE: ${Object.keys(originalMetadata.properties.properties).length} 
 console.log(`Runtime: ${propertyNames.length} property bindings, ` +
   `${Object.keys(originalServices).length} service bindings, ` +
   `${values.length} edge-value rounds + ${rounds} generated rounds match (seed ${seed})`);
+
+// Added services: SelectAllFiltered selects the rows that pass the filters, DeselectAll clears the
+// selection, and each publishes SelectedRows once even though AG Grid fires rowSelected per row.
+{
+  const widget = rewrittenRuntime.factory();
+  const rows = [{ File: 'a.xml' }, { File: 'b.xml' }, { File: 'c.xml' }];
+  let selected = [];
+  const calls = [];
+  widget.widgetGridApi = {
+    getSelectedRows: () => selected,
+    getSelectedNodes: () => selected.map((data, rowIndex) => ({ data, rowIndex })),
+    selectAllFiltered: source => {
+      calls.push(['selectAllFiltered', source]);
+      for (const row of rows) {
+        selected = [...selected, row];
+        widget.updateSelectedRows({});
+      }
+    },
+    deselectAll: source => {
+      calls.push(['deselectAll', source]);
+      for (const row of [...selected]) {
+        selected = selected.filter(r => r !== row);
+        widget.updateSelectedRows({});
+      }
+    },
+  };
+  const published = [];
+  const setProperty = widget.setProperty;
+  widget.setProperty = function (key, value) {
+    if (key === 'SelectedRows') published.push(value.rows.length);
+    return setProperty.call(this, key, value);
+  };
+  widget.serviceInvoked('SelectAllFiltered');
+  assert.deepEqual(calls, [['selectAllFiltered', 'apiSelectAllFiltered']]);
+  assert.deepEqual(published, [3], 'SelectAllFiltered publishes SelectedRows once');
+  assert.equal(widget.getProperty('SelectedRowNumbers'), '1,2,3');
+  widget.serviceInvoked('DeselectAll');
+  assert.deepEqual(published, [3, 0], 'DeselectAll publishes SelectedRows once');
+  console.log('Added services: SelectAllFiltered and DeselectAll publish SelectedRows once');
+}

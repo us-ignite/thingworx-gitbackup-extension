@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Entities>
   <ExtensionPackages>
-    <ExtensionPackage name="agGridWidget3" description="AG Grid 3 widget (US Ignite rebuild of Sabel Systems agGridWidget2-min-100.1.20; TypeScript/Vite build). Installs alongside the original agGridWidget2." vendor="US Ignite / Ryan Guild" packageVersion="1.0.1" minimumThingWorxVersion="9.6.0" buildNumber=""/>
+    <ExtensionPackage name="agGridWidget3" description="AG Grid 3 widget (US Ignite rebuild of Sabel Systems agGridWidget2-min-100.1.20; TypeScript/Vite build). Installs alongside the original agGridWidget2." vendor="US Ignite / Ryan Guild" packageVersion="1.0.2" minimumThingWorxVersion="9.6.0" buildNumber=""/>
   </ExtensionPackages>
   <Widgets>
     <Widget name="agGridWidget3">

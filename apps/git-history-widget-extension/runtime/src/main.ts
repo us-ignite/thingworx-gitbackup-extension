@@ -274,6 +274,14 @@ class GitHistoryWidget extends TWRuntimeWidget {
   }
   beforeDestroy() { if (this.root) this.root.replaceChildren(); }
   emit(name: string) { this.jqElement.triggerHandler(name); }
+  /** The commit HEAD points at: the detached commit, or the tip of the current branch. */
+  headCommitID(): string {
+    const current = rows(this.CurrentBranch)[0]; if (!current) return '';
+    const name = String(current.BranchName || '');
+    if (current.DetachedHEAD) return name;
+    const branch = rows(this.Branches).find(b => b.ShortBranchName === name || b.BranchName === 'refs/heads/' + name);
+    return branch ? String(branch.CommitID) : '';
+  }
   renderTree(entries: any[]) {
     const top: any = { folders: new Map(), files: [] };
     for (const item of entries) {
@@ -317,12 +325,17 @@ class GitHistoryWidget extends TWRuntimeWidget {
     const commits=rows(this.Commits); const graph=element('div','gh-graph');
     if (commits.length) { try { const timeline=commits.map(c=>({id:String(c.CommitID),predecessorIds:String(c.ParentCommitIDs||'').split(',').filter(Boolean)})); const primitives=buildSvgPrimitives(buildLaneLayout(timeline),{rowHeight:56,showLabels:false},timeline); graph.style.width=`${Math.max(40, primitives.graphWidth)}px`; graph.innerHTML=renderToSvgString(primitives); const svg=graph.querySelector('svg'); if(svg){svg.style.transform='translateY(-28px) scaleY(-1)'; svg.style.display='block';} } catch(e) { console.error('Git history graph',e); } }
     list.append(graph); const commitRows=element('div','gh-rows');
-    for (const c of commits) {const b=element('button','gh-commit'+(c.CommitID===this.SelectedCommitID?' selected':'')); const labels=[...rows(this.Branches).filter(b=>b.CommitID===c.CommitID).map(b=>b.ShortBranchName),...rows(this.Tags).filter(t=>t.CommitID===c.CommitID).map(t=>t.TagName)].filter(Boolean); const title=element('strong','',(labels.length ? '['+labels.join(', ')+'] ' : '')+(c.CommitName||'(no message)')); const date=c.CommitTime ? new Date(c.CommitTime).toLocaleString() : ''; const meta=element('small','',`${c.AuthorName||''} · ${date} · ${String(c.CommitID).slice(0,8)}`); if(this.query && !(`${c.CommitName} ${c.AuthorName} ${c.CommitID}`.toLowerCase().includes(this.query))) b.style.opacity='0.3'; b.append(title,meta); b.onclick=()=>this.chooseCommit(c.CommitID); commitRows.append(b); }
+    const head=this.headCommitID();
+    for (const c of commits) {const b=element('button','gh-commit'+(c.CommitID===this.SelectedCommitID?' selected':'')); const labels=[...(head && c.CommitID===head ? ['HEAD'] : []),...rows(this.Branches).filter(b=>b.CommitID===c.CommitID).map(b=>b.ShortBranchName),...rows(this.Tags).filter(t=>t.CommitID===c.CommitID).map(t=>t.TagName)].filter(Boolean); const title=element('strong','',(labels.length ? '['+labels.join(', ')+'] ' : '')+(c.CommitName||'(no message)')); const date=c.CommitTime ? new Date(c.CommitTime).toLocaleString() : ''; const meta=element('small','',`${c.AuthorName||''} · ${date} · ${String(c.CommitID).slice(0,8)}`); if(this.query && !(`${c.CommitName} ${c.AuthorName} ${c.CommitID}`.toLowerCase().includes(this.query))) b.style.opacity='0.3'; b.append(title,meta); b.onclick=()=>this.chooseCommit(c.CommitID); commitRows.append(b); }
     if(!commits.length) commitRows.append(element('div','gh-empty','Select a repository to view its history.')); list.append(commitRows); history.append(list); body.append(history);
     const detail=element('div','gh-details'); const info=rows(this.CommitInfo)[0];
     if(!this.SelectedCommitID) detail.append(element('div','gh-empty','Select a commit to inspect its files.'));
     else if (!info || info.CommitID !== this.SelectedCommitID) detail.append(element('div','gh-empty','Loading commit…'));
     else {detail.append(element('h3','',info.CommitDescription||'Commit'),element('small','',`${info.Author||''} · ${info.Date ? new Date(info.Date).toLocaleString() : ''} · ${String(info.CommitID).slice(0,8)}`));
+      const actions=element('div','gh-actions');
+      if (head && head===info.CommitID) actions.append(element('span','gh-badge','Checked out (HEAD)'));
+      else { const checkout=element('button','gh-checkout','Check out this commit'); checkout.title='Move the working tree to this commit (detached HEAD)'; checkout.onclick=()=>this.emit('CheckoutRequested'); actions.append(checkout); }
+      detail.append(actions);
       const changed=rows(info.ChangedFiles); if(changed.length){detail.append(element('h4','','Changed files')); const files=element('div','gh-files'); for(const f of changed){const b=element('button','',`${f.Status||''} ${f.FileName}`); b.onclick=()=>this.chooseFile(f.FileName); files.append(b);} detail.append(files);}
       const tree=rows(this.TreeEntries); if(tree.length){detail.append(element('h4','','Files in commit')); detail.append(this.renderTree(tree));}
       if(this.SelectedFilePath){detail.append(element('h4','',this.SelectedFilePath)); const tabs=element('div','gh-tabs'); for(const name of ['Content','Diff']) {const b=element('button',this.tab===name?'active':'',name); b.onclick=()=>{this.tab=name;this.render();}; tabs.append(b);} detail.append(tabs); const file=rows(this.FileContent)[0]; const pre=element('pre','gh-code'); if(this.tab==='Diff'){pre.textContent=this.Diff||'No diff available.'; if(this.Diff) pre.innerHTML=hljs.highlight(this.Diff,{language:'diff'}).value;} else if(file && file.Path===this.SelectedFilePath){if(file.Binary) pre.textContent='Binary file'; else {const text=file.Content||''; const ext=this.SelectedFilePath.split('.').pop().toLowerCase(); const lang=({js:'javascript',ts:'javascript',xml:'xml',html:'xml',json:'json',java:'java'} as any)[ext]; pre.textContent=text+(file.Truncated?'\n[Content truncated]':''); if(lang && !file.Truncated) pre.innerHTML=hljs.highlight(text,{language:lang}).value;}} else if(changed.some(f=>f.FileName===this.SelectedFilePath && f.Status==='DELETE')) pre.textContent='This file was deleted in this commit.'; else pre.textContent='Loading file…'; detail.append(pre);}
@@ -341,4 +354,5 @@ class GitHistoryWidget extends TWRuntimeWidget {
   @property declare SelectedRef: any;
   @property declare MaxEntries: any;
   @property declare AllBranches: any;
+  @property declare CurrentBranch: any;
 }

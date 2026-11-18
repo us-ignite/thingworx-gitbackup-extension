@@ -2490,6 +2490,30 @@ class AgGridWidget3 extends TWRuntimeWidget {
     this.widgetGridApi.setFilterModel(null);
     this.widgetGridApi.onFilterChanged();
   }
+  /**
+   * Applies a bulk selection change, publishing SelectedRows once instead of once per row.
+   */
+  applyBulkSelection(change: () => void) {
+    this.bulkSelecting = true;
+    try {
+      change();
+    } finally {
+      this.bulkSelecting = false;
+    }
+    this.updateSelectedRows(null);
+  }
+  @service
+  SelectAllFiltered() {
+    this.log("SelectAllFiltered(): ", "selecting every row that passes the filters");
+    this.applyBulkSelection(() =>
+      this.widgetGridApi.selectAllFiltered("apiSelectAllFiltered"),
+    );
+  }
+  @service
+  DeselectAll() {
+    this.log("DeselectAll(): ", "clearing the selection");
+    this.applyBulkSelection(() => this.widgetGridApi.deselectAll("apiSelectAll"));
+  }
   @service
   QuickFilterSearch() {
     this.widgetGridApi.setQuickFilter(this.QuickFilterText);
@@ -3935,6 +3959,8 @@ class AgGridWidget3 extends TWRuntimeWidget {
   }
   updateSelectedRows(event) {
     const _this = this;
+    // A bulk selection publishes once when it finishes; see applyBulkSelection.
+    if (this.bulkSelecting) return;
     const logPrefix = "updateSelectedRows(): ";
     const selectedRows = this.widgetGridApi.getSelectedRows();
     this.SelectedRows = {

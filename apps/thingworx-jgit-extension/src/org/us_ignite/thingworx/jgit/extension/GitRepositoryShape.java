@@ -1622,7 +1622,8 @@ public class GitRepositoryShape extends Thing {
     @DapServicePayload(StringResultSpec.class)
     @ThingworxServiceDefinition(
             name = "Checkout",
-            description = "",
+            description =
+                    "Checks out a branch, remote branch, tag or commit. Uncommitted changes are carried over. A tag or commit leaves HEAD detached. ThingWorx is not changed; use SyncToThingWorx afterwards.",
             category = "",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
@@ -1632,10 +1633,10 @@ public class GitRepositoryShape extends Thing {
             baseType = "INFOTABLE",
             aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
     /**
-     * Checks out a local branch, commit, or an available remote branch. Project entities are
-     * exported before checkout and imported afterward, so the ThingWorx project is synchronized
-     * with the resulting tree. A checkout may leave the repository detached when the target is a
-     * commit rather than a branch.
+     * Checks out a local branch, commit, tag, or an available remote branch. Uncommitted changes
+     * are carried across the checkout, stopping for resolution when they conflict, unless {@code
+     * Force} is set. A commit or tag leaves the repository on a detached HEAD. ThingWorx is not
+     * changed; {@code SyncToThingWorx} applies the result.
      *
      * @param BranchNameOrCommit branch, remote branch, tag, or commit to check out
      */
@@ -1643,7 +1644,7 @@ public class GitRepositoryShape extends Thing {
             @ThingworxServiceParameter(
                             name = "BranchNameOrCommit",
                             description =
-                                    "Switches the working tree to the specified branch. This is a wrapper on top of checkout <branch>.It does not autocreate new branches.",
+                                    "Branch, remote branch, tag or commit ID to check out. A missing local branch is created only when a remote branch of that name exists.",
                             baseType = "STRING")
                     String BranchNameOrCommit,
             @ThingworxServiceParameter(

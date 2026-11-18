@@ -2,6 +2,7 @@
 [id$="repository-settings-card"],
 [id$="settings-projects"],
 [id$="settings-projects-add"],
+[id$="settings-delete"],
 [id$="settings-remotes"] {
   align-self: stretch !important;
   padding: var(--git-card-inset);

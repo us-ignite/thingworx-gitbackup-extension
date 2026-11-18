@@ -41,6 +41,13 @@ class RepositorySettings extends TypescriptWidget {
   @property(bindingSource) approveDisabled: BOOLEAN = true;
   /** Fires after a host key was read, to open the approval dialog. */
   @event hostKeyChecked!: TWEvent;
+  /** Text of the Delete repository confirmation, naming the repository. */
+  @property(bindingSource) deletePrompt: STRING = "";
+  /** Progress and result of Delete repository. */
+  @property(bindingSource) deleteMessage: STRING = "";
+  @property(bindingSource) deleteDisabled: BOOLEAN = false;
+  /** Fires after the repository was deleted, to leave this page. */
+  @event repositoryDeleted!: TWEvent;
   private remoteRequestId = 0;
   private requestId = 0;
   private projectRequestId = 0;
@@ -80,6 +87,10 @@ class RepositorySettings extends TypescriptWidget {
 
   @service async load() {
     if (!this.repoName) return;
+    this.deletePrompt = "Repository " + this.repoName + " will be deleted for every user. Its working files and any uncommitted "
+      + "changes are removed, and everyone's settings and sign-ins for it are forgotten. Its history is moved to jgit/deleted "
+      + "without its remotes, where only an administrator can recover unpushed commits. "
+      + "ThingWorx entities in its tracked projects are not changed.";
     this.loadProjects();
     this.loadRemotes();
     this.loadStatus();
@@ -326,6 +337,22 @@ class RepositorySettings extends TypescriptWidget {
     } catch (error) { this.hostKeyMessage = "Could not reset SSH host keys: " + (error as Error).message; }
     this.clearCheckedHostKey();
     this.loadStatus();
+  }
+
+  /** Deletes this repository, then fires repositoryDeleted to return to the repository list. */
+  @service async deleteRepository() {
+    if (!this.repoName || this.deleteDisabled) return;
+    this.deleteDisabled = true;
+    this.deleteMessage = "Deleting…";
+    try {
+      const result = await this.invoke("RepositoryDelete", {RepoName: this.repoName});
+      if (result.Error) throw new Error(result.Message || "Unable to delete the repository");
+      this.deleteMessage = result.Message || "Repository deleted.";
+      this.repositoryDeleted();
+    } catch (error) {
+      this.deleteMessage = "Could not delete the repository: " + (error as Error).message;
+      this.deleteDisabled = false;
+    }
   }
 
   private clearCheckedHostKey() {

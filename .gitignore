@@ -33,6 +33,7 @@ vendor/*
 .codex/
 .cache/
 private-*.asc
+__pycache__*
 
 # OS
 .DS_Store

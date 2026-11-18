@@ -1779,4 +1779,42 @@ public class GiteaGitOperationsTest {
             callEntityService("DeleteThing", delete);
         }
     }
+
+    @Test
+    @Order(41)
+    void testCheckoutCommitFromHistoryDetachesAndReturnsToBranch() throws Exception {
+        JsonObject log = new JsonObject();
+        log.addProperty("Ref", "main");
+        log.addProperty("MaxEntries", 2);
+        JsonArray commits = responseRows(callService("GetLog", log).body());
+        assertTrue(commits.size() >= 2, "Need two commits on main: " + commits);
+        String previous = commits.get(1).getAsJsonObject().get("CommitID").getAsString();
+
+        // The same parameters the History page's Check out this commit button sends.
+        JsonObject checkout = new JsonObject();
+        checkout.addProperty("BranchNameOrCommit", previous);
+        checkout.addProperty("CreateBranch", false);
+        checkout.addProperty("StartPoint", "");
+        checkout.addProperty("Force", false);
+        try {
+            assertSuccess(callService("Checkout", checkout).body());
+            JsonObject head =
+                    responseRows(callService("GetCurrentBranch", null).body())
+                            .get(0)
+                            .getAsJsonObject();
+            assertTrue(head.get("DetachedHEAD").getAsBoolean(), "HEAD should be detached: " + head);
+            assertEquals(previous, head.get("BranchName").getAsString());
+        } finally {
+            JsonObject back = new JsonObject();
+            back.addProperty("BranchNameOrCommit", "main");
+            back.addProperty("CreateBranch", false);
+            back.addProperty("StartPoint", "");
+            back.addProperty("Force", false);
+            assertSuccess(callService("Checkout", back).body());
+        }
+        JsonObject head =
+                responseRows(callService("GetCurrentBranch", null).body()).get(0).getAsJsonObject();
+        assertFalse(head.get("DetachedHEAD").getAsBoolean(), "Should be back on main: " + head);
+        assertEquals("main", head.get("BranchName").getAsString());
+    }
 }

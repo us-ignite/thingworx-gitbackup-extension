@@ -20,6 +20,8 @@ npm run verify:parity
 
 `npm run build` writes both single-file IIFE bundles under `build/vite/` and runs a smoke check that loads each bundle and verifies ThingWorx widget registration. The Gradle `packageExtension` task builds them and puts the generated files into the extension zip. The original Sabel bundles in `original/` (which register `AgGridWidget2`) are kept only for `npm run verify:parity` and are not packaged.
 
+The `SelectAllFiltered` and `DeselectAll` services are additions in agGridWidget3: `SelectAllFiltered` selects every row that passes the current filters, and `DeselectAll` clears the selection. Each publishes `SelectedRows` once rather than once per row.
+
 `npm run verify:parity` rebuilds both bundles, then compares them with the original bundles in isolated ThingWorx shims. It checks IDE property metadata (including binding flags), services, and events; runtime property and service registration; accessor and binding behavior for edge values plus deterministic generated values; service dispatch; and event dispatch. The intentional `DateFormat` description update is checked separately. Set `PARITY_SEED` and `PARITY_ROUNDS` to reproduce or expand a run. This checks the widget contract and mocked property behavior, not AG Grid rendering or remote ThingWorx services.
 
 `DateFormat` now uses Day.js formatting. AdvancedFormat and LocalizedFormat are enabled, so common Moment patterns such as `DD-MM-YYYY`, `Do`, and `L LT` work. Less common Moment tokens may render differently; the smoke check covers the supported examples.
