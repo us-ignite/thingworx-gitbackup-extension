@@ -1197,7 +1197,7 @@ public class GiteaGitOperationsTest {
 
     @Test
     @Order(34)
-    void testStatusSynchronizesDeletedThingWithoutStagingIt() throws Exception {
+    void testSyncFromThingWorxReportsDeletedThingWithoutStagingIt() throws Exception {
         String thing = "StatusSync.DeletedThing";
         JsonObject create = new JsonObject();
         create.addProperty("name", thing);
@@ -1205,6 +1205,8 @@ public class GiteaGitOperationsTest {
         create.addProperty("projectName", "GiteaGitOperationsProject");
         assertEquals(200, callEntityService("CreateThing", create).statusCode());
 
+        // Status only reads Git; Sync from ThingWorx exports the new Thing first.
+        assertSuccess(callService("SyncFromThingWorx", null).body());
         var firstStatus = callService("Status", null);
         assertSuccess(firstStatus.body());
         String file = GIT_THING_PATH + "/GiteaGitOperationsProject/Things/" + thing + ".xml";
@@ -1217,6 +1219,7 @@ public class GiteaGitOperationsTest {
         JsonObject delete = new JsonObject();
         delete.addProperty("name", thing);
         assertEquals(200, callEntityService("DeleteThing", delete).statusCode());
+        assertSuccess(callService("SyncFromThingWorx", null).body());
         var refreshed = callService("Status", null);
         assertSuccess(refreshed.body());
         boolean foundMissing = false;
@@ -1629,6 +1632,110 @@ public class GiteaGitOperationsTest {
                     "Only the new origin is expected: " + remotes.body());
         } finally {
             callUtility("RepositoryDelete", delete);
+        }
+    }
+
+    /** Sends a REST request for a Thing itself, used to edit an entity the way Composer does. */
+    private HttpResponse<String> thingRequest(String thing, String method, String body)
+            throws Exception {
+        String encoded =
+                Base64.getEncoder()
+                        .encodeToString(
+                                (credentials.thingworxAdminUser
+                                                + ":"
+                                                + credentials.thingworxAdminPass)
+                                        .getBytes(StandardCharsets.UTF_8));
+        HttpRequest request =
+                HttpRequest.newBuilder()
+                        .uri(
+                                URI.create(
+                                        stack.thingworx.getExternalUrl()
+                                                + "/Thingworx/Things/"
+                                                + thing))
+                        .header("Authorization", "Basic " + encoded)
+                        .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
+                        .header("X-Requested-By", "ThingWorx")
+                        .header("Content-Type", "application/json")
+                        .header("Accept", "application/json")
+                        .method(
+                                method,
+                                body == null
+                                        ? HttpRequest.BodyPublishers.noBody()
+                                        : HttpRequest.BodyPublishers.ofString(body))
+                        .build();
+        return stack.httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private String thingDescription(String thing) throws Exception {
+        var res = thingRequest(thing, "GET", null);
+        assertEquals(200, res.statusCode(), "Thing " + thing + " not found: " + res.body());
+        return JsonParser.parseString(res.body())
+                .getAsJsonObject()
+                .get("description")
+                .getAsString();
+    }
+
+    private void editThingDescription(String thing, String description) throws Exception {
+        JsonObject body = new JsonObject();
+        body.addProperty("name", thing);
+        body.addProperty("description", description);
+        body.addProperty("thingTemplate", "GenericThing");
+        body.addProperty("projectName", "GiteaGitOperationsProject");
+        var res = thingRequest(thing, "PUT", body.toString());
+        assertTrue(
+                res.statusCode() == 200 || res.statusCode() == 201,
+                "Editing " + thing + " failed: " + res.statusCode() + " " + res.body());
+    }
+
+    private static String message(HttpResponse<String> response) {
+        return JsonParser.parseString(response.body())
+                .getAsJsonObject()
+                .getAsJsonArray("rows")
+                .get(0)
+                .getAsJsonObject()
+                .get("Message")
+                .getAsString();
+    }
+
+    @Test
+    @Order(39)
+    void testSyncToThingWorxRefusesToOverwriteUnsyncedThingWorxChanges() throws Exception {
+        String thing = "ManualSync.EditedThing";
+        JsonObject create = new JsonObject();
+        create.addProperty("name", thing);
+        create.addProperty("description", "repository version");
+        create.addProperty("thingTemplateName", "GenericThing");
+        create.addProperty("projectName", "GiteaGitOperationsProject");
+        assertEquals(200, callEntityService("CreateThing", create).statusCode());
+        try {
+            // Sync from ThingWorx writes the repository version of the Thing.
+            assertSuccess(callService("SyncFromThingWorx", null).body());
+            var nothingChanged = callService("GetThingWorxChangesSinceSync", null);
+            assertSuccess(nothingChanged.body());
+            assertEquals("", message(nothingChanged), "Nothing changed since the sync");
+
+            // An edit in ThingWorx after the sync is reported and protected.
+            editThingDescription(thing, "edited in ThingWorx");
+            var changes = callService("GetThingWorxChangesSinceSync", null);
+            assertSuccess(changes.body());
+            assertTrue(
+                    message(changes).contains("Thing " + thing),
+                    "The edited Thing should be named: " + changes.body());
+            var refused = callService("SyncToThingWorx", new JsonObject());
+            assertServiceFailure(refused, "SyncToThingWorx without Force");
+            assertTrue(message(refused).contains("Thing " + thing), refused.body());
+            assertEquals("edited in ThingWorx", thingDescription(thing), "Nothing was imported");
+
+            // Forcing the sync imports the repository version and records the sync.
+            JsonObject force = new JsonObject();
+            force.addProperty("Force", true);
+            assertSuccess(callService("SyncToThingWorx", force).body());
+            assertEquals("repository version", thingDescription(thing));
+            assertEquals("", message(callService("GetThingWorxChangesSinceSync", null)));
+        } finally {
+            JsonObject delete = new JsonObject();
+            delete.addProperty("name", thing);
+            callEntityService("DeleteThing", delete);
         }
     }
 }

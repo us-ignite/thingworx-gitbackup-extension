@@ -10,18 +10,18 @@ names, base types, and result shapes.
 1. Configure the remote URL, initial branch, and tracked projects with their folders. Each repository Thing is also
    its own FileRepository.
 2. Validate credentials and network/proxy access.
-3. Use status to inspect local changes.
-4. Export the intended ThingWorx entities, which stages only the configured project tree, or call
-   `Add` to stage a manual repository file. Use `Add(All=true)` to stage all non-ignored changes.
+3. Use `SyncFromThingWorx` to export the tracked projects into the working tree, then `Status` to
+   inspect the changes.
+4. Stage the intended files with `Add`, or use `Add(All=true)` to stage all non-ignored changes.
 5. Commit with a meaningful message. `Commit` uses the existing index and leaves unstaged changes alone.
-6. Push to the remote branch. `Push` exports the configured ThingWorx project before pushing and imports the FileRepository tree afterward. It uses the checked-out branch's upstream when available; pass `BranchName`, `RemoteBranchName`, and `SetUpstream` when publishing a new branch explicitly.
+6. Push to the remote branch. `Push` only sends commits; it does not export or import ThingWorx entities. It uses the checked-out branch's upstream when available; pass `BranchName`, `RemoteBranchName`, and `SetUpstream` when publishing a new branch explicitly.
 
 Use `BranchCreate` to create a branch without changing the working tree and `BranchSwitch` to move to a branch. Use `Checkout` for tags, commits, detached HEAD, or the combined create-and-checkout workflow. `BranchDelete` is local-only by default; remote deletion requires both `Remote` and `DeleteRemote=true`.
 
-Internal export (used by `Commit`, `Push`, `Pull`, `Checkout`, `Merge`, `Rebase`, etc.) updates and stages
-only the tracked project folders; it does not create a commit and is not a user-callable
-service. Similarly, `Pull` always imports the tracked projects after fetching - import is
-automatic and invisible. Manual files must be staged with `Add`. `Remove` removes a path from the
+Git operations never move entities between ThingWorx and the repository. Use `SyncFromThingWorx` to
+export the tracked projects before committing, and `SyncToThingWorx` to import the repository into
+ThingWorx after `Pull`, `Checkout`, `Merge` or `Rebase`; see [Import and export](import-export.md).
+Manual files must be staged with `Add`. `Remove` removes a path from the
 index without deleting its FileRepository working-tree file. Call `Commit` explicitly, then call
 `Push` when the commit should be sent to the configured remote.
 

@@ -249,8 +249,8 @@ public class GitRepositoryShape extends Thing {
     }
 
     /**
-     * Syncs the configured ThingWorx project, then commits only the files already staged in the Git
-     * index. Exported project files are left unstaged.
+     * Commits only the files already staged in the Git index, like {@link #CommitStaged}. ThingWorx
+     * entities are not exported; use {@link #SyncFromThingWorx} first.
      *
      * @param Message commit message; required
      * @return a success message, or a prefixed error message when configuration, authentication,
@@ -260,7 +260,7 @@ public class GitRepositoryShape extends Thing {
     @ThingworxServiceDefinition(
             name = "Commit",
             description =
-                    "Syncs the ThingWorx project entities, then commits only files already staged in the Git index. Does not stage exported files or push to the remote.",
+                    "Commits only files already staged in the Git index. Same as CommitStaged; kept for existing callers. Does not sync ThingWorx entities or push to the remote.",
             category = "",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
@@ -275,7 +275,7 @@ public class GitRepositoryShape extends Thing {
                             description = "The commit message",
                             baseType = "STRING")
                     String Message) {
-        return commitIndex("Commit", Message, true);
+        return commitIndex("Commit", Message);
     }
 
     /**
@@ -305,7 +305,7 @@ public class GitRepositoryShape extends Thing {
                             description = "The commit message",
                             baseType = "STRING")
                     String Message) {
-        return commitIndex("CommitStaged", Message, false);
+        return commitIndex("CommitStaged", Message);
     }
 
     /**
@@ -374,7 +374,7 @@ public class GitRepositoryShape extends Thing {
         return gpgSigner;
     }
 
-    private InfoTable commitIndex(String serviceName, String Message, boolean exportProject) {
+    private InfoTable commitIndex(String serviceName, String Message) {
         log.trace("Entering Service: " + serviceName);
         FileRepositoryManager fileRepo = null;
         PastedKeyGpgSigner gpgSigner = null;
@@ -415,7 +415,6 @@ public class GitRepositoryShape extends Thing {
             }
 
             fileRepo = new FileRepositoryManager(resolveTargetThing());
-            if (exportProject) fileRepo.exportProjectEntities();
             Git myGitObject = fileRepo.git();
             // A paused merge or rebase is completed from the Conflicts page, which also
             // restores carried local changes; a plain commit here would skip that.
@@ -476,7 +475,7 @@ public class GitRepositoryShape extends Thing {
     @ThingworxServiceDefinition(
             name = "Push",
             description =
-                    "Exports the ThingWorx project, pushes existing local commits using the current/upstream branch or explicit local and remote branch, then imports the FileRepository tree. It does not stage files or create commits.",
+                    "Pushes existing local commits using the current/upstream branch or explicit local and remote branch. It does not stage files, create commits, or sync ThingWorx entities.",
             category = "",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
@@ -529,9 +528,6 @@ public class GitRepositoryShape extends Thing {
                             .setScale(3, RoundingMode.HALF_DOWN);
             transport = GitTransport.forRepository(resolveTargetThing().getName());
             var fileRepo = new FileRepositoryManager(resolveTargetThing());
-            // Fail before any Git change if the later import would be refused.
-            fileRepo.requireSyncPermissions();
-            fileRepo.exportProjectEntities();
             Git myGitObject = fileRepo.git();
             Repository repository = myGitObject.getRepository();
             String sourceBranch =
@@ -638,7 +634,6 @@ public class GitRepositoryShape extends Thing {
                         "branch", sourceBranch, "merge", "refs/heads/" + destinationBranch);
                 config.save();
             }
-            fileRepo.importProjectEntities();
             fileRepo.close();
 
             GitActionLogger.logAction("Push", resolveTargetThing().getName(), LogResult);
@@ -734,10 +729,9 @@ public class GitRepositoryShape extends Thing {
             baseType = "INFOTABLE",
             aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
     /**
-     * Fetches and integrates changes from the configured remote, then imports the synchronized
-     * project back into ThingWorx. A force pull resets the local branch to the fetched remote state
-     * before importing. An unborn local repository is bootstrapped without exporting untracked
-     * project files first.
+     * Fetches and integrates changes from the configured remote. A force pull resets the local
+     * branch to the fetched remote state. ThingWorx entities are not changed; use {@link
+     * #SyncToThingWorx} to apply the result.
      *
      * @param Remote remote name; blank selects the branch upstream remote or {@code origin}
      * @param Force when true, discard local divergence and reset to the fetched remote state
@@ -764,15 +758,7 @@ public class GitRepositoryShape extends Thing {
             transport = GitTransport.forRepository(resolveTargetThing().getName());
             final GitTransport pullTransport = transport;
             fileRepo = new FileRepositoryManager(resolveTargetThing());
-            // Fail before any Git change if the export or the later import would be refused.
-            fileRepo.requireSyncPermissions();
             Git myGitFolder = fileRepo.git();
-            // An unborn repository has no local Git state to preserve. Exporting
-            // ThingWorx entities before the first checkout would create untracked
-            // files that conflict with the remote tree during bootstrap.
-            if (myGitFolder.getRepository().resolve("HEAD") != null) {
-                fileRepo.exportProjectEntities();
-            }
             String LogResult;
             if (Boolean.TRUE.equals(Force)) {
                 String target = ForcePull.resetToRemote(myGitFolder, transport, Remote);
@@ -810,29 +796,6 @@ public class GitRepositoryShape extends Thing {
                                 Const.SUCCESS_PULL,
                                 "Successful",
                                 pulled[0] == null ? "" : pulled[0].toString());
-            }
-            // Always import the configured project - sync is invisible to users.
-            // Import is private (FileRepositoryManager) and not exposed as a service.
-            try {
-                boolean imported = fileRepo.importProjectEntities();
-                if (!imported) {
-                    log.warn(
-                            "Pull: no XML entities found under the tracked project folders ({}) - nothing to import.",
-                            fileRepo.trackedProjectsLabel());
-                }
-            } catch (Exception importEx) {
-                log.error(
-                        "Pull: import of projects '" + fileRepo.trackedProjectsLabel() + "' failed",
-                        importEx);
-                String failureMessage =
-                        "Git Pull completed, but importing entities into ThingWorx failed for projects '"
-                                + fileRepo.trackedProjectsLabel()
-                                + "': "
-                                + importEx.getMessage();
-                LogResult += " Import error: " + importEx.getMessage();
-                GitActionLogger.logAction("Pull", resolveTargetThing().getName(), failureMessage);
-                return DapResults.failure(
-                        CurrentMethodName, failureMessage, StringResultContract.SERVICE_RESULT);
             }
 
             GitActionLogger.logAction("Pull", resolveTargetThing().getName(), LogResult);
@@ -1629,14 +1592,10 @@ public class GitRepositoryShape extends Thing {
         try {
 
             var fileRepo = new FileRepositoryManager(resolveTargetThing());
-            // Fail before any Git change if the later import would be refused.
-            fileRepo.requireSyncPermissions();
-            fileRepo.exportProjectEntities();
             Git myGitFolder = fileRepo.git();
             StartPoint = (StartPoint == null || StartPoint.isBlank()) ? "HEAD" : StartPoint;
             Ref branchRef =
                     myGitFolder.branchCreate().setName(BranchName).setStartPoint(StartPoint).call();
-            fileRepo.importProjectEntities();
 
             log.trace("Exiting Service: BranchCreate");
             String BranchCreateLogResult = branchRef.toString();
@@ -1715,9 +1674,6 @@ public class GitRepositoryShape extends Thing {
         String CurrentMethodName = "Checkout";
         try {
             var fileRepo = new FileRepositoryManager(resolveTargetThing());
-            // Fail before any Git change if the later import would be refused.
-            fileRepo.requireSyncPermissions();
-            fileRepo.exportProjectEntities();
             Git myGitFolder = fileRepo.git();
             Ref[] checkedOut = new Ref[1];
             ConflictWorkflow.GitOperation checkoutOperation =
@@ -1753,7 +1709,6 @@ public class GitRepositoryShape extends Thing {
                 return conflictResult(CurrentMethodName, "Checkout", myGitFolder);
             }
             Ref ref = checkedOut[0];
-            fileRepo.importProjectEntities();
             String LogResult = (ref != null) ? ref.toString() : "No message.";
 
             log.trace("Exiting Service: Checkout");
@@ -1797,9 +1752,6 @@ public class GitRepositoryShape extends Thing {
                         "BranchName is required.",
                         StringResultContract.SERVICE_RESULT);
             var fileRepo = new FileRepositoryManager(resolveTargetThing());
-            // Fail before any Git change if the later import would be refused.
-            fileRepo.requireSyncPermissions();
-            fileRepo.exportProjectEntities();
             Git git = fileRepo.git();
             Ref[] switched = new Ref[1];
             ConflictWorkflow.GitOperation switchOperation =
@@ -1831,8 +1783,6 @@ public class GitRepositoryShape extends Thing {
                 return conflictResult("BranchSwitch", "Branch switch", git);
             }
             Ref ref = switched[0];
-
-            fileRepo.importProjectEntities();
             GitActionLogger.logAction(
                     "BranchSwitch", resolveTargetThing().getName(), ref.toString());
             return DapResults.success(
@@ -1889,9 +1839,6 @@ public class GitRepositoryShape extends Thing {
         }
         try {
             var fileRepo = new FileRepositoryManager(resolveTargetThing());
-            // Fail before any Git change if the later import would be refused.
-            fileRepo.requireSyncPermissions();
-            fileRepo.exportProjectEntities();
             Git git = fileRepo.git();
             StartPoint = (StartPoint == null || StartPoint.isBlank()) ? "HEAD" : StartPoint;
             ConflictWorkflow.requireNotInProgress(git);
@@ -1913,7 +1860,6 @@ public class GitRepositoryShape extends Thing {
                 return conflictResult("BranchCreateAndCheckout", "Branch checkout", git);
             }
             Ref ref = checkedOut[0];
-            fileRepo.importProjectEntities();
             log.trace("Exiting Service: BranchCreateAndCheckout");
             return DapResults.success(
                     "BranchCreateAndCheckout", ref.toString(), StringResultContract.SERVICE_RESULT);
@@ -2117,9 +2063,6 @@ public class GitRepositoryShape extends Thing {
         GitTransport transport = null;
         try {
             var fileRepo = new FileRepositoryManager(resolveTargetThing());
-            // Fail before any Git change if the later import would be refused.
-            fileRepo.requireSyncPermissions();
-            fileRepo.exportProjectEntities();
             Git myGitFolder = fileRepo.git();
 
             List<String> lstr =
@@ -2135,7 +2078,6 @@ public class GitRepositoryShape extends Thing {
             for (String str : lstr) {
                 LogResult += str;
             }
-            fileRepo.importProjectEntities();
 
             if (DeleteRemote.booleanValue()) {
                 transport = GitTransport.forRepository(resolveTargetThing().getName());
@@ -2150,7 +2092,6 @@ public class GitRepositoryShape extends Thing {
                                 .call();
                 LogResult += " Remote delete: " + results.iterator().next();
             }
-            fileRepo.importProjectEntities();
 
             GitActionLogger.logAction("BranchDelete", resolveTargetThing().getName(), LogResult);
             return DapResults.success(
@@ -2536,10 +2477,15 @@ public class GitRepositoryShape extends Thing {
         }
     }
 
+    /**
+     * Sync from ThingWorx: exports the tracked projects into the working tree so their changes show
+     * in Status. Git operations never do this themselves.
+     */
     @DapServicePayload(StringResultSpec.class)
     @ThingworxServiceDefinition(
-            name = "SyncToThingWorx",
-            description = "Imports repository XML entities into ThingWorx.",
+            name = "SyncFromThingWorx",
+            description =
+                    "Exports the tracked ThingWorx projects into the working tree, so their changes show in Status. Does not stage or commit.",
             category = "",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
@@ -2548,17 +2494,115 @@ public class GitRepositoryShape extends Thing {
             description = "",
             baseType = "INFOTABLE",
             aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
-    public InfoTable SyncToThingWorx() {
+    public InfoTable SyncFromThingWorx() {
         FileRepositoryManager fileRepo = null;
         try {
             fileRepo = new FileRepositoryManager(resolveTargetThing());
-            boolean imported = fileRepo.importProjectEntities();
+            fileRepo.syncFromThingWorx();
+            String message = "Exported " + fileRepo.trackedProjectsLabel() + " from ThingWorx.";
+            GitActionLogger.logAction("SyncFromThingWorx", resolveTargetThing().getName(), message);
             return DapResults.success(
-                    "SyncToThingWorx",
+                    "SyncFromThingWorx", message, StringResultContract.SERVICE_RESULT);
+        } catch (Exception e) {
+            return DapResults.failure("SyncFromThingWorx", e, StringResultContract.SERVICE_RESULT);
+        } finally {
+            if (fileRepo != null) fileRepo.close();
+        }
+    }
+
+    /**
+     * Describes the ThingWorx changes a Sync to ThingWorx would overwrite: entities in the tracked
+     * projects modified since the last sync. Blank when there are none.
+     */
+    @DapServicePayload(StringResultSpec.class)
+    @ThingworxServiceDefinition(
+            name = "GetThingWorxChangesSinceSync",
+            description =
+                    "Describes the tracked-project entities changed in ThingWorx since the last sync, which Sync to ThingWorx would overwrite. Blank when there are none.",
+            category = "",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "Result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
+    public InfoTable GetThingWorxChangesSinceSync() {
+        FileRepositoryManager fileRepo = null;
+        try {
+            fileRepo = new FileRepositoryManager(resolveTargetThing());
+            return DapResults.success(
+                    "GetThingWorxChangesSinceSync",
+                    OverwriteWarning.forChanges(fileRepo.changedSinceSync()),
+                    StringResultContract.SERVICE_RESULT);
+        } catch (Exception e) {
+            return DapResults.failure(
+                    "GetThingWorxChangesSinceSync", e, StringResultContract.SERVICE_RESULT);
+        } finally {
+            if (fileRepo != null) fileRepo.close();
+        }
+    }
+
+    /**
+     * Sync to ThingWorx: imports the tracked project folders into ThingWorx. Git operations never
+     * do this themselves. Unless forced, it refuses when ThingWorx entities changed since the last
+     * sync, since the import would overwrite them.
+     */
+    @DapServicePayload(StringResultSpec.class)
+    @ThingworxServiceDefinition(
+            name = "SyncToThingWorx",
+            description =
+                    "Imports the tracked project folders into ThingWorx. Unless Force is true, refuses when ThingWorx entities changed since the last sync, because the import would overwrite them.",
+            category = "",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "Result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
+    public InfoTable SyncToThingWorx(
+            @ThingworxServiceParameter(
+                            name = "Force",
+                            description =
+                                    "Import even when ThingWorx entities changed since the last sync, overwriting them",
+                            baseType = "BOOLEAN",
+                            aspects = {"defaultValue:false"})
+                    Boolean Force) {
+        FileRepositoryManager fileRepo = null;
+        try {
+            fileRepo = new FileRepositoryManager(resolveTargetThing());
+            if (!Boolean.TRUE.equals(Force)) {
+                String warning = OverwriteWarning.forChanges(fileRepo.changedSinceSync());
+                if (!warning.isEmpty()) {
+                    return DapResults.failure(
+                            "SyncToThingWorx",
+                            "SyncToThingWorx Error: " + Const.ERR_PREFIX_CONFIG + warning,
+                            StringResultContract.SERVICE_RESULT);
+                }
+            }
+            boolean imported;
+            try {
+                imported = fileRepo.importProjectEntities();
+            } catch (Exception importEx) {
+                String failure =
+                        "Importing entities into ThingWorx failed for projects '"
+                                + fileRepo.trackedProjectsLabel()
+                                + "': "
+                                + importEx.getMessage();
+                log.error(failure, importEx);
+                GitActionLogger.logAction(
+                        "SyncToThingWorx", resolveTargetThing().getName(), failure);
+                return DapResults.failure(
+                        "SyncToThingWorx", failure, StringResultContract.SERVICE_RESULT);
+            }
+            String message =
                     imported
                             ? "Repository entities imported into ThingWorx."
-                            : "No XML entities found to import.",
-                    StringResultContract.SERVICE_RESULT);
+                            : "No XML entities found to import.";
+            GitActionLogger.logAction("SyncToThingWorx", resolveTargetThing().getName(), message);
+            return DapResults.success(
+                    "SyncToThingWorx", message, StringResultContract.SERVICE_RESULT);
         } catch (Exception e) {
             return DapResults.failure("SyncToThingWorx", e, StringResultContract.SERVICE_RESULT);
         } finally {
@@ -2566,11 +2610,12 @@ public class GitRepositoryShape extends Thing {
         }
     }
 
-    /** Synchronizes ThingWorx exports and reports staged and working-tree status. */
+    /** Reports staged and working-tree status. Reads Git only; it does not export ThingWorx. */
     @DapServicePayload(StatusSpec.class)
     @ThingworxServiceDefinition(
             name = "Status",
-            description = "Synchronizes the configured ThingWorx project and reports Git status.",
+            description =
+                    "Reports Git status. Reads Git only; use SyncFromThingWorx to export ThingWorx changes first.",
             category = "",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
@@ -2618,7 +2663,6 @@ public class GitRepositoryShape extends Thing {
             addStatusField(result, "CanStage", com.thingworx.types.BaseTypes.BOOLEAN, 8);
             addStatusField(result, "Tracked", com.thingworx.types.BaseTypes.BOOLEAN, 9);
             fileRepo = new FileRepositoryManager(resolveTargetThing());
-            fileRepo.syncStatusFromThingWorx();
             Git git = fileRepo.git();
             org.eclipse.jgit.api.Status status = git.status().call();
             Set<String> conflicting = new HashSet<>(status.getConflicting());
@@ -3178,7 +3222,7 @@ public class GitRepositoryShape extends Thing {
     @ThingworxServiceDefinition(
             name = "MergeContinue",
             description =
-                    "Completes a paused merge after conflicts are resolved and staged, then synchronizes ThingWorx.",
+                    "Completes a paused merge after conflicts are resolved and staged. Use SyncToThingWorx to apply the result.",
             category = "",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
@@ -3205,7 +3249,7 @@ public class GitRepositoryShape extends Thing {
     @ThingworxServiceDefinition(
             name = "MergeAbort",
             description =
-                    "Aborts the current merge and synchronizes the restored state into ThingWorx.",
+                    "Aborts the current merge and restores the previous state. ThingWorx entities are not changed.",
             category = "",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
@@ -3240,7 +3284,7 @@ public class GitRepositoryShape extends Thing {
     @ThingworxServiceDefinition(
             name = "RebaseContinue",
             description =
-                    "Continues a paused rebase after conflicts are resolved and staged, then synchronizes ThingWorx.",
+                    "Continues a paused rebase after conflicts are resolved and staged. Use SyncToThingWorx to apply the result.",
             category = "",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
@@ -3274,7 +3318,7 @@ public class GitRepositoryShape extends Thing {
     @ThingworxServiceDefinition(
             name = "RebaseAbort",
             description =
-                    "Aborts the current rebase and synchronizes the restored state into ThingWorx.",
+                    "Aborts the current rebase and restores the previous state. ThingWorx entities are not changed.",
             category = "",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
@@ -3486,7 +3530,7 @@ public class GitRepositoryShape extends Thing {
     @ThingworxServiceDefinition(
             name = "ConflictContinue",
             description =
-                    "Completes the operation waiting on conflicts once every file is resolved: commits a merge, continues a rebase, or finishes re-applying uncommitted changes. Then imports the result into ThingWorx.",
+                    "Completes the operation waiting on conflicts once every file is resolved: commits a merge, continues a rebase, or finishes re-applying uncommitted changes. Use SyncToThingWorx to apply the result.",
             category = "",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
@@ -3505,8 +3549,6 @@ public class GitRepositoryShape extends Thing {
         PastedKeyGpgSigner[] signer = new PastedKeyGpgSigner[1];
         try {
             fileRepo = new FileRepositoryManager(resolveTargetThing());
-            // Fail before the operation completes if the import that follows would be refused.
-            fileRepo.requireImportPermissions();
             Git git = fileRepo.git();
             String operation = ConflictWorkflow.state(git).operation();
             GitUserContextManager.Identity identity =
@@ -3538,8 +3580,8 @@ public class GitRepositoryShape extends Thing {
                             });
             if (outcome == ConflictWorkflow.Outcome.CONFLICTS)
                 return conflictResult("ConflictContinue", operation, git);
-            fileRepo.importProjectEntities();
-            String message = operation + " completed and imported into ThingWorx.";
+            String message =
+                    operation + " completed. Use Sync to ThingWorx to apply it to ThingWorx.";
             GitActionLogger.logAction("ConflictContinue", resolveTargetThing().getName(), message);
             return DapResults.success(
                     "ConflictContinue", message, StringResultContract.SERVICE_RESULT);
@@ -3571,14 +3613,12 @@ public class GitRepositoryShape extends Thing {
         FileRepositoryManager fileRepo = null;
         try {
             fileRepo = new FileRepositoryManager(resolveTargetThing());
-            // Fail before the operation completes if the import that follows would be refused.
-            fileRepo.requireImportPermissions();
             Git git = fileRepo.git();
             String operation = ConflictWorkflow.state(git).operation();
             if (ConflictWorkflow.skip(git) == ConflictWorkflow.Outcome.CONFLICTS)
                 return conflictResult("ConflictSkip", operation, git);
-            fileRepo.importProjectEntities();
-            String message = operation + " completed and imported into ThingWorx.";
+            String message =
+                    operation + " completed. Use Sync to ThingWorx to apply it to ThingWorx.";
             GitActionLogger.logAction("ConflictSkip", resolveTargetThing().getName(), message);
             return DapResults.success("ConflictSkip", message, StringResultContract.SERVICE_RESULT);
         } catch (Exception e) {
@@ -3641,7 +3681,6 @@ public class GitRepositoryShape extends Thing {
         log.trace("Entering Service: GetDiffPerFile");
         try {
             var fileRepo = new FileRepositoryManager(resolveTargetThing());
-            fileRepo.exportProjectEntities();
             Git myGitObject = fileRepo.git();
             ByteArrayOutputStream dif = new ByteArrayOutputStream();
             myGitObject.diff().setPathFilter(PathFilter.create(File)).setOutputStream(dif).call();
@@ -4440,9 +4479,6 @@ public class GitRepositoryShape extends Thing {
         }
         try {
             var fileRepo = new FileRepositoryManager(resolveTargetThing());
-            // Fail before any Git change if the later import would be refused.
-            fileRepo.requireSyncPermissions();
-            fileRepo.exportProjectEntities();
             Git myGitFolder = fileRepo.git();
             ObjectId mergeBase = myGitFolder.getRepository().resolve(BranchName);
             if (mergeBase == null) {
@@ -4464,7 +4500,6 @@ public class GitRepositoryShape extends Thing {
                 return conflictResult("Merge", "Merge", myGitFolder);
             }
             String LogResult = merged[0].getMergeStatus().toString() + ": " + merged[0].toString();
-            fileRepo.importProjectEntities();
             GitActionLogger.logAction("Merge", resolveTargetThing().getName(), LogResult);
             return DapResults.success("Merge", LogResult, StringResultContract.SERVICE_RESULT);
         } catch (Exception e) {
@@ -4507,9 +4542,6 @@ public class GitRepositoryShape extends Thing {
         }
         try {
             var fileRepo = new FileRepositoryManager(resolveTargetThing());
-            // Fail before any Git change if the later import would be refused.
-            fileRepo.requireSyncPermissions();
-            fileRepo.exportProjectEntities();
             Git myGitFolder = fileRepo.git();
             ObjectId upstream = myGitFolder.getRepository().resolve(UpstreamBranch);
             if (upstream == null) {
@@ -4532,7 +4564,6 @@ public class GitRepositoryShape extends Thing {
                 return conflictResult("Rebase", "Rebase", myGitFolder);
             }
             String LogResult = rebased[0].getStatus().toString();
-            fileRepo.importProjectEntities();
             GitActionLogger.logAction("Rebase", resolveTargetThing().getName(), LogResult);
             return DapResults.success("Rebase", LogResult, StringResultContract.SERVICE_RESULT);
         } catch (Exception e) {
@@ -4589,7 +4620,6 @@ public class GitRepositoryShape extends Thing {
         }
         try {
             var fileRepo = new FileRepositoryManager(resolveTargetThing());
-            fileRepo.exportProjectEntities();
             Git myGitFolder = fileRepo.git();
             Repository repo = myGitFolder.getRepository();
             ObjectId commitId;

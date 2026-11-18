@@ -514,44 +514,6 @@ final class FileRepositoryManager {
     }
 
     /**
-     * Exports every tracked project and removes volatile metadata. Private - invisible to users.
-     * Exported files are intentionally left unstaged; callers stage only the paths they want to
-     * commit.
-     */
-    // intentionally not a ThingWorx service; sync is automatic via Pull/Push/Commit etc.
-    void exportProjectEntities() throws Exception {
-        requireExportPermissions();
-        // An export overwrites tracked files, which would discard conflict markers and
-        // resolutions while a merge, rebase, or carried-change conflict is waiting.
-        ConflictWorkflow.requireNotInProgress(git);
-        for (TrackedProject project : requireTrackedProjects()) {
-            exportToProjectFolder(project);
-        }
-    }
-
-    /**
-     * Exports a project into its folder: its custom path, or {@code <ProjectName>/} at the root.
-     * The project is exported to a temporary folder, Users are removed (see {@link
-     * SyncExclusions}), and the remaining files are copied into the project folder, replacing files
-     * of the same name. Files that are no longer exported are left in place, so User files already
-     * in the repository are never changed.
-     */
-    private void exportToProjectFolder(TrackedProject project) throws Exception {
-        Path base = new File(fileRepository.getRootPath()).toPath().toRealPath();
-        Path temporary = Files.createTempDirectory(base, ".jgit-export-");
-        try {
-            Path snapshot = exportSnapshot(temporary, "0", project.name());
-            Path target =
-                    resolveRepositoryPath(
-                            new File(fileRepository.getRootPath()).toPath(),
-                            projectFolder(project));
-            copyExportInto(snapshot, target, base);
-        } finally {
-            deleteRecursively(temporary);
-        }
-    }
-
-    /**
      * Exports a project into {@code <temporary>/<slot>/<ProjectName>/}, removes volatile metadata,
      * and returns that folder.
      */
@@ -578,49 +540,8 @@ final class FileRepositoryManager {
         return snapshot;
     }
 
-    /**
-     * Copies the regular files below {@code source} into {@code target}, replacing existing files.
-     * Symbolic links in the source are skipped; a target component that is a symbolic link, or an
-     * existing target that is not a regular file, is refused, as is anything outside {@code root}.
-     */
-    private static void copyExportInto(Path source, Path target, Path root) throws IOException {
-        List<Path> files;
-        try (var paths = Files.walk(source)) {
-            files = paths.filter(p -> Files.isRegularFile(p, LinkOption.NOFOLLOW_LINKS)).toList();
-        }
-        for (Path file : files) {
-            Path destination = target.resolve(source.relativize(file).toString()).normalize();
-            if (!destination.startsWith(root)) {
-                throw new IOException("Export path is outside the repository: " + destination);
-            }
-            Path current = root;
-            for (Path component : root.relativize(destination)) {
-                current = current.resolve(component);
-                if (Files.isSymbolicLink(current)) {
-                    throw new IOException("Refusing to write through a symbolic link: " + current);
-                }
-            }
-            if (Files.exists(destination, LinkOption.NOFOLLOW_LINKS)
-                    && !Files.isRegularFile(destination, LinkOption.NOFOLLOW_LINKS)) {
-                throw new IOException("Export path is not a regular file: " + destination);
-            }
-            Files.createDirectories(destination.getParent());
-            Files.copy(file, destination, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-        }
-    }
-
     private static final String EXPORT_SERVICE = "ExportSourceControlledEntities";
     private static final String IMPORT_SERVICE = "ImportSourceControlledEntities";
-
-    /**
-     * Requires that the calling user may run both the project export and the entity import for
-     * every tracked project. Services that import after changing the repository call this before
-     * they start, so a missing permission is reported before any Git or file change is made.
-     */
-    void requireSyncPermissions() throws Exception {
-        requireExportPermissions();
-        requireImportPermissions();
-    }
 
     /** Requires that the calling user may export every tracked project. */
     void requireExportPermissions() throws Exception {
@@ -690,17 +611,22 @@ final class FileRepositoryManager {
     }
 
     /**
-     * Refreshes the working tree from a separate project export without modifying the Git index.
+     * Sync from ThingWorx: exports every tracked project and reconciles its folder in the working
+     * tree, without changing the Git index. Files of entities that left a project are deleted;
+     * Users are never touched. Records the sync time, see {@link #changedSinceSync()}.
      */
-    void syncStatusFromThingWorx() throws Exception {
+    void syncFromThingWorx() throws Exception {
         requireExportPermissions();
         ConflictWorkflow.requireNotInProgress(git);
+        // Taken before exporting, so an entity saved while the export runs still counts as changed.
+        long started = System.currentTimeMillis();
         synchronized (StatusExportReconciler.class) {
-            syncStatusFromThingWorxLocked();
+            syncFromThingWorxLocked();
         }
+        recordSync(started);
     }
 
-    private void syncStatusFromThingWorxLocked() throws Exception {
+    private void syncFromThingWorxLocked() throws Exception {
         List<TrackedProject> projects = requireTrackedProjects();
         Path base = new File(fileRepository.getRootPath()).toPath().toRealPath();
         Path temporary = Files.createTempDirectory(base, ".jgit-status-");
@@ -966,7 +892,63 @@ final class FileRepositoryManager {
             }
             imported = true;
         }
+        // Imported entities now carry modified dates up to this point, so take it afterwards.
+        recordSync(System.currentTimeMillis());
         return imported;
+    }
+
+    /** Git config section and key holding the time of the last sync, in either direction. */
+    static final String SYNC_SECTION = "thingworx";
+
+    static final String SYNC_LAST = "lastSync";
+
+    /**
+     * The time of the last sync in either direction, or 0 when this repository was never synced.
+     */
+    long lastSync() {
+        return git.getRepository().getConfig().getLong(SYNC_SECTION, null, SYNC_LAST, 0L);
+    }
+
+    private void recordSync(long millis) throws IOException {
+        StoredConfig config = git.getRepository().getConfig();
+        config.setLong(SYNC_SECTION, null, SYNC_LAST, millis);
+        config.save();
+    }
+
+    /**
+     * The tracked-project entities changed in ThingWorx since the last sync, as {@code "<Type>
+     * <name>"}, which Sync to ThingWorx would overwrite. It reads each entity's modified date
+     * rather than exporting, so it stays fast for large projects. Users are never imported and are
+     * left out, as are Project entities themselves. Entities deleted in ThingWorx, and property
+     * values written at runtime, do not change a modified date and are not reported. When the
+     * repository was never synced, every entity in the tracked projects counts as changed.
+     */
+    List<String> changedSinceSync() throws Exception {
+        requireImportPermissions();
+        long since = lastSync();
+        List<String> changed = new ArrayList<>();
+        for (TrackedProject tracked : requireTrackedProjects()) {
+            RootEntity found =
+                    EntityUtilities.findEntity(tracked.name(), ThingworxRelationshipTypes.Project);
+            if (!(found instanceof com.thingworx.projects.Project project)) continue;
+            for (var reference : project.getProjectEntities()) {
+                // Users are never imported. The Project itself only groups the entities and changes
+                // whenever one is added, so it is not a change worth protecting.
+                if (reference.getType() == ThingworxRelationshipTypes.User
+                        || reference.getType() == ThingworxRelationshipTypes.Project) continue;
+                RootEntity entity =
+                        EntityUtilities.findEntity(reference.getName(), reference.getType());
+                if (entity != null && modifiedAfter(entity, since)) {
+                    changed.add(reference.getType() + " " + reference.getName());
+                }
+            }
+        }
+        return changed;
+    }
+
+    private static boolean modifiedAfter(RootEntity entity, long since) {
+        var modified = entity.GetLastModifiedDate();
+        return modified == null ? since == 0L : modified.getMillis() > since;
     }
 
     private void importFolder(IServiceProvider resource, String path) throws Exception {

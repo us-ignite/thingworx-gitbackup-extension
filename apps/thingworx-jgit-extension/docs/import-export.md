@@ -1,34 +1,44 @@
 # Import and export
 
-The utility Thing supports bulk synchronization of ThingWorx entities with a Git repository. Every
-repository Thing tracks one or more ThingWorx projects (`TrackedProjects`), each in its own
-folder; repository operations synchronize those projects as part of their workflow.
+Every repository Thing tracks one or more ThingWorx projects (`TrackedProjects`), each in its own
+folder. Moving entities between ThingWorx and that folder is always a manual step, like saving files
+before using a desktop Git client. Git operations (`Commit`, `Push`, `Pull`, `Checkout`,
+`BranchSwitch`, `Merge`, `Rebase`, conflict handling, tags) only read and change the repository; they
+never export from or import into ThingWorx. Configure the tracked projects and
+localization-token prefix in Repository Settings.
 
-## Export
+## Sync from ThingWorx (export)
 
-Export is internal and automatic: operations that need the current ThingWorx model (`Commit`, `Push`,
-`Pull` bootstrap, `Checkout`, `Merge`, `Rebase`, etc.) export each tracked project into its folder in
-the `GIT.Repository` Thing—which is itself the FileRepository—without user action. Configure the
-tracked projects and localization-token prefix in Repository Settings.
+`SyncFromThingWorx` (the **Sync from ThingWorx** button on Changes) exports each tracked project to a
+temporary folder and reconciles it into the project's folder in the working tree. Changed entities
+overwrite their files, and the file of an entity that left the project is deleted; both appear in
+`Status` as unstaged changes. The Git index is not changed. Users are never exported, and files that
+cannot be identified as canonical entity exports are left alone. It refuses to run while a merge,
+rebase or carried-change conflict is waiting.
 
-Export writes only the tracked project folders; it never commits or pushes the resulting
-files. Stage manual files with `Add`, review the index and working tree with `Status`, call `Commit`
-with an explicit message, and call `Push` separately when the commit should be published. There is no
-direct `ExportProjectEntities` service - sync is invisible.
+`Status` only reads Git, so it stays fast on large projects. Use Sync from ThingWorx first when you
+want ThingWorx changes to show in Changes. Then stage, `CommitStaged`, and `Push` as separate steps.
 
-## Import
+## Sync to ThingWorx (import)
 
-Import is internal and automatic: `Pull` (and other integrating operations) discover XML entities
-recursively below each tracked project's folder and import them back into ThingWorx without user
-action. Use `SyncToThingWorx` (or the Changes mashup button) to import the current repository XML without pulling. This can overwrite ThingWorx entities and property values.
-Review ThingWorx logs after a `Pull`, especially when an entity depends on another entity that is not
-present in the same revision. `Pull` always imports the tracked projects.
+`SyncToThingWorx` (the **Sync to ThingWorx** button) discovers XML entities recursively below each
+tracked project's folder and imports them into ThingWorx. This overwrites ThingWorx entities and
+property values with the repository versions. After a `Pull`, `Checkout`, `Merge` or `Rebase`, use it
+to apply the result to ThingWorx.
 
-When `Pull` successfully fetches and merges Git history but importing one or more entities into
-ThingWorx throws, the service preserves the pulled Git changes and returns a failure envelope
-(`Error=true`) with the message `Git Pull completed, but importing entities into ThingWorx failed for
-project '<ProjectName>': <cause>`. The working tree remains at the pulled revision; no automatic
-reset or rollback of the potentially partial ThingWorx import is attempted. Cleanup still runs, and
-the case where no XML entities exist in any tracked project folder remains a warning, not a failure.
+To avoid losing work, it refuses when entities in the tracked projects changed in ThingWorx since the
+last sync in either direction, and names them. Pass `Force=true` to import anyway. The Changes screen
+asks first: it calls `GetThingWorxChangesSinceSync`, and when that names any entities it asks for
+confirmation before importing with `Force=true`.
+
+The check compares each entity's last-modified date with the time of the last sync, which is
+recorded in the repository's own Git config (`thingworx.lastSync`). It reads entity metadata instead
+of exporting, so it is quick. It does not see entities deleted in ThingWorx, or property values
+written at runtime, because neither changes a modified date. A repository that was never synced
+treats every entity in its tracked projects as changed.
+
+Users, and ApplicationKeys whose stored secret ThingWorx cannot decrypt, are never imported; see
+the extension log for any key that was skipped. Review ThingWorx logs after an import, especially
+when an entity depends on another entity that is not present in the same revision.
 
 Always review changes in Git before importing them into a shared or production ThingWorx instance.

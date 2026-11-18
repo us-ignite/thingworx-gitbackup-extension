@@ -188,7 +188,9 @@
           "Characteristic": "Services",
           "Id": "f465b8f1-d0e6-49a6-b40a-3960552d9afe",
           "Name": "SyncToThingWorx",
-          "Parameters": {},
+          "Parameters": {
+            "Force": false
+          },
           "RefreshInterval": 0,
           "Target": "SyncToThingWorx"
         },
@@ -239,6 +241,53 @@
           "Parameters": {},
           "RefreshInterval": 0,
           "Target": "GetRemotes"
+        },
+        {
+          "APIMethod": "post",
+          "Caching": {
+            "cache": false,
+            "cacheKeyParams": [],
+            "cacheStrategy": "INSTANCE",
+            "maxResultSets": "10"
+          },
+          "Characteristic": "Services",
+          "Id": "caf6c4a4-efd1-47c3-9dfc-50f4be6a2132",
+          "Name": "SyncToThingWorxForced",
+          "Parameters": {
+            "Force": true
+          },
+          "RefreshInterval": 0,
+          "Target": "SyncToThingWorx"
+        },
+        {
+          "APIMethod": "post",
+          "Caching": {
+            "cache": false,
+            "cacheKeyParams": [],
+            "cacheStrategy": "INSTANCE",
+            "maxResultSets": "10"
+          },
+          "Characteristic": "Services",
+          "Id": "eca5de82-97c9-4b16-9fc5-22dd9374e16c",
+          "Name": "SyncFromThingWorx",
+          "Parameters": {},
+          "RefreshInterval": 0,
+          "Target": "SyncFromThingWorx"
+        },
+        {
+          "APIMethod": "post",
+          "Caching": {
+            "cache": false,
+            "cacheKeyParams": [],
+            "cacheStrategy": "INSTANCE",
+            "maxResultSets": "10"
+          },
+          "Characteristic": "Services",
+          "Id": "e61d39da-9248-4e04-ae3a-600a78d35d26",
+          "Name": "GetThingWorxChangesSinceSync",
+          "Parameters": {},
+          "RefreshInterval": 0,
+          "Target": "GetThingWorxChangesSinceSync"
         }
       ]
     },
@@ -1029,6 +1078,94 @@
       "TargetArea": "Data",
       "TargetId": "ForcePull",
       "TargetSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate"
+    },
+    {
+      "Id": "8a96465d-94d7-4a9c-8f16-8372b83a7b41",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "Message",
+          "SourcePropertyBaseType": "STRING",
+          "SourcePropertyType": "Field",
+          "TargetProperty": "message",
+          "TargetPropertyBaseType": "STRING",
+          "TargetPropertyType": "property"
+        },
+        {
+          "SourceProperty": "Error",
+          "SourcePropertyBaseType": "BOOLEAN",
+          "SourcePropertyType": "Field",
+          "TargetProperty": "error",
+          "TargetPropertyBaseType": "BOOLEAN",
+          "TargetPropertyType": "property"
+        }
+      ],
+      "SourceArea": "Data",
+      "SourceDetails": "AllData",
+      "SourceId": "GetThingWorxChangesSinceSync",
+      "SourceSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "TargetArea": "UI",
+      "TargetId": "validate-sync-to",
+      "TargetSection": ""
+    },
+    {
+      "Id": "1571f54c-0e5c-4738-848c-80e7b39fddbb",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "Message",
+          "SourcePropertyBaseType": "STRING",
+          "SourcePropertyType": "Field",
+          "TargetProperty": "MessageText",
+          "TargetPropertyBaseType": "STRING",
+          "TargetPropertyType": "property"
+        }
+      ],
+      "SourceArea": "Data",
+      "SourceDetails": "AllData",
+      "SourceId": "GetThingWorxChangesSinceSync",
+      "SourceSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "TargetArea": "UI",
+      "TargetId": "changes-sync-to-confirm",
+      "TargetSection": ""
+    },
+    {
+      "Id": "4e99f9da-fe18-4491-aee2-b9d34f878d9b",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "Message",
+          "SourcePropertyBaseType": "STRING",
+          "SourcePropertyType": "Field",
+          "TargetProperty": "gitMessage",
+          "TargetPropertyBaseType": "STRING",
+          "TargetPropertyType": "property"
+        }
+      ],
+      "SourceArea": "Data",
+      "SourceDetails": "AllData",
+      "SourceId": "SyncToThingWorxForced",
+      "SourceSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "TargetArea": "UI",
+      "TargetId": "git-result-popover",
+      "TargetSection": ""
+    },
+    {
+      "Id": "06d0845a-74fd-4492-a5bd-337b5bf20fe1",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "Message",
+          "SourcePropertyBaseType": "STRING",
+          "SourcePropertyType": "Field",
+          "TargetProperty": "gitMessage",
+          "TargetPropertyBaseType": "STRING",
+          "TargetPropertyType": "property"
+        }
+      ],
+      "SourceArea": "Data",
+      "SourceDetails": "AllData",
+      "SourceId": "SyncFromThingWorx",
+      "SourceSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "TargetArea": "UI",
+      "TargetId": "git-result-popover",
+      "TargetSection": ""
     }
   ],
   "DesignTimePermissions": {},
@@ -1056,7 +1193,7 @@
     {
       "EventHandlerArea": "Data",
       "EventHandlerId": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
-      "EventHandlerService": "Status",
+      "EventHandlerService": "SyncFromThingWorx",
       "EventTriggerArea": "UI",
       "EventTriggerEvent": "Clicked",
       "EventTriggerId": "changes-refresh",
@@ -1366,7 +1503,7 @@
     {
       "EventHandlerArea": "Data",
       "EventHandlerId": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
-      "EventHandlerService": "SyncToThingWorx",
+      "EventHandlerService": "GetThingWorxChangesSinceSync",
       "EventTriggerArea": "UI",
       "EventTriggerEvent": "Clicked",
       "EventTriggerId": "changes-sync-to",
@@ -1542,6 +1679,76 @@
       "EventTriggerId": "mashup-root",
       "EventTriggerSection": "",
       "Id": "aae7dda2-6049-41a3-babe-d127bfbe5d72"
+    },
+    {
+      "EventHandlerArea": "Data",
+      "EventHandlerId": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "EventHandlerService": "Status",
+      "EventTriggerArea": "Data",
+      "EventTriggerEvent": "ServiceInvokeCompleted",
+      "EventTriggerId": "SyncFromThingWorx",
+      "EventTriggerSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "Id": "081caed0-16f2-4d71-947e-cdbe12fd6161"
+    },
+    {
+      "EventHandlerArea": "UI",
+      "EventHandlerId": "git-result-popover",
+      "EventHandlerService": "showGitResult",
+      "EventTriggerArea": "Data",
+      "EventTriggerEvent": "ServiceInvokeCompleted",
+      "EventTriggerId": "SyncFromThingWorx",
+      "EventTriggerSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "Id": "33fb48a3-dfff-4679-b3ff-39fdb73cf502"
+    },
+    {
+      "EventHandlerArea": "UI",
+      "EventHandlerId": "validate-sync-to",
+      "EventHandlerService": "Evaluate",
+      "EventTriggerArea": "Data",
+      "EventTriggerEvent": "ServiceInvokeCompleted",
+      "EventTriggerId": "GetThingWorxChangesSinceSync",
+      "EventTriggerSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "Id": "7dd31f01-0f87-4af6-bd32-16e8430fbcc9"
+    },
+    {
+      "EventHandlerArea": "UI",
+      "EventHandlerId": "changes-sync-to-confirm",
+      "EventHandlerService": "OpenConfirmation",
+      "EventTriggerArea": "UI",
+      "EventTriggerEvent": "True",
+      "EventTriggerId": "validate-sync-to",
+      "EventTriggerSection": "",
+      "Id": "9846c1bc-8d8d-464c-88fd-315d561ce38b"
+    },
+    {
+      "EventHandlerArea": "Data",
+      "EventHandlerId": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "EventHandlerService": "SyncToThingWorx",
+      "EventTriggerArea": "UI",
+      "EventTriggerEvent": "False",
+      "EventTriggerId": "validate-sync-to",
+      "EventTriggerSection": "",
+      "Id": "ea674b01-7b5d-40d4-bb08-2a68152cb311"
+    },
+    {
+      "EventHandlerArea": "Data",
+      "EventHandlerId": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "EventHandlerService": "SyncToThingWorxForced",
+      "EventTriggerArea": "UI",
+      "EventTriggerEvent": "ActionClick",
+      "EventTriggerId": "changes-sync-to-confirm",
+      "EventTriggerSection": "",
+      "Id": "01a31b49-89aa-4216-8088-3a5d0f1df681"
+    },
+    {
+      "EventHandlerArea": "UI",
+      "EventHandlerId": "git-result-popover",
+      "EventHandlerService": "showGitResult",
+      "EventTriggerArea": "Data",
+      "EventTriggerEvent": "ServiceInvokeCompleted",
+      "EventTriggerId": "SyncToThingWorxForced",
+      "EventTriggerSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "Id": "48d8f2f6-a13b-4dc5-8a52-d83347bdddfd"
     }
   ],
   "Reminders": [],
@@ -3650,7 +3857,7 @@
           "LastContainer": false,
           "Left": 0,
           "Margin": "5",
-          "MessageText": "Force pull fetches origin and resets the current branch to its remote branch. Tracked local changes and local commits will be discarded, and ThingWorx entities will be updated from the repository. Untracked files may be overwritten if they conflict. Continue?",
+          "MessageText": "Force pull fetches origin and resets the current branch to its remote branch. Tracked local changes and local commits will be discarded. Untracked files may be overwritten if they conflict. ThingWorx is not changed; use Sync to ThingWorx afterwards to apply the result. Continue?",
           "ResponsiveLayout": false,
           "SecondButtonLabel": "Action",
           "SecondButtonTooltipField": "",
@@ -4054,6 +4261,76 @@
               "shown": true
             }
           ]
+        },
+        "Widgets": []
+      },
+      {
+        "Properties": {
+          "Area": "UI",
+          "AutoEvaluate": false,
+          "DisplayName": "validate-sync-to",
+          "Expression": "!error && !!message",
+          "Height": 28,
+          "Id": "validate-sync-to",
+          "LastContainer": false,
+          "Left": 0,
+          "Margin": "5",
+          "Output": false,
+          "ResponsiveLayout": false,
+          "ShowDataLoading": true,
+          "Top": 0,
+          "Type": "validator2",
+          "Visible": true,
+          "Width": 200,
+          "Z-index": 10,
+          "__TypeDisplayName": "Validator",
+          "_currentParameterDefs": [
+            {
+              "BaseType": "STRING",
+              "DefaultValue": "",
+              "ParameterName": "message"
+            },
+            {
+              "BaseType": "BOOLEAN",
+              "DefaultValue": false,
+              "ParameterName": "error"
+            }
+          ]
+        },
+        "Widgets": []
+      },
+      {
+        "Properties": {
+          "ActionButtonLabel": "Sync to ThingWorx",
+          "ActionButtonPosition": "left",
+          "ActionButtonTooltipField": "",
+          "ActionButtonType": "danger",
+          "Area": "UI",
+          "CancelButtonLabel": "Cancel",
+          "CancelButtonTooltipField": "",
+          "CloseButtonTooltipField": "close",
+          "DialogHeight": "260",
+          "DialogWidth": "600",
+          "DisplayCloseButton": false,
+          "DisplayName": "changes-sync-to-confirm",
+          "DisplaySecondaryAction": false,
+          "Id": "changes-sync-to-confirm",
+          "LastContainer": false,
+          "Left": 0,
+          "Margin": "5",
+          "MessageText": "Some ThingWorx entities changed since the last sync. Sync to ThingWorx replaces them with the repository versions. Continue?",
+          "ResponsiveLayout": false,
+          "SecondButtonLabel": "Action",
+          "SecondButtonTooltipField": "",
+          "ShowDataLoading": true,
+          "TitleText": "Overwrite ThingWorx changes?",
+          "Top": 0,
+          "Type": "ptcsconfirmation",
+          "UseTheme": true,
+          "Visible": true,
+          "Z-index": 10,
+          "__TypeDisplayName": "Confirmation",
+          "_baseVersion": "9.7.0"
         },
         "Widgets": []
       }

@@ -3550,7 +3550,7 @@
                       "DisplayName": "settings-projects-intro",
                       "HorizontalAlignment": "left",
                       "Id": "settings-projects-intro",
-                      "LabelText": "Entities in each tracked project are exported to its folder and imported on pull. Folders are relative to the repository root; a blank folder means <project>/. Select a project to change its folder or stop tracking it. With Move existing files, a folder change moves the project's files like git mv, and the renames appear in Changes for you to commit. Changes to this list apply immediately for all users of the repository.",
+                      "LabelText": "Sync from ThingWorx exports each tracked project to its folder, and Sync to ThingWorx imports it from there. Folders are relative to the repository root; a blank folder means <project>/. Select a project to change its folder or stop tracking it. With Move existing files, a folder change moves the project's files like git mv, and the renames appear in Changes for you to commit. Changes to this list apply immediately for all users of the repository.",
                       "LabelType": "body",
                       "LastContainer": false,
                       "Left": 74.47500610351562,
