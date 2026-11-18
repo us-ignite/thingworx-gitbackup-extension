@@ -139,6 +139,22 @@ public final class JGitEntityDeclarations {
                 ordinal = 8,
                 description = "Parent commit IDs, comma-separated")
         private String parentCommitIds;
+
+        @DapField(
+                name = "SignatureFormat",
+                baseType = DapBaseType.STRING,
+                ordinal = 9,
+                description =
+                        "Signature format: openpgp, ssh, x509 or unknown; blank for an unsigned commit. The signature is not verified.")
+        private String signatureFormat;
+
+        @DapField(
+                name = "SignatureKey",
+                baseType = DapBaseType.STRING,
+                ordinal = 10,
+                description =
+                        "Key the signature names: SSH SHA256 fingerprint, or OpenPGP fingerprint or key ID")
+        private String signatureKey;
     }
 
     @DapDataShape(
@@ -691,6 +707,37 @@ public final class JGitEntityDeclarations {
                 description =
                         "Folder holding the project's entities, relative to the repository root; blank means <ProjectName> at the repository root")
         private String path;
+
+        @DapField(
+                name = "EntityTypes",
+                baseType = DapBaseType.STRING,
+                ordinal = 3,
+                description =
+                        "Entity types synchronized, as comma-separated collections such as Things,Mashups; blank means all types")
+        private String entityTypes;
+    }
+
+    @DapDataShape(
+            name = "GIT.EntityTypeOption.DataShape",
+            description = "An entity type a tracked project can synchronize, for a dropdown",
+            serviceResultName = "GIT.EntityTypeOption.ServiceResult.DataShape",
+            serviceResultDescription = "Service result carrying entity type options",
+            payloadDescription = "Entity type options")
+    public static final class EntityTypeOptionSpec {
+        @DapField(
+                name = "EntityType",
+                baseType = DapBaseType.STRING,
+                ordinal = 1,
+                primaryKey = true,
+                description = "Collection and export folder name, such as ThingTemplates")
+        private String entityType;
+
+        @DapField(
+                name = "Label",
+                baseType = DapBaseType.STRING,
+                ordinal = 2,
+                description = "Readable name, such as Thing Templates")
+        private String label;
     }
 
     @DapDataShape(
@@ -921,6 +968,120 @@ public final class JGitEntityDeclarations {
                 description =
                         "Newline-separated remote origins approved for these credentials; a changed remote URL requires saving the settings again")
         private String approvedRemoteOrigins;
+
+        @DapField(
+                name = "SigningFormat",
+                baseType = DapBaseType.STRING,
+                ordinal = 9,
+                description =
+                        "Commit signing format: openpgp, ssh, or blank (OpenPGP when GpgKeyFingerprint is set, otherwise unsigned)")
+        private String signingFormat;
+
+        @DapField(
+                name = "SigningSshKeyFingerprint",
+                baseType = DapBaseType.STRING,
+                ordinal = 10,
+                description =
+                        "Fingerprint of the user's SSH key that signs commits when SigningFormat is ssh")
+        private String signingSshKeyFingerprint;
+    }
+
+    @DapDataShape(
+            name = "GIT.RepositorySigning.DataShape",
+            description = "The current user's commit signing choice for one repository",
+            serviceResultName = "GIT.RepositorySigning.ServiceResult.DataShape",
+            serviceResultDescription = "Service result carrying the commit signing choice.",
+            payloadDescription = "Commit signing choice")
+    public static final class RepositorySigningSpec {
+        @DapField(
+                name = "SigningFormat",
+                baseType = DapBaseType.STRING,
+                ordinal = 1,
+                description = "openpgp or ssh; blank when commits are not signed")
+        private String signingFormat;
+
+        @DapField(
+                name = "KeyFingerprint",
+                baseType = DapBaseType.STRING,
+                ordinal = 2,
+                description = "Fingerprint of the signing key; blank when commits are not signed")
+        private String keyFingerprint;
+
+        @DapField(
+                name = "GpgKeyFingerprint",
+                baseType = DapBaseType.STRING,
+                ordinal = 3,
+                description = "Saved OpenPGP key, kept while another format is selected")
+        private String gpgKeyFingerprint;
+
+        @DapField(
+                name = "SigningSshKeyFingerprint",
+                baseType = DapBaseType.STRING,
+                ordinal = 4,
+                description = "Saved SSH signing key, kept while another format is selected")
+        private String signingSshKeyFingerprint;
+
+        @DapField(
+                name = "RequireSigning",
+                baseType = DapBaseType.BOOLEAN,
+                ordinal = 5,
+                description = "Whether this repository refuses unsigned commits")
+        private Boolean requireSigning;
+
+        @DapField(
+                name = "CanChangeRequireSigning",
+                baseType = DapBaseType.BOOLEAN,
+                ordinal = 6,
+                description =
+                        "Whether the current user may change RequireSigning (design-time Update permission)")
+        private Boolean canChangeRequireSigning;
+    }
+
+    @DapDataShape(
+            name = "GIT.SigningKeyOption.DataShape",
+            description = "A key the current user can sign commits with, for a dropdown",
+            serviceResultName = "GIT.SigningKeyOption.ServiceResult.DataShape",
+            serviceResultDescription = "Service result carrying signing key options.",
+            payloadDescription = "Signing key options")
+    public static final class SigningKeyOptionSpec {
+        @DapField(
+                name = "Value",
+                baseType = DapBaseType.STRING,
+                ordinal = 1,
+                description =
+                        "Key reference for SigningKey parameters: openpgp:<fingerprint>, ssh:<fingerprint>, or none")
+        private String value;
+
+        @DapField(
+                name = "Display",
+                baseType = DapBaseType.STRING,
+                ordinal = 2,
+                description = "Format, label and fingerprint, for display")
+        private String display;
+
+        @DapField(
+                name = "Format",
+                baseType = DapBaseType.STRING,
+                ordinal = 3,
+                description = "openpgp, ssh, or blank for None")
+        private String format;
+
+        @DapField(name = "Fingerprint", baseType = DapBaseType.STRING, ordinal = 4)
+        private String fingerprint;
+
+        @DapField(
+                name = "IsRepositoryDefault",
+                baseType = DapBaseType.BOOLEAN,
+                ordinal = 5,
+                description = "The key saved for this repository; listed first")
+        private Boolean isRepositoryDefault;
+
+        @DapField(
+                name = "IsSignInKey",
+                baseType = DapBaseType.BOOLEAN,
+                ordinal = 6,
+                description = "Also used to sign in to one of this repository's remotes")
+        private Boolean isSignInKey;
     }
 
     @DapDataShape(

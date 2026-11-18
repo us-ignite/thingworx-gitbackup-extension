@@ -5,7 +5,7 @@ plugins {
 }
 
 def extensionName = 'GitHistoryWidget'
-def extensionVersion = '1.0.1'
+def extensionVersion = '1.0.3'
 
 tasks.register('installWidgetDependencies', Exec) {
     description = 'Install pinned Vite and widget dependencies'

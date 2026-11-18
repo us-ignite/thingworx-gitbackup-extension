@@ -468,8 +468,18 @@ class GitHistoryWidget extends TWComposerWidget {
   @property("STRING", bindingSource, bindingTarget) declare SelectedRef: any;
   @property("INTEGER", bindingSource, bindingTarget, defaultValue(100)) declare MaxEntries: any;
   @property("BOOLEAN", bindingSource, bindingTarget, defaultValue(false)) declare AllBranches: any;
+  @description("GetCurrentBranch result, used to mark the commit HEAD points at")
+  @property("INFOTABLE", bindingTarget) declare CurrentBranch: any;
   @widgetIDESupport_event declare CommitSelected: any;
   @widgetIDESupport_event declare FileSelected: any;
   @widgetIDESupport_event declare RefreshRequested: any;
   @widgetIDESupport_event declare LoadMoreRequested: any;
+  @description("Fires when the user asks to check out the selected commit (SelectedCommitID)")
+  @widgetIDESupport_event declare CheckoutRequested: any;
+  @description("Comma-separated IDs of the commits ticked for squashing, newest first")
+  @property("STRING", bindingSource) declare SquashCommitIDs: any;
+  @description("Message for the squashed commit, as the user edited it")
+  @property("STRING", bindingSource) declare SquashMessage: any;
+  @description("Fires when the user asks to squash the ticked commits (SquashCommitIDs, SquashMessage)")
+  @widgetIDESupport_event declare SquashRequested: any;
 }

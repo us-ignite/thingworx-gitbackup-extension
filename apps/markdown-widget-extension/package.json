@@ -1,0 +1,1 @@
+{"name":"git-markdown-widget-build","private":true,"scripts":{"build":"vite build && node scripts/smoke-bundles.cjs","typecheck":"tsc --noEmit -p runtime","smoke":"node scripts/smoke-bundles.cjs"},"dependencies":{"dompurify":"3.4.17","marked":"18.1.3"},"devDependencies":{"acorn":"8.19.0","jsdom":"26.1.0","typescript":"5.5.4","vite":"6.4.5"}}

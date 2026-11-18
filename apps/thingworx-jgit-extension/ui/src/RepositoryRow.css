@@ -9,3 +9,6 @@
 [id$="row-header"] { width: 100%; }
 [id$="row-name-bounding-box"] { flex: 1 1 auto; min-width: 0; }
 [id$="row-name"] { font-weight: 600; }
+/* The name is a tertiary button that opens the repository overview; keep it
+   reading as the row title, aligned with the row's left inset. */
+[id$="row-name"]::part(label) { font-weight: 600; }

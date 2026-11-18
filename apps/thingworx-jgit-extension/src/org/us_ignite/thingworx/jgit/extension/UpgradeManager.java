@@ -4,13 +4,11 @@ import com.thingworx.entities.utils.EntityUtilities;
 import com.thingworx.entities.utils.UserUtilities;
 import com.thingworx.logging.LogUtilities;
 import com.thingworx.relationships.RelationshipTypes.ThingworxRelationshipTypes;
-import com.thingworx.resources.entities.EntityServices;
 import com.thingworx.security.users.User;
 import com.thingworx.things.Thing;
 import com.thingworx.thingshape.ThingShape;
 import com.thingworx.thingtemplates.ThingTemplate;
 import com.thingworx.types.InfoTable;
-import com.thingworx.types.TagCollection;
 import com.thingworx.types.primitives.IPrimitiveType;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -46,7 +44,6 @@ import org.slf4j.Logger;
 final class UpgradeManager {
     private static final Logger LOG =
             LogUtilities.getInstance().getApplicationLogger(UpgradeManager.class);
-    private static final double MAX_ITEMS = 1_000_000;
 
     /** One line of the upgrade report. */
     record Step(String scope, String name, String item, String action, String detail) {}
@@ -231,13 +228,7 @@ final class UpgradeManager {
     }
 
     private static List<String> userNames() throws Exception {
-        return names(
-                new EntityServices()
-                        .GetEntityList(
-                                ThingworxRelationshipTypes.User.name(),
-                                "",
-                                new TagCollection(),
-                                MAX_ITEMS));
+        return GitUserContextManager.userNames();
     }
 
     private static List<String> names(InfoTable table) {

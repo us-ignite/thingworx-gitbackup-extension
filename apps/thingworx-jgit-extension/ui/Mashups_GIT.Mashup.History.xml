@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?><Entities build="b471" majorVersion="10" minorVersion="1" modelPersistenceProviderPackage="PostgresPersistenceProviderPackage" revision="2" schemaVersion="1212" universal=""><Mashups><Mashup aspect.isEditableExtensionObject="true" aspect.isExtension="true" aspect.isFlex="true" aspect.isResponsive="true" aspect.mashupType="mashup" columns="0.0" description="Browse Git history and commit contents" documentationContent="" homeMashup="" lastModifiedDate="2026-11-12T15:31:20.237Z" name="GIT.Mashup.History" projectName="GIT" rows="0.0" tags=""><Owner name="Administrator" type="User"/><avatar/><DesignTimePermissions><Create/><Read/><Update/><Delete/><Metadata/></DesignTimePermissions><RunTimePermissions/><VisibilityPermissions><Visibility/></VisibilityPermissions><ConfigurationTableDefinitions/><ConfigurationTables><ConfigurationTable dataShapeName="" description="Mashup Mobile Settings" isHidden="true" isMultiRow="false" name="MobileSettings" ordinal="0"><DataShape><FieldDefinitions><FieldDefinition aspect.defaultValue="false" aspect.friendlyName="Disable Zoom" baseType="BOOLEAN" description="Disables zooming in and out within the mashup" name="disableZoom" ordinal="0"/><FieldDefinition aspect.defaultValue="true" aspect.friendlyName="Full Screen Mode" baseType="BOOLEAN" description="Open the mashup in full screen mode" name="fullScreenMode" ordinal="0"/><FieldDefinition aspect.friendlyName="Height" baseType="STRING" description="The height of the mashup page" name="height" ordinal="0"/><FieldDefinition aspect.defaultValue="device-height" aspect.friendlyName="Height Type" baseType="STRING" description="Use the height of the device display, or a custom height (in px)" name="heightType" ordinal="0"/><FieldDefinition aspect.defaultValue="1.0" aspect.friendlyName="Initial Scale" baseType="NUMBER" description="The initial zoom scale when the mashup is loaded for the first time" name="initialScale" ordinal="0"/><FieldDefinition aspect.friendlyName="Shortcut Icon Title" baseType="STRING" description="A title for the mashup shortcut on the iOS home screen" name="iosShortcutIconTitle" ordinal="0"/><FieldDefinition aspect.defaultValue="black-translucent" aspect.friendlyName="Status Bar Appearance" baseType="STRING" description="The style of the iOS status bar" name="iosStatusBarAppearance" ordinal="0"/><FieldDefinition aspect.defaultValue="10.0" aspect.friendlyName="Maximum Scale" baseType="NUMBER" description="The maximum scale that users can zoom out to" name="maximumScale" ordinal="0"/><FieldDefinition aspect.defaultValue="0.1" aspect.friendlyName="Minimum Scale" baseType="NUMBER" description="The minimum scale that users can zoom out to" name="minimumScale" ordinal="0"/><FieldDefinition aspect.friendlyName="Width" baseType="STRING" description="The width of the mashup page" name="width" ordinal="0"/><FieldDefinition aspect.defaultValue="device-width" aspect.friendlyName="Width Type" baseType="STRING" description="Use the width of the device display, or a custom width (in px)" name="widthType" ordinal="0"/></FieldDefinitions></DataShape><Rows><Row><disableZoom>false</disableZoom><fullScreenMode>true</fullScreenMode><height><![CDATA[device-height]]></height><heightType><![CDATA[device-height]]></heightType><initialScale>1.0</initialScale><iosShortcutIconTitle/><iosStatusBarAppearance><![CDATA[black-translucent]]></iosStatusBarAppearance><maximumScale>10.0</maximumScale><minimumScale>0.1</minimumScale><width><![CDATA[device-width]]></width><widthType><![CDATA[device-width]]></widthType></Row></Rows></ConfigurationTable></ConfigurationTables><ParameterDefinitions><FieldDefinition aspect.bindingDirection="IN" baseType="STRING" description="Repository selected on Git Home" name="repoName" ordinal="0"/></ParameterDefinitions><Things/><ThingShapes/><ThingTemplates/><mashupContent><![CDATA[{
-  "CustomMashupCss": "/* Shared Git workspace tokens and layout.\n\n   Spacing rule: every visible widget keeps ThingWorx's default Margin of 5,\n   so neighbouring controls sit 10px apart. Card containers also use Margin 5\n   so their edges line up with text. Container padding and gaps below subtract\n   that 5px, so the visible insets are 24px at the page edge and 16px between\n   sections and inside cards. Do not give individual widgets other margins;\n   align rows with the container's align-items instead (flex-end for rows with\n   labelled inputs, center for buttons and checkboxes).\n\n   Contrast (WCAG): text 11.4:1 and muted text 5.2:1 on the canvas; muted text\n   5.9:1 on surfaces. Native widget colors and focus indicators stay with the\n   active ThingWorx theme. The theme's container style sets a white\n   background, so backgrounds and borders below need !important. */\n:root {\n  --git-text: #243746;\n  --git-muted: #536776;\n  --git-canvas: #eef1f4;\n  --git-surface: #ffffff;\n  --git-border: #c2cbd3;\n  --git-radius: 6px;\n  --git-page-inset: 19px;   /* + 5px widget margin = 24px */\n  --git-card-inset: 11px;   /* + 5px widget margin = 16px */\n  --git-section-gap: 6px;   /* + 5px + 5px margins = 16px */\n  --git-header-height: 64px;\n}\n\n/* Header band: the slot that holds GIT.Mashup.GitHeader on every page. The\n   runtime sizes a contained mashup to fill its slot, so GitHeader applies its\n   own horizontal inset (see GitHeader.css). */\n[id$=\"git-header-slot\"] {\n  min-height: var(--git-header-height);\n  background: var(--git-surface) !important;\n  border-bottom: 1px solid var(--git-border) !important;\n  color: var(--git-text);\n  box-sizing: border-box;\n}\n\n/* Page body. */\n[id$=\"home-main\"],\n[id$=\"changes-main\"],\n[id$=\"branches-main\"],\n[id$=\"history-main\"],\n[id$=\"log-main\"],\n[id$=\"reflog-main\"],\n[id$=\"extlog-main\"],\n[id$=\"settings-main\"],\n[id$=\"create-main\"],\n[id$=\"user-settings-content\"],\n[id$=\"operations-main\"],\n[id$=\"conflictresolution-main\"] {\n  padding: var(--git-page-inset);\n  gap: var(--git-section-gap);\n  align-items: stretch !important;\n  background: var(--git-canvas) !important;\n  color: var(--git-text);\n  box-sizing: border-box;\n}\n\n/* Layout containers inside the page stay transparent; only cards are white. */\n:is([id$=\"home-main\"], [id$=\"changes-main\"], [id$=\"branches-main\"], [id$=\"history-main\"], [id$=\"log-main\"], [id$=\"reflog-main\"], [id$=\"extlog-main\"], [id$=\"settings-main\"], [id$=\"create-main\"], [id$=\"user-settings-content\"], [id$=\"operations-main\"], [id$=\"conflictresolution-main\"]) .widget-flexcontainer { background: transparent !important; }\n\n/* Cards: white surfaces on the canvas. */\n:is([id$=\"home-main\"], [id$=\"changes-main\"], [id$=\"branches-main\"], [id$=\"history-main\"], [id$=\"log-main\"], [id$=\"reflog-main\"], [id$=\"extlog-main\"], [id$=\"settings-main\"], [id$=\"create-main\"], [id$=\"user-settings-content\"], [id$=\"operations-main\"], [id$=\"conflictresolution-main\"]) :is([id$=\"home-list-container\"], [id$=\"changes-sync-card\"], [id$=\"changes-worktree-card\"], [id$=\"changes-push-card\"], [id$=\"branches-list-card\"], [id$=\"branches-create-card\"], [id$=\"branches-merge-card\"], [id$=\"repository-settings-card\"], [id$=\"repository-credentials-card\"], [id$=\"repository-status-card\"], [id$=\"settings-projects\"], [id$=\"settings-projects-add\"], [id$=\"settings-remotes\"], [id$=\"create-repository-card\"], [id$=\"create-credentials-card\"], [id$=\"create-projects-card\"], [id$=\"create-advanced-card\"], [id$=\"history-tree-card\"], [id$=\"history-log-card\"]),\n[id$=\"user-settings-content\"] :is([id$=\"flexcontainer-40\"], [id$=\"flexcontainer-41\"], [id$=\"ssh-keys-section\"], [id$=\"ssh-add-section\"], [id$=\"identity-section\"], [id$=\"extension-log-section\"]) {\n  background: var(--git-surface) !important;\n  border: 1px solid var(--git-border) !important;\n  border-radius: var(--git-radius) !important;\n  box-sizing: border-box;\n  min-width: 0;\n}\n/* User Settings sections use the shared card inset. */\n[id$=\"user-settings-content\"] :is([id$=\"flexcontainer-40\"], [id$=\"flexcontainer-41\"], [id$=\"ssh-keys-section\"], [id$=\"ssh-add-section\"], [id$=\"identity-section\"], [id$=\"extension-log-section\"]) { padding: var(--git-card-inset); }\n\n/* One scroller per page: the *-main body. The runtime gives every bounding box\n   min-height: 0 and container bounding boxes max-height: 100%, so on a short\n   viewport (e.g. 150% display scaling) cards shrink and each grows its own\n   scrollbar. Keep the body's direct children at their content height instead. */\n:is([id$=\"home-main\"], [id$=\"changes-main\"], [id$=\"branches-main\"], [id$=\"history-main\"], [id$=\"log-main\"], [id$=\"reflog-main\"], [id$=\"extlog-main\"], [id$=\"settings-main\"], [id$=\"create-main\"], [id$=\"user-settings-content\"], [id$=\"operations-main\"], [id$=\"conflictresolution-main\"]) > .widget-bounding-box { flex-shrink: 0 !important; max-height: none !important; }\n\n/* Grid areas: the grid draws its own border, so only size them. */\n[id$=\"changes-grid-area\"],\n[id$=\"branches-grid-area\"],\n[id$=\"log-grid-area\"],\n[id$=\"reflog-grid-area\"],\n[id$=\"extlog-grid-area\"] { min-height: 320px; min-width: 0; }\n[id$=\"changes-grid-bounding-box\"],\n[id$=\"log-grid-bounding-box\"],\n[id$=\"reflog-grid-bounding-box\"],\n[id$=\"extlog-grid-bounding-box\"] { position: relative; flex: 1 1 0%; min-width: 0; }\n\n/* Secondary text. */\n[id$=\"-intro\"],\n[id$=\"-status\"] { color: var(--git-muted); line-height: 1.5; }\n\n@media (max-width: 600px) {\n  :root { --git-page-inset: 11px; }   /* 16px visible */\n}\n\n[id$=\"history-widget-bounding-box\"] { position: relative; width: 100%; min-height: 500px; flex: 1 1 0%; }\n\n[id$=\"history-tree-card\"],\n[id$=\"history-log-card\"] {\n  align-self: stretch !important;\n  padding: var(--git-card-inset);\n}\n[id$=\"history-tree-card\"] { min-height: 550px; }\n[id$=\"history-log-actions\"] { flex-wrap: wrap !important; }",
+  "CustomMashupCss": "/* Shared Git workspace tokens and layout.\n\n   Spacing rule: every visible widget keeps ThingWorx's default Margin of 5,\n   so neighbouring controls sit 10px apart. Card containers also use Margin 5\n   so their edges line up with text. Container padding and gaps below subtract\n   that 5px, so the visible insets are 24px at the page edge and 16px between\n   sections and inside cards. Do not give individual widgets other margins;\n   align rows with the container's align-items instead (flex-end for rows with\n   labelled inputs, center for buttons and checkboxes).\n\n   Contrast (WCAG): text 11.4:1 and muted text 5.2:1 on the canvas; muted text\n   5.9:1 on surfaces. Native widget colors and focus indicators stay with the\n   active ThingWorx theme. The theme's container style sets a white\n   background, so backgrounds and borders below need !important. */\n:root {\n  --git-text: #243746;\n  --git-muted: #536776;\n  --git-canvas: #eef1f4;\n  --git-surface: #ffffff;\n  --git-border: #c2cbd3;\n  --git-radius: 6px;\n  --git-page-inset: 19px;   /* + 5px widget margin = 24px */\n  --git-card-inset: 11px;   /* + 5px widget margin = 16px */\n  --git-section-gap: 6px;   /* + 5px + 5px margins = 16px */\n  --git-header-height: 64px;\n}\n\n/* Header band: the slot that holds GIT.Mashup.GitHeader on every page. The\n   runtime sizes a contained mashup to fill its slot, so GitHeader applies its\n   own horizontal inset (see GitHeader.css). */\n[id$=\"git-header-slot\"] {\n  min-height: var(--git-header-height);\n  background: var(--git-surface) !important;\n  border-bottom: 1px solid var(--git-border) !important;\n  color: var(--git-text);\n  box-sizing: border-box;\n}\n\n/* Page body. */\n[id$=\"home-main\"],\n[id$=\"changes-main\"],\n[id$=\"branches-main\"],\n[id$=\"history-main\"],\n[id$=\"log-main\"],\n[id$=\"reflog-main\"], [id$=\"repository-main\"],\n[id$=\"extlog-main\"],\n[id$=\"settings-main\"],\n[id$=\"create-main\"],\n[id$=\"user-settings-content\"],\n[id$=\"operations-main\"],\n[id$=\"conflictresolution-main\"] {\n  padding: var(--git-page-inset);\n  gap: var(--git-section-gap);\n  align-items: stretch !important;\n  background: var(--git-canvas) !important;\n  color: var(--git-text);\n  box-sizing: border-box;\n}\n\n/* Layout containers inside the page stay transparent; only cards are white. */\n:is([id$=\"home-main\"], [id$=\"changes-main\"], [id$=\"branches-main\"], [id$=\"history-main\"], [id$=\"log-main\"], [id$=\"reflog-main\"], [id$=\"repository-main\"], [id$=\"extlog-main\"], [id$=\"settings-main\"], [id$=\"create-main\"], [id$=\"user-settings-content\"], [id$=\"operations-main\"], [id$=\"conflictresolution-main\"]) .widget-flexcontainer { background: transparent !important; }\n\n/* Cards: white surfaces on the canvas. */\n:is([id$=\"home-main\"], [id$=\"changes-main\"], [id$=\"branches-main\"], [id$=\"history-main\"], [id$=\"log-main\"], [id$=\"reflog-main\"], [id$=\"repository-main\"], [id$=\"extlog-main\"], [id$=\"settings-main\"], [id$=\"create-main\"], [id$=\"user-settings-content\"], [id$=\"operations-main\"], [id$=\"conflictresolution-main\"]) :is([id$=\"home-list-container\"], [id$=\"repository-readme-card\"], [id$=\"changes-sync-card\"], [id$=\"changes-worktree-card\"], [id$=\"changes-push-card\"], [id$=\"branches-list-card\"], [id$=\"branches-create-card\"], [id$=\"branches-merge-card\"], [id$=\"repository-settings-card\"], [id$=\"repository-credentials-card\"], [id$=\"repository-status-card\"], [id$=\"settings-projects\"], [id$=\"settings-projects-add\"], [id$=\"settings-delete\"], [id$=\"settings-remotes\"], [id$=\"create-repository-card\"], [id$=\"create-credentials-card\"], [id$=\"create-projects-card\"], [id$=\"create-advanced-card\"], [id$=\"history-tree-card\"], [id$=\"history-log-card\"]),\n[id$=\"user-settings-content\"] :is([id$=\"flexcontainer-40\"], [id$=\"flexcontainer-41\"], [id$=\"ssh-keys-section\"], [id$=\"ssh-add-section\"], [id$=\"identity-section\"], [id$=\"extension-log-section\"]) {\n  background: var(--git-surface) !important;\n  border: 1px solid var(--git-border) !important;\n  border-radius: var(--git-radius) !important;\n  box-sizing: border-box;\n  min-width: 0;\n}\n/* User Settings sections use the shared card inset. */\n[id$=\"user-settings-content\"] :is([id$=\"flexcontainer-40\"], [id$=\"flexcontainer-41\"], [id$=\"ssh-keys-section\"], [id$=\"ssh-add-section\"], [id$=\"identity-section\"], [id$=\"extension-log-section\"]) { padding: var(--git-card-inset); }\n\n/* One scroller per page: the *-main body. The runtime gives every bounding box\n   min-height: 0 and container bounding boxes max-height: 100%, so on a short\n   viewport (e.g. 150% display scaling) cards shrink and each grows its own\n   scrollbar. Keep the body's direct children at their content height instead. */\n:is([id$=\"home-main\"], [id$=\"changes-main\"], [id$=\"branches-main\"], [id$=\"history-main\"], [id$=\"log-main\"], [id$=\"reflog-main\"], [id$=\"repository-main\"], [id$=\"extlog-main\"], [id$=\"settings-main\"], [id$=\"create-main\"], [id$=\"user-settings-content\"], [id$=\"operations-main\"], [id$=\"conflictresolution-main\"]) > .widget-bounding-box { flex-shrink: 0 !important; max-height: none !important; }\n\n/* Grid areas: the grid draws its own border, so only size them. */\n[id$=\"changes-grid-area\"],\n[id$=\"branches-grid-area\"],\n[id$=\"log-grid-area\"],\n[id$=\"reflog-grid-area\"],\n[id$=\"extlog-grid-area\"] { min-height: 320px; min-width: 0; }\n[id$=\"changes-grid-bounding-box\"],\n[id$=\"log-grid-bounding-box\"],\n[id$=\"reflog-grid-bounding-box\"],\n[id$=\"extlog-grid-bounding-box\"] { position: relative; flex: 1 1 0%; min-width: 0; }\n\n/* Secondary text. */\n[id$=\"-intro\"],\n[id$=\"-status\"] { color: var(--git-muted); line-height: 1.5; }\n\n@media (max-width: 600px) {\n  :root { --git-page-inset: 11px; }   /* 16px visible */\n}\n\n[id$=\"history-widget-bounding-box\"] { position: relative; width: 100%; min-height: 500px; flex: 1 1 0%; }\n\n[id$=\"history-tree-card\"],\n[id$=\"history-log-card\"] {\n  align-self: stretch !important;\n  padding: var(--git-card-inset);\n}\n[id$=\"history-tree-card\"] { min-height: 550px; }\n[id$=\"history-log-actions\"] { flex-wrap: wrap !important; }",
   "Data": {
     "DynamicThingTemplates_GIT.Repository.ThingTemplate": {
       "DataName": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
@@ -117,6 +117,57 @@
           "Parameters": {},
           "RefreshInterval": 0,
           "Target": "GetDiffPerFileBetweenCommits"
+        },
+        {
+          "APIMethod": "post",
+          "Caching": {
+            "cache": false,
+            "cacheKeyParams": [],
+            "cacheStrategy": "INSTANCE",
+            "maxResultSets": "10"
+          },
+          "Characteristic": "Services",
+          "Id": "b5bcece3-75b4-4f0d-8186-36c9dc5803a6",
+          "Name": "CheckoutCommit",
+          "Parameters": {
+            "CreateBranch": false,
+            "Force": false,
+            "StartPoint": ""
+          },
+          "RefreshInterval": 0,
+          "Target": "Checkout"
+        },
+        {
+          "APIMethod": "post",
+          "Caching": {
+            "cache": false,
+            "cacheKeyParams": [],
+            "cacheStrategy": "INSTANCE",
+            "maxResultSets": "10"
+          },
+          "Characteristic": "Services",
+          "Id": "4edaeebe-f491-40a4-8c39-c2e8c23dd0f6",
+          "Name": "GetCurrentBranch",
+          "Parameters": {},
+          "RefreshInterval": 0,
+          "Target": "GetCurrentBranch"
+        },
+        {
+          "APIMethod": "post",
+          "Caching": {
+            "cache": false,
+            "cacheKeyParams": [],
+            "cacheStrategy": "INSTANCE",
+            "maxResultSets": "10"
+          },
+          "Characteristic": "Services",
+          "Id": "1699fd92-d43c-4c74-98ce-370597153db1",
+          "Name": "SquashCommits",
+          "Parameters": {
+            "SigningKey": ""
+          },
+          "RefreshInterval": 0,
+          "Target": "SquashCommits"
         }
       ]
     },
@@ -585,6 +636,134 @@
       "TargetArea": "UI",
       "TargetId": "navigate-row-reflog",
       "TargetSection": ""
+    },
+    {
+      "Id": "68d974f9-2150-4cf0-b3bf-b19f6fc4ca37",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "SelectedCommitID",
+          "SourcePropertyBaseType": "STRING",
+          "SourcePropertyType": "Property",
+          "TargetProperty": "BranchNameOrCommit",
+          "TargetPropertyBaseType": "STRING",
+          "TargetPropertyType": "Parameter"
+        }
+      ],
+      "SourceArea": "UI",
+      "SourceDetails": "",
+      "SourceId": "history-widget",
+      "SourceSection": "",
+      "TargetArea": "Data",
+      "TargetId": "CheckoutCommit",
+      "TargetSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate"
+    },
+    {
+      "Id": "eee39c05-dacd-4875-a727-dd6a56005e97",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "Message",
+          "SourcePropertyBaseType": "STRING",
+          "SourcePropertyType": "Field",
+          "TargetProperty": "gitMessage",
+          "TargetPropertyBaseType": "STRING",
+          "TargetPropertyType": "property"
+        }
+      ],
+      "SourceArea": "Data",
+      "SourceDetails": "AllData",
+      "SourceId": "CheckoutCommit",
+      "SourceSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "TargetArea": "UI",
+      "TargetId": "git-result-popover",
+      "TargetSection": ""
+    },
+    {
+      "Id": "73077134-b3ab-4af7-bdef-59b22a1a2563",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "Result",
+          "SourcePropertyBaseType": "INFOTABLE",
+          "SourcePropertyType": "Field",
+          "TargetProperty": "CurrentBranch",
+          "TargetPropertyBaseType": "INFOTABLE",
+          "TargetPropertyType": "property"
+        }
+      ],
+      "SourceArea": "Data",
+      "SourceDetails": "AllData",
+      "SourceId": "GetCurrentBranch",
+      "SourceSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "TargetArea": "UI",
+      "TargetId": "history-widget",
+      "TargetSection": ""
+    },
+    {
+      "Id": "7dfebfad-d53c-4e6f-8afc-b7d7f4d20b54",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "repoName",
+          "SourcePropertyBaseType": "STRING",
+          "SourcePropertyType": "Property",
+          "TargetProperty": "repoName",
+          "TargetPropertyBaseType": "STRING",
+          "TargetPropertyType": "property"
+        }
+      ],
+      "SourceArea": "Mashup",
+      "SourceDetails": "AllData",
+      "SourceId": "mashup-root",
+      "SourceSection": "",
+      "TargetArea": "UI",
+      "TargetId": "navigate-history-conflict-resolution",
+      "TargetSection": ""
+    },
+    {
+      "Id": "8ceab84a-33f2-4670-b7be-8f46bdef95a2",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "SquashCommitIDs",
+          "SourcePropertyBaseType": "STRING",
+          "SourcePropertyType": "Property",
+          "TargetProperty": "CommitIDs",
+          "TargetPropertyBaseType": "STRING",
+          "TargetPropertyType": "Parameter"
+        },
+        {
+          "SourceProperty": "SquashMessage",
+          "SourcePropertyBaseType": "STRING",
+          "SourcePropertyType": "Property",
+          "TargetProperty": "Message",
+          "TargetPropertyBaseType": "STRING",
+          "TargetPropertyType": "Parameter"
+        }
+      ],
+      "SourceArea": "UI",
+      "SourceDetails": "",
+      "SourceId": "history-widget",
+      "SourceSection": "",
+      "TargetArea": "Data",
+      "TargetId": "SquashCommits",
+      "TargetSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate"
+    },
+    {
+      "Id": "6754a429-e270-400e-8a96-434757fcb977",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "Message",
+          "SourcePropertyBaseType": "STRING",
+          "SourcePropertyType": "Field",
+          "TargetProperty": "gitMessage",
+          "TargetPropertyBaseType": "STRING",
+          "TargetPropertyType": "property"
+        }
+      ],
+      "SourceArea": "Data",
+      "SourceDetails": "AllData",
+      "SourceId": "SquashCommits",
+      "SourceSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "TargetArea": "UI",
+      "TargetId": "git-result-popover",
+      "TargetSection": ""
     }
   ],
   "DesignTimePermissions": {},
@@ -748,6 +927,196 @@
       "EventTriggerId": "row-reflog",
       "EventTriggerSection": "",
       "Id": "18f308d9-0daa-4b95-a701-c39fbd4c6249"
+    },
+    {
+      "EventHandlerArea": "UI",
+      "EventHandlerId": "history-checkout-confirm",
+      "EventHandlerService": "OpenConfirmation",
+      "EventTriggerArea": "UI",
+      "EventTriggerEvent": "CheckoutRequested",
+      "EventTriggerId": "history-widget",
+      "EventTriggerSection": "",
+      "Id": "00ed4e43-ae49-49e8-b5d1-ede0edff3c08"
+    },
+    {
+      "EventHandlerArea": "Data",
+      "EventHandlerId": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "EventHandlerService": "CheckoutCommit",
+      "EventTriggerArea": "UI",
+      "EventTriggerEvent": "ActionClick",
+      "EventTriggerId": "history-checkout-confirm",
+      "EventTriggerSection": "",
+      "Id": "921e8960-82a2-48dd-9968-569e8fa9b639"
+    },
+    {
+      "EventHandlerArea": "UI",
+      "EventHandlerId": "git-result-popover",
+      "EventHandlerService": "showGitResult",
+      "EventTriggerArea": "Data",
+      "EventTriggerEvent": "ServiceInvokeCompleted",
+      "EventTriggerId": "CheckoutCommit",
+      "EventTriggerSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "Id": "deefca98-39e9-4b18-917c-c3801aa6d1f7"
+    },
+    {
+      "EventHandlerArea": "Data",
+      "EventHandlerId": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "EventHandlerService": "GetCurrentBranch",
+      "EventTriggerArea": "Data",
+      "EventTriggerEvent": "ServiceInvokeCompleted",
+      "EventTriggerId": "CheckoutCommit",
+      "EventTriggerSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "Id": "42ee85a0-e6e0-4fc6-be3c-0fb2891439a2"
+    },
+    {
+      "EventHandlerArea": "Data",
+      "EventHandlerId": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "EventHandlerService": "GetLog",
+      "EventTriggerArea": "Data",
+      "EventTriggerEvent": "ServiceInvokeCompleted",
+      "EventTriggerId": "CheckoutCommit",
+      "EventTriggerSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "Id": "e244ffe7-35d8-4b99-8bd8-6f3e6d438244"
+    },
+    {
+      "EventHandlerArea": "Data",
+      "EventHandlerId": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "EventHandlerService": "GetBranchList",
+      "EventTriggerArea": "Data",
+      "EventTriggerEvent": "ServiceInvokeCompleted",
+      "EventTriggerId": "CheckoutCommit",
+      "EventTriggerSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "Id": "fad3e34a-d0c1-486c-aae0-bd78d015d2d7"
+    },
+    {
+      "EventHandlerArea": "Data",
+      "EventHandlerId": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "EventHandlerService": "GetTagList",
+      "EventTriggerArea": "Data",
+      "EventTriggerEvent": "ServiceInvokeCompleted",
+      "EventTriggerId": "CheckoutCommit",
+      "EventTriggerSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "Id": "1f1bcec7-98c0-41f2-9772-96265817c9b1"
+    },
+    {
+      "EventHandlerArea": "UI",
+      "EventHandlerId": "git-header",
+      "EventHandlerService": "Refresh",
+      "EventTriggerArea": "Data",
+      "EventTriggerEvent": "ServiceInvokeCompleted",
+      "EventTriggerId": "CheckoutCommit",
+      "EventTriggerSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "Id": "9d5c67cd-1a58-4ce1-9789-04b0818e66b5"
+    },
+    {
+      "EventHandlerArea": "Data",
+      "EventHandlerId": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "EventHandlerService": "GetCurrentBranch",
+      "EventTriggerArea": "Mashup",
+      "EventTriggerEvent": "Loaded",
+      "EventTriggerId": "mashup-root",
+      "EventTriggerSection": "",
+      "Id": "359bf8aa-2780-46e6-be67-f170f4902049"
+    },
+    {
+      "EventHandlerArea": "Data",
+      "EventHandlerId": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "EventHandlerService": "GetCurrentBranch",
+      "EventTriggerArea": "UI",
+      "EventTriggerEvent": "RefreshRequested",
+      "EventTriggerId": "history-widget",
+      "EventTriggerSection": "",
+      "Id": "16c20c4a-4b37-4ebc-8042-514429d07c1d"
+    },
+    {
+      "EventHandlerArea": "UI",
+      "EventHandlerId": "navigate-history-conflict-resolution",
+      "EventHandlerService": "Navigate",
+      "EventTriggerArea": "UI",
+      "EventTriggerEvent": "resolveRequested",
+      "EventTriggerId": "git-result-popover",
+      "EventTriggerSection": "",
+      "Id": "6d78d310-d8f5-4ab1-aca8-faf55d7bcb90"
+    },
+    {
+      "EventHandlerArea": "UI",
+      "EventHandlerId": "history-squash-confirm",
+      "EventHandlerService": "OpenConfirmation",
+      "EventTriggerArea": "UI",
+      "EventTriggerEvent": "SquashRequested",
+      "EventTriggerId": "history-widget",
+      "EventTriggerSection": "",
+      "Id": "1f29a786-5fe7-4a1e-a439-bc9781ecf2be"
+    },
+    {
+      "EventHandlerArea": "Data",
+      "EventHandlerId": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "EventHandlerService": "SquashCommits",
+      "EventTriggerArea": "UI",
+      "EventTriggerEvent": "ActionClick",
+      "EventTriggerId": "history-squash-confirm",
+      "EventTriggerSection": "",
+      "Id": "9b54f78d-e758-4e8a-bab6-ecb34c1855c5"
+    },
+    {
+      "EventHandlerArea": "UI",
+      "EventHandlerId": "git-result-popover",
+      "EventHandlerService": "showGitResult",
+      "EventTriggerArea": "Data",
+      "EventTriggerEvent": "ServiceInvokeCompleted",
+      "EventTriggerId": "SquashCommits",
+      "EventTriggerSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "Id": "f45fe56d-3f01-46e6-aa9c-6799bcfe75db"
+    },
+    {
+      "EventHandlerArea": "Data",
+      "EventHandlerId": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "EventHandlerService": "GetCurrentBranch",
+      "EventTriggerArea": "Data",
+      "EventTriggerEvent": "ServiceInvokeCompleted",
+      "EventTriggerId": "SquashCommits",
+      "EventTriggerSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "Id": "927edb83-4f5f-4e9b-ab22-c49b8c0c928a"
+    },
+    {
+      "EventHandlerArea": "Data",
+      "EventHandlerId": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "EventHandlerService": "GetLog",
+      "EventTriggerArea": "Data",
+      "EventTriggerEvent": "ServiceInvokeCompleted",
+      "EventTriggerId": "SquashCommits",
+      "EventTriggerSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "Id": "3cf1592f-d8bc-4373-b14d-6dee8af48092"
+    },
+    {
+      "EventHandlerArea": "Data",
+      "EventHandlerId": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "EventHandlerService": "GetBranchList",
+      "EventTriggerArea": "Data",
+      "EventTriggerEvent": "ServiceInvokeCompleted",
+      "EventTriggerId": "SquashCommits",
+      "EventTriggerSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "Id": "baeb1071-3023-48c2-93cf-fb31f47607d5"
+    },
+    {
+      "EventHandlerArea": "Data",
+      "EventHandlerId": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "EventHandlerService": "GetTagList",
+      "EventTriggerArea": "Data",
+      "EventTriggerEvent": "ServiceInvokeCompleted",
+      "EventTriggerId": "SquashCommits",
+      "EventTriggerSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "Id": "14e2293d-886f-4636-bfcb-9706fa87df1c"
+    },
+    {
+      "EventHandlerArea": "UI",
+      "EventHandlerId": "git-header",
+      "EventHandlerService": "Refresh",
+      "EventTriggerArea": "Data",
+      "EventTriggerEvent": "ServiceInvokeCompleted",
+      "EventTriggerId": "SquashCommits",
+      "EventTriggerSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "Id": "16a99d69-25e6-4f22-9d37-73588ea5e7e2"
     }
   ],
   "Reminders": [],
@@ -1316,6 +1685,95 @@
                     ]
                   }
                 ]
+              },
+              {
+                "Properties": {
+                  "Area": "UI",
+                  "CollapseTabIcon": "",
+                  "DisableLegacyCustomClassStyles": false,
+                  "DisplayName": "GitResultPopoverContainer",
+                  "EnableContainerUnload": false,
+                  "EnableExpandCollapse": false,
+                  "ExpandCollapseTabLocation": "inside",
+                  "ExpandTabIcon": "",
+                  "Expanded": true,
+                  "Height": 48,
+                  "Id": "git-result-popover-container",
+                  "LastContainer": false,
+                  "LazyLoading": false,
+                  "Left": 0,
+                  "Margin": "0",
+                  "Overlay": false,
+                  "OverrideChildrenAbsolute": false,
+                  "ResponsiveLayout": true,
+                  "ShowDataLoading": false,
+                  "ShowExpandCollapseTab": false,
+                  "ShowVerticalScrollbar": false,
+                  "SourceURL": "",
+                  "Style": "DefaultContainerStyle",
+                  "StyleProperties": {},
+                  "Top": 0,
+                  "Type": "flexcontainer",
+                  "UseTheme": false,
+                  "Visible": true,
+                  "Width": 148,
+                  "Z-index": 10,
+                  "__TypeDisplayName": "Responsive Container",
+                  "align-content": "flex-start",
+                  "align-items": "center",
+                  "flex-basis": "auto",
+                  "flex-direction": "row",
+                  "flex-grow": 0,
+                  "flex-max-height": "48px",
+                  "flex-max-width": "148px",
+                  "flex-min-height": "48px",
+                  "flex-min-width": "148px",
+                  "flex-shrink": 0,
+                  "flex-size": "fixed",
+                  "flex-wrap": "nowrap",
+                  "iconClass": "widgets-flexcontainer-fixed",
+                  "isLocked": false,
+                  "justify-content": "flex-start",
+                  "positioning": "responsive",
+                  "userCannotRemove": false
+                },
+                "Widgets": [
+                  {
+                    "Properties": {
+                      "Area": "UI",
+                      "Code": "@TWWidgetDefinition\nclass GitResultPopover extends TypescriptWidget {\n  @property(bindingTarget) gitMessage!: STRING;\n  @twevent resolveRequested!: TWEvent;\n  private resultPopover?: HTMLElement;\n\n  beforeDestroy() {\n    this.resultPopover?.remove();\n  }\n\n  @service showGitResult() {\n    if (!this.gitMessage) return;\n    this.resultPopover?.remove();\n    const popover = document.createElement(\"div\");\n    popover.setAttribute(\"popover\", \"manual\");\n    popover.setAttribute(\"role\", \"dialog\");\n    popover.setAttribute(\"aria-label\", \"Git operation result\");\n    Object.assign(popover.style, {\n      position: \"fixed\", top: \"5rem\", right: \"1rem\", left: \"auto\", bottom: \"auto\",\n      margin: \"0\", width: \"min(34rem, calc(100vw - 2rem))\", maxHeight: \"min(60vh, 30rem)\",\n      overflow: \"auto\", padding: \"1rem\", background: \"white\", color: \"#222\",\n      border: \"1px solid #aaa\", borderRadius: \"4px\", boxShadow: \"0 4px 16px #0003\",\n      zIndex: \"10000\", boxSizing: \"border-box\"\n    });\n    const close = document.createElement(\"button\");\n    close.type = \"button\";\n    close.textContent = \"Close\";\n    close.setAttribute(\"aria-label\", \"Close Git operation result\");\n    close.style.float = \"right\";\n    close.addEventListener(\"click\", () => { popover.remove(); this.resultPopover = undefined; });\n    const title = document.createElement(\"strong\");\n    title.textContent = \"Git operation result\";\n    const message = document.createElement(\"p\");\n    message.style.whiteSpace = \"pre-wrap\";\n    message.style.overflowWrap = \"anywhere\";\n    message.textContent = this.gitMessage;\n    popover.append(close, title, message);\n    if (this.gitMessage.includes(\"[CONFLICT]\")) {\n      const resolve = document.createElement(\"button\");\n      resolve.type = \"button\";\n      resolve.textContent = \"Resolve conflicts\";\n      resolve.addEventListener(\"click\", () => { popover.remove(); this.resultPopover = undefined; this.resolveRequested(); });\n      popover.appendChild(resolve);\n    }\n    document.body.appendChild(popover);\n    this.resultPopover = popover;\n    if (typeof popover.showPopover === \"function\") popover.showPopover();\n    else popover.style.display = \"block\";\n  }\n\n}",
+                      "ColumnPosition": 38,
+                      "DirectLinkUUID": "",
+                      "DisplayName": "GitResultPopover",
+                      "Exports": "@TWWidgetDefinition\nclass GitResultPopover extends TypescriptWidget {\n  @property(bindingTarget) gitMessage!: STRING;\n  @twevent resolveRequested!: TWEvent;\n  private resultPopover?: HTMLElement;\n\n  beforeDestroy() {\n    this.resultPopover?.remove();\n  }\n\n  @service showGitResult() {\n    if (!this.gitMessage) return;\n    this.resultPopover?.remove();\n    const popover = document.createElement(\"div\");\n    popover.setAttribute(\"popover\", \"manual\");\n    popover.setAttribute(\"role\", \"dialog\");\n    popover.setAttribute(\"aria-label\", \"Git operation result\");\n    Object.assign(popover.style, {\n      position: \"fixed\", top: \"5rem\", right: \"1rem\", left: \"auto\", bottom: \"auto\",\n      margin: \"0\", width: \"min(34rem, calc(100vw - 2rem))\", maxHeight: \"min(60vh, 30rem)\",\n      overflow: \"auto\", padding: \"1rem\", background: \"white\", color: \"#222\",\n      border: \"1px solid #aaa\", borderRadius: \"4px\", boxShadow: \"0 4px 16px #0003\",\n      zIndex: \"10000\", boxSizing: \"border-box\"\n    });\n    const close = document.createElement(\"button\");\n    close.type = \"button\";\n    close.textContent = \"Close\";\n    close.setAttribute(\"aria-label\", \"Close Git operation result\");\n    close.style.float = \"right\";\n    close.addEventListener(\"click\", () => { popover.remove(); this.resultPopover = undefined; });\n    const title = document.createElement(\"strong\");\n    title.textContent = \"Git operation result\";\n    const message = document.createElement(\"p\");\n    message.style.whiteSpace = \"pre-wrap\";\n    message.style.overflowWrap = \"anywhere\";\n    message.textContent = this.gitMessage;\n    popover.append(close, title, message);\n    if (this.gitMessage.includes(\"[CONFLICT]\")) {\n      const resolve = document.createElement(\"button\");\n      resolve.type = \"button\";\n      resolve.textContent = \"Resolve conflicts\";\n      resolve.addEventListener(\"click\", () => { popover.remove(); this.resultPopover = undefined; this.resolveRequested(); });\n      popover.appendChild(resolve);\n    }\n    document.body.appendChild(popover);\n    this.resultPopover = popover;\n    if (typeof popover.showPopover === \"function\") popover.showPopover();\n    else popover.style.display = \"block\";\n  }\n\n}",
+                      "FullScreen": false,
+                      "Height": 48,
+                      "Id": "git-result-popover",
+                      "LastContainer": false,
+                      "Left": 674.6749877929688,
+                      "Margin": "5",
+                      "ResponsiveLayout": true,
+                      "RuntimeProperties": "[{\"name\": \"gitMessage\", \"dataType\": \"STRING\", \"description\": \"Latest Git operation message\", \"type\": \"property\", \"isBindingTarget\": true, \"isBindingSource\": false}, {\"name\": \"showGitResult\", \"description\": \"Show the latest Git operation result\", \"type\": \"service\"}, {\"name\": \"resolveRequested\", \"description\": \"Open conflict resolution\", \"type\": \"event\"}]",
+                      "ScrollPosition": 96,
+                      "ShowDataLoading": true,
+                      "Title": "GitResultPopover",
+                      "Top": 22.199996948242188,
+                      "TranspiledCode": "var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {\n    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;\n    if (typeof Reflect === \"object\" && typeof Reflect.decorate === \"function\") r = Reflect.decorate(decorators, target, key, desc);\n    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;\n    return c > 3 && r && Object.defineProperty(target, key, r), r;\n};\nlet GitResultPopover = class GitResultPopover extends TypescriptWidget {\n    beforeDestroy() {\n        var _a;\n        (_a = this.resultPopover) === null || _a === void 0 ? void 0 : _a.remove();\n    }\n    showGitResult() {\n        var _a;\n        if (!this.gitMessage)\n            return;\n        (_a = this.resultPopover) === null || _a === void 0 ? void 0 : _a.remove();\n        const popover = document.createElement(\"div\");\n        popover.setAttribute(\"popover\", \"manual\");\n        popover.setAttribute(\"role\", \"dialog\");\n        popover.setAttribute(\"aria-label\", \"Git operation result\");\n        Object.assign(popover.style, {\n            position: \"fixed\", top: \"5rem\", right: \"1rem\", left: \"auto\", bottom: \"auto\",\n            margin: \"0\", width: \"min(34rem, calc(100vw - 2rem))\", maxHeight: \"min(60vh, 30rem)\",\n            overflow: \"auto\", padding: \"1rem\", background: \"white\", color: \"#222\",\n            border: \"1px solid #aaa\", borderRadius: \"4px\", boxShadow: \"0 4px 16px #0003\",\n            zIndex: \"10000\", boxSizing: \"border-box\"\n        });\n        const close = document.createElement(\"button\");\n        close.type = \"button\";\n        close.textContent = \"Close\";\n        close.setAttribute(\"aria-label\", \"Close Git operation result\");\n        close.style.float = \"right\";\n        close.addEventListener(\"click\", () => { popover.remove(); this.resultPopover = undefined; });\n        const title = document.createElement(\"strong\");\n        title.textContent = \"Git operation result\";\n        const message = document.createElement(\"p\");\n        message.style.whiteSpace = \"pre-wrap\";\n        message.style.overflowWrap = \"anywhere\";\n        message.textContent = this.gitMessage;\n        popover.append(close, title, message);\n        if (this.gitMessage.includes(\"[CONFLICT]\")) {\n            const resolve = document.createElement(\"button\");\n            resolve.type = \"button\";\n            resolve.textContent = \"Resolve conflicts\";\n            resolve.addEventListener(\"click\", () => { popover.remove(); this.resultPopover = undefined; this.resolveRequested(); });\n            popover.appendChild(resolve);\n        }\n        document.body.appendChild(popover);\n        this.resultPopover = popover;\n        if (typeof popover.showPopover === \"function\")\n            popover.showPopover();\n        else\n            popover.style.display = \"block\";\n    }\n};\n__decorate([\n    property(bindingTarget)\n], GitResultPopover.prototype, \"gitMessage\", void 0);\n__decorate([\n    twevent\n], GitResultPopover.prototype, \"resolveRequested\", void 0);\n__decorate([\n    service\n], GitResultPopover.prototype, \"showGitResult\", null);\nGitResultPopover = __decorate([\n    TWWidgetDefinition\n], GitResultPopover);\n",
+                      "Type": "BMTypescriptClassHost",
+                      "Visible": true,
+                      "Width": 148,
+                      "Z-index": 10,
+                      "_Height": 679,
+                      "_Left": 0,
+                      "_NavigationWidth": 256,
+                      "_Top": 0,
+                      "_Width": 1498,
+                      "__TypeDisplayName": "Typescript Class",
+                      "_baseVersion": "9.7.0"
+                    },
+                    "Widgets": []
+                  }
+                ]
               }
             ]
           }
@@ -1614,6 +2072,138 @@
               },
               "Description": "Current branch result",
               "ParameterName": "CurrentBranchStatus",
+              "bindingDirection": "Both",
+              "bindingType": "Property",
+              "isBindingSource": true,
+              "isBindingTarget": true,
+              "shown": true
+            }
+          ]
+        },
+        "Widgets": []
+      },
+      {
+        "Properties": {
+          "ActionButtonLabel": "Check Out",
+          "ActionButtonPosition": "left",
+          "ActionButtonTooltipField": "",
+          "ActionButtonType": "primary",
+          "Area": "UI",
+          "CancelButtonLabel": "Cancel",
+          "CancelButtonTooltipField": "",
+          "CloseButtonTooltipField": "close",
+          "DialogHeight": "260",
+          "DialogWidth": "600",
+          "DisplayCloseButton": false,
+          "DisplayName": "history-checkout-confirm",
+          "DisplaySecondaryAction": false,
+          "Id": "history-checkout-confirm",
+          "LastContainer": false,
+          "Left": 0,
+          "Margin": "5",
+          "MessageText": "The working tree moves to the selected commit and the repository is no longer on a branch (detached HEAD). Uncommitted changes are carried over; if they conflict, you are asked to resolve them. Commits made here belong to no branch until you create one, and Switch Branch on the Branches page returns you to a branch. ThingWorx is not changed; use Sync to ThingWorx afterwards to load this version into ThingWorx.",
+          "ResponsiveLayout": false,
+          "SecondButtonLabel": "Action",
+          "SecondButtonTooltipField": "",
+          "ShowDataLoading": true,
+          "TitleText": "Check out this commit?",
+          "Top": 0,
+          "Type": "ptcsconfirmation",
+          "UseTheme": true,
+          "Visible": true,
+          "Z-index": 10,
+          "__TypeDisplayName": "Confirmation",
+          "_baseVersion": "9.7.0"
+        },
+        "Widgets": []
+      },
+      {
+        "Properties": {
+          "ActionButtonLabel": "Squash",
+          "ActionButtonPosition": "left",
+          "ActionButtonTooltipField": "",
+          "ActionButtonType": "primary",
+          "Area": "UI",
+          "CancelButtonLabel": "Cancel",
+          "CancelButtonTooltipField": "",
+          "CloseButtonTooltipField": "close",
+          "DialogHeight": "260",
+          "DialogWidth": "600",
+          "DisplayCloseButton": false,
+          "DisplayName": "history-squash-confirm",
+          "DisplaySecondaryAction": false,
+          "Id": "history-squash-confirm",
+          "LastContainer": false,
+          "Left": 0,
+          "Margin": "5",
+          "MessageText": "The selected commits are replaced by one commit, signed with your signing key for this repository. Commits after them are rebuilt with new IDs and signed too. Files, the working tree and ThingWorx do not change. If any of these commits were already pushed, tick Force push on Changes for the next push, which replaces them on the remote for everyone.",
+          "ResponsiveLayout": false,
+          "SecondButtonLabel": "Action",
+          "SecondButtonTooltipField": "",
+          "ShowDataLoading": true,
+          "TitleText": "Squash the selected commits?",
+          "Top": 0,
+          "Type": "ptcsconfirmation",
+          "UseTheme": true,
+          "Visible": true,
+          "Z-index": 10,
+          "__TypeDisplayName": "Confirmation",
+          "_baseVersion": "9.7.0"
+        },
+        "Widgets": []
+      },
+      {
+        "Properties": {
+          "Area": "UI",
+          "ClickOutsideToClose": false,
+          "CloseButton": true,
+          "DisplayName": "navigate-history-conflict-resolution",
+          "Id": "navigate-history-conflict-resolution",
+          "IncludeLegacyHeightAdjustment": true,
+          "LastContainer": false,
+          "Left": 0,
+          "LegacyHeightAdjustmentEnabled": true,
+          "Margin": "5",
+          "MashupParameters": [
+            {
+              "BaseType": "STRING",
+              "Description": "Repository selected on Git Home",
+              "ParameterName": "repoName",
+              "ParmDef": {
+                "aspects": {
+                  "bindingDirection": "IN"
+                },
+                "baseType": "STRING",
+                "description": "Repository selected on Git Home",
+                "name": "repoName",
+                "ordinal": 0
+              }
+            }
+          ],
+          "MissingMashupMessage": "Mashup must be selected",
+          "PopupHeight": 0,
+          "PopupScrollbar": "auto",
+          "PopupTitle": "",
+          "PopupWidth": 0,
+          "RedirectTo": "mashup",
+          "ReloadOnReplace": false,
+          "ResponsiveLayout": false,
+          "ShowDataLoading": true,
+          "TargetMashup": "GIT.Mashup.ConflictResolution",
+          "TargetWindowType": "replace",
+          "Text": "tw.navigationfunction-ide.properties.text.default-value",
+          "Top": 0,
+          "Type": "navigationfunction",
+          "UseTheme": true,
+          "Visible": true,
+          "Z-index": 10,
+          "__TypeDisplayName": "Navigation",
+          "_currentParameterDefs": [
+            {
+              "BaseType": "STRING",
+              "DefaultValue": "",
+              "Description": "Repository selected on Git Home",
+              "ParameterName": "repoName",
               "bindingDirection": "Both",
               "bindingType": "Property",
               "isBindingSource": true,

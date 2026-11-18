@@ -15,10 +15,13 @@ be entered through the current user’s `UserExtensions` properties and must not
 
 | Service | Arguments | Result / purpose |
 |---|---|---|
-| `Commit` | `Message: STRING` | Exports project entities without staging them, then commits the current index. Requires staged changes. |
-| `CommitStaged` | `Message: STRING` | Commits the current index without exporting project entities. Requires staged changes. |
+| `Commit` | `Message: STRING` | Commits the current index, like `CommitStaged`. Requires staged changes. |
+| `CommitStaged` | `Message: STRING` | Commits the current index. Requires staged changes. |
+| `SyncFromThingWorx` | — | Exports the tracked projects into the working tree so their changes show in `Status`. Does not stage or commit. |
+| `SyncToThingWorx` | `Force: BOOLEAN` (default `false`) | Imports the Git-tracked files in the tracked project folders into ThingWorx; untracked files are never imported and are named in the result. Unless `Force` is true, returns `Error=true` naming the entities changed in ThingWorx since the last sync, which the import would overwrite. |
+| `GetThingWorxChangesSinceSync` | — | Describes the tracked-project entities changed in ThingWorx since the last sync; blank when there are none. Used by the Changes screen to confirm before Sync to ThingWorx. |
 | `Push` | `Remote: STRING`, `BranchName: STRING`, `RemoteBranchName: STRING`, `SetUpstream: BOOLEAN` | Pushes the current/upstream branch or an explicit local branch to a remote branch. |
-| `Pull` | `Remote: STRING` (optional), `Force: BOOLEAN` | Fetches and integrates remote changes and always imports the tracked projects (sync is automatic/invisible). |
+| `Pull` | `Remote: STRING` (optional), `Force: BOOLEAN` | Fetches and integrates remote changes. ThingWorx is not changed; use `SyncToThingWorx` to apply the result. |
 | `Fetch` | `Remote: STRING` (optional) | Fetches remote refs without integrating them. |
 | `GetRemotes` | — | Lists the remotes in the repository's `.git/config` (`GIT.Remote.DataShape`: `Name`, `URLs`, `PushURLs`, `FetchSpecs`). URLs are shown without any embedded password. |
 | `RemoteAdd` | `Name: STRING`, `URL: STRING` | Adds a remote. Only `https://`, `http://` and `ssh://` URLs without a username or password are accepted. Plain HTTP is limited to anonymous access. |
@@ -41,7 +44,8 @@ be entered through the current user’s `UserExtensions` properties and must not
 | `GetLog` | `Ref: STRING`, `MaxEntries: INTEGER`, `AllBranches: BOOLEAN` | Returns `GIT.CommitLog` rows, newest first. A blank `Ref` uses the current branch; an unknown `Ref` returns `Error=true`. `MaxEntries` of zero or blank means no limit. |
 | `GetReflog` | `Ref: STRING`, `MaxEntries: INTEGER` | Returns `GIT.ReflogEntry` rows, newest first. A blank `Ref` uses `HEAD`; short names such as `main` or `origin/main` resolve the way Git does, and an unknown `Ref` returns `Error=true`. Reflogs are local to this clone. |
 | `GetHistoryRefs` | `ReflogOnly: BOOLEAN` | Returns `GIT.HistoryRef` rows for HEAD, local branches, remote-tracking branches, and tags, in that order. `DisplayName` is the short name that `GetLog` and `GetReflog` accept. With `ReflogOnly=true`, only refs with local reflog entries are returned. |
-| `Status` | `ShowUnchangedFiles: BOOLEAN`, `HideUntracked: BOOLEAN`, `HideUnchanged: BOOLEAN`, `HideIgnored: BOOLEAN` (all default `false`) | Synchronizes the project export and returns `GIT.Status` rows, optionally including unchanged paths and excluding untracked, unchanged, or ignored rows. The original `File`, `Status`, and `Staged` fields remain available, along with fields for the Changes view. |
+| `GetReadme` | — | Returns the README at the root of the commit HEAD points at as one `GIT.FileContent` row (`Path`, `Content`, `Size`, `Binary`, `Truncated`), reading at most 1,000,000 bytes. Names are matched ignoring case, preferring `README.md`, then `README.markdown`, `README.mdown`, `README` and `README.txt`. Uncommitted edits are not shown. Returns no rows when the repository has no commit yet or no README. Used by the repository overview page. |
+| `Status` | `ShowUnchangedFiles: BOOLEAN`, `HideUntracked: BOOLEAN`, `HideUnchanged: BOOLEAN`, `HideIgnored: BOOLEAN` (all default `false`) | Returns `GIT.Status` rows (Git only; use `SyncFromThingWorx` first to include ThingWorx changes), optionally including unchanged paths and excluding untracked, unchanged, or ignored rows. The original `File`, `Status`, and `Staged` fields remain available, along with fields for the Changes view. |
 | `Add` | `File: STRING`, `All: BOOLEAN` | Stages one repository-relative file; with `All=true`, stages all non-ignored additions, modifications, and deletions. |
 | `Unstage` | `File: STRING`, `All: BOOLEAN` | Unstages one repository-relative file or, with `All=true`, every staged path. |
 | `ApplyFileAction` | `Changes: INFOTABLE<GIT.WorkingTreeDisplay.DataShape>`, `Action: STRING` | Applies `stage`, `unstage`, `untrack`, or `delete` to the selected rows after checking current Git status. `delete` removes the files from the working tree and stages tracked deletions without changing ThingWorx entities. |
@@ -83,12 +87,12 @@ File arguments and `Status.File` values are relative to the Git working tree at 
 FileRepository root, so they include the tracked project's folder. ThingWorx
 FileRepository paths with a leading slash are also accepted by the single-file services.
 
-The status service exports the configured project to a temporary directory and synchronizes its
-canonical exports into the working tree before reporting Git status. A tracked export that no
-longer belongs to the project is removed from the working tree and appears as an unstaged deletion.
-The Git index is not changed. Tracked exports are overwritten with the current ThingWorx content;
+`Status` reads Git only. `SyncFromThingWorx` exports the tracked projects to a temporary directory
+and synchronizes their canonical exports into the working tree. A tracked export that no longer
+belongs to the project is removed from the working tree and appears as an unstaged deletion. The
+Git index is not changed. Tracked exports are overwritten with the current ThingWorx content;
 existing untracked files and files that cannot be identified as canonical entity exports are
-preserved. Status refuses to synchronize while project export files have unresolved Git conflicts.
+preserved. It refuses to run while project export files have unresolved Git conflicts.
 
 `RemoveEverywhere` accepts one or more ThingWorx `Entities` XML files, including files with multiple
 entities. It supports Things, Thing Templates, Thing Shapes, Networks, Media Entities, Model and
@@ -110,7 +114,7 @@ remove them permanently. Status refresh preserves staged deletions until they ar
 | `RepositoryCreate` | `RepoName: STRING`, `GitRepoURL: STRING`, `BranchName: STRING`, `TrackedProjects: INFOTABLE` (`GIT.TrackedProject.DataShape`: `ProjectName` and optional `Path`), `UseProxy: BOOLEAN`, `ProxyURL: STRING`, `ProxyPort: INTEGER`, `LocalizationTokensPrefix: STRING`, `GitCommitterUser: STRING`, `GitCommitterPassword: STRING`, `GitCommitterEmail: STRING`, `GitCommitterFullName: STRING` | Creates and configures the repository Thing, adds `GitRepoURL` as the `origin` remote in `.git/config` when it is set, and, when any credential field is set, the current user's Git credentials. Fails without changes when a Thing with that name exists, when the caller lacks `ServiceInvoke` permission on `EntityServices.CreateThing`, or when a tracked project does not exist or the caller cannot see it or lacks design-time Read on it (both cases report the same not-found error). A blank `BranchName` means `main`. If a later step fails, the new Thing is deleted so the name can be reused. |
 | `GetTrackableProjects` | — | Lists ThingWorx projects that a new repository can track, for the New Repository form. Only projects the caller can see and has design-time Read permission on are listed. Returns `GIT.TrackedProject.ServiceResult.DataShape`. |
 | `ProjectCreate` | `ProjectName: STRING`, `Description: STRING` (optional) | Creates an empty ThingWorx project for a new repository to track, from the New Repository form. Names may contain letters, digits, `_`, `.` and `-`, must not start with `.` or `-`, and may be up to 200 characters. The name `git`, and names starting with `git.` (any case), are reserved for the extension. An existing project is refused; select it in the list instead. The caller needs `ServiceInvoke` permission on `EntityServices.CreateProject`. |
-| `RepositoryDelete` | `RepoName: STRING` | Deletes the repository Thing, local content, and the current user’s associated configuration. Only deletes Things in the `GIT.Repositories` project that are based on `GIT.Repository.ThingTemplate`; any other Thing is refused. The caller needs design-time Delete permission on the repository Thing and `ServiceInvoke` permission on `EntityServices.DeleteThing`. |
+| `RepositoryDelete` | `RepoName: STRING` | Deletes the repository Thing and its working tree, moves its Git directory to `jgit/deleted` without remotes, and removes every user’s settings and sign-ins for it. Only deletes Things in the `GIT.Repositories` project that are based on `GIT.Repository.ThingTemplate`; any other Thing is refused. The caller needs design-time Delete permission on the repository Thing and `ServiceInvoke` permission on `EntityServices.DeleteThing`. |
 | `RunUpgrade` | — | Administrator only. Upgrades every repository and every user's saved settings to the current format and returns a report (`GIT.UpgradeStep.DataShape`: `Scope`, `Name`, `Item`, `Action`, `Detail`). Runs automatically on import and at startup; safe to repeat. See [Upgrading from earlier versions](configuration.md#upgrading-from-earlier-versions). |
 | `InitUserExtensionProperties` | — | Administrator only. Creates and initializes the Git credentials, reusable GPG-key, and reusable SSH-key UserExtension properties. Ordinary users initialize only their own rows automatically when they call a per-user service. |
 | `GpgKeyListSummary` | — | Lists the current user’s GPG key labels and fingerprints without private key material. |

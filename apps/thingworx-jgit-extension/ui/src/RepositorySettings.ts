@@ -1,14 +1,29 @@
 @TWWidgetDefinition
 class RepositorySettings extends TypescriptWidget {
   @property(bindingTarget) repoName!: STRING;
-  @property(bindingSource) loadedFingerprint: STRING = "";
-  @property(bindingSource) keyOptions!: INFOTABLE<{GpgKeyLabel: STRING, GpgKeyFingerprint: STRING}>;
+  /** Signing key saved for this repository, as a Value of signingOptions. */
+  @property(bindingSource) loadedSigningKey: STRING = "";
+  /** GPG and SSH keys that can sign; Value is "openpgp:<fingerprint>" or "ssh:<fingerprint>". */
+  @property(bindingSource) signingOptions!: INFOTABLE<{Display: STRING, Value: STRING}>;
+  @property(bindingTarget, didBind("signingKeyChanged")) selectedSigningKey!: STRING;
+  /** Reuse warning, SSH hint and RequireSigning warning under the Signing key dropdown. */
+  @property(bindingSource) signingNote: STRING = "";
+  @property(bindingSource) showSigningNote: BOOLEAN = false;
+  @property(bindingSource) requireSigning: BOOLEAN = false;
+  @property(bindingSource) requireSigningDisabled: BOOLEAN = true;
+  @property(bindingTarget, didBind("signingKeyChanged")) requireSigningChecked!: BOOLEAN;
   @property(bindingSource) sshKeyOptions!: INFOTABLE<{SshKeyLabel: STRING, SshKeyFingerprint: STRING}>;
   @property(bindingSource) message: STRING = "";
   @property(bindingSource) saveDisabled: BOOLEAN = true;
-  @property(bindingSource) trackedProjects!: INFOTABLE<{ProjectName: STRING, Path: STRING, Folder: STRING}>;
+  @property(bindingSource) trackedProjects!: INFOTABLE<{ProjectName: STRING, Path: STRING, Folder: STRING, EntityTypes: STRING, Types: STRING}>;
+  /** Entity types a tracked project can synchronize, for the Entity types dropdown. */
+  @property(bindingSource) entityTypeOptions!: INFOTABLE<{EntityType: STRING, Label: STRING}>;
+  /** The selected project's entity types, selected in the Entity types dropdown. */
+  @property(bindingSource) projectEntityTypes!: INFOTABLE<{EntityType: STRING, Label: STRING}>;
+  /** The types chosen in the Entity types dropdown. */
+  @property(bindingTarget) selectedEntityTypes!: INFOTABLE<{EntityType: STRING, Label: STRING}>;
   @property(bindingSource) availableProjects!: INFOTABLE<{ProjectName: STRING}>;
-  @property(bindingTarget) selectedProjects!: INFOTABLE<{ProjectName: STRING, Path: STRING}>;
+  @property(bindingTarget) selectedProjects!: INFOTABLE<{ProjectName: STRING, Path: STRING, EntityTypes: STRING}>;
   @property(bindingSource) projectMessage: STRING = "";
   /** Result of Add project, shown in the Add a tracked project card. */
   @property(bindingSource) addProjectMessage: STRING = "";
@@ -41,6 +56,13 @@ class RepositorySettings extends TypescriptWidget {
   @property(bindingSource) approveDisabled: BOOLEAN = true;
   /** Fires after a host key was read, to open the approval dialog. */
   @event hostKeyChecked!: TWEvent;
+  /** Text of the Delete repository confirmation, naming the repository. */
+  @property(bindingSource) deletePrompt: STRING = "";
+  /** Progress and result of Delete repository. */
+  @property(bindingSource) deleteMessage: STRING = "";
+  @property(bindingSource) deleteDisabled: BOOLEAN = false;
+  /** Fires after the repository was deleted, to leave this page. */
+  @event repositoryDeleted!: TWEvent;
   private remoteRequestId = 0;
   private requestId = 0;
   private projectRequestId = 0;
@@ -80,50 +102,105 @@ class RepositorySettings extends TypescriptWidget {
 
   @service async load() {
     if (!this.repoName) return;
+    this.deletePrompt = "Repository " + this.repoName + " will be deleted for every user. Its working files and any uncommitted "
+      + "changes are removed, and everyone's settings and sign-ins for it are forgotten. Its history is moved to jgit/deleted "
+      + "without its remotes, where only an administrator can recover unpushed commits. "
+      + "ThingWorx entities in its tracked projects are not changed.";
+    this.loadEntityTypeOptions();
     this.loadProjects();
     this.loadRemotes();
     this.loadStatus();
+    this.loadSigning();
+  }
+
+  /** The RequireSigning value loaded, to save it only when the checkbox changed it. */
+  private loadedRequireSigning = false;
+  private canChangeRequireSigning = false;
+
+  /** Loads the Commit signing card: the user's GPG and SSH keys and the saved choice. */
+  private async loadSigning() {
     const repository = this.repoName;
     const request = ++this.requestId;
     this.saveDisabled = true;
-    this.message = "Loading repository settings…";
+    this.message = "Loading signing keys…";
     try {
-      const [credentials, keys] = await Promise.all([
-        this.invoke("GitCredentialGet", {GitThing: repository}),
-        this.invoke("GpgKeyListSummary", {})
+      const [signing, options] = await Promise.all([
+        this.invokeOn(repository, "GetRepositorySigning", {}),
+        this.invokeOn(repository, "GetSigningKeyOptions", {})
       ]);
       if (request !== this.requestId) return;
-      if (keys.Error) throw new Error(keys.Message || "Unable to load signing keys");
-      if (credentials.Error && !(credentials.Message || "").includes("Credentials not found for repository:")) {
-        throw new Error(credentials.Message || "Unable to load settings");
-      }
-      const row = !credentials.Error && credentials.Result && credentials.Result.rows && credentials.Result.rows[0];
-      const options = keys.Result;
-      const selected = row && row.GpgKeyFingerprint || "";
-      const keyMissing = !!selected && !options.rows.some((key: any) => key.GpgKeyFingerprint === selected);
-      options.rows = [{GpgKeyLabel: "No signing", GpgKeyFingerprint: ""}, ...options.rows];
-      if (keyMissing) options.rows.push({GpgKeyLabel: "Unavailable signing key: " + selected, GpgKeyFingerprint: selected});
-      this.keyOptions = options;
-      this.loadedFingerprint = selected;
+      if (signing.Error) throw new Error(signing.Message || "Unable to load the signing key");
+      if (options.Error) throw new Error(options.Message || "Unable to load signing keys");
+      const saved = signing.Result.rows[0] || {};
+      const rows: any[] = options.Result.rows;
+      // Repository Settings always offers None, even where commits require signing.
+      if (!rows.some(row => row.Value === "none")) rows.push({Value: "none", Display: "None (not signed)", Format: "", Fingerprint: ""});
+      const selected = saved.SigningFormat ? saved.SigningFormat + ":" + saved.KeyFingerprint : "none";
+      const keyMissing = selected !== "none" && !rows.some(row => row.Value === selected);
+      if (keyMissing) rows.push({Display: "Unavailable signing key: " + saved.KeyFingerprint, Value: selected, Format: saved.SigningFormat, Fingerprint: saved.KeyFingerprint});
+      this.signingRows = rows;
+      this.signingOptions = {dataShape: options.Result.dataShape, rows} as any;
+      this.loadedSigningKey = selected;
+      this.loadedRequireSigning = !!saved.RequireSigning;
+      this.canChangeRequireSigning = !!saved.CanChangeRequireSigning;
+      this.requireSigning = this.loadedRequireSigning;
+      this.requireSigningDisabled = !this.canChangeRequireSigning;
       this.saveDisabled = false;
-      this.message = keyMissing ? "The saved signing key is unavailable. Choose another key or No signing." : "";
+      this.message = keyMissing ? "The saved signing key is unavailable. Choose another key or None." : "";
+      this.signingKeyChanged();
     } catch (error) {
       if (request === this.requestId) this.message = "Could not load settings: " + (error as Error).message;
     }
   }
 
-  /** Saves the commit signing key. Sign-in is saved per remote by saveSignIn. */
+  /** Splits a signingOptions Value into its format and fingerprint. */
+  private static parseSigningKey(value: string): {format: string, fingerprint: string} {
+    const i = (value || "").indexOf(":");
+    return i < 0 ? {format: "", fingerprint: ""} : {format: value.slice(0, i), fingerprint: value.slice(i + 1)};
+  }
+
+  /** Rows of signingOptions, from GetSigningKeyOptions. */
+  private signingRows: any[] = [];
+
+  /** Updates the note under the Signing key dropdown for the current selection. */
+  @service signingKeyChanged() {
+    const key = RepositorySettings.parseSigningKey(this.selectedSigningKey === undefined ? this.loadedSigningKey : this.selectedSigningKey);
+    const require = this.requireSigningChecked === undefined ? this.requireSigning : !!this.requireSigningChecked;
+    const notes: string[] = [];
+    const row = this.signingRows.filter(option => option.Value === key.format + ":" + key.fingerprint)[0];
+    if (row && row.IsSignInKey) {
+      notes.push("The signing key is also your sign-in key. A leak of it exposes both.");
+    }
+    if (key.format === "ssh") {
+      notes.push("Add this public key to your Git host as a signing key. Manage keys and identity shows it.");
+    }
+    if (require && !key.format) notes.push("This repository requires signed commits, so commits will fail until you choose a key.");
+    this.signingNote = notes.join(" ");
+    this.showSigningNote = notes.length > 0;
+  }
+
+  /** Saves the commit signing key, and RequireSigning when it changed. Sign-in is saved per remote by saveSignIn. */
   @service async save() {
     if (!this.repoName || this.saveDisabled) return;
     this.saveDisabled = true;
     this.message = "Saving…";
     try {
-      const result = await this.invokeOn(this.repoName, "SetGPGKeyForSigning", {
-        GpgKeyFingerprint: this.getWidget("settings-key").getProperty("SelectedText") || "",
-        GpgKeyLabel: ""
+      const key = RepositorySettings.parseSigningKey(this.getWidget("settings-key").getProperty("SelectedText") || "");
+      const result = await this.invokeOn(this.repoName, "SetRepositorySigningKey", {
+        SigningFormat: key.format,
+        KeyFingerprint: key.fingerprint
       });
       if (result.Error) throw new Error(result.Message || "Unable to save the signing key");
-      this.message = "Signing key saved.";
+      const messages = [result.Message || "Signing key saved."];
+      const require = !!this.getWidget("settings-require-signing").getProperty("State");
+      if (this.canChangeRequireSigning && require !== this.loadedRequireSigning) {
+        const changed = await this.invokeOn(this.repoName, "SetRequireSigning", {RequireSigning: require});
+        if (changed.Error) throw new Error(changed.Message || "Unable to change Require signing");
+        this.loadedRequireSigning = require;
+        messages.push(changed.Message);
+      }
+      this.loadedSigningKey = key.format ? key.format + ":" + key.fingerprint : "";
+      this.message = messages.join(" ");
     } catch (error) { this.message = "Could not save the signing key: " + (error as Error).message; }
     finally { this.saveDisabled = false; }
   }
@@ -175,9 +252,20 @@ class RepositorySettings extends TypescriptWidget {
       this.hostKeyMessage = "";
       this.signInMessage = "";
       this.statusMessage = "";
+      this.showSelectedRemoteFields();
     }
     this.showSelectedSignIn();
     this.loadStatus();
+  }
+
+  /** Fills Remote name, Fetch URL and Push URL with the selected remote, so Update selected remote edits them. */
+  private showSelectedRemoteFields() {
+    const remote = this.selectedRemoteRow();
+    if (!remote) return;
+    const first = (urls: string) => String(urls || "").split("\n")[0].trim();
+    this.getWidget("settings-remote-name").setProperty("Text", remote.Name);
+    this.getWidget("settings-remote-url").setProperty("Text", first(remote.URLs));
+    this.getWidget("settings-remote-push-url").setProperty("Text", first(remote.PushURLs));
   }
 
   /** Fills the sign-in fields with the selected remote's saved sign-in. */
@@ -328,6 +416,22 @@ class RepositorySettings extends TypescriptWidget {
     this.loadStatus();
   }
 
+  /** Deletes this repository, then fires repositoryDeleted to return to the repository list. */
+  @service async deleteRepository() {
+    if (!this.repoName || this.deleteDisabled) return;
+    this.deleteDisabled = true;
+    this.deleteMessage = "Deleting…";
+    try {
+      const result = await this.invoke("RepositoryDelete", {RepoName: this.repoName});
+      if (result.Error) throw new Error(result.Message || "Unable to delete the repository");
+      this.deleteMessage = result.Message || "Repository deleted.";
+      this.repositoryDeleted();
+    } catch (error) {
+      this.deleteMessage = "Could not delete the repository: " + (error as Error).message;
+      this.deleteDisabled = false;
+    }
+  }
+
   private clearCheckedHostKey() {
     this.checkedHostKey = null;
     this.hostKeyFingerprint = "";
@@ -436,42 +540,69 @@ class RepositorySettings extends TypescriptWidget {
       this.remoteMessage = result.Message;
       succeeded = true;
     } catch (error) { this.remoteMessage = failure + ": " + (error as Error).message; }
-    if (succeeded && reload) {
-      this.tested = {};
-      this.clearCheckedHostKey();
-      await this.loadRemotes();
-      this.loadStatus();
-    } else this.remotesBusy = false;
+    if (succeeded && reload) await this.reloadRemotes();
+    else this.remotesBusy = false;
     return succeeded;
   }
 
   @service async addRemote() {
-    const name = (this.getWidget("settings-remote-name").getProperty("Text") || "").trim();
-    const url = (this.getWidget("settings-remote-url").getProperty("Text") || "").trim();
-    if (!name || !url) { this.remoteMessage = "Enter a remote name and URL to add."; return; }
-    await this.remoteAction("Adding " + name + "…", "Could not add the remote", "RemoteAdd", {Name: name, URL: url}, true);
+    const name = this.fieldText("settings-remote-name");
+    const url = this.fieldText("settings-remote-url");
+    const pushUrl = this.fieldText("settings-remote-push-url");
+    if (!this.repoName || this.remotesBusy) return;
+    if (!name || !url) { this.remoteMessage = "Enter a remote name and fetch URL to add."; return; }
+    if (!await this.remoteAction("Adding " + name + "…", "Could not add the remote", "RemoteAdd", {Name: name, URL: url}, !pushUrl)) return;
+    if (pushUrl) {
+      const added = this.remoteMessage;
+      if (await this.remoteAction("Setting the push URL of " + name + "…", "Remote added, but could not set the push URL", "RemoteSetUrl",
+          {Name: name, URL: pushUrl, Push: true}, true)) this.remoteMessage = added + " " + this.remoteMessage;
+      else await this.reloadRemotes();
+    }
   }
 
-  @service async setRemoteUrl() {
-    const name = this.selectedRemote();
-    const url = (this.getWidget("settings-remote-url").getProperty("Text") || "").trim();
-    if (!name) { this.remoteMessage = "Select a remote to change."; return; }
-    if (!url) { this.remoteMessage = "Enter the new URL in Remote URL."; return; }
-    await this.remoteAction("Updating " + name + "…", "Could not change the URL", "RemoteSetUrl", {Name: name, URL: url, Push: false}, true);
+  /**
+   * Saves Fetch URL and Push URL to the selected remote; a blank Push URL removes the separate
+   * push URL. Only the fields that differ from the saved remote are changed.
+   */
+  @service async updateRemote() {
+    const remote = this.selectedRemoteRow();
+    if (!this.repoName || this.remotesBusy) return;
+    if (!remote) { this.remoteMessage = "Select a remote to change."; return; }
+    const name = this.fieldText("settings-remote-name");
+    if (name !== remote.Name) {
+      this.remoteMessage = "Remotes cannot be renamed. To use the name " + (name || "(blank)")
+          + ", add it as a new remote and remove " + remote.Name + ".";
+      return;
+    }
+    const url = this.fieldText("settings-remote-url");
+    const pushUrl = this.fieldText("settings-remote-push-url");
+    if (!url) { this.remoteMessage = "Enter the fetch URL of " + name + "."; return; }
+    const saved = (urls: string) => String(urls || "").split("\n")[0].trim();
+    const changes: {URL: string, Push: boolean}[] = [];
+    if (url !== saved(remote.URLs)) changes.push({URL: url, Push: false});
+    if (pushUrl !== saved(remote.PushURLs)) changes.push({URL: pushUrl, Push: true});
+    if (!changes.length) { this.remoteMessage = "Remote '" + name + "' already uses these URLs."; return; }
+    const messages: string[] = [];
+    for (let i = 0; i < changes.length; i++) {
+      const change = changes[i];
+      const failure = change.Push ? (pushUrl ? "Could not set the push URL" : "Could not remove the push URL") : "Could not change the fetch URL";
+      const ok = await this.remoteAction("Updating " + name + "…", failure, "RemoteSetUrl", {Name: name, URL: change.URL, Push: change.Push},
+          i === changes.length - 1);
+      if (!ok) {
+        if (messages.length) { this.remoteMessage = messages.join(" ") + " " + this.remoteMessage; await this.reloadRemotes(); }
+        return;
+      }
+      messages.push(this.remoteMessage);
+    }
+    this.remoteMessage = messages.join(" ");
   }
 
-  @service async setPushUrl() {
-    const name = this.selectedRemote();
-    const url = (this.getWidget("settings-remote-url").getProperty("Text") || "").trim();
-    if (!name) { this.remoteMessage = "Select a remote to change."; return; }
-    if (!url) { this.remoteMessage = "Enter the push URL in Remote URL."; return; }
-    await this.remoteAction("Updating " + name + "…", "Could not set the push URL", "RemoteSetUrl", {Name: name, URL: url, Push: true}, true);
-  }
-
-  @service async clearPushUrl() {
-    const name = this.selectedRemote();
-    if (!name) { this.remoteMessage = "Select a remote to change."; return; }
-    await this.remoteAction("Updating " + name + "…", "Could not remove the push URL", "RemoteSetUrl", {Name: name, URL: "", Push: true}, true);
+  /** Reloads the remotes and connection status after a change. */
+  private async reloadRemotes() {
+    this.tested = {};
+    this.clearCheckedHostKey();
+    await this.loadRemotes();
+    this.loadStatus();
   }
 
   @service async testRemote() {
@@ -504,16 +635,51 @@ class RepositorySettings extends TypescriptWidget {
     return row.Result || {dataShape: {fieldDefinitions: {ProjectName: {name: "ProjectName", baseType: "STRING"}}}, rows: []};
   }
 
-  /** Adds a Folder column showing where each project's entities live in the repository. */
+  /**
+   * Adds a Folder column showing where each project's entities live in the repository, and a Types column
+   * listing the entity types it synchronizes.
+   */
   private withFolders(table: any): any {
-    table.dataShape.fieldDefinitions.Path = table.dataShape.fieldDefinitions.Path || {name: "Path", baseType: "STRING", ordinal: 2};
-    table.dataShape.fieldDefinitions.Folder = {name: "Folder", baseType: "STRING", ordinal: 3};
+    const fields = table.dataShape.fieldDefinitions;
+    fields.Path = fields.Path || {name: "Path", baseType: "STRING", ordinal: 2};
+    fields.EntityTypes = fields.EntityTypes || {name: "EntityTypes", baseType: "STRING", ordinal: 3};
+    fields.Folder = {name: "Folder", baseType: "STRING", ordinal: 4};
+    fields.Types = {name: "Types", baseType: "STRING", ordinal: 5};
     for (const row of table.rows) {
       const path = String(row.Path || "").replace(/^\/+|\/+$/g, "");
       row.Path = path;
       row.Folder = path ? path + "/" : row.ProjectName + "/ (default)";
+      row.EntityTypes = String(row.EntityTypes || "");
+      const types = this.typeList(row.EntityTypes);
+      row.Types = types.length ? types.map(type => this.typeLabel(type)).join(", ") : "All";
     }
     return table;
+  }
+
+  /** The collections in a stored EntityTypes value; empty means all types. */
+  private typeList(value: string): string[] {
+    return String(value || "").split(",").map(type => type.trim()).filter(type => type);
+  }
+
+  private typeLabel(type: string): string {
+    const option = (this.entityTypeOptions && this.entityTypeOptions.rows || []).find((row: any) => row.EntityType === type);
+    return option ? option.Label : type.replace(/([a-z])([A-Z])/g, "$1 $2");
+  }
+
+  private typeTable(rows: any[]): any {
+    return {dataShape: {fieldDefinitions: {EntityType: {name: "EntityType", baseType: "STRING", ordinal: 1},
+      Label: {name: "Label", baseType: "STRING", ordinal: 2}}}, rows};
+  }
+
+  @service async loadEntityTypeOptions() {
+    if (!this.repoName) return;
+    try {
+      const result = await this.invokeOn(this.repoName, "GetEntityTypeOptions", {});
+      if (result.Error) throw new Error(result.Message || "Request failed");
+      this.entityTypeOptions = result.Result || this.typeTable([]);
+      // Labels in the Types column come from the options.
+      if (this.trackedProjects) this.trackedProjects = this.withFolders(this.trackedProjects);
+    } catch (error) { this.projectMessage = "Could not load the entity types: " + (error as Error).message; }
   }
 
   @service async loadProjects() {
@@ -530,6 +696,7 @@ class RepositorySettings extends TypescriptWidget {
       this.trackedProjects = this.withFolders(this.projectRows(tracked));
       // Reloading clears the grid selection without a selection event.
       this.getWidget("settings-project-folder").setProperty("Text", "");
+      this.projectEntityTypes = this.typeTable([]);
       this.availableProjects = this.projectRows(available);
       if (!this.trackedProjects.rows.length && !this.projectMessage) {
         this.projectMessage = "No projects are tracked. Add a project to synchronize its entities with this repository.";
@@ -545,10 +712,41 @@ class RepositorySettings extends TypescriptWidget {
     return (this.getWidget(widgetId).getProperty("Text") || "").trim();
   }
 
-  /** Fills Folder of selected project with the folder of the one selected project. */
+  /**
+   * Fills Folder of selected project with the folder of the one selected project, and selects in Entity types
+   * the types the selected projects synchronize when they all synchronize the same ones.
+   */
   @service projectSelected() {
     const selected = this.selectedProjects && this.selectedProjects.rows || [];
     this.getWidget("settings-project-folder").setProperty("Text", selected.length === 1 ? selected[0].Path || "" : "");
+    const stored = selected.map((row: any) => this.typeList(row.EntityTypes).join(","));
+    const same = stored.length > 0 && stored.every(value => value === stored[0]);
+    const types = same ? this.typeList(stored[0]) : [];
+    const options = this.entityTypeOptions && this.entityTypeOptions.rows || [];
+    this.projectEntityTypes = this.typeTable(!same ? [] : types.length
+      ? options.filter((row: any) => types.indexOf(row.EntityType) >= 0) : options.slice());
+  }
+
+  /** Sets the entity types of every selected project to those chosen in Entity types. */
+  @service async setProjectEntityTypes() {
+    const selected = this.selectedProjects && this.selectedProjects.rows || [];
+    if (!this.repoName || this.projectsBusy || !selected.length) return;
+    const chosen = (this.selectedEntityTypes && this.selectedEntityTypes.rows || []).map((row: any) => row.EntityType);
+    if (!chosen.length) { this.projectMessage = "Choose at least one entity type to synchronize."; return; }
+    const options = this.entityTypeOptions && this.entityTypeOptions.rows || [];
+    // Every option means all types, including any added later.
+    const value = chosen.length >= options.length ? "" : chosen.join(",");
+    this.projectsBusy = true;
+    this.projectMessage = "Changing the entity types…";
+    const messages: string[] = [];
+    for (const row of selected) {
+      try {
+        const result = await this.invokeOn(this.repoName, "SetTrackedProjectEntityTypes", {ProjectName: row.ProjectName, EntityTypes: value});
+        messages.push(result.Error ? "Could not change " + row.ProjectName + ": " + (result.Message || "request failed") : result.Message);
+      } catch (error) { messages.push("Could not change " + row.ProjectName + ": " + (error as Error).message); }
+    }
+    this.projectMessage = messages.join(" ");
+    await this.loadProjects();
   }
 
   @service async addProject() {

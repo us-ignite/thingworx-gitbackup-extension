@@ -139,7 +139,25 @@ public class EntitySyncTest {
      * Exports the tracked project via Status and stages every change. Commit only records staged
      * changes, and neither export nor Commit stages files automatically.
      */
+    /** Calls a sync service, which Git operations no longer do themselves, and requires success. */
+    private void sync(ThingWorxContainer twx, String gitThing, String service, String body)
+            throws Exception {
+        var res =
+                httpClient.send(
+                        twx.serviceRequest(gitThing, service, body)
+                                .timeout(Duration.ofSeconds(60))
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, res.statusCode(), service + " failed: " + res.body());
+        assertSuccess(res.body());
+    }
+
+    private void syncTo(ThingWorxContainer twx, String gitThing) throws Exception {
+        sync(twx, gitThing, "SyncToThingWorx", "{}");
+    }
+
     private void stageAll(ThingWorxContainer twx, String gitThing) throws Exception {
+        sync(twx, gitThing, "SyncFromThingWorx", null);
         var statusRes =
                 httpClient.send(
                         twx.serviceRequest(gitThing, "Status", null)
@@ -507,6 +525,7 @@ public class EntitySyncTest {
         var pullRes = httpClient.send(pullReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, pullRes.statusCode(), "Pull on target failed: " + pullRes.body());
         assertSuccess(pullRes.body());
+        syncTo(twxB, GIT_THING_B);
     }
 
     @Test
@@ -722,6 +741,8 @@ public class EntitySyncTest {
                 200,
                 pullRes.statusCode(),
                 "Pull on source after round-trip failed: " + pullRes.body());
+        assertSuccess(pullRes.body());
+        syncTo(twxA, GIT_THING_A);
 
         var commitReq =
                 twxA.serviceRequest(GIT_THING_A, "GetLog", "{\"Ref\":\"main\"}")
@@ -886,6 +907,7 @@ public class EntitySyncTest {
                         || mergeRes.body().contains("Fast-forward")
                         || mergeRes.body().contains("Already-up-to-date"),
                 "Expected fast-forward merge result: " + mergeRes.body());
+        syncTo(twxA, GIT_THING_A);
 
         var thingVerifyRes =
                 httpClient.send(
@@ -1102,6 +1124,8 @@ public class EntitySyncTest {
                         twxA.serviceRequest(GIT_THING_A, "RebaseAbort", null).build(),
                         HttpResponse.BodyHandlers.ofString());
         assertEquals(200, abortRes.statusCode(), "RebaseAbort failed: " + abortRes.body());
+        assertSuccess(abortRes.body());
+        syncTo(twxA, GIT_THING_A);
 
         var verifyRes =
                 httpClient.send(
@@ -1140,7 +1164,7 @@ public class EntitySyncTest {
 
     @Test
     @Order(10)
-    void pullWithMalformedEntityReportsFailureButPreservesGitHistory() throws Exception {
+    void syncToThingWorxWithMalformedEntityReportsFailureButPreservesGitHistory() throws Exception {
         String malformedThing = "CrossSync.MalformedThing";
         String commitMessage = "Commit malformed entity for failure test";
 
@@ -1279,20 +1303,27 @@ public class EntitySyncTest {
                 200,
                 pullRes.statusCode(),
                 "Pull with malformed entity transport failed: " + pullRes.body());
-        JsonObject table = JsonParser.parseString(pullRes.body()).getAsJsonObject();
-        assertTrue(table.has("rows"), "Pull result must be InfoTable: " + pullRes.body());
+        assertSuccess(pullRes.body());
+
+        var syncRes =
+                httpClient.send(
+                        twxB.serviceRequest(GIT_THING_B, "SyncToThingWorx", "{\"Force\":true}")
+                                .timeout(Duration.ofSeconds(60))
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
+        assertEquals(
+                200, syncRes.statusCode(), "SyncToThingWorx transport failed: " + syncRes.body());
+        JsonObject table = JsonParser.parseString(syncRes.body()).getAsJsonObject();
+        assertTrue(table.has("rows"), "Sync result must be InfoTable: " + syncRes.body());
         var rows = table.getAsJsonArray("rows");
-        assertEquals(1, rows.size(), "Pull result must have one row: " + pullRes.body());
+        assertEquals(1, rows.size(), "Sync result must have one row: " + syncRes.body());
         var row = rows.get(0).getAsJsonObject();
-        assertTrue(row.has("Error"), "Pull result must have Error: " + pullRes.body());
         assertTrue(
                 row.get("Error").getAsBoolean(),
-                "Pull should report Error=true for malformed import: " + pullRes.body());
-        assertTrue(row.has("Message"), "Pull result must have Message: " + pullRes.body());
+                "SyncToThingWorx should report Error=true for malformed import: " + syncRes.body());
         String message = row.get("Message").getAsString();
         assertTrue(
-                message.contains(
-                        "Git Pull completed, but importing entities into ThingWorx failed"),
+                message.contains("Importing entities into ThingWorx failed"),
                 "Message must contain contextual failure: " + message);
         assertTrue(message.contains(TEST_PROJECT), "Message must identify project: " + message);
 
@@ -1302,7 +1333,7 @@ public class EntitySyncTest {
                         .build();
         var logRes = httpClient.send(logReq, HttpResponse.BodyHandlers.ofString());
         assertEquals(
-                200, logRes.statusCode(), "GetLog after malformed pull failed: " + logRes.body());
+                200, logRes.statusCode(), "GetLog after malformed import failed: " + logRes.body());
         assertServiceSuccess(logRes, "GetLog after malformed pull");
         assertTrue(
                 logRes.body().contains(commitMessage),

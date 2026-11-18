@@ -69,5 +69,37 @@ for (const part of ['ide', 'runtime']) {
   ] } });
   assert.equal(widget.jqElement[0].querySelector('.gh-code').textContent, '<safe>');
   console.log('runtime selection, file tree, and content rendering verified');
+
+  // Checkout: offered for a commit HEAD is not on, and HEAD is labelled once known.
+  const root = widget.jqElement[0];
+  root.querySelector('.gh-checkout').click();
+  assert.equal(events.pop(), 'CheckoutRequested');
+  assert.equal(values.SelectedCommitID, 'a');
+  widget.updateProperty({ TargetProperty: 'Branches', RawSinglePropertyValue: { rows: [
+    { BranchName: 'refs/heads/main', ShortBranchName: 'main', CommitID: 'a' },
+  ] } });
+  widget.updateProperty({ TargetProperty: 'CurrentBranch', RawSinglePropertyValue: { rows: [
+    { BranchName: 'main', DetachedHEAD: false },
+  ] } });
+  assert.match(root.querySelector('.gh-commit strong').textContent, /^\[HEAD, main\]/);
+  assert.equal(root.querySelector('.gh-checkout'), null);
+  assert.equal(root.querySelector('.gh-actions').textContent, 'Checked out (HEAD)');
+  widget.updateProperty({ TargetProperty: 'CurrentBranch', RawSinglePropertyValue: { rows: [
+    { BranchName: 'b', DetachedHEAD: true },
+  ] } });
+  assert.match(root.querySelector('.gh-commit strong').textContent, /^\[main\]/);
+  assert.ok(root.querySelector('.gh-checkout'));
+  console.log('commit checkout request and HEAD marker verified');
+
+  // Signed commits show a lock whose hover gives the signature details, never "verified".
+  widget.updateProperty({ TargetProperty: 'Commits', RawSinglePropertyValue: { rows: [
+    { CommitID: 'a', CommitName: 'signed', AuthorName: 'Ann', AuthorEmail: 'ann@example.com', SignatureFormat: 'ssh', SignatureKey: 'SHA256:abc' },
+    { CommitID: 'b', CommitName: 'unsigned', AuthorName: 'Bob', SignatureFormat: '' },
+  ] } });
+  const locks = root.querySelectorAll('.gh-commit .gh-lock');
+  assert.equal(locks.length, 1);
+  assert.match(locks[0].title, /^Signed \(not verified\)\nFormat: SSH\nKey: SHA256:abc\nAuthor: Ann <ann@example.com>/);
+  assert.match(root.querySelector('.gh-actions').textContent, /Signed \(not verified\)/);
+  console.log('signature lock and hover verified');
   dom.window.close();
 }

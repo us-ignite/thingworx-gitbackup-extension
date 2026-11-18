@@ -155,7 +155,7 @@ class RepositoryCreate extends TypescriptWidget {
       missing.push("No remote URL is entered. The repository can only be used locally until you add a remote in Repository Settings.");
     }
     if (!(this.selectedProjects && this.selectedProjects.rows || []).length) {
-      missing.push("No ThingWorx project is selected for tracking. Pull imports and commits export only tracked projects, " +
+      missing.push("No ThingWorx project is selected for tracking. Sync from ThingWorx and Sync to ThingWorx cover only tracked projects, " +
         "so Pull fails until one is tracked. Select or create a project under Tracked projects, or add one later in Repository Settings.");
     }
     return missing;

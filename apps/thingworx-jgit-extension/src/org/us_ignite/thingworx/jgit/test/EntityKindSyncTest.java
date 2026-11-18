@@ -93,6 +93,14 @@ public class EntityKindSyncTest {
                                 .timeout(Duration.ofMinutes(3))
                                 .build()),
                 "Pull");
+        // Pull only changes Git; Sync to ThingWorx imports the pulled entities.
+        assertServiceSuccess(
+                send(
+                        stack.thingworx
+                                .serviceRequest(GIT_THING, "SyncToThingWorx", "{}")
+                                .timeout(Duration.ofMinutes(3))
+                                .build()),
+                "SyncToThingWorx");
     }
 
     @AfterAll

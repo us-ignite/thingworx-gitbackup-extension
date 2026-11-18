@@ -1,0 +1,12 @@
+/* Repository overview: page links, then the README card. */
+/* The runtime centres container bounding boxes with margin: auto, which spreads
+   the links and the README card down the page; stack them from the top instead. */
+[id$="repository-links-bounding-box"],
+[id$="repository-readme-card-bounding-box"] { margin: 0 !important; }
+[id$="repository-readme-card"] { padding: var(--git-card-inset); }
+[id$="repository-readme-title"] { font-size: 18px; font-weight: 600; }
+/* The runtime positions the widget absolutely in a zero-height bounding box, so it
+   overlaps the title. Put it back in the flow at its content height, so the page
+   body stays the only scroller. */
+[id$="repository-readme-bounding-box"] { position: relative !important; height: auto !important; max-height: none !important; flex: 0 0 auto !important; width: auto !important; align-self: stretch !important; }
+[id$="repository-readme"] { position: relative !important; top: auto !important; left: auto !important; width: auto !important; height: auto !important; min-height: 48px; margin: 5px; overflow: visible !important; }

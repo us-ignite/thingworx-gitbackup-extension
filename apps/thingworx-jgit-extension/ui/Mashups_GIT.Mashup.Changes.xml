@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?><Entities build="b471" majorVersion="10" minorVersion="1" modelPersistenceProviderPackage="PostgresPersistenceProviderPackage" revision="2" schemaVersion="1212" universal=""><Mashups><Mashup aspect.isEditableExtensionObject="true" aspect.isExtension="true" aspect.isFlex="true" aspect.isResponsive="true" aspect.mashupType="mashup" columns="0.0" description="Review working tree changes, stage selected files, and commit staged changes" documentationContent="" homeMashup="" lastModifiedDate="2026-11-12T16:41:34.573Z" name="GIT.Mashup.Changes" projectName="GIT" rows="0.0" tags=""><Owner name="Administrator" type="User"/><avatar/><DesignTimePermissions><Create/><Read/><Update/><Delete/><Metadata/></DesignTimePermissions><RunTimePermissions/><VisibilityPermissions><Visibility/></VisibilityPermissions><ConfigurationTableDefinitions/><ConfigurationTables><ConfigurationTable dataShapeName="" description="Mashup Mobile Settings" isHidden="true" isMultiRow="false" name="MobileSettings" ordinal="0"><DataShape><FieldDefinitions><FieldDefinition aspect.defaultValue="false" aspect.friendlyName="Disable Zoom" baseType="BOOLEAN" description="Disables zooming in and out within the mashup" name="disableZoom" ordinal="0"/><FieldDefinition aspect.defaultValue="true" aspect.friendlyName="Full Screen Mode" baseType="BOOLEAN" description="Open the mashup in full screen mode" name="fullScreenMode" ordinal="0"/><FieldDefinition aspect.friendlyName="Height" baseType="STRING" description="The height of the mashup page" name="height" ordinal="0"/><FieldDefinition aspect.defaultValue="device-height" aspect.friendlyName="Height Type" baseType="STRING" description="Use the height of the device display, or a custom height (in px)" name="heightType" ordinal="0"/><FieldDefinition aspect.defaultValue="1.0" aspect.friendlyName="Initial Scale" baseType="NUMBER" description="The initial zoom scale when the mashup is loaded for the first time" name="initialScale" ordinal="0"/><FieldDefinition aspect.friendlyName="Shortcut Icon Title" baseType="STRING" description="A title for the mashup shortcut on the iOS home screen" name="iosShortcutIconTitle" ordinal="0"/><FieldDefinition aspect.defaultValue="black-translucent" aspect.friendlyName="Status Bar Appearance" baseType="STRING" description="The style of the iOS status bar" name="iosStatusBarAppearance" ordinal="0"/><FieldDefinition aspect.defaultValue="10.0" aspect.friendlyName="Maximum Scale" baseType="NUMBER" description="The maximum scale that users can zoom out to" name="maximumScale" ordinal="0"/><FieldDefinition aspect.defaultValue="0.1" aspect.friendlyName="Minimum Scale" baseType="NUMBER" description="The minimum scale that users can zoom out to" name="minimumScale" ordinal="0"/><FieldDefinition aspect.friendlyName="Width" baseType="STRING" description="The width of the mashup page" name="width" ordinal="0"/><FieldDefinition aspect.defaultValue="device-width" aspect.friendlyName="Width Type" baseType="STRING" description="Use the width of the device display, or a custom width (in px)" name="widthType" ordinal="0"/></FieldDefinitions></DataShape><Rows><Row><disableZoom>false</disableZoom><fullScreenMode>true</fullScreenMode><height><![CDATA[device-height]]></height><heightType><![CDATA[device-height]]></heightType><initialScale>1.0</initialScale><iosShortcutIconTitle/><iosStatusBarAppearance><![CDATA[black-translucent]]></iosStatusBarAppearance><maximumScale>10.0</maximumScale><minimumScale>0.1</minimumScale><width><![CDATA[device-width]]></width><widthType><![CDATA[device-width]]></widthType></Row></Rows></ConfigurationTable></ConfigurationTables><ParameterDefinitions><FieldDefinition baseType="STRING" description="Repository selected on Git Home" name="repoName" ordinal="0"/></ParameterDefinitions><Things/><ThingShapes/><ThingTemplates/><mashupContent><![CDATA[{
-  "CustomMashupCss": "/* Shared Git workspace tokens and layout.\n\n   Spacing rule: every visible widget keeps ThingWorx's default Margin of 5,\n   so neighbouring controls sit 10px apart. Card containers also use Margin 5\n   so their edges line up with text. Container padding and gaps below subtract\n   that 5px, so the visible insets are 24px at the page edge and 16px between\n   sections and inside cards. Do not give individual widgets other margins;\n   align rows with the container's align-items instead (flex-end for rows with\n   labelled inputs, center for buttons and checkboxes).\n\n   Contrast (WCAG): text 11.4:1 and muted text 5.2:1 on the canvas; muted text\n   5.9:1 on surfaces. Native widget colors and focus indicators stay with the\n   active ThingWorx theme. The theme's container style sets a white\n   background, so backgrounds and borders below need !important. */\n:root {\n  --git-text: #243746;\n  --git-muted: #536776;\n  --git-canvas: #eef1f4;\n  --git-surface: #ffffff;\n  --git-border: #c2cbd3;\n  --git-radius: 6px;\n  --git-page-inset: 19px;   /* + 5px widget margin = 24px */\n  --git-card-inset: 11px;   /* + 5px widget margin = 16px */\n  --git-section-gap: 6px;   /* + 5px + 5px margins = 16px */\n  --git-header-height: 64px;\n}\n\n/* Header band: the slot that holds GIT.Mashup.GitHeader on every page. The\n   runtime sizes a contained mashup to fill its slot, so GitHeader applies its\n   own horizontal inset (see GitHeader.css). */\n[id$=\"git-header-slot\"] {\n  min-height: var(--git-header-height);\n  background: var(--git-surface) !important;\n  border-bottom: 1px solid var(--git-border) !important;\n  color: var(--git-text);\n  box-sizing: border-box;\n}\n\n/* Page body. */\n[id$=\"home-main\"],\n[id$=\"changes-main\"],\n[id$=\"branches-main\"],\n[id$=\"history-main\"],\n[id$=\"log-main\"],\n[id$=\"reflog-main\"],\n[id$=\"extlog-main\"],\n[id$=\"settings-main\"],\n[id$=\"create-main\"],\n[id$=\"user-settings-content\"],\n[id$=\"operations-main\"],\n[id$=\"conflictresolution-main\"] {\n  padding: var(--git-page-inset);\n  gap: var(--git-section-gap);\n  align-items: stretch !important;\n  background: var(--git-canvas) !important;\n  color: var(--git-text);\n  box-sizing: border-box;\n}\n\n/* Layout containers inside the page stay transparent; only cards are white. */\n:is([id$=\"home-main\"], [id$=\"changes-main\"], [id$=\"branches-main\"], [id$=\"history-main\"], [id$=\"log-main\"], [id$=\"reflog-main\"], [id$=\"extlog-main\"], [id$=\"settings-main\"], [id$=\"create-main\"], [id$=\"user-settings-content\"], [id$=\"operations-main\"], [id$=\"conflictresolution-main\"]) .widget-flexcontainer { background: transparent !important; }\n\n/* Cards: white surfaces on the canvas. */\n:is([id$=\"home-main\"], [id$=\"changes-main\"], [id$=\"branches-main\"], [id$=\"history-main\"], [id$=\"log-main\"], [id$=\"reflog-main\"], [id$=\"extlog-main\"], [id$=\"settings-main\"], [id$=\"create-main\"], [id$=\"user-settings-content\"], [id$=\"operations-main\"], [id$=\"conflictresolution-main\"]) :is([id$=\"home-list-container\"], [id$=\"changes-sync-card\"], [id$=\"changes-worktree-card\"], [id$=\"changes-push-card\"], [id$=\"branches-list-card\"], [id$=\"branches-create-card\"], [id$=\"branches-merge-card\"], [id$=\"repository-settings-card\"], [id$=\"repository-credentials-card\"], [id$=\"repository-status-card\"], [id$=\"settings-projects\"], [id$=\"settings-projects-add\"], [id$=\"settings-remotes\"], [id$=\"create-repository-card\"], [id$=\"create-credentials-card\"], [id$=\"create-projects-card\"], [id$=\"create-advanced-card\"], [id$=\"history-tree-card\"], [id$=\"history-log-card\"]),\n[id$=\"user-settings-content\"] :is([id$=\"flexcontainer-40\"], [id$=\"flexcontainer-41\"], [id$=\"ssh-keys-section\"], [id$=\"ssh-add-section\"], [id$=\"identity-section\"], [id$=\"extension-log-section\"]) {\n  background: var(--git-surface) !important;\n  border: 1px solid var(--git-border) !important;\n  border-radius: var(--git-radius) !important;\n  box-sizing: border-box;\n  min-width: 0;\n}\n/* User Settings sections use the shared card inset. */\n[id$=\"user-settings-content\"] :is([id$=\"flexcontainer-40\"], [id$=\"flexcontainer-41\"], [id$=\"ssh-keys-section\"], [id$=\"ssh-add-section\"], [id$=\"identity-section\"], [id$=\"extension-log-section\"]) { padding: var(--git-card-inset); }\n\n/* One scroller per page: the *-main body. The runtime gives every bounding box\n   min-height: 0 and container bounding boxes max-height: 100%, so on a short\n   viewport (e.g. 150% display scaling) cards shrink and each grows its own\n   scrollbar. Keep the body's direct children at their content height instead. */\n:is([id$=\"home-main\"], [id$=\"changes-main\"], [id$=\"branches-main\"], [id$=\"history-main\"], [id$=\"log-main\"], [id$=\"reflog-main\"], [id$=\"extlog-main\"], [id$=\"settings-main\"], [id$=\"create-main\"], [id$=\"user-settings-content\"], [id$=\"operations-main\"], [id$=\"conflictresolution-main\"]) > .widget-bounding-box { flex-shrink: 0 !important; max-height: none !important; }\n\n/* Grid areas: the grid draws its own border, so only size them. */\n[id$=\"changes-grid-area\"],\n[id$=\"branches-grid-area\"],\n[id$=\"log-grid-area\"],\n[id$=\"reflog-grid-area\"],\n[id$=\"extlog-grid-area\"] { min-height: 320px; min-width: 0; }\n[id$=\"changes-grid-bounding-box\"],\n[id$=\"log-grid-bounding-box\"],\n[id$=\"reflog-grid-bounding-box\"],\n[id$=\"extlog-grid-bounding-box\"] { position: relative; flex: 1 1 0%; min-width: 0; }\n\n/* Secondary text. */\n[id$=\"-intro\"],\n[id$=\"-status\"] { color: var(--git-muted); line-height: 1.5; }\n\n@media (max-width: 600px) {\n  :root { --git-page-inset: 11px; }   /* 16px visible */\n}\n\n[id$=\"changes-remote-row\"],\n[id$=\"changes-header\"],\n[id$=\"changes-filters\"],\n[id$=\"changes-actions\"],\n[id$=\"changes-commit-row\"],\n[id$=\"changes-push-row\"] { width: 100%; flex-wrap: wrap; }\n\n[id$=\"changes-sync-card\"],\n[id$=\"changes-worktree-card\"],\n[id$=\"changes-push-card\"] {\n  align-self: stretch !important;\n  padding: var(--git-card-inset);\n}\n[id$=\"changes-worktree-card\"] { min-height: 360px; }\n[id$=\"changes-worktree-card\"] [id$=\"changes-grid-area\"] { flex: 1 1 320px; }",
+  "CustomMashupCss": "/* Shared Git workspace tokens and layout.\n\n   Spacing rule: every visible widget keeps ThingWorx's default Margin of 5,\n   so neighbouring controls sit 10px apart. Card containers also use Margin 5\n   so their edges line up with text. Container padding and gaps below subtract\n   that 5px, so the visible insets are 24px at the page edge and 16px between\n   sections and inside cards. Do not give individual widgets other margins;\n   align rows with the container's align-items instead (flex-end for rows with\n   labelled inputs, center for buttons and checkboxes).\n\n   Contrast (WCAG): text 11.4:1 and muted text 5.2:1 on the canvas; muted text\n   5.9:1 on surfaces. Native widget colors and focus indicators stay with the\n   active ThingWorx theme. The theme's container style sets a white\n   background, so backgrounds and borders below need !important. */\n:root {\n  --git-text: #243746;\n  --git-muted: #536776;\n  --git-canvas: #eef1f4;\n  --git-surface: #ffffff;\n  --git-border: #c2cbd3;\n  --git-radius: 6px;\n  --git-page-inset: 19px;   /* + 5px widget margin = 24px */\n  --git-card-inset: 11px;   /* + 5px widget margin = 16px */\n  --git-section-gap: 6px;   /* + 5px + 5px margins = 16px */\n  --git-header-height: 64px;\n}\n\n/* Header band: the slot that holds GIT.Mashup.GitHeader on every page. The\n   runtime sizes a contained mashup to fill its slot, so GitHeader applies its\n   own horizontal inset (see GitHeader.css). */\n[id$=\"git-header-slot\"] {\n  min-height: var(--git-header-height);\n  background: var(--git-surface) !important;\n  border-bottom: 1px solid var(--git-border) !important;\n  color: var(--git-text);\n  box-sizing: border-box;\n}\n\n/* Page body. */\n[id$=\"home-main\"],\n[id$=\"changes-main\"],\n[id$=\"branches-main\"],\n[id$=\"history-main\"],\n[id$=\"log-main\"],\n[id$=\"reflog-main\"], [id$=\"repository-main\"],\n[id$=\"extlog-main\"],\n[id$=\"settings-main\"],\n[id$=\"create-main\"],\n[id$=\"user-settings-content\"],\n[id$=\"operations-main\"],\n[id$=\"conflictresolution-main\"] {\n  padding: var(--git-page-inset);\n  gap: var(--git-section-gap);\n  align-items: stretch !important;\n  background: var(--git-canvas) !important;\n  color: var(--git-text);\n  box-sizing: border-box;\n}\n\n/* Layout containers inside the page stay transparent; only cards are white. */\n:is([id$=\"home-main\"], [id$=\"changes-main\"], [id$=\"branches-main\"], [id$=\"history-main\"], [id$=\"log-main\"], [id$=\"reflog-main\"], [id$=\"repository-main\"], [id$=\"extlog-main\"], [id$=\"settings-main\"], [id$=\"create-main\"], [id$=\"user-settings-content\"], [id$=\"operations-main\"], [id$=\"conflictresolution-main\"]) .widget-flexcontainer { background: transparent !important; }\n\n/* Cards: white surfaces on the canvas. */\n:is([id$=\"home-main\"], [id$=\"changes-main\"], [id$=\"branches-main\"], [id$=\"history-main\"], [id$=\"log-main\"], [id$=\"reflog-main\"], [id$=\"repository-main\"], [id$=\"extlog-main\"], [id$=\"settings-main\"], [id$=\"create-main\"], [id$=\"user-settings-content\"], [id$=\"operations-main\"], [id$=\"conflictresolution-main\"]) :is([id$=\"home-list-container\"], [id$=\"repository-readme-card\"], [id$=\"changes-sync-card\"], [id$=\"changes-worktree-card\"], [id$=\"changes-push-card\"], [id$=\"branches-list-card\"], [id$=\"branches-create-card\"], [id$=\"branches-merge-card\"], [id$=\"repository-settings-card\"], [id$=\"repository-credentials-card\"], [id$=\"repository-status-card\"], [id$=\"settings-projects\"], [id$=\"settings-projects-add\"], [id$=\"settings-delete\"], [id$=\"settings-remotes\"], [id$=\"create-repository-card\"], [id$=\"create-credentials-card\"], [id$=\"create-projects-card\"], [id$=\"create-advanced-card\"], [id$=\"history-tree-card\"], [id$=\"history-log-card\"]),\n[id$=\"user-settings-content\"] :is([id$=\"flexcontainer-40\"], [id$=\"flexcontainer-41\"], [id$=\"ssh-keys-section\"], [id$=\"ssh-add-section\"], [id$=\"identity-section\"], [id$=\"extension-log-section\"]) {\n  background: var(--git-surface) !important;\n  border: 1px solid var(--git-border) !important;\n  border-radius: var(--git-radius) !important;\n  box-sizing: border-box;\n  min-width: 0;\n}\n/* User Settings sections use the shared card inset. */\n[id$=\"user-settings-content\"] :is([id$=\"flexcontainer-40\"], [id$=\"flexcontainer-41\"], [id$=\"ssh-keys-section\"], [id$=\"ssh-add-section\"], [id$=\"identity-section\"], [id$=\"extension-log-section\"]) { padding: var(--git-card-inset); }\n\n/* One scroller per page: the *-main body. The runtime gives every bounding box\n   min-height: 0 and container bounding boxes max-height: 100%, so on a short\n   viewport (e.g. 150% display scaling) cards shrink and each grows its own\n   scrollbar. Keep the body's direct children at their content height instead. */\n:is([id$=\"home-main\"], [id$=\"changes-main\"], [id$=\"branches-main\"], [id$=\"history-main\"], [id$=\"log-main\"], [id$=\"reflog-main\"], [id$=\"repository-main\"], [id$=\"extlog-main\"], [id$=\"settings-main\"], [id$=\"create-main\"], [id$=\"user-settings-content\"], [id$=\"operations-main\"], [id$=\"conflictresolution-main\"]) > .widget-bounding-box { flex-shrink: 0 !important; max-height: none !important; }\n\n/* Grid areas: the grid draws its own border, so only size them. */\n[id$=\"changes-grid-area\"],\n[id$=\"branches-grid-area\"],\n[id$=\"log-grid-area\"],\n[id$=\"reflog-grid-area\"],\n[id$=\"extlog-grid-area\"] { min-height: 320px; min-width: 0; }\n[id$=\"changes-grid-bounding-box\"],\n[id$=\"log-grid-bounding-box\"],\n[id$=\"reflog-grid-bounding-box\"],\n[id$=\"extlog-grid-bounding-box\"] { position: relative; flex: 1 1 0%; min-width: 0; }\n\n/* Secondary text. */\n[id$=\"-intro\"],\n[id$=\"-status\"] { color: var(--git-muted); line-height: 1.5; }\n\n@media (max-width: 600px) {\n  :root { --git-page-inset: 11px; }   /* 16px visible */\n}\n\n[id$=\"changes-remote-row\"],\n[id$=\"changes-header\"],\n[id$=\"changes-filters\"],\n[id$=\"changes-actions\"],\n[id$=\"changes-commit-row\"],\n[id$=\"changes-push-row\"] { width: 100%; flex-wrap: wrap; }\n\n[id$=\"changes-sync-card\"],\n[id$=\"changes-worktree-card\"],\n[id$=\"changes-push-card\"] {\n  align-self: stretch !important;\n  padding: var(--git-card-inset);\n}\n[id$=\"changes-worktree-card\"] { min-height: 360px; }\n[id$=\"changes-worktree-card\"] [id$=\"changes-grid-area\"] { flex: 1 1 320px; }",
   "Data": {
     "DynamicThingTemplates_GIT.Repository.ThingTemplate": {
       "DataName": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
@@ -21,6 +21,8 @@
           "Name": "Status",
           "Parameters": {
             "HideIgnored": true,
+            "HideUnchanged": true,
+            "HideUntracked": true,
             "ShowUnchangedFiles": true
           },
           "RefreshInterval": 0,
@@ -188,7 +190,9 @@
           "Characteristic": "Services",
           "Id": "f465b8f1-d0e6-49a6-b40a-3960552d9afe",
           "Name": "SyncToThingWorx",
-          "Parameters": {},
+          "Parameters": {
+            "Force": false
+          },
           "RefreshInterval": 0,
           "Target": "SyncToThingWorx"
         },
@@ -239,6 +243,68 @@
           "Parameters": {},
           "RefreshInterval": 0,
           "Target": "GetRemotes"
+        },
+        {
+          "APIMethod": "post",
+          "Caching": {
+            "cache": false,
+            "cacheKeyParams": [],
+            "cacheStrategy": "INSTANCE",
+            "maxResultSets": "10"
+          },
+          "Characteristic": "Services",
+          "Id": "caf6c4a4-efd1-47c3-9dfc-50f4be6a2132",
+          "Name": "SyncToThingWorxForced",
+          "Parameters": {
+            "Force": true
+          },
+          "RefreshInterval": 0,
+          "Target": "SyncToThingWorx"
+        },
+        {
+          "APIMethod": "post",
+          "Caching": {
+            "cache": false,
+            "cacheKeyParams": [],
+            "cacheStrategy": "INSTANCE",
+            "maxResultSets": "10"
+          },
+          "Characteristic": "Services",
+          "Id": "eca5de82-97c9-4b16-9fc5-22dd9374e16c",
+          "Name": "SyncFromThingWorx",
+          "Parameters": {},
+          "RefreshInterval": 0,
+          "Target": "SyncFromThingWorx"
+        },
+        {
+          "APIMethod": "post",
+          "Caching": {
+            "cache": false,
+            "cacheKeyParams": [],
+            "cacheStrategy": "INSTANCE",
+            "maxResultSets": "10"
+          },
+          "Characteristic": "Services",
+          "Id": "e61d39da-9248-4e04-ae3a-600a78d35d26",
+          "Name": "GetThingWorxChangesSinceSync",
+          "Parameters": {},
+          "RefreshInterval": 0,
+          "Target": "GetThingWorxChangesSinceSync"
+        },
+        {
+          "APIMethod": "post",
+          "Caching": {
+            "cache": false,
+            "cacheKeyParams": [],
+            "cacheStrategy": "INSTANCE",
+            "maxResultSets": "10"
+          },
+          "Characteristic": "Services",
+          "Id": "368275c6-1122-4b0e-9820-8529e4da37c3",
+          "Name": "GetSigningKeyOptions",
+          "Parameters": {},
+          "RefreshInterval": 0,
+          "Target": "GetSigningKeyOptions"
         }
       ]
     },
@@ -1029,6 +1095,155 @@
       "TargetArea": "Data",
       "TargetId": "ForcePull",
       "TargetSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate"
+    },
+    {
+      "Id": "8a96465d-94d7-4a9c-8f16-8372b83a7b41",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "Message",
+          "SourcePropertyBaseType": "STRING",
+          "SourcePropertyType": "Field",
+          "TargetProperty": "message",
+          "TargetPropertyBaseType": "STRING",
+          "TargetPropertyType": "property"
+        },
+        {
+          "SourceProperty": "Error",
+          "SourcePropertyBaseType": "BOOLEAN",
+          "SourcePropertyType": "Field",
+          "TargetProperty": "error",
+          "TargetPropertyBaseType": "BOOLEAN",
+          "TargetPropertyType": "property"
+        }
+      ],
+      "SourceArea": "Data",
+      "SourceDetails": "AllData",
+      "SourceId": "GetThingWorxChangesSinceSync",
+      "SourceSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "TargetArea": "UI",
+      "TargetId": "validate-sync-to",
+      "TargetSection": ""
+    },
+    {
+      "Id": "1571f54c-0e5c-4738-848c-80e7b39fddbb",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "Message",
+          "SourcePropertyBaseType": "STRING",
+          "SourcePropertyType": "Field",
+          "TargetProperty": "MessageText",
+          "TargetPropertyBaseType": "STRING",
+          "TargetPropertyType": "property"
+        }
+      ],
+      "SourceArea": "Data",
+      "SourceDetails": "AllData",
+      "SourceId": "GetThingWorxChangesSinceSync",
+      "SourceSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "TargetArea": "UI",
+      "TargetId": "changes-sync-to-confirm",
+      "TargetSection": ""
+    },
+    {
+      "Id": "4e99f9da-fe18-4491-aee2-b9d34f878d9b",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "Message",
+          "SourcePropertyBaseType": "STRING",
+          "SourcePropertyType": "Field",
+          "TargetProperty": "gitMessage",
+          "TargetPropertyBaseType": "STRING",
+          "TargetPropertyType": "property"
+        }
+      ],
+      "SourceArea": "Data",
+      "SourceDetails": "AllData",
+      "SourceId": "SyncToThingWorxForced",
+      "SourceSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "TargetArea": "UI",
+      "TargetId": "git-result-popover",
+      "TargetSection": ""
+    },
+    {
+      "Id": "06d0845a-74fd-4492-a5bd-337b5bf20fe1",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "Message",
+          "SourcePropertyBaseType": "STRING",
+          "SourcePropertyType": "Field",
+          "TargetProperty": "gitMessage",
+          "TargetPropertyBaseType": "STRING",
+          "TargetPropertyType": "property"
+        }
+      ],
+      "SourceArea": "Data",
+      "SourceDetails": "AllData",
+      "SourceId": "SyncFromThingWorx",
+      "SourceSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "TargetArea": "UI",
+      "TargetId": "git-result-popover",
+      "TargetSection": ""
+    },
+    {
+      "Id": "0f6cdeef-1eac-43a5-9d9f-cdd1c520a5a6",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "NoRowSelected",
+          "SourcePropertyBaseType": "BOOLEAN",
+          "SourcePropertyType": "Property",
+          "TargetProperty": "Disabled",
+          "TargetPropertyBaseType": "BOOLEAN",
+          "TargetPropertyType": "property"
+        }
+      ],
+      "SourceArea": "UI",
+      "SourceDetails": "",
+      "SourceId": "changes-grid",
+      "SourceSection": "",
+      "TargetArea": "UI",
+      "TargetId": "changes-clear-selection",
+      "TargetSection": ""
+    },
+    {
+      "Id": "befd8e43-34c2-496c-b631-700317a97d5c",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "Result",
+          "SourcePropertyBaseType": "INFOTABLE",
+          "SourcePropertyType": "Field",
+          "TargetProperty": "Data",
+          "TargetPropertyBaseType": "INFOTABLE",
+          "TargetPropertyType": "property"
+        }
+      ],
+      "SourceArea": "Data",
+      "SourceDetails": "AllData",
+      "SourceId": "GetSigningKeyOptions",
+      "SourceSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "TargetArea": "UI",
+      "TargetId": "changes-signing-key",
+      "TargetSection": "",
+      "SourceName": "GetSigningKeyOptions"
+    },
+    {
+      "Id": "0521d2b8-539f-43f2-bf9a-de2a7d5970df",
+      "PropertyMaps": [
+        {
+          "SourceProperty": "SelectedText",
+          "SourcePropertyBaseType": "STRING",
+          "SourcePropertyType": "Property",
+          "TargetProperty": "SigningKey",
+          "TargetPropertyBaseType": "STRING",
+          "TargetPropertyType": "Parameter"
+        }
+      ],
+      "SourceArea": "UI",
+      "SourceDetails": "",
+      "SourceId": "changes-signing-key",
+      "SourceSection": "",
+      "TargetArea": "Data",
+      "TargetId": "CommitStaged",
+      "TargetSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate"
     }
   ],
   "DesignTimePermissions": {},
@@ -1056,7 +1271,7 @@
     {
       "EventHandlerArea": "Data",
       "EventHandlerId": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
-      "EventHandlerService": "Status",
+      "EventHandlerService": "SyncFromThingWorx",
       "EventTriggerArea": "UI",
       "EventTriggerEvent": "Clicked",
       "EventTriggerId": "changes-refresh",
@@ -1366,7 +1581,7 @@
     {
       "EventHandlerArea": "Data",
       "EventHandlerId": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
-      "EventHandlerService": "SyncToThingWorx",
+      "EventHandlerService": "GetThingWorxChangesSinceSync",
       "EventTriggerArea": "UI",
       "EventTriggerEvent": "Clicked",
       "EventTriggerId": "changes-sync-to",
@@ -1542,6 +1757,116 @@
       "EventTriggerId": "mashup-root",
       "EventTriggerSection": "",
       "Id": "aae7dda2-6049-41a3-babe-d127bfbe5d72"
+    },
+    {
+      "EventHandlerArea": "Data",
+      "EventHandlerId": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "EventHandlerService": "Status",
+      "EventTriggerArea": "Data",
+      "EventTriggerEvent": "ServiceInvokeCompleted",
+      "EventTriggerId": "SyncFromThingWorx",
+      "EventTriggerSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "Id": "081caed0-16f2-4d71-947e-cdbe12fd6161"
+    },
+    {
+      "EventHandlerArea": "UI",
+      "EventHandlerId": "git-result-popover",
+      "EventHandlerService": "showGitResult",
+      "EventTriggerArea": "Data",
+      "EventTriggerEvent": "ServiceInvokeCompleted",
+      "EventTriggerId": "SyncFromThingWorx",
+      "EventTriggerSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "Id": "33fb48a3-dfff-4679-b3ff-39fdb73cf502"
+    },
+    {
+      "EventHandlerArea": "UI",
+      "EventHandlerId": "validate-sync-to",
+      "EventHandlerService": "Evaluate",
+      "EventTriggerArea": "Data",
+      "EventTriggerEvent": "ServiceInvokeCompleted",
+      "EventTriggerId": "GetThingWorxChangesSinceSync",
+      "EventTriggerSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "Id": "7dd31f01-0f87-4af6-bd32-16e8430fbcc9"
+    },
+    {
+      "EventHandlerArea": "UI",
+      "EventHandlerId": "changes-sync-to-confirm",
+      "EventHandlerService": "OpenConfirmation",
+      "EventTriggerArea": "UI",
+      "EventTriggerEvent": "True",
+      "EventTriggerId": "validate-sync-to",
+      "EventTriggerSection": "",
+      "Id": "9846c1bc-8d8d-464c-88fd-315d561ce38b"
+    },
+    {
+      "EventHandlerArea": "Data",
+      "EventHandlerId": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "EventHandlerService": "SyncToThingWorx",
+      "EventTriggerArea": "UI",
+      "EventTriggerEvent": "False",
+      "EventTriggerId": "validate-sync-to",
+      "EventTriggerSection": "",
+      "Id": "ea674b01-7b5d-40d4-bb08-2a68152cb311"
+    },
+    {
+      "EventHandlerArea": "Data",
+      "EventHandlerId": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "EventHandlerService": "SyncToThingWorxForced",
+      "EventTriggerArea": "UI",
+      "EventTriggerEvent": "ActionClick",
+      "EventTriggerId": "changes-sync-to-confirm",
+      "EventTriggerSection": "",
+      "Id": "01a31b49-89aa-4216-8088-3a5d0f1df681"
+    },
+    {
+      "EventHandlerArea": "UI",
+      "EventHandlerId": "git-result-popover",
+      "EventHandlerService": "showGitResult",
+      "EventTriggerArea": "Data",
+      "EventTriggerEvent": "ServiceInvokeCompleted",
+      "EventTriggerId": "SyncToThingWorxForced",
+      "EventTriggerSection": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "Id": "48d8f2f6-a13b-4dc5-8a52-d83347bdddfd"
+    },
+    {
+      "EventHandlerArea": "UI",
+      "EventHandlerId": "changes-grid",
+      "EventHandlerService": "SelectAllFiltered",
+      "EventTriggerArea": "UI",
+      "EventTriggerEvent": "Clicked",
+      "EventTriggerId": "changes-select-all",
+      "EventTriggerSection": "",
+      "Id": "550d07ce-4169-457b-b099-e2532c4daed8"
+    },
+    {
+      "EventHandlerArea": "UI",
+      "EventHandlerId": "changes-grid",
+      "EventHandlerService": "DeselectAll",
+      "EventTriggerArea": "UI",
+      "EventTriggerEvent": "Clicked",
+      "EventTriggerId": "changes-clear-selection",
+      "EventTriggerSection": "",
+      "Id": "511f2c89-7836-4015-b82c-83bc9dcc0ae4"
+    },
+    {
+      "EventHandlerArea": "Data",
+      "EventHandlerId": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "EventHandlerService": "GetSigningKeyOptions",
+      "EventTriggerArea": "Mashup",
+      "EventTriggerEvent": "Loaded",
+      "EventTriggerId": "mashup-root",
+      "EventTriggerSection": "",
+      "Id": "3c1f307c-c7df-4f0f-86b4-8db3419ae711"
+    },
+    {
+      "EventHandlerArea": "Data",
+      "EventHandlerId": "DynamicThingTemplates_GIT.Repository.ThingTemplate",
+      "EventHandlerService": "GetSigningKeyOptions",
+      "EventTriggerArea": "UI",
+      "EventTriggerEvent": "Clicked",
+      "EventTriggerId": "changes-refresh",
+      "EventTriggerSection": "",
+      "Id": "aea3b6ab-9ff4-4ebb-ae17-772020742f89"
     }
   ],
   "Reminders": [],
@@ -2548,7 +2873,7 @@
                           "ShowValidationCriteria": false,
                           "ShowValidationFailure": false,
                           "ShowValidationSuccess": false,
-                          "State": false,
+                          "State": true,
                           "SuccessMessage": "",
                           "SuccessMessageDetails": "",
                           "TabSequence": 0,
@@ -2589,7 +2914,7 @@
                           "ShowValidationCriteria": false,
                           "ShowValidationFailure": false,
                           "ShowValidationSuccess": false,
-                          "State": false,
+                          "State": true,
                           "SuccessMessage": "",
                           "SuccessMessageDetails": "",
                           "TabSequence": 0,
@@ -2701,7 +3026,7 @@
                           "Sorting": "none",
                           "Top": 87.19998168945312,
                           "TreePathFieldDelimeter": ",",
-                          "Type": "AgGridWidget2",
+                          "Type": "AgGridWidget3",
                           "Visible": true,
                           "Width": 900,
                           "Z-index": 10,
@@ -2766,6 +3091,68 @@
                       "userCannotRemove": false
                     },
                     "Widgets": [
+                      {
+                        "Properties": {
+                          "Area": "UI",
+                          "ButtonType": "secondary",
+                          "ContextID": "",
+                          "DisableLegacyCustomClassStyles": false,
+                          "Disabled": false,
+                          "DisplayName": "changes-select-all",
+                          "FocusOnLoad": false,
+                          "IconPosition": "left",
+                          "Id": "changes-select-all",
+                          "Label": "Select All",
+                          "LabelAlignment": "center",
+                          "LastContainer": false,
+                          "Left": 139.47500610351562,
+                          "Margin": "5",
+                          "MultiLine": false,
+                          "ResponsiveLayout": false,
+                          "ShowDataLoading": true,
+                          "Size": "standard",
+                          "TabSequence": 0,
+                          "Top": 280,
+                          "Type": "ptcsbutton",
+                          "UseTheme": true,
+                          "Visible": true,
+                          "Z-index": 10,
+                          "__TypeDisplayName": "Button",
+                          "_baseVersion": "9.7.0"
+                        },
+                        "Widgets": []
+                      },
+                      {
+                        "Properties": {
+                          "Area": "UI",
+                          "ButtonType": "tertiary",
+                          "ContextID": "",
+                          "DisableLegacyCustomClassStyles": false,
+                          "Disabled": false,
+                          "DisplayName": "changes-clear-selection",
+                          "FocusOnLoad": false,
+                          "IconPosition": "left",
+                          "Id": "changes-clear-selection",
+                          "Label": "Clear Selection",
+                          "LabelAlignment": "center",
+                          "LastContainer": false,
+                          "Left": 139.47500610351562,
+                          "Margin": "5",
+                          "MultiLine": false,
+                          "ResponsiveLayout": false,
+                          "ShowDataLoading": true,
+                          "Size": "standard",
+                          "TabSequence": 0,
+                          "Top": 280,
+                          "Type": "ptcsbutton",
+                          "UseTheme": true,
+                          "Visible": true,
+                          "Z-index": 10,
+                          "__TypeDisplayName": "Button",
+                          "_baseVersion": "9.7.0"
+                        },
+                        "Widgets": []
+                      },
                       {
                         "Properties": {
                           "Area": "UI",
@@ -3031,6 +3418,69 @@
                           "Z-index": 10,
                           "__TypeDisplayName": "Text Field",
                           "_baseVersion": "9.7.0"
+                        },
+                        "Widgets": []
+                      },
+                      {
+                        "Properties": {
+                          "Alignment": "left",
+                          "AllLabel": "[[all]]",
+                          "Area": "UI",
+                          "AutoSelectFirstRow": true,
+                          "ClearSelectedItemsLabel": "[[clearSelectedItems]]",
+                          "ClearSelectionItem": false,
+                          "ClearSelectionLabel": "None (commits are not signed)",
+                          "CriteriaMessage": "",
+                          "CriteriaMessageDetails": "",
+                          "DisableLegacyCustomClassStyles": false,
+                          "Disabled": false,
+                          "DisplayField": "Display",
+                          "DisplayFieldBaseType": "STRING",
+                          "DisplayName": "changes-signing-key",
+                          "FilterHintText": "Filter",
+                          "HintText": "[[Select]]",
+                          "Id": "changes-signing-key",
+                          "ItemMeta": {
+                            "type": "text"
+                          },
+                          "Label": "Signing key",
+                          "LabelAlignment": "left",
+                          "LastContainer": false,
+                          "Left": 106.67498779296875,
+                          "ListFormat_StateParameters": [],
+                          "ListMarginTop": 8,
+                          "ListMaxWidth": 330,
+                          "Margin": "5",
+                          "MultiSelect": false,
+                          "RequiredMessage": "[[Widgets.Validation.ListSelection.RequiredMessage]]",
+                          "ResponsiveLayout": false,
+                          "RowHeight": 34,
+                          "SelectAllLabel": "[[selectAll]]",
+                          "SelectedLabel": "[[selected]]",
+                          "ShowDataLoading": true,
+                          "ShowListFilter": false,
+                          "ShowValidationCriteria": false,
+                          "ShowValidationFailure": false,
+                          "ShowValidationSuccess": false,
+                          "SuccessMessage": "",
+                          "SuccessMessageDetails": "",
+                          "TabSequence": 0,
+                          "Top": 50,
+                          "Type": "ptcsdropdown",
+                          "UseTheme": true,
+                          "ValidationCriteriaIcon": "cds:icon_info",
+                          "ValidationFailureIcon": "cds:icon_error",
+                          "ValidationState": "undefined",
+                          "ValidationSuccessIcon": "cds:icon_success",
+                          "ValueField": "Value",
+                          "ValueFieldBaseType": "STRING",
+                          "ValueRequired": false,
+                          "Visible": true,
+                          "Width": 420,
+                          "Z-index": 10,
+                          "__TypeDisplayName": "DropDown",
+                          "_baseVersion": "9.7.0",
+                          "TooltipField": "Which key signs this commit. The first entry is the repository default; a different pick applies to this commit only."
                         },
                         "Widgets": []
                       },
@@ -3650,7 +4100,7 @@
           "LastContainer": false,
           "Left": 0,
           "Margin": "5",
-          "MessageText": "Force pull fetches origin and resets the current branch to its remote branch. Tracked local changes and local commits will be discarded, and ThingWorx entities will be updated from the repository. Untracked files may be overwritten if they conflict. Continue?",
+          "MessageText": "Force pull fetches origin and resets the current branch to its remote branch. Tracked local changes and local commits will be discarded. Untracked files may be overwritten if they conflict. ThingWorx is not changed; use Sync to ThingWorx afterwards to apply the result. Continue?",
           "ResponsiveLayout": false,
           "SecondButtonLabel": "Action",
           "SecondButtonTooltipField": "",
@@ -4054,6 +4504,76 @@
               "shown": true
             }
           ]
+        },
+        "Widgets": []
+      },
+      {
+        "Properties": {
+          "Area": "UI",
+          "AutoEvaluate": false,
+          "DisplayName": "validate-sync-to",
+          "Expression": "!error && !!message",
+          "Height": 28,
+          "Id": "validate-sync-to",
+          "LastContainer": false,
+          "Left": 0,
+          "Margin": "5",
+          "Output": false,
+          "ResponsiveLayout": false,
+          "ShowDataLoading": true,
+          "Top": 0,
+          "Type": "validator2",
+          "Visible": true,
+          "Width": 200,
+          "Z-index": 10,
+          "__TypeDisplayName": "Validator",
+          "_currentParameterDefs": [
+            {
+              "BaseType": "STRING",
+              "DefaultValue": "",
+              "ParameterName": "message"
+            },
+            {
+              "BaseType": "BOOLEAN",
+              "DefaultValue": false,
+              "ParameterName": "error"
+            }
+          ]
+        },
+        "Widgets": []
+      },
+      {
+        "Properties": {
+          "ActionButtonLabel": "Sync to ThingWorx",
+          "ActionButtonPosition": "left",
+          "ActionButtonTooltipField": "",
+          "ActionButtonType": "danger",
+          "Area": "UI",
+          "CancelButtonLabel": "Cancel",
+          "CancelButtonTooltipField": "",
+          "CloseButtonTooltipField": "close",
+          "DialogHeight": "260",
+          "DialogWidth": "600",
+          "DisplayCloseButton": false,
+          "DisplayName": "changes-sync-to-confirm",
+          "DisplaySecondaryAction": false,
+          "Id": "changes-sync-to-confirm",
+          "LastContainer": false,
+          "Left": 0,
+          "Margin": "5",
+          "MessageText": "Some ThingWorx entities changed since the last sync. Sync to ThingWorx replaces them with the repository versions. Continue?",
+          "ResponsiveLayout": false,
+          "SecondButtonLabel": "Action",
+          "SecondButtonTooltipField": "",
+          "ShowDataLoading": true,
+          "TitleText": "Overwrite ThingWorx changes?",
+          "Top": 0,
+          "Type": "ptcsconfirmation",
+          "UseTheme": true,
+          "Visible": true,
+          "Z-index": 10,
+          "__TypeDisplayName": "Confirmation",
+          "_baseVersion": "9.7.0"
         },
         "Widgets": []
       }
