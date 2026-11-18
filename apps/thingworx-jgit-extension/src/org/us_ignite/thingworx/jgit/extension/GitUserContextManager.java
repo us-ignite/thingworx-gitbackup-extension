@@ -566,6 +566,25 @@ final class GitUserContextManager {
         }
     }
 
+    /**
+     * Reads a secret field of a stored row, such as a GPG private key or passphrase. Returns an
+     * empty string when the field is missing or blank, which happens when a PASSWORD value was
+     * cleared, and accepts a value stored as plain text.
+     */
+    static String secret(ValueCollection row, String field) {
+        if (row == null) return "";
+        Object primitive = row.getPrimitive(field);
+        if (primitive instanceof PasswordPrimitive password) {
+            String value = password.getValue();
+            return value == null ? "" : value;
+        }
+        if (primitive instanceof com.thingworx.types.primitives.IPrimitiveType<?, ?> other
+                && other.getValue() != null) {
+            return String.valueOf(other.getValue());
+        }
+        return "";
+    }
+
     private static String text(ValueCollection row, String field) {
         try {
             String value = row.getStringValue(field);
@@ -685,6 +704,71 @@ final class GitUserContextManager {
         row.put(field, new StringPrimitive(fingerprint == null ? "" : fingerprint));
         currentUser.setPropertyValue(
                 Const.UserRepositoryConfiguration, new InfoTablePrimitive(configurations));
+    }
+
+    /**
+     * Removes everything this user keeps for a repository: its repository-wide row and the sign-in
+     * of each of its remotes.
+     *
+     * @return true when anything was removed
+     */
+    boolean forgetRepository(String repositoryThingName) throws Exception {
+        boolean changed = false;
+        InfoTable rows = credentials();
+        if (rows != null) {
+            InfoTable kept =
+                    InfoTableInstanceFactory.createInfoTableFromDataShape(
+                            Const.GitCredentialsDataShapeName);
+            for (int i = 0; i < rows.getRowCount(); i++) {
+                ValueCollection row = rows.getRow(i);
+                if (repositoryThingName.equals(row.getStringValue("GitThing"))) changed = true;
+                else kept.addRow(row);
+            }
+            if (changed) {
+                requireUser()
+                        .setPropertyValue(
+                                Const.UserRepositoryConfiguration, new InfoTablePrimitive(kept));
+            }
+        }
+        if (removeRemoteCredentials(repositoryThingName, null)) changed = true;
+        return changed;
+    }
+
+    /**
+     * Removes a repository's settings and sign-in from every user, so a repository created later
+     * under the same name does not inherit them.
+     *
+     * @return the users whose settings changed
+     */
+    static List<String> forgetRepositoryForAllUsers(String repositoryThingName) throws Exception {
+        List<String> changed = new ArrayList<>();
+        for (String name : userNames()) {
+            User user = UserUtilities.findUser(name);
+            if (user == null) continue;
+            if (new GitUserContextManager(user).forgetRepository(repositoryThingName)) {
+                changed.add(name);
+            }
+        }
+        return changed;
+    }
+
+    /** The names of every ThingWorx user. */
+    static List<String> userNames() throws Exception {
+        InfoTable table =
+                new com.thingworx.resources.entities.EntityServices()
+                        .GetEntityList(
+                                com.thingworx.relationships.RelationshipTypes
+                                        .ThingworxRelationshipTypes.User.name(),
+                                "",
+                                new com.thingworx.types.TagCollection(),
+                                1_000_000.0);
+        List<String> names = new ArrayList<>();
+        if (table == null) return names;
+        for (int i = 0; i < table.getRowCount(); i++) {
+            String name = table.getRow(i).getStringValue("name");
+            if (name != null && !name.isBlank()) names.add(name);
+        }
+        return names;
     }
 
     private InfoTable infoTableProperty(String propertyName) throws Exception {

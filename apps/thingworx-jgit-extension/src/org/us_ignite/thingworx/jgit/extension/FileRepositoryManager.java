@@ -513,11 +513,6 @@ final class FileRepositoryManager {
         return git;
     }
 
-    /** The FileRepository root, which is the Git working tree. */
-    private File repositoryRoot() {
-        return new File(fileRepository.getRootPath());
-    }
-
     /**
      * Exports every tracked project and removes volatile metadata. Private - invisible to users.
      * Exported files are intentionally left unstaged; callers stage only the paths they want to
@@ -530,22 +525,18 @@ final class FileRepositoryManager {
         // resolutions while a merge, rebase, or carried-change conflict is waiting.
         ConflictWorkflow.requireNotInProgress(git);
         for (TrackedProject project : requireTrackedProjects()) {
-            if (project.hasCustomPath()) {
-                exportToCustomFolder(project);
-            } else {
-                exportProjectEntitiesTo("", project.name());
-                sanitizeExportedXml(project.name());
-            }
+            exportToProjectFolder(project);
         }
     }
 
     /**
-     * Exports a project with a custom path. The platform export always writes to {@code
-     * <path>/<ProjectName>/}, so the project is exported to a temporary folder and its files are
-     * copied into the configured folder, replacing files of the same name. Like the direct export,
-     * files that are no longer exported are left in place.
+     * Exports a project into its folder: its custom path, or {@code <ProjectName>/} at the root.
+     * The project is exported to a temporary folder, Users are removed (see {@link
+     * SyncExclusions}), and the remaining files are copied into the project folder, replacing files
+     * of the same name. Files that are no longer exported are left in place, so User files already
+     * in the repository are never changed.
      */
-    private void exportToCustomFolder(TrackedProject project) throws Exception {
+    private void exportToProjectFolder(TrackedProject project) throws Exception {
         Path base = new File(fileRepository.getRootPath()).toPath().toRealPath();
         Path temporary = Files.createTempDirectory(base, ".jgit-export-");
         try {
@@ -573,6 +564,17 @@ final class FileRepositoryManager {
                     "ThingWorx did not produce the expected export for project '" + project + "'.");
         }
         sanitizeXmlIn(snapshot.toFile());
+        List<SyncExclusions.Excluded> users =
+                SyncExclusions.removeIn(snapshot, SyncExclusions.EXPORT);
+        if (!users.isEmpty()) {
+            com.thingworx.logging.LogUtilities.getInstance()
+                    .getApplicationLogger(FileRepositoryManager.class)
+                    .warn(
+                            "Left Users out of the export of project '{}' in {}: {}",
+                            project,
+                            fileRepository.getName(),
+                            users);
+        }
         return snapshot;
     }
 
@@ -957,23 +959,64 @@ final class FileRepositoryManager {
                     resolveRepositoryPath(new File(fileRepository.getRootPath()).toPath(), relative)
                             .toFile();
             if (!folder.isDirectory() || !containsXmlFile(folder)) continue;
-            ValueCollection params = new ValueCollection();
-            params.put("repositoryName", new StringPrimitive(fileRepository.getName()));
-            params.put("path", new StringPrimitive("/" + relative));
-            params.put("useDefaultDataProvider", new BooleanPrimitive(true));
-            params.put("withSubsystems", new BooleanPrimitive(false));
-            params.put("overwritePropertyValues", new BooleanPrimitive(true));
-            resource.processServiceRequest(IMPORT_SERVICE, params);
+            if (!SyncExclusions.find(folder.toPath(), SyncExclusions.IMPORT).isEmpty()) {
+                importExcluding(resource, folder.toPath(), project.name());
+            } else {
+                importFolder(resource, "/" + relative);
+            }
             imported = true;
         }
         return imported;
     }
 
-    private void sanitizeExportedXml(String exportedProjectName) throws IOException {
-        File root = repositoryRoot();
-        if (exportedProjectName != null && !exportedProjectName.isBlank())
-            root = new File(root, exportedProjectName);
-        sanitizeXmlIn(root);
+    private void importFolder(IServiceProvider resource, String path) throws Exception {
+        ValueCollection params = new ValueCollection();
+        params.put("repositoryName", new StringPrimitive(fileRepository.getName()));
+        params.put("path", new StringPrimitive(path));
+        params.put("useDefaultDataProvider", new BooleanPrimitive(true));
+        params.put("withSubsystems", new BooleanPrimitive(false));
+        params.put("overwritePropertyValues", new BooleanPrimitive(true));
+        resource.processServiceRequest(IMPORT_SERVICE, params);
+    }
+
+    /**
+     * Imports a project folder from a temporary copy without the entities sync must not import:
+     * Users, and ApplicationKeys ThingWorx cannot update. See {@link SyncExclusions}. Every skipped
+     * ApplicationKey is reported in the extension log with how to repair it.
+     */
+    private void importExcluding(IServiceProvider resource, Path folder, String project)
+            throws Exception {
+        Path base = new File(fileRepository.getRootPath()).toPath().toRealPath();
+        Path temporary = Files.createTempDirectory(base, ".jgit-import-");
+        try {
+            Path staged = temporary.resolve("0");
+            List<SyncExclusions.Excluded> skipped =
+                    SyncExclusions.copyExcluding(folder, staged, SyncExclusions.IMPORT);
+            com.thingworx.logging.LogUtilities.getInstance()
+                    .getApplicationLogger(FileRepositoryManager.class)
+                    .warn(
+                            "Left out of the import of project '{}' in {}: {}",
+                            project,
+                            fileRepository.getName(),
+                            skipped);
+            for (SyncExclusions.Excluded item : skipped) {
+                if (!SyncExclusions.APPLICATION_KEYS.equals(item.collection())) continue;
+                GitActionLogger.logAction(
+                        "Import",
+                        fileRepository.getName(),
+                        "ApplicationKey '"
+                                + item.name()
+                                + "' was not updated: its stored key ID cannot be decrypted on"
+                                + " this server (it was encrypted with another keystore), so"
+                                + " ThingWorx refuses to update it. Delete and recreate the key,"
+                                + " then sync again.");
+            }
+            if (containsXmlFile(staged.toFile())) {
+                importFolder(resource, "/" + temporary.getFileName() + "/0");
+            }
+        } finally {
+            deleteRecursively(temporary);
+        }
     }
 
     private void sanitizeXmlIn(File root) throws IOException {
@@ -1226,6 +1269,76 @@ final class FileRepositoryManager {
             migrateLegacyProjectSettingsOnOpen();
             return opened;
         }
+    }
+
+    /** Folder below {@code jgit/} that keeps the Git directories of deleted repositories. */
+    static final String RETIRED_GIT_FOLDER = "deleted";
+
+    /**
+     * Whether the Git directory of a FileRepository folder exists and holds anything a new
+     * repository must not inherit: a remote or any ref. A directory freshly created by {@code git
+     * init} has neither.
+     */
+    static boolean hasPreviousGitDirectory(File workTree) throws IOException {
+        File gitDirectory = gitDirectoryFor(workTree);
+        org.eclipse.jgit.util.FS fs = HardenedFs.create();
+        if (!Files.isDirectory(gitDirectory.toPath(), LinkOption.NOFOLLOW_LINKS)
+                || !org.eclipse.jgit.lib.RepositoryCache.FileKey.isGitRepository(
+                        gitDirectory, fs)) {
+            return false;
+        }
+        FileRepositoryBuilder builder = new FileRepositoryBuilder();
+        builder.setFS(fs);
+        builder.setGitDir(gitDirectory);
+        builder.setGitCommonDir(gitDirectory);
+        builder.setBare();
+        builder.setMustExist(true);
+        try (var repository = builder.build()) {
+            return !repository.getRemoteNames().isEmpty() || repository.getRefDatabase().hasRefs();
+        }
+    }
+
+    /**
+     * Moves the Git directory of a FileRepository folder to {@code
+     * <storage>/jgit/deleted/<folder>-<timestamp>.git} and removes its remotes, so no Thing uses it
+     * and a repository created later under the same name starts empty. The history is kept for
+     * recovery. Repository Git directories are always named {@code <folder>.git}, so the {@code
+     * deleted} folder cannot collide with one.
+     *
+     * @return the new location, or {@code null} when there was no Git directory
+     */
+    static Path retireGitDirectory(File workTree) throws IOException {
+        Path gitDirectory = gitDirectoryFor(workTree).toPath();
+        if (!Files.isDirectory(gitDirectory, LinkOption.NOFOLLOW_LINKS)) return null;
+        Path retired = gitDirectory.resolveSibling(RETIRED_GIT_FOLDER);
+        Files.createDirectories(retired);
+        String name = gitDirectory.getFileName().toString().replaceFirst("\\.git$", "");
+        String stamp =
+                java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS")
+                        .withZone(java.time.ZoneOffset.UTC)
+                        .format(java.time.Instant.now());
+        Path target = retired.resolve(name + "-" + stamp + ".git");
+        Files.move(gitDirectory, target);
+        File configFile = target.resolve("config").toFile();
+        if (configFile.isFile()) {
+            var config =
+                    new org.eclipse.jgit.storage.file.FileBasedConfig(
+                            configFile, HardenedFs.create());
+            try {
+                config.load();
+                for (String remote : config.getSubsections("remote")) {
+                    config.unsetSection("remote", remote);
+                }
+                for (String branch : config.getSubsections("branch")) {
+                    config.unset("branch", branch, "remote");
+                    config.unset("branch", branch, "merge");
+                }
+                config.save();
+            } catch (org.eclipse.jgit.errors.ConfigInvalidException e) {
+                throw new IOException("Could not remove the remotes of " + target, e);
+            }
+        }
+        return target;
     }
 
     /** The Git directory of this repository, which lies outside the FileRepository folder. */

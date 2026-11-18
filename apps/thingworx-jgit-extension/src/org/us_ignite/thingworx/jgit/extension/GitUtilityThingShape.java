@@ -225,6 +225,13 @@ public class GitUtilityThingShape extends Thing {
             // on the live repository entity.
             repoThing =
                     (Thing) EntityUtilities.findEntity(RepoName, ThingworxRelationshipTypes.Thing);
+            // No Thing had this name, so a Git directory that already has remotes or commits was
+            // left by a repository deleted outside RepositoryDelete (for example in Composer).
+            // Retire it and its users' settings so the new repository does not inherit them.
+            String rootPath = ((FileRepositoryThing) repoThing).getRootPath();
+            if (FileRepositoryManager.hasPreviousGitDirectory(new java.io.File(rootPath))) {
+                retireRepositoryLeftovers(RepoName, rootPath);
+            }
             repoThing.setPropertyValue(
                     Const.InitialBranch,
                     new StringPrimitive(
@@ -305,7 +312,13 @@ public class GitUtilityThingShape extends Thing {
             if (thingCreated) {
                 // Remove the partly configured Thing so the same name can be retried.
                 try {
-                    new EntityServices().DeleteThing(RepoName);
+                    RootEntity partial =
+                            EntityUtilities.findEntity(RepoName, ThingworxRelationshipTypes.Thing);
+                    String rootPath =
+                            partial instanceof FileRepositoryThing repository
+                                    ? repository.getRootPath()
+                                    : null;
+                    deleteRepositoryThing(RepoName, rootPath);
                 } catch (Exception cleanup) {
                     _logger.warn("RepositoryCreate could not remove " + RepoName, cleanup);
                 }
@@ -313,6 +326,37 @@ public class GitUtilityThingShape extends Thing {
             gitActionLog(
                     "RepositoryCreate", RepoName, e == null ? "" : String.valueOf(e.getMessage()));
             return DapResults.failure("RepositoryCreate", e, StringResultContract.SERVICE_RESULT);
+        }
+    }
+
+    /**
+     * Deletes a repository Thing and everything the extension keeps for it outside the Thing: its
+     * Git directory, which holds the remotes, is retired (see {@link
+     * FileRepositoryManager#retireGitDirectory}), and every user's settings and sign-in for it are
+     * removed. A repository created later under the same name then starts clean.
+     */
+    private static void deleteRepositoryThing(String repoName, String rootPath) throws Exception {
+        new EntityServices().DeleteThing(repoName);
+        retireRepositoryLeftovers(repoName, rootPath);
+    }
+
+    /** Retires the Git directory and forgets every user's settings of a repository name. */
+    private static void retireRepositoryLeftovers(String repoName, String rootPath)
+            throws Exception {
+        if (rootPath != null && !rootPath.isBlank()) {
+            java.nio.file.Path retired =
+                    FileRepositoryManager.retireGitDirectory(new java.io.File(rootPath));
+            if (retired != null) {
+                _logger.warn(
+                        "Moved the Git directory of repository {} to {} and removed its remotes",
+                        repoName,
+                        retired);
+            }
+        }
+        List<String> users = GitUserContextManager.forgetRepositoryForAllUsers(repoName);
+        if (!users.isEmpty()) {
+            _logger.warn(
+                    "Removed the Git settings of repository {} from users {}", repoName, users);
         }
     }
 
@@ -645,7 +689,7 @@ public class GitUtilityThingShape extends Thing {
     @ThingworxServiceDefinition(
             name = "RepositoryDelete",
             description =
-                    "Deletes a GIT Repository Thing and its local FileRepository working tree.",
+                    "Deletes a GIT Repository Thing and its local FileRepository working tree, moves its Git directory to jgit/deleted without remotes, and removes every user's settings for it.",
             category = "",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
@@ -661,30 +705,8 @@ public class GitUtilityThingShape extends Thing {
             if (RepoName == null || RepoName.isBlank())
                 throw new IllegalArgumentException("RepoName is required.");
             RepoName = RepoName.trim();
-            requireDeletableRepository(RepoName);
-            EntityServices es = new EntityServices();
-            es.DeleteThing(RepoName);
-            String CurrentUser = UserUtilities.getCurrentUser();
-            User user = UserUtilities.findUser(CurrentUser);
-            if (user != null) {
-                InfoTable creds = new GitUserContextManager().credentials();
-                if (creds != null) {
-                    InfoTable updatedCreds =
-                            InfoTableInstanceFactory.createInfoTableFromDataShape(
-                                    "GIT.RepositoryConfiguration.UserExtension.DataShape");
-                    for (int ci = 0; ci < creds.getRowCount(); ci++) {
-                        ValueCollection credRow = creds.getRow(ci);
-                        if (!RepoName.equals(
-                                credRow.getPrimitive("GitThing").getValue().toString())) {
-                            updatedCreds.addRow(credRow);
-                        }
-                    }
-                    creds = updatedCreds;
-                    user.setPropertyValue(
-                            "UserRepositoryConfiguration", new InfoTablePrimitive(creds));
-                }
-                new GitUserContextManager().removeRemoteCredentials(RepoName, null);
-            }
+            Thing thing = requireDeletableRepository(RepoName);
+            deleteRepositoryThing(RepoName, ((FileRepositoryThing) thing).getRootPath());
             _logger.warn(
                     "GIT Repository Thing "
                             + RepoName

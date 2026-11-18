@@ -17,7 +17,6 @@ import com.thingworx.types.collections.ValueCollection;
 import com.thingworx.types.primitives.BooleanPrimitive;
 import com.thingworx.types.primitives.DatetimePrimitive;
 import com.thingworx.types.primitives.InfoTablePrimitive;
-import com.thingworx.types.primitives.PasswordPrimitive;
 import com.thingworx.types.primitives.StringPrimitive;
 import com.thingworx.webservices.context.ThreadLocalContext;
 import java.io.ByteArrayOutputStream;
@@ -348,12 +347,21 @@ public class GitRepositoryShape extends Thing {
             }
         }
         if (GpgKey != null) {
-            GpgPrivateKey =
-                    PastedKeyGpgSigner.normalizePrivateKey(
-                            ((PasswordPrimitive) GpgKey.getPrimitive(Const.GpgPrivateKey))
-                                    .getValue());
-            GpgPassphrase =
-                    ((PasswordPrimitive) GpgKey.getPrimitive(Const.GpgKeyPassphrase)).getValue();
+            String storedKey = GitUserContextManager.secret(GpgKey, Const.GpgPrivateKey);
+            if (storedKey.isBlank()) {
+                // Signing was requested, so do not fall back to an unsigned commit.
+                throw new IllegalStateException(
+                        Const.ERR_PREFIX_CONFIG
+                                + "The GPG key "
+                                + GpgKey.getStringValue(Const.GpgKeyFingerprint)
+                                + " selected for signing in this repository has no stored private"
+                                + " key (it may have been cleared). Add the key again in User"
+                                + " Identity, or clear the repository's GPG key to commit"
+                                + " unsigned.");
+            }
+            GpgPrivateKey = PastedKeyGpgSigner.normalizePrivateKey(storedKey);
+            // A key without a passphrase is stored with an empty one.
+            GpgPassphrase = GitUserContextManager.secret(GpgKey, Const.GpgKeyPassphrase);
         }
 
         if (GpgPrivateKey != null && !GpgPrivateKey.isBlank()) {

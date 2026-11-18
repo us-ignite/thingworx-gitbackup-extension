@@ -132,6 +132,8 @@ final class StatusExportReconciler {
         for (var item : tracked.entrySet()) {
             if (exported.containsKey(item.getKey())) continue;
             String suffix = item.getKey().substring(prefix.length());
+            // Users are never exported, so their files are never proven stale; see SyncExclusions.
+            if (SyncExclusions.isUsersPath(suffix)) continue;
             Path destination = root.resolve(item.getKey()).normalize();
             if (!Files.exists(destination, LinkOption.NOFOLLOW_LINKS)) continue;
             checkSafeTarget(root, destination);

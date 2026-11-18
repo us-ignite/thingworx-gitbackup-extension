@@ -1590,4 +1590,45 @@ public class GiteaGitOperationsTest {
             callUtility("RepositoryDelete", delete);
         }
     }
+
+    /**
+     * A repository recreated under the name of a deleted one starts clean: its origin is added
+     * without an "already exists" error, whether the old Thing was removed with RepositoryDelete or
+     * with a plain DeleteThing (as Composer does), which leaves the Git directory behind.
+     */
+    @Test
+    @Order(38)
+    void testRepositoryRecreatedAfterDeleteGetsItsOwnOrigin() throws Exception {
+        String name = "ITRecreatedRepositoryThing";
+        JsonObject create = new JsonObject();
+        create.addProperty("RepoName", name);
+        create.addProperty("GitRepoURL", giteaRepoUrl);
+        create.addProperty("BranchName", "main");
+        JsonObject delete = new JsonObject();
+        delete.addProperty("RepoName", name);
+        try {
+            assertServiceSuccess(callUtility("RepositoryCreate", create), "first RepositoryCreate");
+            assertServiceSuccess(callUtility("RepositoryDelete", delete), "RepositoryDelete");
+            assertServiceSuccess(
+                    callUtility("RepositoryCreate", create),
+                    "RepositoryCreate after RepositoryDelete");
+
+            JsonObject thing = new JsonObject();
+            thing.addProperty("name", name);
+            assertEquals(200, callEntityService("DeleteThing", thing).statusCode());
+            assertServiceSuccess(
+                    callUtility("RepositoryCreate", create), "RepositoryCreate after DeleteThing");
+            var remotes =
+                    stack.httpClient.send(
+                            stack.thingworx.serviceRequest(name, "GetRemotes", null).build(),
+                            HttpResponse.BodyHandlers.ofString());
+            assertServiceSuccess(remotes, "GetRemotes on the recreated repository");
+            assertEquals(
+                    1,
+                    responseRows(remotes.body()).size(),
+                    "Only the new origin is expected: " + remotes.body());
+        } finally {
+            callUtility("RepositoryDelete", delete);
+        }
+    }
 }
