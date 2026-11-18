@@ -21,6 +21,8 @@
           "Name": "Status",
           "Parameters": {
             "HideIgnored": true,
+            "HideUnchanged": true,
+            "HideUntracked": true,
             "ShowUnchangedFiles": true
           },
           "RefreshInterval": 0,
@@ -2795,7 +2797,7 @@
                           "ShowValidationCriteria": false,
                           "ShowValidationFailure": false,
                           "ShowValidationSuccess": false,
-                          "State": false,
+                          "State": true,
                           "SuccessMessage": "",
                           "SuccessMessageDetails": "",
                           "TabSequence": 0,
@@ -2836,7 +2838,7 @@
                           "ShowValidationCriteria": false,
                           "ShowValidationFailure": false,
                           "ShowValidationSuccess": false,
-                          "State": false,
+                          "State": true,
                           "SuccessMessage": "",
                           "SuccessMessageDetails": "",
                           "TabSequence": 0,
