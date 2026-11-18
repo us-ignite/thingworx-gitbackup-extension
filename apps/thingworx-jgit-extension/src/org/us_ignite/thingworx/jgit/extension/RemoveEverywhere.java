@@ -15,7 +15,6 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -160,12 +159,7 @@ final class RemoveEverywhere {
     }
 
     static List<Target> readTargets(Path path) throws Exception {
-        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-        factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-        factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
-        factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
-        factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
-        factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+        DocumentBuilderFactory factory = SafeXml.harden(DocumentBuilderFactory.newInstance());
         Element root = factory.newDocumentBuilder().parse(path.toFile()).getDocumentElement();
         if (!"Entities".equals(root.getTagName()))
             throw new IllegalArgumentException(

@@ -612,8 +612,9 @@ final class FileRepositoryManager {
 
     /**
      * Sync from ThingWorx: exports every tracked project and reconciles its folder in the working
-     * tree, without changing the Git index. Files of entities that left a project are deleted;
-     * Users are never touched. Records the sync time, see {@link #changedSinceSync()}.
+     * tree, without staging anything; only the cached file stats of unchanged files are refreshed
+     * (see {@link IndexStatRefresh}). Files of entities that left a project are deleted; Users are
+     * never touched. Records the sync time, see {@link #changedSinceSync()}.
      */
     void syncFromThingWorx() throws Exception {
         requireExportPermissions();
@@ -642,6 +643,9 @@ final class FileRepositoryManager {
                 StatusExportReconciler.reconcileFolder(
                         git, snapshots.get(i), projectFolder(project), project.name());
             }
+            // Keeps Status fast: files that are unchanged but were rewritten (by an earlier
+            // version of this sync, or by hand) would otherwise be re-hashed on every Status.
+            IndexStatRefresh.refresh(git);
         } finally {
             deleteRecursively(temporary);
         }
@@ -870,31 +874,49 @@ final class FileRepositoryManager {
      * Folders are resolved below the FileRepository root, so a {@code Path} of {@code "/shared"}
      * does not resolve to the container filesystem root.
      *
-     * @return {@code true} when the platform import service was invoked for at least one project;
-     *     {@code false} when no tracked project folder contains XML entities
+     * <p>Only files tracked by Git, committed or staged, are imported. An untracked file has never
+     * been through Git, so it is left out and reported; add, commit and push it to include it.
+     *
+     * @return whether the platform import service ran for at least one project, and the untracked
+     *     files that were left out
      */
-    boolean importProjectEntities() throws Exception {
+    ImportResult importProjectEntities() throws Exception {
         // Never import files that still contain conflict markers or a half-finished merge.
         ConflictWorkflow.requireNotInProgress(git);
         List<TrackedProject> projects = requireTrackedProjects();
         IServiceProvider resource = requireSourceControlPermission(IMPORT_SERVICE);
+        java.util.Set<String> trackedPaths = trackedPaths();
         boolean imported = false;
+        List<String> untracked = new ArrayList<>();
         for (TrackedProject project : projects) {
             String relative = projectFolder(project);
             File folder =
                     resolveRepositoryPath(new File(fileRepository.getRootPath()).toPath(), relative)
                             .toFile();
             if (!folder.isDirectory() || !containsXmlFile(folder)) continue;
-            if (!SyncExclusions.find(folder.toPath(), SyncExclusions.IMPORT).isEmpty()) {
-                importExcluding(resource, folder.toPath(), project.name());
-            } else {
-                importFolder(resource, "/" + relative);
+            if (importTracked(
+                    resource, folder.toPath(), relative, project.name(), trackedPaths, untracked)) {
+                imported = true;
             }
-            imported = true;
         }
         // Imported entities now carry modified dates up to this point, so take it afterwards.
         recordSync(System.currentTimeMillis());
-        return imported;
+        return new ImportResult(imported, untracked);
+    }
+
+    /**
+     * The outcome of {@link #importProjectEntities()}: whether anything was imported, and the
+     * repository-relative paths of untracked files that were left out.
+     */
+    record ImportResult(boolean imported, List<String> untracked) {}
+
+    /** The repository-relative paths of every file in the Git index. */
+    private java.util.Set<String> trackedPaths() throws IOException {
+        var index = git.getRepository().readDirCache();
+        java.util.Set<String> paths = new java.util.HashSet<>();
+        for (int i = 0; i < index.getEntryCount(); i++)
+            paths.add(index.getEntry(i).getPathString());
+        return paths;
     }
 
     /** Git config section and key holding the time of the last sync, in either direction. */
@@ -962,25 +984,45 @@ final class FileRepositoryManager {
     }
 
     /**
-     * Imports a project folder from a temporary copy without the entities sync must not import:
-     * Users, and ApplicationKeys ThingWorx cannot update. See {@link SyncExclusions}. Every skipped
-     * ApplicationKey is reported in the extension log with how to repair it.
+     * Imports a project folder from a temporary copy that holds only its files tracked by Git,
+     * without the entities sync must not import: Users, and ApplicationKeys ThingWorx cannot
+     * update. See {@link SyncExclusions}. Every skipped ApplicationKey is reported in the extension
+     * log with how to repair it, and untracked files are added to {@code untracked}.
+     *
+     * @return whether the import service ran
      */
-    private void importExcluding(IServiceProvider resource, Path folder, String project)
+    private boolean importTracked(
+            IServiceProvider resource,
+            Path folder,
+            String relative,
+            String project,
+            java.util.Set<String> trackedPaths,
+            List<String> untracked)
             throws Exception {
+        String prefix = relative.replace('\\', '/').replaceAll("^/+|/+$", "") + "/";
         Path base = new File(fileRepository.getRootPath()).toPath().toRealPath();
         Path temporary = Files.createTempDirectory(base, ".jgit-import-");
         try {
             Path staged = temporary.resolve("0");
             List<SyncExclusions.Excluded> skipped =
-                    SyncExclusions.copyExcluding(folder, staged, SyncExclusions.IMPORT);
-            com.thingworx.logging.LogUtilities.getInstance()
-                    .getApplicationLogger(FileRepositoryManager.class)
-                    .warn(
-                            "Left out of the import of project '{}' in {}: {}",
-                            project,
-                            fileRepository.getName(),
-                            skipped);
+                    SyncExclusions.copyExcluding(
+                            folder,
+                            staged,
+                            SyncExclusions.IMPORT,
+                            path -> {
+                                if (trackedPaths.contains(prefix + path)) return true;
+                                untracked.add(prefix + path);
+                                return false;
+                            });
+            if (!skipped.isEmpty()) {
+                com.thingworx.logging.LogUtilities.getInstance()
+                        .getApplicationLogger(FileRepositoryManager.class)
+                        .warn(
+                                "Left out of the import of project '{}' in {}: {}",
+                                project,
+                                fileRepository.getName(),
+                                skipped);
+            }
             for (SyncExclusions.Excluded item : skipped) {
                 if (!SyncExclusions.APPLICATION_KEYS.equals(item.collection())) continue;
                 GitActionLogger.logAction(
@@ -993,9 +1035,9 @@ final class FileRepositoryManager {
                                 + " ThingWorx refuses to update it. Delete and recreate the key,"
                                 + " then sync again.");
             }
-            if (containsXmlFile(staged.toFile())) {
-                importFolder(resource, "/" + temporary.getFileName() + "/0");
-            }
+            if (!containsXmlFile(staged.toFile())) return false;
+            importFolder(resource, "/" + temporary.getFileName() + "/0");
+            return true;
         } finally {
             deleteRecursively(temporary);
         }

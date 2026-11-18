@@ -12,7 +12,9 @@ localization-token prefix in Repository Settings.
 `SyncFromThingWorx` (the **Sync from ThingWorx** button on Changes) exports each tracked project to a
 temporary folder and reconciles it into the project's folder in the working tree. Changed entities
 overwrite their files, and the file of an entity that left the project is deleted; both appear in
-`Status` as unstaged changes. The Git index is not changed. Users are never exported, and files that
+`Status` as unstaged changes. Files whose content did not change are not rewritten, and nothing is
+staged; the sync only refreshes the file timestamps the Git index keeps for unchanged files, so
+`Status` does not have to re-read them. Users are never exported, and files that
 cannot be identified as canonical entity exports are left alone. It refuses to run while a merge,
 rebase or carried-change conflict is waiting.
 
@@ -22,7 +24,10 @@ want ThingWorx changes to show in Changes. Then stage, `CommitStaged`, and `Push
 ## Sync to ThingWorx (import)
 
 `SyncToThingWorx` (the **Sync to ThingWorx** button) discovers XML entities recursively below each
-tracked project's folder and imports them into ThingWorx. This overwrites ThingWorx entities and
+tracked project's folder and imports them into ThingWorx. Only files tracked by Git, committed or
+staged, are imported. An untracked file, such as one a Sync from ThingWorx wrote for a new entity or
+one copied into the folder by hand, is never imported; the result names it, and the way to include it
+is to add, commit and push it. This overwrites ThingWorx entities and
 property values with the repository versions. After a `Pull`, `Checkout`, `Merge` or `Rebase`, use it
 to apply the result to ThingWorx.
 

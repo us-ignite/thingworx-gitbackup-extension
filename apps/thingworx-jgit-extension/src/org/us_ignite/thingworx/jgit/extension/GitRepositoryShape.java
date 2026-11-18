@@ -2543,6 +2543,25 @@ public class GitRepositoryShape extends Thing {
         }
     }
 
+    /** How many untracked files a Sync to ThingWorx result names before summarizing. */
+    private static final int UNTRACKED_SHOWN = 10;
+
+    /** Names the untracked files a Sync to ThingWorx left out, or returns blank. */
+    static String untrackedNote(List<String> untracked) {
+        if (untracked.isEmpty()) return "";
+        List<String> shown = untracked.subList(0, Math.min(untracked.size(), UNTRACKED_SHOWN));
+        String names = String.join(", ", shown);
+        if (untracked.size() > shown.size()) {
+            names += " and " + (untracked.size() - shown.size()) + " more";
+        }
+        return " "
+                + untracked.size()
+                + (untracked.size() == 1 ? " untracked file was" : " untracked files were")
+                + " not imported: "
+                + names
+                + ". Add, commit and push a file to include it.";
+    }
+
     /**
      * Sync to ThingWorx: imports the tracked project folders into ThingWorx. Git operations never
      * do this themselves. Unless forced, it refuses when ThingWorx entities changed since the last
@@ -2552,7 +2571,7 @@ public class GitRepositoryShape extends Thing {
     @ThingworxServiceDefinition(
             name = "SyncToThingWorx",
             description =
-                    "Imports the tracked project folders into ThingWorx. Unless Force is true, refuses when ThingWorx entities changed since the last sync, because the import would overwrite them.",
+                    "Imports the files tracked by Git in the tracked project folders into ThingWorx; untracked files are never imported. Unless Force is true, refuses when ThingWorx entities changed since the last sync, because the import would overwrite them.",
             category = "",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
@@ -2581,9 +2600,9 @@ public class GitRepositoryShape extends Thing {
                             StringResultContract.SERVICE_RESULT);
                 }
             }
-            boolean imported;
+            FileRepositoryManager.ImportResult result;
             try {
-                imported = fileRepo.importProjectEntities();
+                result = fileRepo.importProjectEntities();
             } catch (Exception importEx) {
                 String failure =
                         "Importing entities into ThingWorx failed for projects '"
@@ -2597,9 +2616,10 @@ public class GitRepositoryShape extends Thing {
                         "SyncToThingWorx", failure, StringResultContract.SERVICE_RESULT);
             }
             String message =
-                    imported
+                    result.imported()
                             ? "Repository entities imported into ThingWorx."
-                            : "No XML entities found to import.";
+                            : "No tracked XML entities found to import.";
+            message += untrackedNote(result.untracked());
             GitActionLogger.logAction("SyncToThingWorx", resolveTargetThing().getName(), message);
             return DapResults.success(
                     "SyncToThingWorx", message, StringResultContract.SERVICE_RESULT);

@@ -13,7 +13,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.dircache.DirCache;
@@ -147,6 +146,10 @@ final class StatusExportReconciler {
                 deletions.add(destination);
         }
         for (var item : copies) {
+            // Leave identical files alone: rewriting one changes its timestamp, and Git then has
+            // to read and hash it on every Status until the index is refreshed.
+            if (Files.isRegularFile(item.getValue(), LinkOption.NOFOLLOW_LINKS)
+                    && Files.mismatch(item.getKey(), item.getValue()) == -1) continue;
             Files.createDirectories(item.getValue().getParent());
             Files.copy(item.getKey(), item.getValue(), StandardCopyOption.REPLACE_EXISTING);
         }
@@ -175,12 +178,7 @@ final class StatusExportReconciler {
         try {
             var loader = git.getRepository().open(entry.getObjectId());
             if (loader.getSize() > MAX_ENTITY_XML_BYTES) return null;
-            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-            factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-            factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
-            factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
-            factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
-            factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+            DocumentBuilderFactory factory = SafeXml.harden(DocumentBuilderFactory.newInstance());
             Element document =
                     factory.newDocumentBuilder()
                             .parse(new ByteArrayInputStream(loader.getBytes()))

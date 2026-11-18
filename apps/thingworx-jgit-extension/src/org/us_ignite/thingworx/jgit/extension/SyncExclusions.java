@@ -15,7 +15,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
-import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.TransformerFactory;
@@ -126,6 +125,16 @@ final class SyncExclusions {
      * @return the entities that were left out
      */
     static List<Excluded> copyExcluding(Path source, Path target, Rule rule) throws Exception {
+        return copyExcluding(source, target, rule, relative -> true);
+    }
+
+    /**
+     * Like {@link #copyExcluding(Path, Path, Rule)}, copying only the files whose path relative to
+     * {@code source}, with {@code /} separators, the filter accepts.
+     */
+    static List<Excluded> copyExcluding(
+            Path source, Path target, Rule rule, java.util.function.Predicate<String> include)
+            throws Exception {
         List<Excluded> removed = new ArrayList<>();
         List<Path> files;
         try (var paths = Files.walk(source)) {
@@ -140,6 +149,7 @@ final class SyncExclusions {
                 if (Files.isSymbolicLink(current)) symlinked = true;
             }
             if (symlinked) continue;
+            if (!include.test(relative.toString().replace('\\', '/'))) continue;
             Path destination = target.resolve(relative.toString()).normalize();
             if (!destination.startsWith(target)) {
                 throw new IOException("Path is outside the staging folder: " + relative);
@@ -228,12 +238,7 @@ final class SyncExclusions {
     }
 
     private static Document parse(String xml) throws Exception {
-        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-        factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-        factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
-        factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
-        factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
-        factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+        DocumentBuilderFactory factory = SafeXml.harden(DocumentBuilderFactory.newInstance());
         return factory.newDocumentBuilder()
                 .parse(new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8)));
     }

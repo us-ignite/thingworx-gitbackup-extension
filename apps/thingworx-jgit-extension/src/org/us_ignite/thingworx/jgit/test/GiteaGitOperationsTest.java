@@ -1708,8 +1708,13 @@ public class GiteaGitOperationsTest {
         create.addProperty("projectName", "GiteaGitOperationsProject");
         assertEquals(200, callEntityService("CreateThing", create).statusCode());
         try {
-            // Sync from ThingWorx writes the repository version of the Thing.
+            // Sync from ThingWorx writes the Thing's file; committing makes it the repository
+            // version. Only tracked files are ever imported.
             assertSuccess(callService("SyncFromThingWorx", null).body());
+            stageFile(GIT_THING_PATH + "/GiteaGitOperationsProject/Things/" + thing + ".xml");
+            JsonObject commit = new JsonObject();
+            commit.addProperty("Message", "Add manual sync fixture");
+            assertSuccess(callService("CommitStaged", commit).body());
             var nothingChanged = callService("GetThingWorxChangesSinceSync", null);
             assertSuccess(nothingChanged.body());
             assertEquals("", message(nothingChanged), "Nothing changed since the sync");
@@ -1732,6 +1737,42 @@ public class GiteaGitOperationsTest {
             assertSuccess(callService("SyncToThingWorx", force).body());
             assertEquals("repository version", thingDescription(thing));
             assertEquals("", message(callService("GetThingWorxChangesSinceSync", null)));
+        } finally {
+            JsonObject delete = new JsonObject();
+            delete.addProperty("name", thing);
+            callEntityService("DeleteThing", delete);
+        }
+    }
+
+    @Test
+    @Order(40)
+    void testSyncToThingWorxNeverImportsUntrackedFiles() throws Exception {
+        String thing = "ManualSync.UntrackedThing";
+        JsonObject create = new JsonObject();
+        create.addProperty("name", thing);
+        create.addProperty("description", "exported file version");
+        create.addProperty("thingTemplateName", "GenericThing");
+        create.addProperty("projectName", "GiteaGitOperationsProject");
+        assertEquals(200, callEntityService("CreateThing", create).statusCode());
+        try {
+            // The export writes an untracked file for the Thing; it is never added.
+            assertSuccess(callService("SyncFromThingWorx", null).body());
+            editThingDescription(thing, "live ThingWorx version");
+
+            JsonObject force = new JsonObject();
+            force.addProperty("Force", true);
+            var synced = callService("SyncToThingWorx", force);
+            assertSuccess(synced.body());
+            String relative =
+                    repoRelativePath(
+                            GIT_THING_PATH + "/GiteaGitOperationsProject/Things/" + thing + ".xml");
+            assertTrue(
+                    message(synced).contains("not imported") && message(synced).contains(relative),
+                    "The untracked file should be reported: " + synced.body());
+            assertEquals(
+                    "live ThingWorx version",
+                    thingDescription(thing),
+                    "An untracked file must not be imported");
         } finally {
             JsonObject delete = new JsonObject();
             delete.addProperty("name", thing);

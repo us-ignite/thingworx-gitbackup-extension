@@ -18,7 +18,7 @@ be entered through the current user’s `UserExtensions` properties and must not
 | `Commit` | `Message: STRING` | Commits the current index, like `CommitStaged`. Requires staged changes. |
 | `CommitStaged` | `Message: STRING` | Commits the current index. Requires staged changes. |
 | `SyncFromThingWorx` | — | Exports the tracked projects into the working tree so their changes show in `Status`. Does not stage or commit. |
-| `SyncToThingWorx` | `Force: BOOLEAN` (default `false`) | Imports the tracked project folders into ThingWorx. Unless `Force` is true, returns `Error=true` naming the entities changed in ThingWorx since the last sync, which the import would overwrite. |
+| `SyncToThingWorx` | `Force: BOOLEAN` (default `false`) | Imports the Git-tracked files in the tracked project folders into ThingWorx; untracked files are never imported and are named in the result. Unless `Force` is true, returns `Error=true` naming the entities changed in ThingWorx since the last sync, which the import would overwrite. |
 | `GetThingWorxChangesSinceSync` | — | Describes the tracked-project entities changed in ThingWorx since the last sync; blank when there are none. Used by the Changes screen to confirm before Sync to ThingWorx. |
 | `Push` | `Remote: STRING`, `BranchName: STRING`, `RemoteBranchName: STRING`, `SetUpstream: BOOLEAN` | Pushes the current/upstream branch or an explicit local branch to a remote branch. |
 | `Pull` | `Remote: STRING` (optional), `Force: BOOLEAN` | Fetches and integrates remote changes. ThingWorx is not changed; use `SyncToThingWorx` to apply the result. |
