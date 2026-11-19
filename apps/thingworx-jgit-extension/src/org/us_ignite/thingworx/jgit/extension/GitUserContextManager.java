@@ -661,7 +661,8 @@ final class GitUserContextManager {
                 ValueCollection row = keys.getRow(i);
                 boolean fingerprintMatches =
                         fingerprint != null
-                                && fingerprint.equals(row.getStringValue(Const.GpgKeyFingerprint));
+                                && fingerprint.equalsIgnoreCase(
+                                        row.getStringValue(Const.GpgKeyFingerprint));
                 boolean labelMatches =
                         label != null && label.equals(row.getStringValue(Const.GpgKeyLabel));
                 if (hasFingerprint && hasLabel) {

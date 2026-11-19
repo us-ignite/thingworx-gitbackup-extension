@@ -953,7 +953,7 @@ public class GitUtilityThingShape extends Thing {
                         if (fingerprint.isBlank()) continue;
                         boolean alreadyStored = false;
                         for (int j = 0; j < keys.getRowCount(); j++) {
-                            if (fingerprint.equals(
+                            if (fingerprint.equalsIgnoreCase(
                                     keys.getRow(j).getStringValue(Const.GpgKeyFingerprint))) {
                                 alreadyStored = true;
                                 break;
@@ -1209,7 +1209,7 @@ public class GitUtilityThingShape extends Thing {
                     String fp = stored.getStringValue(Const.GpgKeyFingerprint);
                     String lbl = stored.getStringValue(Const.GpgKeyLabel);
                     boolean fingerprintMatches =
-                            GpgKeyFingerprint != null && GpgKeyFingerprint.equals(fp);
+                            GpgKeyFingerprint != null && GpgKeyFingerprint.equalsIgnoreCase(fp);
                     boolean labelMatches = GpgKeyLabel != null && GpgKeyLabel.equals(lbl);
                     boolean matches;
                     if (hasFingerprint && hasLabel) {
@@ -1311,7 +1311,8 @@ public class GitUtilityThingShape extends Thing {
                         if (labelKeys != null) {
                             for (int j = 0; j < labelKeys.getRowCount(); j++) {
                                 ValueCollection r = labelKeys.getRow(j);
-                                if (fingerprint.equals(r.getStringValue(Const.GpgKeyFingerprint))) {
+                                if (fingerprint.equalsIgnoreCase(
+                                        r.getStringValue(Const.GpgKeyFingerprint))) {
                                     String lbl = r.getStringValue(Const.GpgKeyLabel);
                                     gpgKeyLabel = lbl != null ? lbl : "";
                                     found = true;
@@ -1334,7 +1335,8 @@ public class GitUtilityThingShape extends Thing {
                         if (labelKeys != null && fingerprint != null) {
                             for (int j = 0; j < labelKeys.getRowCount(); j++) {
                                 ValueCollection r = labelKeys.getRow(j);
-                                if (fingerprint.equals(r.getStringValue(Const.GpgKeyFingerprint))) {
+                                if (fingerprint.equalsIgnoreCase(
+                                        r.getStringValue(Const.GpgKeyFingerprint))) {
                                     String lbl = r.getStringValue(Const.GpgKeyLabel);
                                     gpgKeyLabel = lbl != null ? lbl : "";
                                     break;
@@ -1350,7 +1352,7 @@ public class GitUtilityThingShape extends Thing {
                     InfoTable storedKeysForFlag = getGpgKeysTable(storedUser);
                     if (fingerprint != null && storedKeysForFlag != null) {
                         for (int j = 0; j < storedKeysForFlag.getRowCount(); j++) {
-                            if (fingerprint.equals(
+                            if (fingerprint.equalsIgnoreCase(
                                     storedKeysForFlag
                                             .getRow(j)
                                             .getStringValue(Const.GpgKeyFingerprint))) {
@@ -1524,7 +1526,8 @@ public class GitUtilityThingShape extends Thing {
                                 Const.UserGpgKeyDataShapeName);
                 for (int i = 0; i < gpgKeys.getRowCount(); i++) {
                     ValueCollection row = gpgKeys.getRow(i);
-                    if (GpgKeyFingerprint.equals(row.getStringValue(Const.GpgKeyFingerprint)))
+                    if (GpgKeyFingerprint.equalsIgnoreCase(
+                            row.getStringValue(Const.GpgKeyFingerprint)))
                         throw new IllegalArgumentException(
                                 "A GPG key with this fingerprint already exists.");
                     if (GpgKeyLabel != null
@@ -1591,7 +1594,7 @@ public class GitUtilityThingShape extends Thing {
                     ValueCollection row = keys.getRow(i);
                     boolean fingerprintMatches =
                             fingerprint != null
-                                    && fingerprint.equals(
+                                    && fingerprint.equalsIgnoreCase(
                                             row.getStringValue(Const.GpgKeyFingerprint));
                     boolean labelMatches =
                             label != null && label.equals(row.getStringValue(Const.GpgKeyLabel));
@@ -1673,7 +1676,9 @@ public class GitUtilityThingShape extends Thing {
                 // selector.
                 boolean matches;
                 if (hasFingerprint)
-                    matches = fingerprint.equals(row.getStringValue(Const.GpgKeyFingerprint));
+                    matches =
+                            fingerprint.equalsIgnoreCase(
+                                    row.getStringValue(Const.GpgKeyFingerprint));
                 else matches = GpgKeyLabel.equals(row.getStringValue(Const.GpgKeyLabel));
                 if (matches) {
                     // If fingerprint selected the row and a different label was supplied, treat as
@@ -1703,10 +1708,10 @@ public class GitUtilityThingShape extends Thing {
                         }
                         if (derivedFingerprint != null
                                 && !derivedFingerprint.isBlank()
-                                && !derivedFingerprint.equals(oldFingerprint)) {
+                                && !derivedFingerprint.equalsIgnoreCase(oldFingerprint)) {
                             for (int j = 0; j < keys.getRowCount(); j++)
                                 if (j != i
-                                        && derivedFingerprint.equals(
+                                        && derivedFingerprint.equalsIgnoreCase(
                                                 keys.getRow(j)
                                                         .getStringValue(Const.GpgKeyFingerprint)))
                                     throw new IllegalArgumentException(
@@ -1817,7 +1822,7 @@ public class GitUtilityThingShape extends Thing {
                     ValueCollection row = keys.getRow(i);
                     boolean fingerprintMatches =
                             GpgKeyFingerprint != null
-                                    && GpgKeyFingerprint.equals(
+                                    && GpgKeyFingerprint.equalsIgnoreCase(
                                             row.getStringValue(Const.GpgKeyFingerprint));
                     boolean labelMatches =
                             GpgKeyLabel != null
