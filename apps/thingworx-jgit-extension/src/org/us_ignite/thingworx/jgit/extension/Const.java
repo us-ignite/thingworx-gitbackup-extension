@@ -202,7 +202,6 @@ public final class Const {
     public static final String SUCCESS_GPG_VERIFIED =
             "GPG key verification succeeded. Fingerprint: %s";
     public static final String SUCCESS_GPG_FAILED = "GPG key verification failed. Fingerprint: %s";
-    public static final String SUCCESS_PULL = "Pull %s: %s";
     public static final String SUCCESS_BULK_IMPORT =
             "Bulk import completed. Success: %d, Failed: %d, Total: %d";
 }
