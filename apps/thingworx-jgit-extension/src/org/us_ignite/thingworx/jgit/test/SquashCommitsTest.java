@@ -164,6 +164,9 @@ class SquashCommitsTest {
             git.getRepository()
                     .getConfig()
                     .setString("remote", "origin", "url", remote.toUri().toString());
+            // No background auto-GC, which can still hold gc.log.lock when the temp directory
+            // is deleted.
+            git.getRepository().getConfig().setInt("gc", null, "auto", 0);
             git.getRepository().getConfig().save();
             directory = work;
             RevCommit c1 = commit(git, "a.txt", "1", "one");

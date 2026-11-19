@@ -107,12 +107,15 @@ public class PastedKeyGpgSigner implements Signer {
 
             PGPSignatureGenerator sigGen =
                     new PGPSignatureGenerator(
-                            new JcaPGPContentSignerBuilder(algorithm, PGPUtil.SHA256)
+                            new JcaPGPContentSignerBuilder(algorithm, PGPUtil.SHA512)
                                     .setProvider("BC"));
 
             sigGen.init(PGPSignature.BINARY_DOCUMENT, privateKey);
 
             PGPSignatureSubpacketGenerator subGen = new PGPSignatureSubpacketGenerator();
+            // Like gpg, name the signing key by its full fingerprint (subpacket 33) as well as by
+            // its key ID, so readers can report the fingerprint.
+            subGen.setIssuerFingerprint(false, secretKey);
             String userId = committer.getName() + " <" + committer.getEmailAddress() + ">";
             subGen.addSignerUserID(false, userId);
             sigGen.setHashedSubpackets(subGen.generate());
@@ -165,7 +168,7 @@ public class PastedKeyGpgSigner implements Signer {
             return null;
         }
         byte[] fp = key.getPublicKey().getFingerprint();
-        return Hex.toHexString(fp);
+        return Hex.toHexString(fp).toUpperCase(java.util.Locale.ROOT);
     }
 
     private PGPSecretKey findSecretKey(byte[] keyData, String signingKey)
