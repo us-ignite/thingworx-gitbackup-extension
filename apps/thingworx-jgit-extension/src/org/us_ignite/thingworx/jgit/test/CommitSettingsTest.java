@@ -20,6 +20,7 @@ import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.StoredConfig;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -49,10 +50,18 @@ class CommitSettingsTest {
         StoredConfig config = git.getRepository().getConfig();
         // As RepositorySecurity.harden leaves it: no inherited identity or signing.
         config.setBoolean("commit", null, "gpgSign", false);
+        // No background auto-GC, which can still hold gc.log.lock when the temp directory is
+        // deleted.
+        config.setInt("gc", null, "auto", 0);
         config.save();
         commit(git, "a.txt", "base\n", "base");
         signer = new PastedKeyGpgSigner(GPGGenerator.generateTestGpgPrivateKey(), "");
         fingerprint = signer.getFingerprint();
+    }
+
+    @AfterEach
+    void closeRepository() {
+        if (git != null) git.close();
     }
 
     private RevCommit commit(Git repo, String file, String content, String message)
