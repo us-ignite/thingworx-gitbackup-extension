@@ -1,5 +1,10 @@
+import thingworx.docker.DockerPush
+import thingworx.docker.ExtractVendorArchive
+import thingworx.docker.PlatformImageBuild
+import thingworx.tasks.StageFile
+import thingworx.tasks.VerifiedDownload
+
 plugins {
-    id 'thingworx.base'
     id 'thingworx.docker'
 }
 
@@ -41,365 +46,162 @@ def ALL_TWX = [
     ],
 ]
 
-def ALL_VARIANTS = ['openjdk', 'corretto', 'graalvm']
+// JDK variants. Corretto is the default: it also receives the unsuffixed tags.
+def JDKS = [
+    openjdk : [archive: 'OpenJDK21U-jdk_x64_linux_hotspot_21.0.2_13.tar.gz',
+               url: 'https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.2%2B13/OpenJDK21U-jdk_x64_linux_hotspot_21.0.2_13.tar.gz'],
+    corretto: [archive: 'amazon-corretto-21.0.2.13.1-linux-x64.tar.gz',
+               url: 'https://corretto.aws/downloads/latest/amazon-corretto-21-x64-linux-jdk.tar.gz'],
+    graalvm : [archive: 'graalvm-jdk-21.0.2_linux-x64_bin.tar.gz',
+               url: 'https://download.oracle.com/graalvm/21/archive/graalvm-jdk-21.0.2_linux-x64_bin.tar.gz'],
+]
+def DEFAULT_VARIANT = 'corretto'
 
-// Shared via thingworx.docker plugin (single implementation in build-logic).
-def IMG_BUILD_DIR = project.ext.imgBuildDir
-def IMG_VENDOR_DIR = project.ext.imgVendorDir
-def requireVendorArchive = project.ext.requireVendorArchive
+def images = thingworxImages
+def jdkCache = images.stagingRoot.dir('jdk-cache')
 
-// Keep this in sync with the vendor build.sh tag calculation. The source images
-// are tagged from the Java version embedded in the archive name, not the full
-// archive filename.
-def vendorJavaVersion = { archiveName ->
-    if (archiveName in ['graalvm-ce-java11-linux-amd64-22.3.3.tar.gz', 'corretto-11-x64-linux-jdk.tar.gz']) {
-        return '11.0.22'
-    }
-    def updateVersion = (archiveName =~ /[0-9]+u[0-9]+/)
-    if (updateVersion.find()) return updateVersion.group()
-    def semanticVersion = (archiveName =~ /[0-9]+(\.[0-9]+){2}/)
-    if (semanticVersion.find()) return semanticVersion.group()
-    throw new GradleException("Unable to determine Java version from archive: ${archiveName}")
-}
-
-def tagImage = project.ext.dockerTag
-
-tasks.register('decryptVendor') {
-    description = 'Stage vendor platform DockerFiles for all TW versions'
-    group = 'images'
-    def localBuildDir = IMG_BUILD_DIR
-    def localVendorDir = IMG_VENDOR_DIR
-    def localTwx = ALL_TWX
-    def localRequire = requireVendorArchive
-    doLast {
-        localTwx.each { ver, cfg ->
-            def dest = new File("${localBuildDir}/vendor-extracted/platform/${ver}")
-            if (new File(dest, "build.sh").exists()) {
-                println "Platform DockerFiles for ${ver} already extracted"
-                return
-            }
-            dest.mkdirs()
-            println "Staging platform DockerFiles for TW ${ver}..."
-            def src = localRequire(new File("${localVendorDir}/${cfg.platformDockerFiles}"))
-            def proc = new ProcessBuilder('bash', '-c', "gunzip -c '${src.absolutePath}' | tar x").directory(dest).inheritIO().start()
-            if (proc.waitFor() != 0) throw new GradleException("Failed to extract platform DockerFiles for TW ${ver} from ${src}")
-        }
+JDKS.each { variant, jdk ->
+    tasks.register("fetchJdk_${variant}", VerifiedDownload) {
+        description = "Fetch JDK variant '${variant}'"
+        group = 'images'
+        url = jdk.url
+        outputFile = jdkCache.map { it.file(jdk.archive) }
     }
 }
 
-tasks.register('extractPlatformPostgres') {
-    description = 'Stage platform-postgres WAR archives into staging directories'
-    group = 'images'
-    dependsOn 'decryptVendor'
-    def localBuildDir = IMG_BUILD_DIR
-    def localVendorDir = IMG_VENDOR_DIR
-    def localTwx = ALL_TWX
-    def localRequire = requireVendorArchive
-    doLast {
-        localTwx.each { ver, cfg ->
-            def stage = new File("${localBuildDir}/vendor-extracted/platform/${ver}/staging")
-            def warFile = new File(stage, cfg.platformPostgres)
-            if (warFile.exists()) {
-                println "Platform Postgres for ${ver} already staged"
-                return
-            }
-            stage.mkdirs()
-            println "Staging platform-postgres WAR for TW ${ver}..."
-            def src = localRequire(new File("${localVendorDir}/${cfg.platformPostgres}"))
-            def cp = new ProcessBuilder('cp', src.absolutePath, warFile.absolutePath).inheritIO().start()
-            if (cp.waitFor() != 0) throw new GradleException("Failed to stage platform WAR for TW ${ver} from ${src}")
-        }
+ALL_TWX.collect { it.value.tomcatVersion }.unique().each { tomcat ->
+    def major = tomcat.substring(0, tomcat.indexOf('.'))
+    def archive = "apache-tomcat-${tomcat}.tar.gz"
+    def url = "https://archive.apache.org/dist/tomcat/tomcat-${major}/v${tomcat}/bin/${archive}"
+    tasks.register("fetchTomcat_${tomcat}", VerifiedDownload) {
+        description = "Fetch Apache Tomcat ${tomcat}"
+        group = 'images'
+        it.url = url
+        outputFile = jdkCache.map { it.file(archive) }
+    }
+    tasks.register("fetchTomcatSignature_${tomcat}", VerifiedDownload) {
+        description = "Fetch the Apache Tomcat ${tomcat} signature"
+        group = 'images'
+        it.url = "${url}.asc"
+        outputFile = jdkCache.map { it.file("${archive}.asc") }
     }
 }
 
 def platformBuildTaskNames = []
 
-ALL_VARIANTS.each { variant ->
-    def localBuildDir = IMG_BUILD_DIR
-    def localVariant = variant
-
-    tasks.register("fetchJdk_${localVariant}") {
-        description = "Fetch JDK variant '${localVariant}' for all TW versions"
-        group = 'images'
-        dependsOn 'decryptVendor'
-        doLast {
-            def cacheDir = new File("${localBuildDir}/jdk-cache")
-            cacheDir.mkdirs()
-            // collect distinct archives for this variant and ensure cached once
-            def archiveToUrl = [:]
-            ALL_TWX.each { ver, cfg ->
-                def archiveName
-                if (localVariant == 'openjdk')  archiveName = 'OpenJDK21U-jdk_x64_linux_hotspot_21.0.2_13.tar.gz'
-                else if (localVariant == 'corretto') archiveName = 'amazon-corretto-21.0.2.13.1-linux-x64.tar.gz'
-                else if (localVariant == 'graalvm')  archiveName = 'graalvm-jdk-21.0.2_linux-x64_bin.tar.gz'
-                if (!archiveToUrl.containsKey(archiveName)) {
-                    def url
-                    if (localVariant == 'corretto') {
-                        url = 'https://corretto.aws/downloads/latest/amazon-corretto-21-x64-linux-jdk.tar.gz'
-                    } else if (localVariant == 'openjdk') {
-                        url = 'https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.2%2B13/OpenJDK21U-jdk_x64_linux_hotspot_21.0.2_13.tar.gz'
-                    } else if (localVariant == 'graalvm') {
-                        url = 'https://download.oracle.com/graalvm/21/archive/graalvm-jdk-21.0.2_linux-x64_bin.tar.gz'
-                    }
-                    archiveToUrl[archiveName] = url
-                }
-            }
-            // download each distinct archive once to cache
-            archiveToUrl.each { archiveName, url ->
-                def cached = new File(cacheDir, archiveName)
-                if (!cached.exists()) {
-                    println "Downloading JDK ${localVariant} ${archiveName}: ${url}"
-                    def proc = new ProcessBuilder('curl', '-fsSL', '-o', cached.absolutePath, url).inheritIO().start()
-                    if (proc.waitFor() != 0) throw new GradleException("curl failed for ${url}")
-                } else {
-                    println "JDK ${localVariant} ${archiveName} already cached"
-                }
-            }
-            // copy from cache to each staging
-            ALL_TWX.each { ver, cfg ->
-                def archiveName
-                if (localVariant == 'openjdk')  archiveName = 'OpenJDK21U-jdk_x64_linux_hotspot_21.0.2_13.tar.gz'
-                else if (localVariant == 'corretto') archiveName = 'amazon-corretto-21.0.2.13.1-linux-x64.tar.gz'
-                else if (localVariant == 'graalvm')  archiveName = 'graalvm-jdk-21.0.2_linux-x64_bin.tar.gz'
-                def stage = new File("${localBuildDir}/vendor-extracted/platform/${ver}/staging")
-                def jdkFile = new File(stage, archiveName)
-                if (jdkFile.exists()) {
-                    println "JDK ${localVariant} for ${ver} already present"
-                    return
-                }
-                stage.mkdirs()
-                def cached = new File(cacheDir, archiveName)
-                println "Staging JDK ${localVariant} for ${ver} from cache"
-                def cp = new ProcessBuilder('cp', cached.absolutePath, jdkFile.absolutePath).inheritIO().start()
-                if (cp.waitFor() != 0) throw new GradleException("cp failed for ${archiveName}")
-            }
+ALL_TWX.each { ver, cfg ->
+    def context = images.context('platform', ver)
+    def staging = context.map { it.dir('staging') }
+    def stage = { String name, Object sourceFile, String fileName, boolean plaintext ->
+        tasks.register(name, StageFile) {
+            dependsOn "decryptVendor_${ver}"
+            source = sourceFile
+            destination = staging.map { it.file(fileName) }
+            requirePlaintext = plaintext
         }
+    }
+
+    tasks.register("decryptVendor_${ver}", ExtractVendorArchive) {
+        description = "Stage vendor platform DockerFiles for TW ${ver}"
+        archive = images.vendorFile(cfg.platformDockerFiles)
+        destination = context
+    }
+    stage("stagePlatformPostgres_${ver}", images.vendorFile(cfg.platformPostgres), cfg.platformPostgres, true)
+    def tomcatArchive = "apache-tomcat-${cfg.tomcatVersion}.tar.gz"
+    stage("stageTomcat_${ver}", tasks.named("fetchTomcat_${cfg.tomcatVersion}").flatMap { it.outputFile }, tomcatArchive, false)
+    stage("stageTomcatSignature_${ver}", tasks.named("fetchTomcatSignature_${cfg.tomcatVersion}").flatMap { it.outputFile }, "${tomcatArchive}.asc", false)
+
+    JDKS.each { variant, jdk ->
+        stage("stageJdk_${ver}_${variant}", tasks.named("fetchJdk_${variant}").flatMap { it.outputFile }, jdk.archive, false)
+
+        def taskName = "buildAll_${ver}_${variant}"
+        tasks.register(taskName, PlatformImageBuild) {
+            description = "Build all platform images for TW ${ver} with JDK ${variant}"
+            dependsOn "stageJdk_${ver}_${variant}", "stagePlatformPostgres_${ver}", "stageTomcat_${ver}", "stageTomcatSignature_${ver}"
+            displayName = "platform images for TW ${ver} JDK ${variant}"
+            workDir = context
+            arguments = ['postgres']
+            javaArchive = jdk.archive
+            tomcatVersion = cfg.tomcatVersion
+            platformVersion = cfg.platformVersion
+            it.variant = variant
+            defaultVariant = variant == DEFAULT_VARIANT
+            envPlaceholders = ['<supported_patch_version>': cfg.tomcatVersion.substring(cfg.tomcatVersion.lastIndexOf('.') + 1)]
+            envOverrides = [
+                JAVA_ARCHIVE             : jdk.archive,
+                BASE_IMAGE               : cfg.baseImage,
+                PLATFORM_POSTGRES_ARCHIVE: cfg.platformPostgres,
+            ]
+            // Retry apt-get in the base Dockerfile (flaky archive.ubuntu.com).
+            filePatches = ['dockerfiles/base/Dockerfile': [
+                'RUN apt-get update && apt-get dist-upgrade':
+                    'RUN for i in 1 2 3 4 5; do apt-get update && break || sleep 5; done && apt-get dist-upgrade',
+            ]]
+            requiredFiles = ["staging/${jdk.archive}".toString()]
+            expectedImages = PlatformImageBuild.targetTags(cfg.platformVersion, variant, variant == DEFAULT_VARIANT)
+            // Fingerprinted by content; the generated build/ context and mutable build.env are excluded.
+            contextFiles.from(context.map { dir -> fileTree(dir) { exclude 'build/**', 'build.env' } })
+            stamp = images.stagingRoot.file("platform-build-stamps/${ver}-${variant}.complete")
+        }
+        platformBuildTaskNames << taskName
     }
 }
 
-ALL_VARIANTS.each { variant ->
-    def localBuildDir = IMG_BUILD_DIR
-    def localVariant = variant
-
-    tasks.register("stageJdk_${localVariant}") {
-        description = "Stage JDK variant '${localVariant}' into each TW version's staging directory"
-        group = 'images'
-        dependsOn "fetchJdk_${localVariant}", 'extractPlatformPostgres'
-        doLast {
-            println "JDK ${localVariant} staged for all TW versions"
-        }
-    }
-}
-
-ALL_VARIANTS.each { variant ->
-    ALL_TWX.each { ver, cfg ->
-        def capturedVer = ver
-        def capturedCfg = cfg
-        def capturedVariant = variant
-        def localBuildDir = IMG_BUILD_DIR
-
-        tasks.register("buildAll_${capturedVer}_${capturedVariant}") {
-            description = "Build all platform images for TW ${capturedVer} with JDK ${capturedVariant}"
-            group = 'images'
-            dependsOn "stageJdk_${capturedVariant}"
-            def completionMarker = new File("${localBuildDir}/platform-build-stamps/${capturedVer}-${capturedVariant}.complete")
-            def expectedImages = ['base', 'platform-base', 'platform-postgres', 'postgres-init'].collectMany { name ->
-                def prefix = "ghcr.io/us-ignite/thingworx/${name}:${capturedCfg.platformVersion}"
-                capturedVariant == 'corretto' ? ["${prefix}-${capturedVariant}", prefix] : ["${prefix}-${capturedVariant}"]
-            }
-            def imagesExist = {
-                def inspection = new ProcessBuilder(['docker', 'image', 'inspect'] + expectedImages.collect { it.toString() })
-                    .redirectOutput(ProcessBuilder.Redirect.DISCARD)
-                    .redirectError(ProcessBuilder.Redirect.DISCARD).start()
-                inspection.waitFor() == 0
-            }
-            outputs.file completionMarker
-            outputs.upToDateWhen { imagesExist() }
-            inputs.property('thingworxVersion', capturedVer)
-            inputs.property('jdkVariant', capturedVariant)
-            inputs.property('tomcatVersion', capturedCfg.tomcatVersion)
-            inputs.property('platformVersion', capturedCfg.platformVersion)
-            inputs.file(project.file('build.gradle'))
-            // Gradle fingerprints these files by content. The generated
-            // build context and mutable build.env are deliberately excluded.
-            inputs.files(fileTree(new File("${localBuildDir}/vendor-extracted/platform/${capturedVer}")) {
-                exclude 'build/**', 'build.env'
-            })
-            doLast {
-                def archiveName
-                if (capturedVariant == 'openjdk')  archiveName = 'OpenJDK21U-jdk_x64_linux_hotspot_21.0.2_13.tar.gz'
-                else if (capturedVariant == 'corretto') archiveName = 'amazon-corretto-21.0.2.13.1-linux-x64.tar.gz'
-                else if (capturedVariant == 'graalvm')  archiveName = 'graalvm-jdk-21.0.2_linux-x64_bin.tar.gz'
-
-                def stage = new File("${localBuildDir}/vendor-extracted/platform/${capturedVer}/staging")
-                def jdkSrc = new File(stage, archiveName)
-                if (!jdkSrc.exists()) throw new GradleException("JDK archive not found: ${jdkSrc}")
-
-                def workDir = new File("${localBuildDir}/vendor-extracted/platform/${capturedVer}")
-                def buildEnv = new File(workDir, "build.env")
-                // Licences are supplied at runtime as read-only volume mounts.
-                def stagedLicences = fileTree(stage) { include '**/license.bin', '**/trial.bin' }.files
-                if (!stagedLicences.empty || (buildEnv.text =~ /(?m)^LICENSE_FILE=.+/).find()) {
-                    throw new GradleException('Remove runtime licence files and LICENSE_FILE from the platform build context; mount the licence at runtime instead.')
-                }
-                def patchVersion = capturedCfg.tomcatVersion.substring(capturedCfg.tomcatVersion.lastIndexOf('.') + 1)
-                buildEnv.text = buildEnv.text
-                    .replaceAll(/<supported_patch_version>/, patchVersion)
-                    .replaceAll(/(?m)^JAVA_ARCHIVE=.*/, "JAVA_ARCHIVE=${archiveName}")
-                    .replaceAll(/(?m)^BASE_IMAGE=.*/, "BASE_IMAGE=${capturedCfg.baseImage}")
-                    .replaceAll(/(?m)^PLATFORM_POSTGRES_ARCHIVE=.*/, "PLATFORM_POSTGRES_ARCHIVE=${capturedCfg.platformPostgres}")
-
-                println "Staging dependencies for TW ${capturedVer} JDK ${capturedVariant}..."
-                def stagingDir = new File(workDir, "staging")
-                def tomcatArchive = "apache-tomcat-${capturedCfg.tomcatVersion}.tar.gz"
-                def tomcatFile = new File(stagingDir, tomcatArchive)
-                if (!tomcatFile.exists()) {
-                    def tomcatMajor = capturedCfg.tomcatVersion.substring(0, capturedCfg.tomcatVersion.indexOf('.'))
-                    def tomcatUrl = "https://archive.apache.org/dist/tomcat/tomcat-${tomcatMajor}/v${capturedCfg.tomcatVersion}/bin/${tomcatArchive}"
-                    def tomcatAsc = "${tomcatUrl}.asc"
-                    println "Downloading Tomcat: ${tomcatUrl}"
-                    def dlTomcat = new ProcessBuilder('curl', '-fsSL', '-o', tomcatFile.absolutePath, tomcatUrl).inheritIO().start()
-                    if (dlTomcat.waitFor() != 0) throw new GradleException("Failed to download Tomcat")
-                    def dlAsc = new ProcessBuilder('curl', '-fsSL', '-o', "${tomcatFile.absolutePath}.asc", tomcatAsc).inheritIO().start()
-                    if (dlAsc.waitFor() != 0) throw new GradleException("Failed to download Tomcat ASC")
-                }
-
-                println "Building all platform images for TW ${capturedVer} with JDK ${capturedVariant}..."
-                // ensure docker build uses host network for DNS (Docker Desktop DNS may be broken) and avoid duplicate flags
-                new ProcessBuilder('bash', '-c', "sed -i 's/ --network=host//g; s/--pull=false//g; s/docker build/docker build --pull=false --network=host/g' build.sh").directory(workDir).inheritIO().start().waitFor()
-                // add retries to apt-get in base Dockerfile (flaky archive.ubuntu.com)
-                new ProcessBuilder('bash', '-c', "sed -i 's/RUN apt-get update && apt-get dist-upgrade/RUN for i in 1 2 3 4 5; do apt-get update \\&\\& break || sleep 5; done \\&\\& apt-get dist-upgrade/' dockerfiles/base/Dockerfile").directory(workDir).inheritIO().start().waitFor()
-                def attempt = 0
-                def success = false
-                def lastExit = 0
-                while (attempt < 3 && !success) {
-                    attempt++
-                    if (attempt > 1) println "Retrying build.sh postgres for TW ${capturedVer} JDK ${capturedVariant} attempt ${attempt}/3 ..."
-                    def proc = new ProcessBuilder('bash', 'build.sh', 'postgres').directory(workDir)
-                        .redirectErrorStream(true).start()
-                    proc.inputStream.eachLine { line -> println "  [build] ${line}" }
-                    lastExit = proc.waitFor()
-                    if (lastExit == 0) success = true
-                    else if (attempt < 3) Thread.sleep(5000)
-                }
-                if (!success) throw new GradleException("build.sh postgres failed for TW ${capturedVer} JDK ${capturedVariant} after 3 attempts")
-
-                def tagVersion = "java${vendorJavaVersion(archiveName)}-tomcat${capturedCfg.tomcatVersion}"
-                // Vendor tags include the build suffix (e.g. 9.6.9-b2052).
-                def platformVersionMatch = (buildEnv.text =~ /(?m)^PLATFORM_VERSION=([^\r\n]+)/)
-                if (!platformVersionMatch.find()) throw new GradleException('Missing PLATFORM_VERSION in vendor build.env')
-                def vendorPlatformVersion = platformVersionMatch.group(1).trim()
-                def postgresVersionMatch = (buildEnv.text =~ /(?m)^PLATFORM_POSTGRES_VERSION=([^\r\n]+)/)
-                if (!postgresVersionMatch.find()) throw new GradleException('Missing PLATFORM_POSTGRES_VERSION in vendor build.env')
-                def vendorPostgresVersion = postgresVersionMatch.group(1).trim().replace('${PLATFORM_VERSION}', vendorPlatformVersion)
-                if (!(vendorPostgresVersion ==~ /[0-9][0-9A-Za-z.-]*/)) {
-                    throw new GradleException("Unsupported vendor platform version: ${vendorPostgresVersion}")
-                }
-                def pgTag = "${tagVersion}-platform${vendorPostgresVersion}"
-                def pfx = 'ghcr.io/us-ignite/thingworx'
-
-                tagImage("thingworx/base:${tagVersion}", "${pfx}/base:${capturedCfg.platformVersion}-${capturedVariant}")
-                tagImage("thingworx/tw-platform-base:${tagVersion}", "${pfx}/platform-base:${capturedCfg.platformVersion}-${capturedVariant}")
-                tagImage("thingworx/platform-postgres:${pgTag}", "${pfx}/platform-postgres:${capturedCfg.platformVersion}-${capturedVariant}")
-                tagImage("thingworx/postgresql-init-twx:${pgTag}", "${pfx}/postgres-init:${capturedCfg.platformVersion}-${capturedVariant}")
-
-                if (capturedVariant == 'corretto') {
-                    tagImage("thingworx/base:${tagVersion}", "${pfx}/base:${capturedCfg.platformVersion}")
-                    tagImage("thingworx/tw-platform-base:${tagVersion}", "${pfx}/platform-base:${capturedCfg.platformVersion}")
-                    tagImage("thingworx/platform-postgres:${pgTag}", "${pfx}/platform-postgres:${capturedCfg.platformVersion}")
-                    tagImage("thingworx/postgresql-init-twx:${pgTag}", "${pfx}/postgres-init:${capturedCfg.platformVersion}")
-                }
-
-                if (!imagesExist()) throw new GradleException('Expected platform image tags are missing after build')
-                completionMarker.parentFile.mkdirs()
-                completionMarker.text = "Successful build for ${capturedVer} / ${capturedVariant}\n"
-                println "Done building platform images for TW ${capturedVer} JDK ${capturedVariant}"
-            }
-        }
-        platformBuildTaskNames << "buildAll_${capturedVer}_${capturedVariant}"
-    }
-}
-
-// build.sh uses a shared `build/` directory inside each ThingWorx version.
-// Do not allow the three JDK variants for a version to copy/clean that
-// directory concurrently.
+// build.sh uses a shared `build/` directory inside each ThingWorx version, so platform
+// builds must not run concurrently.
 platformBuildTaskNames.eachWithIndex { taskName, index ->
-    if (index > 0) {
-        tasks.named(taskName).configure {
-            mustRunAfter platformBuildTaskNames[index - 1]
-        }
+    if (index > 0) tasks.named(taskName) { mustRunAfter platformBuildTaskNames[index - 1] }
+}
+
+tasks.register('decryptVendor') {
+    description = 'Stage vendor platform DockerFiles for all TW versions'
+    group = 'images'
+    dependsOn ALL_TWX.keySet().collect { "decryptVendor_${it}" }
+}
+
+tasks.register('extractPlatformPostgres') {
+    description = 'Stage platform-postgres WAR archives into staging directories'
+    group = 'images'
+    dependsOn ALL_TWX.keySet().collect { "stagePlatformPostgres_${it}" }
+}
+
+JDKS.keySet().each { variant ->
+    tasks.register("stageJdk_${variant}") {
+        description = "Stage JDK variant '${variant}' into each TW version's staging directory"
+        group = 'images'
+        dependsOn ALL_TWX.keySet().collect { "stageJdk_${it}_${variant}" }, 'extractPlatformPostgres'
+    }
+    tasks.register("buildAll_${variant}") {
+        description = "Build all platform images for JDK variant '${variant}'"
+        group = 'images'
+        dependsOn ALL_TWX.keySet().collect { "buildAll_${it}_${variant}" }
+    }
+}
+
+ALL_TWX.keySet().each { ver ->
+    tasks.register("buildAll_${ver}") {
+        description = "Build all platform images for TW ${ver}"
+        group = 'images'
+        dependsOn JDKS.keySet().collect { "buildAll_${ver}_${it}" }
+    }
+    // Legacy alias used by the container tests (e.g. build102).
+    tasks.register("build${ver.replace('.', '')}") {
+        description = "Legacy alias for buildAll_${ver}_openjdk"
+        group = 'images'
+        dependsOn "buildAll_${ver}_openjdk"
     }
 }
 
 tasks.register('buildAll') {
     description = 'Build all platform images for all TW versions and JDK variants'
     group = 'images'
-    dependsOn ALL_TWX.keySet().collectMany { ver ->
-        ALL_VARIANTS.collect { variant -> "buildAll_${ver}_${variant}" }
-    }
+    dependsOn platformBuildTaskNames
 }
 
-ALL_VARIANTS.each { variant ->
-    tasks.register("buildAll_${variant}") {
-        description = "Build all platform images for JDK variant '${variant}'"
-        group = 'images'
-        dependsOn ALL_TWX.keySet().collect { ver -> "buildAll_${ver}_${variant}" }
-    }
-}
-
-ALL_TWX.each { ver, cfg ->
-    tasks.register("buildAll_${ver}") {
-        description = "Build all platform images for TW ${ver}"
-        group = 'images'
-        dependsOn ALL_VARIANTS.collect { variant -> "buildAll_${ver}_${variant}" }
-    }
-}
-
-// Legacy aliases for :apps:thingworx-jgit-extension:test which expects build101 etc.
-ALL_TWX.each { ver, cfg ->
-    def legacy = ver.replace('.', '')
-    def capturedLegacy = legacy
-    def capturedVer = ver
-    tasks.register("build${capturedLegacy}") {
-        description = "Legacy alias for buildAll_${capturedVer}_openjdk"
-        group = 'images'
-        dependsOn "buildAll_${capturedVer}_openjdk"
-    }
-}
-
-tasks.register('pushAll') {
+tasks.register('pushAll', DockerPush) {
     description = 'Push all platform images to ghcr.io'
-    group = 'publishing'
     dependsOn 'buildAll'
-    doLast {
-        def allVersions = [
-            [ver: '9.6',  platformVersion: '9.6.9'],
-            [ver: '9.7',  platformVersion: '9.7.6'],
-            [ver: '10.0', platformVersion: '10.0.4'],
-            [ver: '10.1', platformVersion: '10.1.2'],
-            [ver: '10.2', platformVersion: '10.2.1'],
-        ]
-        def allVariants = ['openjdk', 'corretto', 'graalvm']
-        def pfx = 'ghcr.io/us-ignite/thingworx'
-        def tags = allVersions.collectMany { vcfg ->
-            allVariants.collectMany { v ->
-                ['base', 'platform-base', 'platform-postgres', 'postgres-init'].collect { img -> "${pfx}/${img}:${vcfg.platformVersion}-${v}" }
-            } + ['base', 'platform-base', 'platform-postgres', 'postgres-init'].collect { img -> "${pfx}/${img}:${vcfg.platformVersion}" }
-        }
-        project.ext.assertNoImageLicences(tags)
-        allVersions.each { vcfg ->
-            allVariants.each { v ->
-                ['base', 'platform-base', 'platform-postgres', 'postgres-init'].each { img ->
-                    def p = new ProcessBuilder('docker', 'push', "${pfx}/${img}:${vcfg.platformVersion}-${v}").inheritIO().start()
-                    if (p.waitFor() != 0) throw new GradleException("docker push failed: ${img}:${vcfg.platformVersion}-${v}")
-                }
-            }
-            ['base', 'platform-base', 'platform-postgres', 'postgres-init'].each { img ->
-                def p = new ProcessBuilder('docker', 'push', "${pfx}/${img}:${vcfg.platformVersion}").inheritIO().start()
-                if (p.waitFor() != 0) throw new GradleException("docker push failed: ${img}:${vcfg.platformVersion}")
-            }
-        }
-    }
+    tags = ALL_TWX.values().collectMany { cfg ->
+        JDKS.keySet().collectMany { variant -> PlatformImageBuild.targetTags(cfg.platformVersion, variant, variant == DEFAULT_VARIANT) }
+    }.unique()
 }
-
-// cleanImages / cleanVendor provided by thingworx.docker plugin.

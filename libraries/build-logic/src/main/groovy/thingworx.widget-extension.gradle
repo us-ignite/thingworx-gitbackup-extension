@@ -1,0 +1,61 @@
+// ThingWorx widget extension built with npm + Vite:
+//   installWidgetDependencies (npm ci) -> buildWidgetBundles (npm run build,
+//   which also smoke-tests the bundles) -> packageExtension (zip of extension/
+//   plus build/vite/{ide,runtime} under ui/<uiFolder>/).
+// Projects set `thingworxWidget { extensionName; extensionVersion }`.
+import thingworx.WidgetExtension
+
+plugins {
+    id 'base'
+    id 'thingworx.extension-artifact'
+}
+
+def widget = extensions.create('thingworxWidget', WidgetExtension)
+widget.uiFolder.convention(widget.extensionName)
+
+def npmSources = { ->
+    fileTree(projectDir) {
+        include 'ide/**', 'runtime/**', 'scripts/**', '*.config.ts', 'tsconfig*.json', 'package.json', 'package-lock.json'
+        exclude '**/node_modules/**'
+    }
+}
+
+tasks.register('installWidgetDependencies', Exec) {
+    description = 'Install pinned Vite and widget dependencies'
+    group = 'build'
+    workingDir = projectDir
+    commandLine 'npm', 'ci', '--no-audit', '--no-fund'
+    inputs.files('package.json', 'package-lock.json').withPathSensitivity(PathSensitivity.RELATIVE)
+    outputs.dir('node_modules')
+}
+
+def bundles = tasks.register('buildWidgetBundles', Exec) {
+    description = 'Build the IDE and runtime ThingWorx widget bundles with Vite and smoke-test them'
+    group = 'build'
+    dependsOn 'installWidgetDependencies'
+    workingDir = projectDir
+    commandLine 'npm', 'run', 'build'
+    inputs.files(npmSources()).withPathSensitivity(PathSensitivity.RELATIVE)
+    outputs.dir(layout.buildDirectory.dir('vite'))
+}
+
+def packageExtension = tasks.register('packageExtension', Zip) {
+    description = 'Assemble the installable ThingWorx extension zip'
+    group = 'build'
+    archiveFileName = widget.extensionName.zip(widget.extensionVersion) { name, version -> "${name}-${version}.zip".toString() }
+    destinationDirectory = layout.buildDirectory.dir('distributions')
+    // ThingWorx requires metadata.xml and ui/ directly at the zip root.
+    from(layout.projectDirectory.dir('extension')) {
+        exclude 'README.md'
+    }
+    ['ide', 'runtime'].each { side ->
+        from(files(layout.buildDirectory.dir("vite/${side}")).builtBy(bundles)) {
+            into widget.uiFolder.map { "ui/${it}".toString() }
+        }
+    }
+}
+
+artifacts.add('thingworxExtensionElements', packageExtension)
+
+tasks.named('assemble') { dependsOn packageExtension }
+tasks.named('build') { dependsOn packageExtension }

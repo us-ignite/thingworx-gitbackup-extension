@@ -1,5 +1,4 @@
 pluginManagement {
-    includeBuild('libraries/git-hooks')
     includeBuild('libraries/build-logic')
 }
 

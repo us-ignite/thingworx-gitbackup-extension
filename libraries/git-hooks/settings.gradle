@@ -1,3 +1,0 @@
-// Allows IDEs to import this included build standalone.
-// The main build still wires it via pluginManagement.includeBuild(...).
-rootProject.name = 'thingworx-git-hooks'

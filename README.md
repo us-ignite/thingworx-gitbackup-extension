@@ -38,7 +38,7 @@ is `:<type>:<artifact>` (see `settings.gradle:11`). This enforces a uniform layo
 | `libraries` | `thingworx-dap` (`:libraries:thingworx-dap`) | DAP annotation processor (`annotationProcessor`) | `io.github.us-ignite:thingworx-dap:<version>` (GitHub Packages) |
 | `libraries` | `thingworx-dap-runtime` (`:libraries:thingworx-dap-runtime`) | DAP InfoTable helpers (runtime `implementation`) | `io.github.us-ignite:thingworx-dap-runtime:<version>` |
 | `libraries` | `thingworx-testcontainers` (`:libraries:thingworx-testcontainers`) | Shared Testcontainers helpers | (internal, no independent version) |
-| `libraries` | `git-hooks` (`:libraries:git-hooks`) | `thingworx.git-hooks` Gradle plugin + hook tasks | (build-time only, `0.1.0`) |
+| `libraries` | `build-logic` (included build) | All shared build logic: convention plugins (`thingworx.*`), typed task classes, and the `thingworx.git-hooks` plugin | (build-time only) |
 | `images` | `thingworx-operator` (`:images:thingworx-operator`) | Operator `Dockerfile` + `buildImage`/`pushImage` | Same OCI tags as `:apps:thingworx-operator` |
 | `images` | `platform` / `security-tool` / `connection-server` | Vendor-derived ThingWorx container builds (pinned to `vendor/*.zip|*.gz`, not `.version` — see below) | `ghcr.io/us-ignite/thingworx/platform-postgres:<platformVersion>[-<jdk>]` etc. |
 | `charts` | `thingworx-operator` | Helm chart for the operator | `charts/thingworx-operator/Chart.yaml` version = operator version |
@@ -66,7 +66,7 @@ fall back to `0.1.0-SNAPSHOT` (`build.gradle:18`).
 
 ### Hook-managed SemVer (JGit + DAP)
 
-The `thingworx.git-hooks` plugin (`libraries/git-hooks:17`, applied in `build.gradle:3`) installs
+The `thingworx.git-hooks` plugin (`libraries/build-logic`, class `thingworx.VersioningPlugin`, applied in `build.gradle:3`) installs
 a `prepare-commit-msg` hook (`settings.gradle:36`). On commit it:
 
 1. Inspects staged paths (ignores `.version` itself): `apps/thingworx-jgit-extension/**` → JGit target, `libraries/thingworx-dap*/**` → DAP targets.

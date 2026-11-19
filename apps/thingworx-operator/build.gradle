@@ -83,18 +83,6 @@ tasks.named('assemble') {
     dependsOn tasks.named('fatJar')
 }
 
-tasks.register('testAll') {
-    group = 'verification'
-    description = "Run all unit tests for ${project.path}."
-    dependsOn tasks.named('test')
-}
-
-tasks.register('buildAll') {
-    group = 'build'
-    description = "Build all operator artifacts for ${project.path}."
-    dependsOn tasks.named('build')
-}
-
 tasks.register('installDist') {
     group = 'build'
     description = 'Legacy alias for assembling the executable operator JAR.'

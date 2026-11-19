@@ -1,5 +1,10 @@
+import thingworx.docker.DockerPush
+import thingworx.docker.ExtractVendorArchive
+import thingworx.docker.VendorBuildScript
+import thingworx.tasks.StageFile
+import thingworx.tasks.VerifiedDownload
+
 plugins {
-    id 'thingworx.base'
     id 'thingworx.docker'
 }
 
@@ -43,213 +48,102 @@ def ALL_CX_BASE = [
     // 'latest' download name (corretto-11-x64-linux-jdk.tar.gz) has no
     // parseable version and fails the build with "Unable to determine Java
     // version from archive".
-    '9.2.2.2': [javaArchive: 'amazon-corretto-11.0.32.10.1-linux-x64.tar.gz', baseImage: 'ubuntu:22.04'],
-    '9.3.0.4': [javaArchive: 'amazon-corretto-21.0.2.13.1-linux-x64.tar.gz', baseImage: 'ubuntu:22.04'],
+    '9.2.2.2': [javaArchive: 'amazon-corretto-11.0.32.10.1-linux-x64.tar.gz', baseImage: 'ubuntu:22.04',
+                javaUrl: 'https://corretto.aws/downloads/resources/11.0.32.10.1/amazon-corretto-11.0.32.10.1-linux-x64.tar.gz'],
+    '9.3.0.4': [javaArchive: 'amazon-corretto-21.0.2.13.1-linux-x64.tar.gz', baseImage: 'ubuntu:22.04',
+                javaUrl: 'https://corretto.aws/downloads/latest/amazon-corretto-21-x64-linux-jdk.tar.gz'],
 ]
 
-// Shared via thingworx.docker plugin (single implementation in build-logic).
-def IMG_BUILD_DIR = project.ext.imgBuildDir
-def IMG_VENDOR_DIR = project.ext.imgVendorDir
-def requireVendorArchive = project.ext.requireVendorArchive
+def BASE_IMAGE = 'ghcr.io/us-ignite/thingworx-cxserver-base'
+def IMAGE = 'ghcr.io/us-ignite/thingworx-cxserver'
+
+def images = thingworxImages
+
+ALL_TWX.each { ver, cfg ->
+    def context = images.context('connection-server', ver)
+    def staging = context.map { it.dir('staging') }
+    def base = ALL_CX_BASE[cfg.cxVersion]
+
+    tasks.register("decryptVendor_${ver}", ExtractVendorArchive) {
+        description = "Stage vendor connection-server DockerFiles for TW ${ver}"
+        archive = images.vendorFile(cfg.cxServerDockerFiles)
+        destination = context
+    }
+    tasks.register("stageInstaller_${ver}", StageFile) {
+        description = "Stage the Connection Server installer for TW ${ver}"
+        dependsOn "decryptVendor_${ver}"
+        source = images.vendorFile(cfg.appArchive)
+        destination = staging.map { it.file(cfg.appArchive) }
+        requirePlaintext = true
+    }
+    // Pinned filename: the vendor build.sh parses JAVA_VERSION out of it.
+    tasks.register("fetchJdk_${ver}", VerifiedDownload) {
+        description = "Fetch the JDK into connection-server staging for TW ${ver}"
+        group = 'images'
+        dependsOn "decryptVendor_${ver}"
+        url = base.javaUrl
+        outputFile = staging.map { it.file(base.javaArchive) }
+    }
+    tasks.register("buildCxServer_${ver}", VendorBuildScript) {
+        description = "Build cxserver image for TW ${ver} (CX ${cfg.cxVersion})"
+        dependsOn "buildCxServerBase_${cfg.cxVersion.replace('.', '_')}", "stageInstaller_${ver}", "fetchJdk_${ver}"
+        displayName = "cxserver for TW ${ver} (CX ${cfg.cxVersion})"
+        workDir = context
+        // JDK per CX major version (9.2.x -> Java 11, 9.3.x -> Java 21) regardless of the vendor build.env.
+        envOverrides = [BASE_OS_IMAGE: cfg.baseImage, JAVA_ARCHIVE: base.javaArchive, APP_VERSION: cfg.cxVersion]
+        requiredFiles = ["staging/${cfg.appArchive}".toString()]
+        imageTags = [
+            ("${IMAGE}:${ver}".toString()): "thingworx/cxserver-twx:cxserver-${cfg.cxVersion}".toString(),
+            ("${IMAGE}:latest".toString()): "thingworx/cxserver-twx:cxserver-${cfg.cxVersion}".toString(),
+        ]
+    }
+}
+
+ALL_CX_BASE.each { cxVersion, base ->
+    // Built in the context of the first ThingWorx version that ships this CX version.
+    def ver = ALL_TWX.find { it.value.cxVersion == cxVersion }?.key
+    if (!ver) throw new GradleException("No TW version found for cxVersion ${cxVersion}")
+    tasks.register("buildCxServerBase_${cxVersion.replace('.', '_')}", VendorBuildScript) {
+        description = "Build cxserver-base image for CX version ${cxVersion}"
+        dependsOn "stageInstaller_${ver}", "fetchJdk_${ver}"
+        displayName = "cxserver-base ${cxVersion}"
+        workDir = images.context('connection-server', ver)
+        envOverrides = [BASE_OS_IMAGE: base.baseImage, JAVA_ARCHIVE: base.javaArchive, APP_VERSION: cxVersion]
+        requiredFiles = ["staging/${base.javaArchive}".toString()]
+        imageTags = [
+            ("${BASE_IMAGE}:${cxVersion}".toString()): "thingworx/cxserver-base:cxserver-${cxVersion}".toString(),
+            ("${BASE_IMAGE}:latest".toString())    : "thingworx/cxserver-base:cxserver-${cxVersion}".toString(),
+        ]
+    }
+}
 
 tasks.register('decryptVendor') {
     description = 'Stage vendor connection-server DockerFiles for all TW versions'
     group = 'images'
-    def localBuildDir = IMG_BUILD_DIR
-    def localVendorDir = IMG_VENDOR_DIR
-    def localTwx = ALL_TWX
-    def localRequire = requireVendorArchive
-    doLast {
-        localTwx.each { twxVersion, cfg ->
-            def dest = new File("${localBuildDir}/vendor-extracted/connection-server/${twxVersion}")
-            dest.mkdirs()
-            // Copy both vendor archives from the (filter-decrypted) vendor dir.
-            [cfg.cxServerDockerFiles, cfg.appArchive].each { name ->
-                def target = new File(dest, name)
-                if (!target.isFile()) {
-                    def source = localRequire(new File(localVendorDir, name))
-                    source.withInputStream { input -> target.withOutputStream { output -> input.transferTo(output) } }
-                }
-            }
-            if (new File(dest, 'dockerfiles').isDirectory() && new File(dest, cfg.appArchive).isFile()) {
-                println "Connection-server DockerFiles for ${twxVersion} already extracted"
-                return
-            }
-            println "Unpacking connection-server DockerFiles for TW ${twxVersion}..."
-            def unpack = new ProcessBuilder('tar', 'xzf', cfg.cxServerDockerFiles).directory(dest).inheritIO().start()
-            if (unpack.waitFor() != 0) throw new GradleException("Could not unpack ${cfg.cxServerDockerFiles}")
-        }
-    }
+    dependsOn ALL_TWX.keySet().collect { "decryptVendor_${it}" }
 }
 
 tasks.register('fetchJdk') {
     description = 'Fetch JDK for each TW version into connection-server staging'
     group = 'images'
-    dependsOn 'decryptVendor'
-    def localBuildDir = IMG_BUILD_DIR
-    def localTwx = ALL_TWX
-    def localCxBase = ALL_CX_BASE
-    doLast {
-        localTwx.each { twxVersion, cfg ->
-            def baseCfg = localCxBase[cfg.cxVersion]
-            def archiveName = baseCfg.javaArchive
-            def workDir = new File("${localBuildDir}/vendor-extracted/connection-server/${twxVersion}")
-            def installer = new File(workDir, cfg.appArchive)
-            if (!installer.isFile()) {
-                throw new GradleException("Missing required Connection Server installer ${cfg.appArchive} for TW ${twxVersion}. Download it from PTC Support into vendor/ (see twx-file filter).")
-            }
-            def stage = new File(workDir, 'staging')
-            def stagedInstaller = new File(stage, cfg.appArchive)
-            stage.mkdirs()
-            if (!stagedInstaller.isFile() || stagedInstaller.length() != installer.length()) {
-                installer.withInputStream { input -> stagedInstaller.withOutputStream { output -> input.transferTo(output) } }
-            }
-            def jdkFile = new File(stage, archiveName)
-            if (jdkFile.exists()) {
-                println "JDK for connection-server ${twxVersion} already present"
-                return
-            }
-            stage.mkdirs()
-            // Pinned (not `latest`): the staged filename must keep its version
-            // so the vendor build.sh can parse JAVA_VERSION from it.
-            def url = archiveName.startsWith('amazon-corretto-11')
-                ? 'https://corretto.aws/downloads/resources/11.0.32.10.1/amazon-corretto-11.0.32.10.1-linux-x64.tar.gz'
-                : 'https://corretto.aws/downloads/latest/amazon-corretto-21-x64-linux-jdk.tar.gz'
-            println "Downloading JDK for connection-server TW ${twxVersion}: ${url}"
-            def proc = new ProcessBuilder('curl', '-fsSL', '-o', jdkFile.absolutePath, url).inheritIO().start()
-            if (proc.waitFor() != 0) throw new GradleException("curl failed for ${url}")
-        }
-    }
-}
-
-['9.2.2.2', '9.3.0.4'].each { cxVersion ->
-    def capturedCxVersion = cxVersion
-    def localBuildDir = IMG_BUILD_DIR
-    def localCxBase = ALL_CX_BASE
-    def localTwx = ALL_TWX
-
-    tasks.register("buildCxServerBase_${capturedCxVersion.replace('.', '_')}") {
-        description = "Build cxserver-base image for CX version ${capturedCxVersion}"
-        group = 'images'
-        dependsOn 'fetchJdk'
-        doLast {
-            def cfg = localCxBase[capturedCxVersion]
-            def twxVersion = localTwx.find { it.value.cxVersion == capturedCxVersion }?.key
-            if (!twxVersion) throw new GradleException("No TW version found for cxVersion ${capturedCxVersion}")
-            def workDir = new File("${localBuildDir}/vendor-extracted/connection-server/${twxVersion}")
-            def required = new File(workDir, "staging/${cfg.javaArchive}")
-            if (!required.isFile()) {
-                throw new GradleException("Missing required JDK archive for cxserver-base ${capturedCxVersion}: ${required}")
-            }
-            def buildEnv = new File(workDir, "build.env")
-            if (buildEnv.exists()) {
-                buildEnv.text = buildEnv.text
-                    .replaceAll(/(?m)^BASE_OS_IMAGE=.*/, "BASE_OS_IMAGE=${cfg.baseImage}")
-                    .replaceAll(/(?m)^JAVA_ARCHIVE=.*/, "JAVA_ARCHIVE=${cfg.javaArchive}")
-                    .replaceAll(/(?m)^APP_VERSION=.*/, "APP_VERSION=${capturedCxVersion}")
-            }
-            println "Building cxserver-base ${capturedCxVersion}..."
-            new ProcessBuilder('bash', '-c', "sed -i 's/ --network=host//g; s/--pull=false//g; s/docker build/docker build --pull=false --network=host/g' build.sh").directory(workDir).inheritIO().start().waitFor()
-            def attempt = 0
-            def success = false
-            while (attempt < 3 && !success) {
-                attempt++
-                if (attempt > 1) println "Retrying cxserver-base ${capturedCxVersion} attempt ${attempt}/3 ..."
-                def proc = new ProcessBuilder('bash', 'build.sh').directory(workDir).redirectErrorStream(true).start()
-                proc.inputStream.eachLine { line -> println "  [build] ${line}" }
-                if (proc.waitFor() == 0) success = true
-                else if (attempt < 3) Thread.sleep(5000)
-            }
-            if (!success) throw new GradleException("build.sh failed for cxserver-base ${capturedCxVersion} after 3 attempts")
-            def dockerTag = project.ext.dockerTag
-            dockerTag("thingworx/cxserver-base:cxserver-${capturedCxVersion}", "ghcr.io/us-ignite/thingworx-cxserver-base:${capturedCxVersion}")
-            dockerTag("thingworx/cxserver-base:cxserver-${capturedCxVersion}", 'ghcr.io/us-ignite/thingworx-cxserver-base:latest')
-        }
-    }
-}
-
-ALL_TWX.each { twxVersion, cfg ->
-    def capturedVer = twxVersion
-    def capturedCfg = cfg
-    def localBuildDir = IMG_BUILD_DIR
-    def localCxBase = ALL_CX_BASE
-
-    tasks.register("buildCxServer_${capturedVer}") {
-        description = "Build cxserver image for TW ${capturedVer} (CX ${capturedCfg.cxVersion})"
-        group = 'images'
-        dependsOn "buildCxServerBase_${capturedCfg.cxVersion.replace('.', '_')}"
-        doLast {
-            def workDir = new File("${localBuildDir}/vendor-extracted/connection-server/${capturedVer}")
-            def buildEnv = new File(workDir, "build.env")
-            if (buildEnv.exists()) {
-                // Use JDK per CX major version (e.g., 9.2.x -> Java 11, 9.3.x -> Java 21) regardless of what vendor build.env shipped with.
-                def baseCfg = localCxBase[capturedCfg.cxVersion]
-                def javaArchive = baseCfg.javaArchive
-                buildEnv.text = buildEnv.text
-                    .replaceAll(/(?m)^BASE_OS_IMAGE=.*/, "BASE_OS_IMAGE=${capturedCfg.baseImage}")
-                    .replaceAll(/(?m)^JAVA_ARCHIVE=.*/, "JAVA_ARCHIVE=${javaArchive}")
-                    .replaceAll(/(?m)^APP_VERSION=.*/, "APP_VERSION=${capturedCfg.cxVersion}")
-            }
-            println "Building cxserver for TW ${capturedVer} (CX ${capturedCfg.cxVersion})..."
-            def required = new File(workDir, "staging/${capturedCfg.appArchive}")
-            if (!required.isFile()) {
-                throw new GradleException("Missing required Connection Server installer for TW ${capturedVer}: ${required}")
-            }
-            new ProcessBuilder('bash', '-c', "sed -i 's/ --network=host//g; s/--pull=false//g; s/docker build/docker build --pull=false --network=host/g' build.sh").directory(workDir).inheritIO().start().waitFor()
-            def attempt = 0
-            def success = false
-            while (attempt < 3 && !success) {
-                attempt++
-                if (attempt > 1) println "Retrying cxserver ${capturedVer} attempt ${attempt}/3 ..."
-                def proc = new ProcessBuilder('bash', 'build.sh').directory(workDir).redirectErrorStream(true).start()
-                proc.inputStream.eachLine { line -> println "  [build] ${line}" }
-                if (proc.waitFor() == 0) success = true
-                else if (attempt < 3) Thread.sleep(5000)
-            }
-            if (!success) throw new GradleException("build.sh failed for cxserver ${capturedVer} after 3 attempts")
-            def dockerTag = project.ext.dockerTag
-            dockerTag("thingworx/cxserver-twx:cxserver-${capturedCfg.cxVersion}", "ghcr.io/us-ignite/thingworx-cxserver:${capturedVer}")
-            dockerTag("thingworx/cxserver-twx:cxserver-${capturedCfg.cxVersion}", 'ghcr.io/us-ignite/thingworx-cxserver:latest')
-        }
-    }
+    dependsOn ALL_TWX.keySet().collect { ["fetchJdk_${it}", "stageInstaller_${it}"] }.flatten()
 }
 
 tasks.register('buildAll') {
     description = 'Build all cxserver-base and cxserver images'
     group = 'images'
-    dependsOn ALL_TWX.keySet().collect { twxVersion -> "buildCxServer_${twxVersion}" }
+    dependsOn ALL_TWX.keySet().collect { "buildCxServer_${it}" }
 }
 
 tasks.register('buildAllBase') {
     description = 'Build all cxserver-base images'
     group = 'images'
-    dependsOn 'buildCxServerBase_9_2_2_2'
-    dependsOn 'buildCxServerBase_9_3_0_4'
+    dependsOn ALL_CX_BASE.keySet().collect { "buildCxServerBase_${it.replace('.', '_')}" }
 }
 
-tasks.register('pushAll') {
+tasks.register('pushAll', DockerPush) {
     description = 'Push all cxserver images to ghcr.io'
-    group = 'publishing'
     dependsOn 'buildAll'
-    doLast {
-        def tags = ['9.2.2.2', '9.3.0.4', 'latest'].collect { v -> "ghcr.io/us-ignite/thingworx-cxserver-base:${v}" }
-        tags.addAll(ALL_TWX.keySet().collect { v -> "ghcr.io/us-ignite/thingworx-cxserver:${v}" })
-        tags << 'ghcr.io/us-ignite/thingworx-cxserver:latest'
-        project.ext.assertNoImageLicences(tags)
-        ['9.2.2.2', '9.3.0.4'].each { cxVersion ->
-            def p = new ProcessBuilder('docker', 'push', "ghcr.io/us-ignite/thingworx-cxserver-base:${cxVersion}").inheritIO().start()
-            if (p.waitFor() != 0) throw new GradleException("docker push failed")
-        }
-        def p0 = new ProcessBuilder('docker', 'push', 'ghcr.io/us-ignite/thingworx-cxserver-base:latest').inheritIO().start()
-        if (p0.waitFor() != 0) throw new GradleException("docker push failed")
-        def localTwx = ALL_TWX
-        localTwx.each { twxVersion, cfg ->
-            def p = new ProcessBuilder('docker', 'push', "ghcr.io/us-ignite/thingworx-cxserver:${twxVersion}").inheritIO().start()
-            if (p.waitFor() != 0) throw new GradleException("docker push failed")
-        }
-        def p1 = new ProcessBuilder('docker', 'push', 'ghcr.io/us-ignite/thingworx-cxserver:latest').inheritIO().start()
-        if (p1.waitFor() != 0) throw new GradleException("docker push failed")
-    }
+    tags = (ALL_CX_BASE.keySet() + ['latest']).collect { "${BASE_IMAGE}:${it}".toString() } +
+            (ALL_TWX.keySet() + ['latest']).collect { "${IMAGE}:${it}".toString() }
 }
-
-// cleanImages / cleanVendor provided by thingworx.docker plugin.

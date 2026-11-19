@@ -2,6 +2,7 @@
 plugins {
     id 'java'
     id 'thingworx.base'
+    id 'thingworx.lifecycle-aliases'
 }
 
 java {

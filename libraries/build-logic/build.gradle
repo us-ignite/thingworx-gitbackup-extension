@@ -1,3 +1,6 @@
+// The single home for this repository's build logic: precompiled convention
+// plugins (src/main/groovy/*.gradle), typed task classes (src/main/groovy/thingworx/**),
+// and the binary git-hooks plugin.
 plugins {
     id 'groovy-gradle-plugin'
 }
@@ -9,4 +12,14 @@ repositories {
 
 dependencies {
     implementation 'com.diffplug.spotless:spotless-plugin-gradle:7.0.2'
+    testImplementation 'junit:junit:4.13.2'
+}
+
+gradlePlugin {
+    plugins {
+        gitHooks {
+            id = 'thingworx.git-hooks'
+            implementationClass = 'thingworx.VersioningPlugin'
+        }
+    }
 }

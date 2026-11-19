@@ -1,0 +1,35 @@
+// Runs the ThingWorx DAP annotation processor over main sources and declares the
+// generated entity XML directory (`thingworxDap.outputDir`) as a compile output.
+import thingworx.java.DapArguments
+import thingworx.java.DapExtension
+
+plugins {
+    id 'java'
+}
+
+def dap = extensions.create('thingworxDap', DapExtension)
+dap.outputDir.convention(layout.buildDirectory.dir('generated/dap'))
+
+dependencies {
+    annotationProcessor project(':libraries:thingworx-dap')
+}
+
+def arguments = objects.newInstance(DapArguments)
+arguments.outputDir.set(dap.outputDir)
+arguments.packageVersion.set(dap.packageVersion)
+arguments.minimumThingWorxVersion.set(dap.minimumThingWorxVersion)
+
+def fileSystem = objects.newInstance(thingworx.Services).fileSystem
+tasks.named('compileJava', JavaCompile) {
+    options.compilerArgumentProviders.add(arguments)
+    // Entities removed from the sources must not linger in the generated output.
+    def output = dap.outputDir
+    doFirst { fileSystem.delete { delete output } }
+}
+
+pluginManager.withPlugin('eclipse') {
+    eclipse.classpath.file.whenMerged { classpath ->
+        classpath.entries.add(new org.gradle.plugins.ide.eclipse.model.SourceFolder(
+                'build/generated/sources/annotationProcessor/java/main', 'bin/main'))
+    }
+}

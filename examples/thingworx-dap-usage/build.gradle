@@ -3,46 +3,32 @@ plugins {
     id 'thingworx.eclipse'
     id 'thingworx.spotless'
     id 'thingworx.sdk'
+    id 'thingworx.dap'
 }
 
 dependencies {
     implementation project(':libraries:thingworx-dap-runtime')
     implementation project(':libraries:thingworx-dap')
-    compileOnly fileTree(dir: project.ext.sdkExtractDir, include: '*.jar')
-    annotationProcessor project(':libraries:thingworx-dap')
+    compileOnly thingworxSdk.jars
 }
 
-def dapExampleOutputDir = file("${buildDir}/generated/dap-example")
-tasks.named('compileJava') {
-    dependsOn tasks.named('unpackSdk')
-    outputs.dir dapExampleOutputDir
-    doFirst {
-        if (dapExampleOutputDir.exists()) dapExampleOutputDir.deleteDir()
-    }
-    options.annotationProcessorPath = configurations.annotationProcessor
-    options.compilerArgs += [
-        "-Adap.output=${dapExampleOutputDir.absolutePath}",
-        '-Adap.packageVersion=1.0.0',
-        '-Adap.minimumThingWorxVersion=9.6.0'
-    ]
-}
-
-eclipse.classpath.file.whenMerged { classpath ->
-    classpath.entries.add(
-            new org.gradle.plugins.ide.eclipse.model.SourceFolder(
-                    'build/generated/sources/annotationProcessor/java/main', 'bin/main'))
+thingworxDap {
+    outputDir = layout.buildDirectory.dir('generated/dap-example')
+    packageVersion = '1.0.0'
+    minimumThingWorxVersion = '9.6.0'
 }
 
 tasks.register('verifyDapExample') {
     description = 'Compile the DAP example and verify its generated ThingWorx XML'
     group = 'verification'
-    dependsOn tasks.named('compileJava')
-    inputs.dir dapExampleOutputDir
+    def generated = files(thingworxDap.outputDir) { builtBy 'compileJava' }
+    inputs.files(generated).withPathSensitivity(PathSensitivity.RELATIVE)
     doLast {
-        def shape = new XmlSlurper().parse(new File("${dapExampleOutputDir}/DataShapes/GIT.ExampleCommit.DataShape.xml")).DataShapes.DataShape
+        def dir = generated.singleFile
+        def shape = new XmlSlurper().parse(new File(dir, 'DataShapes/GIT.ExampleCommit.DataShape.xml')).DataShapes.DataShape
         assert shape.@name.text() == 'GIT.ExampleCommit.DataShape'
         assert shape.FieldDefinitions.FieldDefinition*.@name*.text() == ['CommitID', 'Message']
-        def wrapper = new XmlSlurper().parse(new File("${dapExampleOutputDir}/DataShapes/GIT.ExampleCommit.ServiceResult.DataShape.xml")).DataShapes.DataShape
+        def wrapper = new XmlSlurper().parse(new File(dir, 'DataShapes/GIT.ExampleCommit.ServiceResult.DataShape.xml')).DataShapes.DataShape
         assert wrapper.FieldDefinitions.FieldDefinition.find { it.@name.text() == 'Result' }.@'aspect.dataShape'.text() == 'GIT.ExampleCommit.DataShape'
     }
 }

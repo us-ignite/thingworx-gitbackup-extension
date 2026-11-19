@@ -1,3 +1,7 @@
+// Included by the main build via pluginManagement.includeBuild(...); also
+// importable standalone by IDEs.
+rootProject.name = 'build-logic'
+
 dependencyResolutionManagement {
     repositories {
         gradlePluginPortal()

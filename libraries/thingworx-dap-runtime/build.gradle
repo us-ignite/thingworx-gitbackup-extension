@@ -12,9 +12,5 @@ ext.publishingDescription = 'ThingWorx runtime helpers for ThingWorx DAP.'
 
 dependencies {
     api project(':libraries:thingworx-dap')
-    compileOnly fileTree(dir: project.ext.sdkExtractDir, include: '*.jar')
-}
-
-tasks.withType(JavaCompile).configureEach {
-    dependsOn tasks.named('unpackSdk')
+    compileOnly thingworxSdk.jars
 }
