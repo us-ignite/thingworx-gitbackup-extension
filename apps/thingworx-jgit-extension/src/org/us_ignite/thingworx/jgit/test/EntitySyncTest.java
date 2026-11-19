@@ -903,9 +903,8 @@ public class EntitySyncTest {
                         HttpResponse.BodyHandlers.ofString());
         assertEquals(200, mergeRes.statusCode(), "Fast-forward merge failed: " + mergeRes.body());
         assertTrue(
-                mergeRes.body().contains("FAST_FORWARD")
-                        || mergeRes.body().contains("Fast-forward")
-                        || mergeRes.body().contains("Already-up-to-date"),
+                mergeRes.body().contains("fast-forward to")
+                        || mergeRes.body().contains("already up to date"),
                 "Expected fast-forward merge result: " + mergeRes.body());
         syncTo(twxA, GIT_THING_A);
 

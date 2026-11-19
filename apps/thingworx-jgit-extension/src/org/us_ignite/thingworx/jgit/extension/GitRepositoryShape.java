@@ -682,43 +682,22 @@ public class GitRepositoryShape extends Thing {
                                     (double) (endTimePushFinish - endTimeOpenRepository)
                                             / (double) 1000000)
                             .setScale(3, RoundingMode.HALF_DOWN);
-            String LogResult = "";
+            List<String> pushed = new ArrayList<>();
             String pushError = null;
             for (PushResult pr : prList) {
                 for (RemoteRefUpdate update : pr.getRemoteUpdates()) {
-                    LogResult += update;
-                    RemoteRefUpdate.Status status = update.getStatus();
-                    if (status != RemoteRefUpdate.Status.OK
-                            && status != RemoteRefUpdate.Status.UP_TO_DATE) {
-                        String hint;
-                        if (status == RemoteRefUpdate.Status.REJECTED_NONFASTFORWARD) {
-                            hint = " " + Const.ERR_PUSH_NON_FAST_FORWARD;
-                        } else {
-                            hint = " Check the remote repository policy and credentials.";
-                        }
-                        String serverReason = update.getMessage();
-                        String serverMessages = pr.getMessages();
-                        pushError =
-                                "Remote rejected "
-                                        + update.getRemoteName()
-                                        + " with status "
-                                        + status
-                                        + "."
-                                        + (serverReason != null && !serverReason.isBlank()
-                                                ? " Server reason: " + serverReason.trim() + "."
-                                                : "")
-                                        + (serverMessages != null && !serverMessages.isBlank()
-                                                ? " Server messages: " + serverMessages.trim()
-                                                : "")
-                                        + hint;
+                    if (ResultMessages.accepted(update)) {
+                        pushed.add(ResultMessages.pushed(pr, update, sourceBranch, remote));
+                    } else if (pushError == null) {
+                        pushError = ResultMessages.pushRejected(pr, update, remote);
                     }
                 }
             }
-            LogResult +=
-                    " Debug Timings (ms): #1.OpenGit: "
-                            + durationTimeOpenRepository
-                            + "#2.Push: "
-                            + durationTimePushFinish;
+            String LogResult = String.join("\n", pushed);
+            log.debug(
+                    "Push timings (ms): open repository {}, push {}",
+                    durationTimeOpenRepository,
+                    durationTimePushFinish);
 
             if (pushError != null) {
                 fileRepo.close();
@@ -1186,11 +1165,11 @@ public class GitRepositoryShape extends Thing {
                 if (outcome == ConflictWorkflow.Outcome.CONFLICTS) {
                     return conflictResult(CurrentMethodName, "Pull", myGitFolder);
                 }
-                LogResult =
-                        String.format(
-                                Const.SUCCESS_PULL,
-                                "Successful",
-                                pulled[0] == null ? "" : pulled[0].toString());
+                String upstreamMerge =
+                        pullRepository.getConfig().getString("branch", pullBranch, "merge");
+                String pulledBranch =
+                        tracksPullRemote && upstreamMerge != null ? upstreamMerge : pullBranch;
+                LogResult = ResultMessages.pull(pulled[0], pullRemote, pulledBranch, pullBranch);
             }
 
             GitActionLogger.logAction("Pull", resolveTargetThing().getName(), LogResult);
@@ -2363,9 +2342,15 @@ public class GitRepositoryShape extends Thing {
                 return conflictResult("BranchCreateAndCheckout", "Branch checkout", git);
             }
             Ref ref = checkedOut[0];
+            ObjectId at =
+                    ref != null && ref.getObjectId() != null
+                            ? ref.getObjectId()
+                            : git.getRepository().resolve(Constants.HEAD);
+            String message =
+                    "Created and checked out " + BranchName + " at " + ResultMessages.shortId(at);
             log.trace("Exiting Service: BranchCreateAndCheckout");
             return DapResults.success(
-                    "BranchCreateAndCheckout", ref.toString(), StringResultContract.SERVICE_RESULT);
+                    "BranchCreateAndCheckout", message, StringResultContract.SERVICE_RESULT);
         } catch (Exception e) {
             GitActionLogger.logAction(
                     "BranchCreateAndCheckout",
@@ -2574,13 +2559,10 @@ public class GitRepositoryShape extends Thing {
                             .setForce(Force.booleanValue())
                             .setBranchNames("refs/heads/" + BranchName)
                             .call();
-            String LogResult = "";
-            if (lstr.size() == 0) {
-                LogResult += " Branch '" + BranchName + "' was not found or could not be deleted.";
-            }
-            for (String str : lstr) {
-                LogResult += str;
-            }
+            String LogResult =
+                    lstr.isEmpty()
+                            ? "Branch '" + BranchName + "' was not found locally."
+                            : "Deleted " + BranchName + " locally.";
 
             if (DeleteRemote.booleanValue()) {
                 transport = GitTransport.forRepository(resolveTargetThing().getName());
@@ -2593,7 +2575,33 @@ public class GitRepositoryShape extends Thing {
                                 .setRemote(deleteRemote)
                                 .setRefSpecs(new RefSpec(":refs/heads/" + BranchName))
                                 .call();
-                LogResult += " Remote delete: " + results.iterator().next();
+                for (PushResult result : results) {
+                    for (RemoteRefUpdate update : result.getRemoteUpdates()) {
+                        if (update.getStatus() == RemoteRefUpdate.Status.NON_EXISTING) {
+                            LogResult += " It was not on " + deleteRemote + ".";
+                            continue;
+                        }
+                        if (!ResultMessages.accepted(update)) {
+                            String error =
+                                    LogResult
+                                            + " "
+                                            + ResultMessages.pushRejected(
+                                                    result, update, deleteRemote);
+                            GitActionLogger.logAction(
+                                    "BranchDelete", resolveTargetThing().getName(), error);
+                            return DapResults.failure(
+                                    "BranchDelete",
+                                    "BranchDelete Error: " + Const.ERR_PREFIX_GIT + error,
+                                    StringResultContract.SERVICE_RESULT);
+                        }
+                        LogResult +=
+                                update.getStatus() == RemoteRefUpdate.Status.UP_TO_DATE
+                                                || result.getAdvertisedRef(update.getRemoteName())
+                                                        == null
+                                        ? " It was not on " + deleteRemote + "."
+                                        : " Deleted it on " + deleteRemote + ".";
+                    }
+                }
             }
 
             GitActionLogger.logAction("BranchDelete", resolveTargetThing().getName(), LogResult);
@@ -5220,7 +5228,12 @@ public class GitRepositoryShape extends Thing {
             if (outcome == ConflictWorkflow.Outcome.CONFLICTS) {
                 return conflictResult("Merge", "Merge", myGitFolder);
             }
-            String LogResult = merged[0].getMergeStatus().toString() + ": " + merged[0].toString();
+            String LogResult =
+                    "Merged "
+                            + BranchName
+                            + ": "
+                            + ResultMessages.merge(
+                                    merged[0], myGitFolder.getRepository().getBranch());
             GitActionLogger.logAction("Merge", resolveTargetThing().getName(), LogResult);
             return DapResults.success("Merge", LogResult, StringResultContract.SERVICE_RESULT);
         } catch (Exception e) {
@@ -5284,7 +5297,12 @@ public class GitRepositoryShape extends Thing {
             if (outcome == ConflictWorkflow.Outcome.CONFLICTS) {
                 return conflictResult("Rebase", "Rebase", myGitFolder);
             }
-            String LogResult = rebased[0].getStatus().toString();
+            String LogResult =
+                    "Rebase onto "
+                            + UpstreamBranch
+                            + ": "
+                            + ResultMessages.rebase(
+                                    rebased[0], myGitFolder.getRepository().getBranch(), upstream);
             GitActionLogger.logAction("Rebase", resolveTargetThing().getName(), LogResult);
             return DapResults.success("Rebase", LogResult, StringResultContract.SERVICE_RESULT);
         } catch (Exception e) {

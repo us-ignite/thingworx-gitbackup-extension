@@ -127,12 +127,14 @@ public class GitUtilityThingShape extends Thing {
                     String LocalizationTokensPrefix,
             @ThingworxServiceParameter(
                             name = "GitCommitterUser",
-                            description = "",
+                            description =
+                                    "Repository-wide Git username, used only by remotes without their own sign-in. Prefer the repository's RemoteSignInSave.",
                             baseType = "STRING")
                     String GitCommitterUser,
             @ThingworxServiceParameter(
                             name = "GitCommitterPassword",
-                            description = "",
+                            description =
+                                    "Repository-wide Git password or token, used only by remotes without their own sign-in. Prefer the repository's RemoteSignInSave.",
                             baseType = "STRING")
                     String GitCommitterPassword,
             @ThingworxServiceParameter(
@@ -1894,12 +1896,14 @@ public class GitUtilityThingShape extends Thing {
     public InfoTable GitCredentialCreate(
             @ThingworxServiceParameter(
                             name = "GitCommitterUser",
-                            description = "",
+                            description =
+                                    "Repository-wide Git username, used only by remotes without their own sign-in. Prefer the repository's RemoteSignInSave.",
                             baseType = "STRING")
                     String GitCommitterUser,
             @ThingworxServiceParameter(
                             name = "GitCommitterPassword",
-                            description = "",
+                            description =
+                                    "Repository-wide Git password or token, used only by remotes without their own sign-in. Prefer the repository's RemoteSignInSave.",
                             baseType = "STRING")
                     String GitCommitterPassword,
             @ThingworxServiceParameter(
@@ -1972,7 +1976,7 @@ public class GitUtilityThingShape extends Thing {
     @ThingworxServiceDefinition(
             name = "GitCredentialList",
             description =
-                    "Lists the current user's repository settings; passwords are never returned",
+                    "Lists the current user's repository settings. GitCommitterUser and HasPassword describe the sign-in the origin remote uses (see each repository's RemoteSignInList for other remotes); passwords are never returned",
             category = "",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
@@ -2054,13 +2058,18 @@ public class GitUtilityThingShape extends Thing {
             ValueCollection row = stored.getRow(i);
             String thing = row.getStringValue("GitThing");
             if (onlyThing != null && !onlyThing.equals(thing)) continue;
-            String password = row.getStringValue(Const.GitCommitterPassword);
+            // Report the sign-in the default remote uses: its own RemoteSignInSave row, or this
+            // repository-wide row when it has none.
+            ValueCollection signIn = context.credentialsFor(thing, Remotes.DEFAULT_REMOTE);
+            if (signIn == null) signIn = row;
+            String password = signIn.getStringValue(Const.GitCommitterPassword);
             GitUserContextManager.Identity identity = context.identityFor(thing);
             ValueCollection summary = new ValueCollection();
             summary.put("GitThing", new StringPrimitive(nullToEmpty(thing)));
             summary.put(
                     Const.GitCommitterUser,
-                    new StringPrimitive(nullToEmpty(row.getStringValue(Const.GitCommitterUser))));
+                    new StringPrimitive(
+                            nullToEmpty(signIn.getStringValue(Const.GitCommitterUser))));
             summary.put(
                     "HasPassword", new BooleanPrimitive(password != null && !password.isEmpty()));
             summary.put(Const.GitCommitterEmail, new StringPrimitive(identity.email()));
@@ -2206,12 +2215,14 @@ public class GitUtilityThingShape extends Thing {
     public InfoTable GitCredentialUpdate(
             @ThingworxServiceParameter(
                             name = "GitCommitterUser",
-                            description = "",
+                            description =
+                                    "Repository-wide Git username, used only by remotes without their own sign-in. Prefer the repository's RemoteSignInSave.",
                             baseType = "STRING")
                     String user,
             @ThingworxServiceParameter(
                             name = "GitCommitterPassword",
-                            description = "",
+                            description =
+                                    "Repository-wide Git password or token, used only by remotes without their own sign-in. Prefer the repository's RemoteSignInSave.",
                             baseType = "STRING")
                     String password,
             @ThingworxServiceParameter(
