@@ -13,7 +13,7 @@ import org.gradle.work.DisableCachingByDefault
 
 /** Verifies ThingWorx reports the installed development version, then prints the stack endpoints. */
 @DisableCachingByDefault(because = 'Acts on a running development stack')
-abstract class DevSetupSummary extends DevStackTask {
+abstract class DevSetupSummary extends GiteaTask {
     @InputFile
     @PathSensitive(PathSensitivity.NONE)
     abstract RegularFileProperty getDevVersionFile()
@@ -31,8 +31,8 @@ abstract class DevSetupSummary extends DevStackTask {
         logger.lifecycle('')
         logger.lifecycle("Installed JGitExtension version: ${installed} (source version: ${sourceVersion.get()})")
         logger.lifecycle('=== Dev Setup Complete ===')
-        logger.lifecycle('ThingWorx:  http://localhost:8080/Thingworx  (Administrator / AdminP@ssw0rd!123)')
-        logger.lifecycle('Gitea:      http://localhost:3000             (giteauser / giteapass123)')
+        logger.lifecycle("ThingWorx:  ${thingworxUrl.get()}  (${thingworxUser.get()} / ${thingworxPassword.get()})")
+        logger.lifecycle("Gitea:      ${giteaUrl.get()}             (${giteaUser.get()} / ${giteaPassword.get()})")
         logger.lifecycle('PostgreSQL: localhost:5432                    (postgres / adminpass_P@ssw0rd!)')
         logger.lifecycle('')
         logger.lifecycle('Gitea internal URL for Git thing config: http://gitea:3000/giteauser/jgit-test-repo.git')

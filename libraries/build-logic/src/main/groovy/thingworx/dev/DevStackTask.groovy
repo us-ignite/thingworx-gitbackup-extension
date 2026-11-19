@@ -20,8 +20,6 @@ abstract class DevStackTask extends DefaultTask {
     DevStackTask() {
         group = 'development'
         thingworxUrl.convention('http://localhost:8080/Thingworx')
-        thingworxUser.convention('Administrator')
-        thingworxPassword.convention('AdminP@ssw0rd!123')
         outputs.upToDateWhen { false }
     }
 

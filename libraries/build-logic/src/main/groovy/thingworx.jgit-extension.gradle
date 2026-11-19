@@ -163,7 +163,8 @@ tasks.named('check') {
 
 def jar = tasks.named('jar', Jar) {
     archiveFileName = extensionJar
-    from({ configurations.embeddedClasses.collect { zipTree(it) } }) {
+    // `elements` carries the build dependency on the dap-runtime jar; a bare closure would hide it.
+    from(configurations.embeddedClasses.elements.map { files -> files.collect { zipTree(it.asFile) } }) {
         exclude 'META-INF/MANIFEST.MF'
     }
     manifest {

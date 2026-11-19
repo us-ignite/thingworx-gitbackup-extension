@@ -259,6 +259,13 @@ tasks.named('clean', Delete) {
 // Local development stack (docker-compose.yml at the repository root)
 // ---------------------------------------------------------------------------
 def composeDir = rootProject.layout.projectDirectory
+// Credentials: TWX_USERNAME / TWX_PASSWORD (and TWX_URL for saveChanges), else the values
+// docker-compose.yml gives the extension-init service. No credentials live in build code.
+def composeFile = composeDir.file('docker-compose.yml').asFile
+tasks.withType(thingworx.dev.DevStackTask).configureEach {
+    thingworxUser = providers.environmentVariable('TWX_USERNAME').orElse(providers.provider { thingworx.dev.ComposeEnvironment.value(composeFile, 'TWX_USERNAME') })
+    thingworxPassword = providers.environmentVariable('TWX_PASSWORD').orElse(providers.provider { thingworx.dev.ComposeEnvironment.value(composeFile, 'TWX_PASSWORD') })
+}
 // docker-compose.yml mounts this directory into extension-init as /distributions.
 def composeDistributions = layout.projectDirectory.dir("versions/${defaultTwx}/build/distributions")
 
@@ -285,6 +292,7 @@ tasks.register('fetchLemminx', VerifiedDownload) {
 }
 
 tasks.register('saveChanges', SaveMashups) {
+    thingworxUrl = providers.environmentVariable('TWX_URL').orElse('http://localhost:8080/Thingworx')
     description = 'Export the tracked GIT mashups from ThingWorx into the UI source directory'
     sourceDir = ui
     outputDir = providers.gradleProperty('mashupOutputDir').map { layout.projectDirectory.dir(it) }.orElse(ui)

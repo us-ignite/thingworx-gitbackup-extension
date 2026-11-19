@@ -17,7 +17,7 @@ import java.nio.file.StandardCopyOption
 /**
  * Exports the tracked GIT mashups (Mashups_GIT.Mashup.*.xml in {@code sourceDir}) from a running
  * ThingWorx and atomically replaces them in {@code outputDir}. Connection details come from
- * TWX_URL / TWX_USERNAME / TWX_PASSWORD, defaulting to the development stack.
+ * the task's thingworx* properties (see DevStackTask).
  */
 @DisableCachingByDefault(because = 'Reads from a running ThingWorx')
 abstract class SaveMashups extends DevStackTask {
@@ -32,11 +32,6 @@ abstract class SaveMashups extends DevStackTask {
     @Optional
     abstract Property<String> getMashup()
 
-    SaveMashups() {
-        thingworxUrl.convention(System.getenv('TWX_URL') ?: 'http://localhost:8080/Thingworx')
-        thingworxUser.convention(System.getenv('TWX_USERNAME') ?: 'Administrator')
-        thingworxPassword.convention(System.getenv('TWX_PASSWORD') ?: 'AdminP@ssw0rd!123')
-    }
 
     @TaskAction
     void save() {
