@@ -1,0 +1,42 @@
+// Helm chart tasks for every chart under charts/: chartBuild_<chart> renders,
+// chartTest_<chart> lints, renders, unit-tests and schema-validates. chartBuild /
+// chartTest aggregate them; verifyVersions checks operator version sources agree.
+import thingworx.helm.HelmChartCheck
+import thingworx.helm.VerifyOperatorVersions
+
+def charts = (layout.projectDirectory.dir('charts').asFile.listFiles() ?: [] as File[])
+        .findAll { it.isDirectory() }.sort { it.name }
+
+charts.each { chart ->
+    tasks.register("chartBuild_${chart.name}", HelmChartCheck) {
+        group = 'build'
+        description = "Template the ${chart.name} Helm chart"
+        it.chart = chart
+    }
+    tasks.register("chartTest_${chart.name}", HelmChartCheck) {
+        group = 'verification'
+        description = "Lint, template and validate the ${chart.name} Helm chart"
+        it.chart = chart
+        verify = true
+    }
+}
+
+tasks.register('chartBuild') {
+    group = 'build'
+    description = 'Template all Helm charts (charts/*)'
+    dependsOn charts.collect { "chartBuild_${it.name}" }
+}
+
+tasks.register('chartTest') {
+    group = 'verification'
+    description = 'Lint all Helm charts (charts/*) plus CEL validation via helm-unittest / kubeconform when available'
+    dependsOn charts.collect { "chartTest_${it.name}" }
+}
+
+tasks.register('verifyVersions', VerifyOperatorVersions) {
+    group = 'verification'
+    description = 'Verify thingworx-operator version consistency: .version, Chart.yaml'
+    canonicalVersionFile = layout.projectDirectory.file('apps/thingworx-operator/.version')
+    chartVersionFile = layout.projectDirectory.file('charts/thingworx-operator/.version')
+    chartYaml = layout.projectDirectory.file('charts/thingworx-operator/Chart.yaml')
+}

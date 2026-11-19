@@ -1,13 +1,11 @@
 // Repo rule: tests (unit, integration, containerized) only run on explicit
-// test invocations (`test`/`testAll`/`integrationTest`/`verify`).
+// test invocations (`test`/`testAll`/`integrationTest`/`verify`); see TestInvocation.
 // `build`/`check`/`checkAll` are assemble/package only and must not stand up
 // containers, clusters, or image builds.
+import thingworx.TestInvocation
+
+def testInvocation = TestInvocation.requested(gradle)
 tasks.withType(Test).configureEach {
-    def testInvocation = gradle.startParameter.taskNames.any { taskName ->
-        ['test', 'testAll', 'integrationTest', 'verify'].any { lifecycle ->
-            taskName == lifecycle || taskName.endsWith(":${lifecycle}")
-        }
-    }
     enabled = testInvocation
     testLogging {
         events 'failed'

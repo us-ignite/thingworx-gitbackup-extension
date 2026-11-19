@@ -3,41 +3,56 @@
 //
 // Convention: the version comes from the project directory name
 // (e.g. versions/9.6 -> '9.6'). Shared sources, junit.properties and
-// .version live in apps/thingworx-jgit-extension; each version project gets
-// its own isolated build/ outputs. Every project is a plain single-sourceSet
-// Java project so IDEs import it natively (no ad-hoc compile tasks).
+// .version live in the parent project (apps/thingworx-jgit-extension); each
+// version project gets its own isolated build/ outputs. Every project is a
+// plain single-sourceSet Java project so IDEs import it natively.
+//
+// Inputs from other projects arrive through configurations, never by path:
+//   thingworxUi       <- parent's generated GIT mashups (ui-entities variant)
+//   embeddedClasses   <- :libraries:thingworx-dap-runtime jar (bundled into the extension jar)
+// Outputs: thingworxExtensionElements (the extension zip) and
+//          thingworxJavadocElements (the javadoc directory).
+import thingworx.TestInvocation
+import thingworx.ThingworxArtifacts
+import thingworx.TwxVersions
+import thingworx.docker.RequireDockerImages
+import thingworx.tasks.ExtensionMetadata
+import thingworx.tasks.FileSystemProperty
+
 plugins {
     id 'thingworx.java'
     id 'thingworx.eclipse'
     id 'thingworx.testing'
     id 'thingworx.test-fixtures'
+    id 'thingworx.sdk'
+    id 'thingworx.dap'
+    id 'thingworx.extension-artifact'
 }
-
-def twxVersions = this.class.classLoader.loadClass('thingworx.TwxVersions')
-
-evaluationDependsOn(':libraries:thingworx-dap-runtime')
-evaluationDependsOn(':libraries:thingworx-testcontainers')
 
 def ver = project.projectDir.name
-def sdkEntry = twxVersions.SDK_CONFIGS[ver]
-if (sdkEntry == null) {
+def cfg = TwxVersions.SDK_CONFIGS[ver]
+if (cfg == null) {
     throw new GradleException(
         "thingworx.jgit-extension applied to unexpected directory '${project.projectDir}'. " +
-    "Expected versions/<one of ${twxVersions.ALL}>.")
+        "Expected versions/<one of ${TwxVersions.ALL}>.")
 }
-def cfg = sdkEntry + [sdkZip: "${rootDir}/vendor/${twxVersions.SDK_ZIPS[ver]}"]
-def sanitized = twxVersions.sanitize(ver)
-def sharedDir = new File(rootDir, 'apps/thingworx-jgit-extension')
+def sanitized = TwxVersions.sanitize(ver)
+def sharedDir = project.parent.projectDir
 def sharedSrcDir = new File(sharedDir, 'src')
 
-ext {
-    twxVersion = ver
-    packageVersion = new File(sharedDir, '.version').text.trim()
-    packageVendor = 'US Ignite / Ryan Guild'
-    extensionJar = 'jgitextension.jar'
-    dapEntityTypes = ['DataShapes', 'ThingShapes', 'ThingTemplates', 'Things', 'Projects']
-    packageName = "JGitExtension-v${packageVersion}-${cfg.outputSuffix}"
-}
+def packageVersion = providers.fileContents(project.parent.layout.projectDirectory.file('.version')).asText.map { it.trim() }.get()
+def packageVendor = 'US Ignite / Ryan Guild'
+def extensionJar = 'jgitextension.jar'
+def packageName = "JGitExtension-v${packageVersion}-${cfg.outputSuffix}"
+def dapEntityTypes = ['DataShapes', 'ThingShapes', 'ThingTemplates', 'Things', 'Projects']
+
+ext.twxVersion = ver
+ext.packageVersion = packageVersion
+ext.packageName = packageName
+
+thingworxSdk.version = ver
+thingworxDap.packageVersion = packageVersion
+thingworxDap.minimumThingWorxVersion = cfg.minTwVersion
 
 eclipse {
     project {
@@ -47,7 +62,7 @@ eclipse {
         file {
             whenMerged { classpath ->
                 classpath.entries.removeAll {
-                    it instanceof org.gradle.plugins.ide.eclipse.model.SourceFolder
+                    it instanceof org.gradle.plugins.ide.eclipse.model.SourceFolder && it.path != 'build/generated/sources/annotationProcessor/java/main'
                 }
                 def main = new org.gradle.plugins.ide.eclipse.model.SourceFolder('../../src', 'bin/main')
                 main.excludes = ['**/test/**']
@@ -83,16 +98,30 @@ sourceSets {
 }
 
 configurations {
+    // Runtime dependencies packaged into lib/common of the extension zip.
     packageDependencies
     implementation.extendsFrom packageDependencies
+    // Library classes merged into the extension jar itself.
+    embeddedClasses {
+        canBeConsumed = false
+        canBeResolved = true
+        transitive = false
+        attributes {
+            attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
+            attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, Category.LIBRARY))
+            attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objects.named(LibraryElements, LibraryElements.JAR))
+            attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, Bundling.EXTERNAL))
+        }
+    }
 }
+def thingworxUi = ThingworxArtifacts.incoming(project, 'thingworxUi', ThingworxArtifacts.UI_ENTITIES)
 
 dependencies {
-    implementation fileTree(dir: file("${buildDir}/sdk-${ver}"), include: '*.jar')
+    implementation thingworxSdk.jars
     implementation project(':libraries:thingworx-dap-runtime')
-    annotationProcessor project(':libraries:thingworx-dap')
+    embeddedClasses project(':libraries:thingworx-dap-runtime')
+    add(thingworxUi.name, project(project.parent.path))
 
-    // Runtime dependencies (packaged with the extension)
     packageDependencies('org.eclipse.jgit:org.eclipse.jgit:7.6.0.202603022253-r') {
         exclude group: 'commons-codec'
         exclude group: 'org.slf4j'
@@ -128,96 +157,107 @@ dependencies {
     implementation 'org.json:json:20231013'
 }
 
-tasks.register('unpackSdk', Copy) {
-    from zipTree(file(cfg.sdkZip))
-    into file("${buildDir}/sdk-${ver}")
-    exclude '**/thingworx-javadocs*'
-    exclude 'Common/'
-}
-
-def dapOutputDir = file("${buildDir}/generated/dap")
-
-eclipse.classpath.file.whenMerged { classpath ->
-    classpath.entries.add(
-        new org.gradle.plugins.ide.eclipse.model.SourceFolder(
-            'build/generated/sources/annotationProcessor/java/main', 'bin/main'))
-}
-
-tasks.named('compileJava') {
-    dependsOn tasks.named('unpackSdk')
-    dependsOn ':libraries:thingworx-dap:jar'
-    outputs.dir dapOutputDir
-    doFirst {
-        if (dapOutputDir.exists()) dapOutputDir.deleteDir()
-    }
-    options.annotationProcessorPath = configurations.annotationProcessor
-    options.compilerArgs += [
-        "-Adap.output=${dapOutputDir.absolutePath}",
-        "-Adap.packageVersion=${project.ext.packageVersion}",
-        "-Adap.minimumThingWorxVersion=${cfg.minTwVersion}"
-    ]
-}
-
 tasks.named('check') {
     dependsOn ':examples:thingworx-dap-usage:verifyDapExample'
 }
 
-jar {
-    dependsOn ':libraries:thingworx-dap-runtime:classes'
-    archiveFileName = project.ext.extensionJar
-    from(project(':libraries:thingworx-dap-runtime').extensions
-            .getByType(org.gradle.api.tasks.SourceSetContainer)
-            .getByName('main').output)
+def jar = tasks.named('jar', Jar) {
+    archiveFileName = extensionJar
+    // `elements` carries the build dependency on the dap-runtime jar; a bare closure would hide it.
+    from(configurations.embeddedClasses.elements.map { files -> files.collect { zipTree(it.asFile) } }) {
+        exclude 'META-INF/MANIFEST.MF'
+    }
     manifest {
-        attributes 'Built-By': project.ext.packageVendor,
+        attributes 'Built-By': packageVendor,
                    'Build-Date': new Date().format('yyyy-MM-dd HH:mm:ss')
-        attributes 'Package-Title': project.ext.packageName,
-                   'Package-Version': project.ext.packageVersion,
-                   'Package-Vendor': project.ext.packageVendor,
+        attributes 'Package-Title': packageName,
+                   'Package-Version': packageVersion,
+                   'Package-Vendor': packageVendor,
                    'ThingWorx-SDK-Version': ver
     }
 }
 
-test {
+def dapOutput = files(thingworxDap.outputDir) { builtBy 'compileJava' }
+
+def extensionMetadata = tasks.register('extensionMetadata', ExtensionMetadata) {
+    description = "Write metadata.xml listing the packaged jars for ThingWorx ${ver}"
+    group = 'build'
+    generatedEntities = thingworxDap.outputDir
+    dependsOn 'compileJava'
+    jars.from(jar, configurations.packageDependencies)
+    outputFile = layout.buildDirectory.file('extension-metadata/metadata.xml')
+}
+
+def prepPackage = tasks.register('prepPackage', Sync) {
+    description = "Stage extension zip contents for ThingWorx ${ver}"
+    group = 'build'
+    into layout.buildDirectory.dir('zip')
+    from(jar) { into 'lib/common' }
+    from(configurations.packageDependencies) { into 'lib/common' }
+    from(extensionMetadata)
+    dapEntityTypes.each { entityType ->
+        from(dapOutput) {
+            include "${entityType}/*.xml"
+            eachFile { it.path = "Entities/${entityType}_${it.name}" }
+            includeEmptyDirs = false
+        }
+    }
+    // Static (pre-built) UI entities shipped verbatim, e.g. mashups and menus.
+    from(thingworxUi) {
+        include '*.xml'
+        into 'Entities'
+    }
+}
+
+def packageExtension = tasks.register('packageExtension', Zip) {
+    description = "Assemble extension zip for ThingWorx ${ver}"
+    group = 'build'
+    archiveFileName = "${packageName}.zip"
+    destinationDirectory = layout.buildDirectory.dir('distributions')
+    from prepPackage
+}
+artifacts.add('thingworxExtensionElements', packageExtension)
+
+def javadocElements = ThingworxArtifacts.outgoing(project, 'thingworxJavadocElements', ThingworxArtifacts.JAVADOC)
+artifacts.add(javadocElements.name, layout.buildDirectory.dir('docs/javadoc')) {
+    builtBy 'javadoc'
+}
+
+tasks.named('build') {
+    dependsOn packageExtension
+}
+
+// -PuseExistingImages: images were provided another way (CI pulls them from the
+// GHCR cache), so skip the builds and just verify they exist.
+def useExistingImages = project.hasProperty('useExistingImages')
+def requireTestImages = tasks.register('requireTestImages', RequireDockerImages) {
+    description = "Verify the ThingWorx ${ver} test images exist locally"
+    images = [cfg.platformImage, cfg.dbInitImage, cfg.securityImage]
+}
+
+tasks.named('test', Test) {
     description = "Run tests against ThingWorx ${ver} (${cfg.outputSuffix})"
     group = 'verification'
     // Tests resolve helper scripts via relative paths (scripts/...), so run
     // from the shared directory just like the old single-project layout did.
     workingDir = sharedDir
-    dependsOn 'packageExtension'
-    // Image builds are test-only: Gradle still runs `dependsOn` tasks even when
-    // this test is disabled, so the image deps must be conditional too.
-    // Otherwise plain `build` would build Docker images via check -> test.
-    def isTestInvocation = gradle.startParameter.taskNames.any { taskName ->
-        ['test', 'testAll', 'integrationTest', 'verify'].any { lifecycle -> taskName == lifecycle || taskName.endsWith(":${lifecycle}") }
-    }
-    // -PuseExistingImages: images were provided another way (CI pulls them
-    // from the GHCR cache), so skip the builds and just verify they exist.
-    def useExistingImages = project.hasProperty('useExistingImages')
-    if (isTestInvocation && !useExistingImages) {
+    jvmArgumentProviders.add(objects.newInstance(FileSystemProperty).tap {
+        name = 'test.extensionZip'
+        file = packageExtension.flatMap { it.archiveFile }
+    })
+    // Image builds are test-only (see TestInvocation): Gradle runs `dependsOn`
+    // tasks even for a disabled test, so plain `build` must not reach them.
+    if (useExistingImages) {
+        dependsOn requireTestImages
+    } else if (TestInvocation.requested(gradle)) {
         dependsOn ":images:platform:build${sanitized}"
         dependsOn ":images:security-tool:buildSecurityTool_${ver}"
     }
-    if (useExistingImages) {
-        def requiredImages = [cfg.platformImage, cfg.dbInitImage, cfg.securityImage]
-        doFirst {
-            def missing = requiredImages.findAll { image ->
-                new ProcessBuilder('docker', 'image', 'inspect', image)
-                    .redirectOutput(ProcessBuilder.Redirect.DISCARD)
-                    .redirectError(ProcessBuilder.Redirect.DISCARD)
-                    .start().waitFor() != 0
-            }
-            if (!missing.empty) {
-                throw new GradleException("-PuseExistingImages set but images are missing locally: ${missing.join(', ')}")
-            }
-        }
-    }
-    systemProperty "test.extensionZip", "${buildDir}/distributions/${project.ext.packageName}.zip"
-    systemProperty "test.dbInitImage", System.getProperty('test.dbInitImage') ?: cfg.dbInitImage
-    systemProperty "test.platformImage", System.getProperty('test.platformImage') ?: cfg.platformImage
-    systemProperty "test.postgresImage", System.getProperty('test.postgresImage') ?: cfg.postgresImage
-    systemProperty "test.postgresHostAuth", System.getProperty('test.postgresHostAuth') ?: cfg.postgresHostAuth
-    systemProperty "test.postgresPasswordEncryption", System.getProperty('test.postgresPasswordEncryption') ?: cfg.postgresPasswordEncryption
+    systemProperty 'test.dbInitImage', System.getProperty('test.dbInitImage') ?: cfg.dbInitImage
+    systemProperty 'test.platformImage', System.getProperty('test.platformImage') ?: cfg.platformImage
+    systemProperty 'test.postgresImage', System.getProperty('test.postgresImage') ?: cfg.postgresImage
+    systemProperty 'test.postgresHostAuth', System.getProperty('test.postgresHostAuth') ?: cfg.postgresHostAuth
+    systemProperty 'test.postgresPasswordEncryption', System.getProperty('test.postgresPasswordEncryption') ?: cfg.postgresPasswordEncryption
     def junitProps = new Properties()
     new File(sharedDir, 'junit.properties').withInputStream { junitProps.load(it) }
     junitProps.each { k, v -> systemProperty k, v }
@@ -248,55 +288,6 @@ test {
     }
 }
 
-tasks.register('prepPackage', Copy) {
-    description = "Stage extension zip contents for ThingWorx ${ver}"
-    group = 'build'
-    dependsOn tasks.named('jar')
-    def zipStage = file("${buildDir}/zip")
-    into zipStage
-    from(file("${buildDir}/libs/${project.ext.extensionJar}")) { into 'lib/common' }
-    from(configurations.packageDependencies) { into 'lib/common' }
-    from(dapOutputDir) { include 'metadata.xml' }
-    project.ext.dapEntityTypes.each { entityType ->
-        from(file("${dapOutputDir}/${entityType}")) {
-            include '*.xml'
-            rename { filename -> "${entityType}_${filename}" }
-            into 'Entities'
-        }
-    }
-    // Static (pre-built) UI entities shipped verbatim, e.g. mashups and menus.
-    from(file("${project.parent.projectDir}/ui")) {
-        include '*.xml'
-        into 'Entities'
-    }
-    doFirst { delete zipStage }
-    // Rewrite JarResources in the staged metadata to match resolved artifacts.
-    doLast {
-        def libDir = new File(zipStage, 'lib/common')
-        def jarFiles = libDir.listFiles()?.findAll { it.name.endsWith('.jar') }?.collect { it.name }?.sort() ?: []
-        if (!jarFiles.isEmpty()) {
-            def metadataFile = new File(zipStage, 'metadata.xml')
-            def content = metadataFile.text
-            def jarResourcesXml = jarFiles.collect { "                <FileResource description=\"\" file=\"${it}\" type=\"JAR\"/>" }.join("\n")
-            content = content.replaceAll(/(?s)<JarResources>.*?<\/JarResources>/, "<JarResources>\n${jarResourcesXml}\n            </JarResources>")
-            metadataFile.text = content
-        }
-    }
-}
-
-tasks.register('packageExtension', Zip) {
-    description = "Assemble extension zip for ThingWorx ${ver}"
-    group = 'build'
-    dependsOn tasks.named('prepPackage')
-    archiveFileName = "${project.ext.packageName}.zip"
-    destinationDirectory = file("${buildDir}/distributions")
-    from file("${buildDir}/zip")
-}
-
-tasks.named('build') {
-    dependsOn tasks.named('packageExtension')
-}
-
-clean {
+tasks.named('clean', Delete) {
     delete 'bin'
 }

@@ -94,11 +94,13 @@ export after editing the source. Packaging the extension runs this task
 automatically. The task uses the pinned TypeScript compiler in this directory's
 `package-lock.json`; npm and Node.js must be available.
 
-The `src/types` declarations are synchronized from the pinned BMCoreUIWidgets
-release ZIP. `tsconfig.json` includes them for editor language services,
-including the ThingWorx widget decorators and global types such as `STRING` and
-`TWEvent`. Run `./gradlew :apps:thingworx-jgit-extension:syncUiTypeDeclarations`
-to refresh them; helper embedding and extension packaging run this task too.
+`tsconfig.json` gives editors three sets of declarations. The ThingWorx platform types come from
+the `typescriptwebpacksupport` npm package, and the jQuery types from `@types/jquery` 3.x (ThingWorx
+9.6 and 10.x ship jQuery 3.7.1). `src/types/BMCoreUIWidgets.d.ts` holds the class host's widget
+decorators and `TWEvent`. It is synchronized from the pinned BMCoreUIWidgets release ZIP by
+`./gradlew :apps:thingworx-jgit-extension:syncUiTypeDeclarations`, which helper embedding and
+extension packaging also run. `src/types/BMTypescriptHelper.d.ts` is maintained by hand. It holds
+the base-type aliases such as `STRING` and `INFOTABLE`, and the `TypescriptWidget` base class.
 
 Treat the files under `src/` as the sources of truth. Do not edit a mashup's
 `Code`, `Exports`, `TranspiledCode`, or `CustomMashupCss` fields by hand; those

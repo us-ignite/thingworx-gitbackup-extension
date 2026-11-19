@@ -36,7 +36,7 @@ these imported widgets:
 
 | Widget | Provider | Check before editing |
 | --- | --- | --- |
-| `AgGridWidget3` | `apps/aggridwidget3-extension` | `src/metadata.xml`, `ide/src` and `runtime/src`; packaged as `agGridWidget3` so it never collides with the original `agGridWidget2`. |
+| `AgGridWidget3` | `apps/aggridwidget3-extension` | `extension/metadata.xml`, `ide/src` and `runtime/src`; packaged as `agGridWidget3` so it never collides with the original `agGridWidget2`. |
 | `GitMarkdownWidget` | `apps/markdown-widget-extension` | `ide/GitMarkdownWidget.ide.js` and `runtime/src`; renders sanitised Markdown from `Markdown` or the first row of `Data` (`ContentField`). Used on `GIT.Mashup.Repository`. |
 | `BMTypescriptClassHost` | `apps/bmwidgets-extension` / BMCoreUIWidgets | `src/GitHelper.ts`, `src/types/`, and the pinned upstream release described in that extension's README. |
 

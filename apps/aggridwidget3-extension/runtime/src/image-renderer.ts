@@ -42,48 +42,46 @@ export class CustomImageRenderer {
   params: any;
   imageElement: HTMLImageElement;
   checkIfFieldIsEditable(): void {
-    const _this = this;
-    const logPrefix = ".checkIfFieldIsEditable(" + this.now + "): ";
+    const logPrefix = `.checkIfFieldIsEditable(${this.now}): `;
     const colDef = this.params.colDef;
     this.log(
       logPrefix,
-      "image cell was double-clicked, columndef = " + JSON.stringify(colDef),
+      `image cell was double-clicked, columndef = ${JSON.stringify(colDef)}`,
     );
     let isEditable = undefined;
     if (colDef?.editable !== undefined) {
       const editableValue = colDef.editable;
-      this.log(logPrefix, "next column has editable, value = " + editableValue);
+      this.log(logPrefix, `next column has editable, value = ${editableValue}`);
       if (editableValue?.canEdit !== undefined) {
         const drivingField_1 = editableValue.canEdit;
-        isEditable = function () {
-          return _this.params.data[drivingField_1];
+        isEditable = () => {
+          return this.params.data[drivingField_1];
         };
       } else {
         isEditable =
           editableValue?.useEditableFields !== undefined
-            ? function () {
+            ? () => {
                 let fieldIsEditable = true;
                 const editableFieldName =
-                  _this.params.context.EditableFieldsColumn;
-                _this.log(
+                  this.params.context.EditableFieldsColumn;
+                this.log(
                   logPrefix,
-                  "checking to see if this cell is editable using field: " +
-                    editableFieldName,
+                  `checking to see if this cell is editable using field: ${editableFieldName}`,
                 );
-                const editableFields = _this.params.data[editableFieldName]
-                  ? JSON.parse(_this.params.data[editableFieldName])
+                const editableFields = this.params.data[editableFieldName]
+                  ? JSON.parse(this.params.data[editableFieldName])
                   : {};
-                _this.log(
+                this.log(
                   logPrefix,
-                  "editableFields = " + JSON.stringify(editableFields),
+                  `editableFields = ${JSON.stringify(editableFields)}`,
                 );
-                _this.log(
+                this.log(
                   logPrefix,
-                  "does it have this column?: = " + colDef.field,
+                  `does it have this column?: = ${colDef.field}`,
                 );
                 if (editableFields?.[colDef.field] !== undefined) {
                   fieldIsEditable = editableFields[colDef.field];
-                  _this.log(logPrefix, "Yes! And it = " + fieldIsEditable);
+                  this.log(logPrefix, `Yes! And it = ${fieldIsEditable}`);
                 }
                 return fieldIsEditable;
               }
@@ -99,7 +97,7 @@ export class CustomImageRenderer {
     }
   }
   async startUpload(e): Promise<void> {
-    const logPrefix = ".startUpload(" + this.now + "): ";
+    const logPrefix = `.startUpload(${this.now}): `;
     this.eGui.replaceChild(this.buttonSpinnerElement, this.fileContainer);
     try {
       const newFilePath = await this.fileUploader.startUpload(
@@ -107,14 +105,14 @@ export class CustomImageRenderer {
         this.params,
         this.now,
       );
-      this.log(logPrefix, logPrefix + "upload complete");
+      this.log(logPrefix, `${logPrefix}upload complete`);
       const colId = this.params.column.getColId();
       this.params.node.setDataValue(colId, newFilePath);
       this.imageElement.src = newFilePath;
       this.eGui.replaceChild(this.fileContainer, this.buttonSpinnerElement);
-      this.log(logPrefix, logPrefix + "renderer update done");
+      this.log(logPrefix, `${logPrefix}renderer update done`);
     } catch (error) {
-      this.log(logPrefix, logPrefix + "failure uploading...");
+      this.log(logPrefix, `${logPrefix}failure uploading...`);
       this.eGui.replaceChild(this.imageElement, this.fileContainer);
     }
   }
@@ -130,7 +128,6 @@ export class CustomImageRenderer {
   buttonElement: HTMLElement;
   fileContainerDiv: HTMLDivElement;
   constructor() {
-    const _this = this;
     this.loggingEnabled = true;
     this.fileUploader = new FileUploader();
     this.buttonSpinnerElement = icon(faSpinner, {
@@ -164,7 +161,7 @@ export class CustomImageRenderer {
       const fileSplit = params.value.split("/");
       const currentFilePath =
         fileSplit.length > 3
-          ? "/" + fileSplit.slice(4, fileSplit.length - 1).join("/")
+          ? `/${fileSplit.slice(4, fileSplit.length - 1).join("/")}`
           : "/Ideas";
       this.params.newFilePath = params.newFilePath ?? currentFilePath;
       this.params.repository =
@@ -181,7 +178,7 @@ export class CustomImageRenderer {
     this.inputDiv = document.createElement("div");
     this.inputDiv.classList.add("file-input");
     this.buttonElement = document.createElement("btn");
-    this.buttonElement.setAttribute("id", this.now + "btn");
+    this.buttonElement.setAttribute("id", `${this.now}btn`);
     this.buttonElement.setAttribute("name", "fileUploadButton");
     this.buttonElement.classList.add("button-13");
     this.buttonElement.addEventListener("click", this.openFileInput);
@@ -189,7 +186,7 @@ export class CustomImageRenderer {
     this.buttonDiv.appendChild(this.buttonElement);
     this.fileContainerDiv.appendChild(this.buttonDiv);
     this.inputElement = document.createElement("input");
-    this.inputElement.setAttribute("id", this.now + "input");
+    this.inputElement.setAttribute("id", `${this.now}input`);
     this.inputElement.setAttribute("type", "file");
     this.inputElement.setAttribute("allow", "image/*");
     this.inputElement.addEventListener("change", this.startUpload);
@@ -201,8 +198,7 @@ export class CustomImageRenderer {
   getGui() {
     this.log(
       ".getGui():",
-      "created eGui, adding dblclick event listener, eGui = " +
-        this.eGui.outerHTML,
+      `created eGui, adding dblclick event listener, eGui = ${this.eGui.outerHTML}`,
     );
     return this.eGui;
   }

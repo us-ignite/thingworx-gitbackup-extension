@@ -23,28 +23,24 @@ export class DatePicker {
     if (date !== null) {
       const selectedDate = date.getTime();
       console.log(
-        "AgGridWidget.DatePicker().datePickerClosed(): closing date picker, selectedDate = " +
-          selectedDate +
-          ", this.originalValueWithOffset = " +
-          this.originalValueWithOffset,
+        `AgGridWidget.DatePicker().datePickerClosed(): closing date picker, selectedDate = ${selectedDate}, this.originalValueWithOffset = ${this.originalValueWithOffset}`,
       );
       if (selectedDate !== this.originalValueWithOffset) {
         cancelTheEditing = false;
       }
     }
     console.log(
-      "AgGridWidget.DatePicker().datePickerClosed(): stopping editing of cell, cancelTheEditing = " +
-        cancelTheEditing,
+      `AgGridWidget.DatePicker().datePickerClosed(): stopping editing of cell, cancelTheEditing = ${cancelTheEditing}`,
     );
     this.params.api.stopEditing(cancelTheEditing);
   }
   init(params) {
-    this.elementId = "datepicker-" + new Date().getTime();
+    this.elementId = `datepicker-${new Date().getTime()}`;
     this.params = params;
     this.eInput = document.createElement("input");
     this.eInput.id = this.elementId;
-    this.logPrefix = "AgGridWidget.DatePicker(" + params.colDef.field + "): ";
-    console.log(this.logPrefix + "colDef = " + JSON.stringify(params.colDef));
+    this.logPrefix = `AgGridWidget.DatePicker(${params.colDef.field}): `;
+    console.log(`${this.logPrefix}colDef = ${JSON.stringify(params.colDef)}`);
     const dateFormat = params.context.dateFormat
       ? params.context.dateFormat
       : "dd-mm-yy";
@@ -60,27 +56,15 @@ export class DatePicker {
       ? formatDate(this.originalValueWithOffset, params.context.DateFormat)
       : "";
     console.log(
-      this.logPrefix +
-        "dateFormat = " +
-        dateFormat +
-        ", params.value = " +
-        params.value +
-        ", paramValueAsDate = " +
-        paramValueAsDate +
-        ", inputValue = " +
-        inputValue,
+      `${this.logPrefix}dateFormat = ${dateFormat}, params.value = ${params.value}, paramValueAsDate = ${paramValueAsDate}, inputValue = ${inputValue}`,
     );
-    console.log(this.logPrefix + "timeZoneOffset = " + timeZoneOffset);
+    console.log(`${this.logPrefix}timeZoneOffset = ${timeZoneOffset}`);
     this.eInput.value = inputValue;
     this.eInput.classList.add("ag-input");
     this.eInput.style.height = "100%";
     try {
       console.log(
-        this.logPrefix +
-          "getting min/max dates = " +
-          params.context.DateMinDate +
-          "/" +
-          params.context.DateMaxDate,
+        `${this.logPrefix}getting min/max dates = ${params.context.DateMinDate}/${params.context.DateMaxDate}`,
       );
       if (params.context.DateMinDate) {
         minDate = new Date(Date.parse(params.context.DateMinDate));
@@ -90,15 +74,11 @@ export class DatePicker {
       }
     } catch (err) {
       console.log(
-        this.logPrefix + "error creating min/max dates, err = " + err,
+        `${this.logPrefix}error creating min/max dates, err = ${err}`,
       );
     }
     console.log(
-      this.logPrefix +
-        "after setting, min/max dates = " +
-        minDate +
-        "/" +
-        maxDate,
+      `${this.logPrefix}after setting, min/max dates = ${minDate}/${maxDate}`,
     );
     const defaultDate = params.value ? new Date(params.value) : new Date();
     $(this.eInput).datepicker({
@@ -124,7 +104,7 @@ export class DatePicker {
   }
   getValue() {
     const date = $(this.eInput).datepicker("getDate");
-    console.log(this.logPrefix + "date = " + date + ", type = " + typeof date);
+    console.log(`${this.logPrefix}date = ${date}, type = ${typeof date}`);
     if (date) {
       this.selectedDate = date;
     }

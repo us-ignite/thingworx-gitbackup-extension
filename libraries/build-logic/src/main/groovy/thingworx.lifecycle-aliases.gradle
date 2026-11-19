@@ -1,0 +1,22 @@
+// Workspace aliases: `./gradlew buildAll` / `testAll` (no project path) runs the
+// task of that name in every project, so each project exposes them:
+//   buildAll -> build, testAll -> test (Java projects).
+// Projects whose buildAll/testAll mean more (root, jgit aggregate, images) define
+// their own and do not apply this plugin.
+plugins {
+    id 'base'
+}
+
+tasks.register('buildAll') {
+    group = 'build'
+    description = "Build all variants for ${path} (alias for build)"
+    dependsOn 'build'
+}
+
+pluginManager.withPlugin('java') {
+    tasks.register('testAll') {
+        group = 'verification'
+        description = "Run all tests for ${path} (alias for test)"
+        dependsOn 'test'
+    }
+}

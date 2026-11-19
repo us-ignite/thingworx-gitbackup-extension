@@ -1,57 +1,16 @@
-// Build the Git Markdown widget extension: a plain ES5 Composer file and a
-// Vite runtime bundle (marked + DOMPurify).
-
+// Git Markdown widget: a plain ES5 Composer file (ide/) and a Vite runtime
+// bundle with marked + DOMPurify (see the thingworx.widget-extension plugin).
 plugins {
-    id 'base'
+    id 'thingworx.widget-extension'
 }
 
-def extensionName = 'GitMarkdownWidget'
-def extensionVersion = '1.0.0'
-
-tasks.register('installWidgetDependencies', Exec) {
-    description = 'Install pinned Vite and Markdown dependencies'
-    group = 'build'
-    workingDir = projectDir
-    commandLine 'npm', 'ci', '--no-audit', '--no-fund'
-    inputs.file('package-lock.json')
-    outputs.dir('node_modules')
+thingworxWidget {
+    extensionName = 'GitMarkdownWidget'
+    extensionVersion = '1.0.0'
 }
 
-tasks.register('buildWidgetBundles', Exec) {
-    description = 'Build the runtime widget bundle with Vite and smoke-test both bundles'
-    group = 'build'
-    dependsOn tasks.named('installWidgetDependencies')
-    workingDir = projectDir
-    commandLine 'npm', 'run', 'build'
-    inputs.dir('ide')
-    inputs.dir('runtime/src')
-    inputs.file('vite.config.ts')
-    inputs.file('package.json')
-    inputs.file('package-lock.json')
-    inputs.file('scripts/smoke-bundles.cjs')
-    outputs.dir(layout.buildDirectory.dir('vite'))
-}
-
-tasks.register('packageExtension', Zip) {
-    description = 'Assemble an installable ThingWorx extension zip for the Git Markdown widget'
-    group = 'build'
-    archiveFileName = "${extensionName}-${extensionVersion}.zip"
-    destinationDirectory = layout.buildDirectory.dir('distributions')
-    dependsOn tasks.named('buildWidgetBundles')
-    // ThingWorx requires metadata.xml at the zip root.
-    from(layout.projectDirectory.dir('src'))
+tasks.named('packageExtension', Zip) {
     from(layout.projectDirectory.dir('ide')) {
-        into "ui/${extensionName}"
+        into thingworxWidget.uiFolder.map { "ui/${it}".toString() }
     }
-    from(layout.buildDirectory.dir('vite/runtime')) {
-        into "ui/${extensionName}"
-    }
-}
-
-tasks.named('assemble') {
-    dependsOn tasks.named('packageExtension')
-}
-
-tasks.named('build') {
-    dependsOn tasks.named('packageExtension')
 }

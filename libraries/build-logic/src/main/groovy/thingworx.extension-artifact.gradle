@@ -1,0 +1,13 @@
+// Creates the outgoing `extension-zip` variant (configuration
+// `thingworxExtensionElements`). The project adds its installable zip with
+//   artifacts { thingworxExtensionElements tasks.named('packageExtension') }
+// and aggregating projects consume it through an ordinary project dependency
+// (see ThingworxArtifacts) instead of reading build/distributions by path.
+import thingworx.ThingworxArtifacts
+
+plugins {
+    id 'base'
+    id 'thingworx.lifecycle-aliases'
+}
+
+ThingworxArtifacts.outgoing(project, 'thingworxExtensionElements', ThingworxArtifacts.EXTENSION)

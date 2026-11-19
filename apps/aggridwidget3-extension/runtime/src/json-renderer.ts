@@ -21,7 +21,7 @@ export class CustomJsonRenderer {
     this.containerId = (now + 1).toString();
   }
   init(params) {
-    this.logPrefix = ".init(" + params.column.getId() + "): ";
+    this.logPrefix = `.init(${params.column.getId()}): `;
     this.log("Starting...");
     this.loggingEnabled = params.context.EnableConsoleLogging;
     this.paramValue = params.value;

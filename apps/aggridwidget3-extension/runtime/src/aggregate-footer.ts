@@ -25,14 +25,14 @@ export class CustomColumnAggregateFooterRenderer {
     this.loggingEnabled = true;
   }
   init(params) {
-    this.logPrefix = ".init(" + params.column.getId() + "): ";
+    this.logPrefix = `.init(${params.column.getId()}): `;
     this.log("Starting...");
     this.params = params;
     this.loggingEnabled = this.params.context.EnableConsoleLogging;
     this.container = document.createElement("div");
     const footerParams = params.colDef?.footerCellRendererParams;
     if (footerParams) {
-      this.log("next column has footerParams: " + JSON.stringify(footerParams));
+      this.log(`next column has footerParams: ${JSON.stringify(footerParams)}`);
       if (
         footerParams.purpose !== undefined &&
         footerParams.label !== undefined
@@ -45,7 +45,7 @@ export class CustomColumnAggregateFooterRenderer {
         this.container.setAttribute("class", footerParams.cellClass);
       }
     }
-    this.log("done, this.container = " + this.container.innerHTML);
+    this.log(`done, this.container = ${this.container.innerHTML}`);
   }
   getGui() {
     return this.container;

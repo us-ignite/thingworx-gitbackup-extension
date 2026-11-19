@@ -52,6 +52,7 @@ cache_key() {
       images/platform \
       images/security-tool \
       libraries/build-logic/src/main/groovy/thingworx.base.gradle \
+      libraries/build-logic/src/main/groovy/thingworx/docker \
       libraries/build-logic/src/main/groovy/thingworx.docker.gradle
     git ls-tree HEAD -- vendor/ | grep -E "/MED-(61268|61111|61282)-CD-${code}_"
   } | sha256sum | cut -c1-16
