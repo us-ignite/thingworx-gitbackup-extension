@@ -50,7 +50,6 @@ import org.eclipse.jgit.diff.RawText;
 import org.eclipse.jgit.lib.CheckoutEntry;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.FileMode;
-import org.eclipse.jgit.lib.GpgConfig;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectLoader;
 import org.eclipse.jgit.lib.ObjectReader;
@@ -62,7 +61,6 @@ import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.RepositoryCache;
 import org.eclipse.jgit.lib.RepositoryState;
 import org.eclipse.jgit.lib.Signer;
-import org.eclipse.jgit.lib.Signers;
 import org.eclipse.jgit.lib.StoredConfig;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevObject;
@@ -354,10 +352,42 @@ public class GitRepositoryShape extends Thing {
         Signer signer = resolveSigner(overrideFormat, overrideFingerprint);
         if (signer == null) return null;
         commitCmd.setSign(true).setSigningKey(null).setSigner(signer);
-        if (signer instanceof PastedKeyGpgSigner) {
-            Signers.set(GpgConfig.GpgFormat.OPENPGP, signer);
-        }
         return signer;
+    }
+
+    /**
+     * The current user's identity and signing key, applied to every commit JGit creates in {@code
+     * repository} while the scope is open, such as the merge commit of a Pull or Merge and the
+     * commits a Rebase rewrites. Closing it restores the configuration and clears the key.
+     */
+    private record CommitScope(CommitSettings settings, Signer signer) implements AutoCloseable {
+        @Override
+        public void close() {
+            try {
+                settings.close();
+            } finally {
+                clearSigner(signer);
+            }
+        }
+    }
+
+    /**
+     * Opens a {@link CommitScope} for this repository's saved signing choice.
+     *
+     * @throws IllegalStateException when the repository requires signing and no key applies
+     */
+    private CommitScope commitScope(Repository repository) throws Exception {
+        String thing = resolveTargetThing().getName();
+        GitUserContextManager.Identity identity = new GitUserContextManager().identityFor(thing);
+        Signer signer = resolveSigner(null, null);
+        try {
+            return new CommitScope(
+                    CommitSettings.apply(repository, identity.name(), identity.email(), signer),
+                    signer);
+        } catch (RuntimeException e) {
+            clearSigner(signer);
+            throw e;
+        }
     }
 
     /**
@@ -1149,19 +1179,22 @@ public class GitRepositoryShape extends Thing {
                                         .getConfig()
                                         .getString("branch", pullBranch, "remote"));
                 PullResult[] pulled = new PullResult[1];
-                ConflictWorkflow.Outcome outcome =
-                        ConflictWorkflow.run(
-                                myGitFolder,
-                                "Pull",
-                                () -> {
-                                    var pull =
-                                            pullTransport
-                                                    .configure(myGitFolder.pull(), pullRemote)
-                                                    .setRemote(pullRemote);
-                                    if (!tracksPullRemote) pull.setRemoteBranchName(pullBranch);
-                                    pulled[0] = pull.call();
-                                    return ConflictWorkflow.outcome(pulled[0]);
-                                });
+                ConflictWorkflow.Outcome outcome;
+                try (CommitScope ignored = commitScope(pullRepository)) {
+                    outcome =
+                            ConflictWorkflow.run(
+                                    myGitFolder,
+                                    "Pull",
+                                    () -> {
+                                        var pull =
+                                                pullTransport
+                                                        .configure(myGitFolder.pull(), pullRemote)
+                                                        .setRemote(pullRemote);
+                                        if (!tracksPullRemote) pull.setRemoteBranchName(pullBranch);
+                                        pulled[0] = pull.call();
+                                        return ConflictWorkflow.outcome(pulled[0]);
+                                    });
+                }
                 if (outcome == ConflictWorkflow.Outcome.CONFLICTS) {
                     return conflictResult(CurrentMethodName, "Pull", myGitFolder);
                 }
@@ -4130,18 +4163,23 @@ public class GitRepositoryShape extends Thing {
                                 + Const.ERR_PREFIX_CONFIG
                                 + Const.ERR_NO_COMMITTER,
                         StringResultContract.SERVICE_RESULT);
-            ConflictWorkflow.Outcome outcome =
-                    ConflictWorkflow.continueOperation(
-                            git,
-                            Message,
-                            commit -> {
-                                commit.setCommitter(name, email);
-                                try {
-                                    signer[0] = configureSigning(commit);
-                                } catch (Exception e) {
-                                    throw new IllegalStateException(e.getMessage(), e);
-                                }
-                            });
+            ConflictWorkflow.Outcome outcome;
+            // The scope covers the commits a continued rebase rewrites; a merge commit is
+            // signed explicitly below.
+            try (CommitScope ignored = commitScope(git.getRepository())) {
+                outcome =
+                        ConflictWorkflow.continueOperation(
+                                git,
+                                Message,
+                                commit -> {
+                                    commit.setCommitter(name, email);
+                                    try {
+                                        signer[0] = configureSigning(commit);
+                                    } catch (Exception e) {
+                                        throw new IllegalStateException(e.getMessage(), e);
+                                    }
+                                });
+            }
             if (outcome == ConflictWorkflow.Outcome.CONFLICTS)
                 return conflictResult("ConflictContinue", operation, git);
             String message =
@@ -4179,7 +4217,11 @@ public class GitRepositoryShape extends Thing {
             fileRepo = new FileRepositoryManager(resolveTargetThing());
             Git git = fileRepo.git();
             String operation = ConflictWorkflow.state(git).operation();
-            if (ConflictWorkflow.skip(git) == ConflictWorkflow.Outcome.CONFLICTS)
+            ConflictWorkflow.Outcome outcome;
+            try (CommitScope ignored = commitScope(git.getRepository())) {
+                outcome = ConflictWorkflow.skip(git);
+            }
+            if (outcome == ConflictWorkflow.Outcome.CONFLICTS)
                 return conflictResult("ConflictSkip", operation, git);
             String message =
                     operation + " completed. Use Sync to ThingWorx to apply it to ThingWorx.";
@@ -5217,14 +5259,17 @@ public class GitRepositoryShape extends Thing {
                         StringResultContract.SERVICE_RESULT);
             }
             MergeResult[] merged = new MergeResult[1];
-            ConflictWorkflow.Outcome outcome =
-                    ConflictWorkflow.run(
-                            myGitFolder,
-                            "Merge",
-                            () -> {
-                                merged[0] = myGitFolder.merge().include(mergeBase).call();
-                                return ConflictWorkflow.outcome(merged[0]);
-                            });
+            ConflictWorkflow.Outcome outcome;
+            try (CommitScope ignored = commitScope(myGitFolder.getRepository())) {
+                outcome =
+                        ConflictWorkflow.run(
+                                myGitFolder,
+                                "Merge",
+                                () -> {
+                                    merged[0] = myGitFolder.merge().include(mergeBase).call();
+                                    return ConflictWorkflow.outcome(merged[0]);
+                                });
+            }
             if (outcome == ConflictWorkflow.Outcome.CONFLICTS) {
                 return conflictResult("Merge", "Merge", myGitFolder);
             }
@@ -5286,14 +5331,17 @@ public class GitRepositoryShape extends Thing {
                         StringResultContract.SERVICE_RESULT);
             }
             RebaseResult[] rebased = new RebaseResult[1];
-            ConflictWorkflow.Outcome outcome =
-                    ConflictWorkflow.run(
-                            myGitFolder,
-                            "Rebase",
-                            () -> {
-                                rebased[0] = myGitFolder.rebase().setUpstream(upstream).call();
-                                return ConflictWorkflow.outcome(rebased[0]);
-                            });
+            ConflictWorkflow.Outcome outcome;
+            try (CommitScope ignored = commitScope(myGitFolder.getRepository())) {
+                outcome =
+                        ConflictWorkflow.run(
+                                myGitFolder,
+                                "Rebase",
+                                () -> {
+                                    rebased[0] = myGitFolder.rebase().setUpstream(upstream).call();
+                                    return ConflictWorkflow.outcome(rebased[0]);
+                                });
+            }
             if (outcome == ConflictWorkflow.Outcome.CONFLICTS) {
                 return conflictResult("Rebase", "Rebase", myGitFolder);
             }

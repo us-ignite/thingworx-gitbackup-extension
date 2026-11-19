@@ -52,7 +52,7 @@ class PastedKeyGpgSignerTest {
         String fp = signer.getFingerprint();
         assertNotNull(fp, "Fingerprint should not be null");
         assertFalse(fp.isEmpty(), "Fingerprint should not be empty");
-        assertTrue(fp.matches("[0-9A-Fa-f]+"), "Fingerprint should be hex: " + fp);
+        assertTrue(fp.matches("[0-9A-F]+"), "Fingerprint should be uppercase hex: " + fp);
         assertTrue(
                 fp.length() >= 32, "Fingerprint should be at least 32 hex chars (128 bits): " + fp);
         signer.clearSensitiveData();

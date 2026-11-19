@@ -1,7 +1,6 @@
 package org.us_ignite.thingworx.jgit.test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
@@ -56,10 +55,8 @@ class CommitSignaturesTest {
 
             Description openpgp = CommitSignatures.describe(commit(git, gpg).getRawGpgSignature());
             assertEquals("openpgp", openpgp.format());
-            assertTrue(
-                    gpgFingerprint.endsWith(openpgp.key()),
-                    "expected the fingerprint or key ID of " + gpgFingerprint + ", got " + openpgp);
-            assertTrue(openpgp.key().length() >= 16, openpgp.key());
+            // The issuer-fingerprint subpacket names the full key, as gpg does (#19).
+            assertEquals(gpgFingerprint, openpgp.key());
 
             Description sshSigned =
                     CommitSignatures.describe(commit(git, ssh).getRawGpgSignature());
