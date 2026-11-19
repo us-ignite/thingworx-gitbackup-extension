@@ -23,7 +23,7 @@ function log(logPrefix, logMessage, widgetId?, loggingEnabled?) {
 function aggregateRows(params, aggregatorParams, widgetId) {
   const fieldName = params.colDef.field;
   const logPrefix =
-    ".aggregateRows(" + fieldName + "/row # " + params.node.rowIndex + "): ";
+    `.aggregateRows(${fieldName}/row # ${params.node.rowIndex}): `;
   const enableAggregationField = aggregatorParams.enableAggregationField;
   const alwaysAggregate = aggregatorParams.alwaysAggregate;
   let formula = aggregatorParams.formula;
@@ -34,23 +34,20 @@ function aggregateRows(params, aggregatorParams, widgetId) {
   let returnValue;
   log(
     logPrefix,
-    "alwaysAggregate = " + alwaysAggregate,
+    `alwaysAggregate = ${alwaysAggregate}`,
     widgetId,
     params.context.EnableConsoleLogging,
   );
   log(
     logPrefix,
-    "requiredColumns = " + requiredColumns,
+    `requiredColumns = ${requiredColumns}`,
     widgetId,
     params.context.EnableConsoleLogging,
   );
   if (!alwaysAggregate) {
     log(
       logPrefix,
-      "enable field = " +
-        enableAggregationField +
-        ", its value is: " +
-        params.data[enableAggregationField],
+      `enable field = ${enableAggregationField}, its value is: ${params.data[enableAggregationField]}`,
       widgetId,
       params.context.EnableConsoleLogging,
     );
@@ -70,10 +67,7 @@ function aggregateRows(params, aggregatorParams, widgetId) {
     requiredColumns.forEach(function (nextRequiredColumn) {
       log(
         logPrefix,
-        "nextRequiredColumn = " +
-          nextRequiredColumn +
-          ", its value is: " +
-          params.data[nextRequiredColumn],
+        `nextRequiredColumn = ${nextRequiredColumn}, its value is: ${params.data[nextRequiredColumn]}`,
         widgetId,
         params.context.EnableConsoleLogging,
       );
@@ -83,7 +77,7 @@ function aggregateRows(params, aggregatorParams, widgetId) {
     });
     log(
       logPrefix,
-      "allRequiredColumnsDefined = " + allRequiredColumnsDefined_1,
+      `allRequiredColumnsDefined = ${allRequiredColumnsDefined_1}`,
       widgetId,
       params.context.EnableConsoleLogging,
     );
@@ -93,14 +87,13 @@ function aggregateRows(params, aggregatorParams, widgetId) {
     ) {
       log(
         logPrefix,
-        "enableAggregationField is enabled, calculating row, formula = " +
-          formula,
+        `enableAggregationField is enabled, calculating row, formula = ${formula}`,
         widgetId,
         params.context.EnableConsoleLogging,
       );
       log(
         logPrefix,
-        "params.data = " + JSON.stringify(params.data),
+        `params.data = ${JSON.stringify(params.data)}`,
         widgetId,
         params.context.EnableConsoleLogging,
       );
@@ -108,27 +101,20 @@ function aggregateRows(params, aggregatorParams, widgetId) {
         let nextFieldValue = params.data[nextColumnToReplace];
         log(
           logPrefix,
-          "nextColumnToReplace = " +
-            nextColumnToReplace +
-            ", its value = " +
-            nextFieldValue,
+          `nextColumnToReplace = ${nextColumnToReplace}, its value = ${nextFieldValue}`,
           widgetId,
           params.context.EnableConsoleLogging,
         );
         log(
           logPrefix,
-          "typeof nextFieldValue = " +
-            typeof nextFieldValue +
-            ", it is gt or eq to 0? = " +
-            (parseFloat(nextFieldValue) >= 0),
+          `typeof nextFieldValue = ${typeof nextFieldValue}, it is gt or eq to 0? = ${parseFloat(nextFieldValue) >= 0}`,
           widgetId,
           params.context.EnableConsoleLogging,
         );
         if (nextFieldValue === undefined) {
           log(
             logPrefix,
-            "since it has no value, checking if default is defined,replaceEmptyFields = " +
-              JSON.stringify(replaceEmptyFields),
+            `since it has no value, checking if default is defined,replaceEmptyFields = ${JSON.stringify(replaceEmptyFields)}`,
             widgetId,
             params.context.EnableConsoleLogging,
           );
@@ -136,7 +122,7 @@ function aggregateRows(params, aggregatorParams, widgetId) {
             nextFieldValue = replaceEmptyFields[nextColumnToReplace];
             log(
               logPrefix,
-              "it does! nextFieldValue now = " + nextFieldValue,
+              `it does! nextFieldValue now = ${nextFieldValue}`,
               widgetId,
               params.context.EnableConsoleLogging,
             );
@@ -152,19 +138,16 @@ function aggregateRows(params, aggregatorParams, widgetId) {
         }
         log(
           logPrefix,
-          "replacing " +
-            nextColumnToReplace +
-            " with value = " +
-            nextFieldValue,
+          `replacing ${nextColumnToReplace} with value = ${nextFieldValue}`,
           widgetId,
           params.context.EnableConsoleLogging,
         );
-        const cellValueAsNumber = Number(nextFieldValue) + "";
+        const cellValueAsNumber = `${Number(nextFieldValue)}`;
         formula = formula.replaceAll(nextColumnToReplace, cellValueAsNumber);
       });
       log(
         logPrefix,
-        "after variable substitution, formula = " + formula,
+        `after variable substitution, formula = ${formula}`,
         widgetId,
         params.context.EnableConsoleLogging,
       );
@@ -173,11 +156,7 @@ function aggregateRows(params, aggregatorParams, widgetId) {
         if (decimalPlaces) {
           log(
             logPrefix,
-            "calculatedResult = " +
-              calculatedResult +
-              ", rounding to " +
-              decimalPlaces +
-              " places",
+            `calculatedResult = ${calculatedResult}, rounding to ${decimalPlaces} places`,
             widgetId,
             params.context.EnableConsoleLogging,
           );
@@ -188,7 +167,7 @@ function aggregateRows(params, aggregatorParams, widgetId) {
       } catch (err) {
         log(
           logPrefix,
-          "err = " + err,
+          `err = ${err}`,
           widgetId,
           params.context.EnableConsoleLogging,
         );
@@ -196,7 +175,7 @@ function aggregateRows(params, aggregatorParams, widgetId) {
       }
       log(
         logPrefix,
-        "calculatedResult = " + calculatedResult,
+        `calculatedResult = ${calculatedResult}`,
         widgetId,
         params.context.EnableConsoleLogging,
       );
@@ -216,7 +195,7 @@ function aggregateRows(params, aggregatorParams, widgetId) {
         : "";
     log(
       logPrefix,
-      "returning returnValue = " + returnValue,
+      `returning returnValue = ${returnValue}`,
       widgetId,
       params.context.EnableConsoleLogging,
     );
@@ -228,23 +207,20 @@ function aggregateColumns(params, aggregatorParams, widgetId) {
   const fieldName = params.colDef.field;
   const rowValue = params.data[fieldName] ? params.data[fieldName] : 0;
   const logPrefix =
-    ".aggregateColumns(" + fieldName + "/row # " + params.node.rowIndex + "): ";
+    `.aggregateColumns(${fieldName}/row # ${params.node.rowIndex}): `;
   const enableAggregationField = aggregatorParams.enableAggregationField;
   const formula = aggregatorParams.formula;
   const decimalPlaces = aggregatorParams.decimalPlaces;
   const thisRowIsForAggregating = params.data[enableAggregationField];
   log(
     logPrefix,
-    "row been updated to: " + rowValue,
+    `row been updated to: ${rowValue}`,
     widgetId,
     params.context.EnableConsoleLogging,
   );
   log(
     logPrefix,
-    "enableAggregationField = " +
-      enableAggregationField +
-      ", thisRowIsForAggregating = " +
-      thisRowIsForAggregating,
+    `enableAggregationField = ${enableAggregationField}, thisRowIsForAggregating = ${thisRowIsForAggregating}`,
     widgetId,
     params.context.EnableConsoleLogging,
   );
@@ -252,7 +228,7 @@ function aggregateColumns(params, aggregatorParams, widgetId) {
     if (!thisRowIsForAggregating) {
       log(
         logPrefix,
-        "row is aggregate row, just returning value: " + rowValue,
+        `row is aggregate row, just returning value: ${rowValue}`,
         widgetId,
         params.context.EnableConsoleLogging,
       );
@@ -268,11 +244,7 @@ function aggregateColumns(params, aggregatorParams, widgetId) {
           : 0;
         log(
           logPrefix,
-          "row # " +
-            index +
-            ", enableAggregationField is disabled, adding value: " +
-            nextRowColumnValue +
-            " to columnValues",
+          `row # ${index}, enableAggregationField is disabled, adding value: ${nextRowColumnValue} to columnValues`,
           widgetId,
           params.context.EnableConsoleLogging,
         );
@@ -285,7 +257,7 @@ function aggregateColumns(params, aggregatorParams, widgetId) {
     });
     log(
       logPrefix,
-      "columnValues = " + columnValues_1,
+      `columnValues = ${columnValues_1}`,
       widgetId,
       params.context.EnableConsoleLogging,
     );
@@ -294,7 +266,7 @@ function aggregateColumns(params, aggregatorParams, widgetId) {
     }, 0);
     log(
       logPrefix,
-      "valueSum = " + valueSum,
+      `valueSum = ${valueSum}`,
       widgetId,
       params.context.EnableConsoleLogging,
     );
@@ -338,11 +310,7 @@ function aggregateColumns(params, aggregatorParams, widgetId) {
     if (decimalPlaces) {
       log(
         logPrefix,
-        "aggregateValue = " +
-          aggregateValue +
-          ", rounding to " +
-          decimalPlaces +
-          " places",
+        `aggregateValue = ${aggregateValue}, rounding to ${decimalPlaces} places`,
         widgetId,
         params.context.EnableConsoleLogging,
       );
@@ -352,7 +320,7 @@ function aggregateColumns(params, aggregatorParams, widgetId) {
     }
     log(
       logPrefix,
-      "updating aggregate cell using aggregateValue = " + aggregateValue,
+      `updating aggregate cell using aggregateValue = ${aggregateValue}`,
       widgetId,
       params.context.EnableConsoleLogging,
     );
@@ -371,11 +339,7 @@ function aggregateMultiple(params, multipleAggregators, widgetId) {
     },
   };
   const logPrefix =
-    ".aggregateMultiple(" +
-    fieldName +
-    "/row # " +
-    params.node.rowIndex +
-    "): ";
+    `.aggregateMultiple(${fieldName}/row # ${params.node.rowIndex}): `;
   log(
     logPrefix,
     "checking multiple aggregators...",
@@ -390,16 +354,13 @@ function aggregateMultiple(params, multipleAggregators, widgetId) {
     const alwaysAggregate = nextAggregatorParams.alwaysAggregate;
     log(
       logPrefix,
-      "  nextAggregatorObject = " + JSON.stringify(nextAggregatorObject),
+      `  nextAggregatorObject = ${JSON.stringify(nextAggregatorObject)}`,
       widgetId,
       params.context.EnableConsoleLogging,
     );
     log(
       logPrefix,
-      "seeing whether to use nextAggregator: " +
-        nextAggregator +
-        " by using enableAggregationField: " +
-        enableAggregationField,
+      `seeing whether to use nextAggregator: ${nextAggregator} by using enableAggregationField: ${enableAggregationField}`,
       widgetId,
       params.context.EnableConsoleLogging,
     );
@@ -407,10 +368,7 @@ function aggregateMultiple(params, multipleAggregators, widgetId) {
       !params.node?.group &&
       (log(
         logPrefix,
-        "is alwaysAggregate or enableAggregationField true? alwaysAggregate = " +
-          alwaysAggregate +
-          ", enableAggregationField = " +
-          params.data[enableAggregationField],
+        `is alwaysAggregate or enableAggregationField true? alwaysAggregate = ${alwaysAggregate}, enableAggregationField = ${params.data[enableAggregationField]}`,
         widgetId,
         params.context.EnableConsoleLogging,
       ),
@@ -418,7 +376,7 @@ function aggregateMultiple(params, multipleAggregators, widgetId) {
     ) {
       log(
         logPrefix,
-        "it is! switching to  = " + nextAggregator,
+        `it is! switching to  = ${nextAggregator}`,
         widgetId,
         params.context.EnableConsoleLogging,
       );
@@ -446,8 +404,8 @@ const dateFilterParams: any = {
   suppressAndOrCondition: true,
   comparator: function (filterLocalDateAtMidnight, cellValue) {
     const logPrefix = ".DateFilter.comparator(): ";
-    log(logPrefix, "filterLocalDateAtMidnight = " + filterLocalDateAtMidnight);
-    log(logPrefix, "cellValue = " + cellValue);
+    log(logPrefix, `filterLocalDateAtMidnight = ${filterLocalDateAtMidnight}`);
+    log(logPrefix, `cellValue = ${cellValue}`);
     if (cellValue == null) {
       return 0;
     }
@@ -488,13 +446,13 @@ function getAsyncFilterValues(params) {
   const columnName = params.column.getId();
   log(
     ".getAsyncFilterValues(): ",
-    "Starting, updating column filter for: " + columnName,
+    `Starting, updating column filter for: ${columnName}`,
     params.context.WidgetId,
   );
   const newValues = params.context.getAsyncFilterValues(columnName);
   log(
     ".getAsyncFilterValues(): ",
-    "newValues = " + newValues,
+    `newValues = ${newValues}`,
     params.context.WidgetId,
   );
   params.success(newValues);
@@ -513,7 +471,7 @@ function createColumnDefs(
   let firstColumn = true;
   log(
     logPrefix,
-    "columnConfig = " + JSON.stringify(columnConfig),
+    `columnConfig = ${JSON.stringify(columnConfig)}`,
     gridWidgetId,
   );
   const children = {};
@@ -521,32 +479,27 @@ function createColumnDefs(
     if (columnConfig[nextColumn].hasOwnProperty("children")) {
       log(
         logPrefix,
-        "column def = " +
-          nextColumn +
-          " has children, bringing them to the top of the columnConfig",
+        `column def = ${nextColumn} has children, bringing them to the top of the columnConfig`,
         gridWidgetId,
       );
       columnConfig[nextColumn].children.forEach(function (nextChild) {
         const nextChildField = nextChild.field;
-        log(logPrefix, "nextChildField = " + nextChildField, gridWidgetId);
+        log(logPrefix, `nextChildField = ${nextChildField}`, gridWidgetId);
         children[nextChildField] = nextChild;
       });
     }
   });
   log(
     logPrefix,
-    "after adding any children, children = " + JSON.stringify(children),
+    `after adding any children, children = ${JSON.stringify(children)}`,
     gridWidgetId,
   );
   try {
     function _loop_1(nextFieldName) {
       const nextField = dataAsJson.dataShape.fieldDefinitions[nextFieldName];
       log(
-        (logPrefix = ".createColumnDefs(" + nextFieldName + "): "),
-        "adding next column " +
-          nextFieldName +
-          ", type = " +
-          nextField.baseType,
+        (logPrefix = `.createColumnDefs(${nextFieldName}): `),
+        `adding next column ${nextFieldName}, type = ${nextField.baseType}`,
         gridWidgetId,
       );
       let nextColumn: any = {
@@ -599,7 +552,7 @@ function createColumnDefs(
         nextColumn.cellDataType = "date";
         log(
           logPrefix,
-          "nextColumn = " + JSON.stringify(nextColumn),
+          `nextColumn = ${JSON.stringify(nextColumn)}`,
           gridWidgetId,
         );
       }
@@ -609,21 +562,19 @@ function createColumnDefs(
       ) {
         log(
           logPrefix,
-          "next column before override = " + JSON.stringify(nextColumn),
+          `next column before override = ${JSON.stringify(nextColumn)}`,
           gridWidgetId,
         );
         let filterParamsBeforeOverride_1 = {};
         log(
           logPrefix,
-          "nextColumn.filterParams = " +
-            JSON.stringify(nextColumn.filterParams),
+          `nextColumn.filterParams = ${JSON.stringify(nextColumn.filterParams)}`,
         );
         if (nextColumn.filterParams) {
           filterParamsBeforeOverride_1 = nextColumn.filterParams;
           log(
             logPrefix,
-            "filterParamsBeforeOverride = " +
-              JSON.stringify(filterParamsBeforeOverride_1),
+            `filterParamsBeforeOverride = ${JSON.stringify(filterParamsBeforeOverride_1)}`,
           );
         }
         const nextColumnDef = columnConfig.hasOwnProperty(nextFieldName)
@@ -646,7 +597,7 @@ function createColumnDefs(
               if (!nextColumn.filterParams.hasOwnProperty(nextParam)) {
                 log(
                   logPrefix,
-                  "adding back in preconfigured filter param " + nextParam,
+                  `adding back in preconfigured filter param ${nextParam}`,
                   gridWidgetId,
                 );
                 nextColumn.filterParams[nextParam] =
@@ -659,12 +610,12 @@ function createColumnDefs(
           const cellClassValue = nextColumnDef.cellClass;
           log(
             logPrefix,
-            "next column has cellClass, value = " + cellClassValue,
+            `next column has cellClass, value = ${cellClassValue}`,
             gridWidgetId,
           );
           if (cellClassValue?.hasOwnProperty("useCellClassColumns")) {
             nextColumn.cellClass = function (params) {
-              const logPrefix = ".cellClassFunction(" + nextFieldName + "): ";
+              const logPrefix = `.cellClassFunction(${nextFieldName}): `;
               let newCellClass = "";
               if (!params.data) {
                 return null;
@@ -672,16 +623,13 @@ function createColumnDefs(
               const cellClassFieldName = params.context.CellClassColumn;
               log(
                 logPrefix,
-                "checking to see if this cell is styled using field: " +
-                  cellClassFieldName,
+                `checking to see if this cell is styled using field: ${cellClassFieldName}`,
                 gridWidgetId,
               );
               if (params.data.hasOwnProperty(cellClassFieldName)) {
                 log(
                   logPrefix,
-                  cellClassFieldName +
-                    " value = " +
-                    params.data[cellClassFieldName],
+                  `${cellClassFieldName} value = ${params.data[cellClassFieldName]}`,
                   gridWidgetId,
                 );
                 const cellClasses = params.data[cellClassFieldName]
@@ -691,18 +639,17 @@ function createColumnDefs(
                   : {};
                 log(
                   logPrefix,
-                  "cellClasses = " + JSON.stringify(cellClasses),
+                  `cellClasses = ${JSON.stringify(cellClasses)}`,
                   gridWidgetId,
                 );
                 log(
                   logPrefix,
-                  "does it have this column?: = " +
-                    cellClasses.hasOwnProperty(nextFieldName),
+                  `does it have this column?: = ${cellClasses.hasOwnProperty(nextFieldName)}`,
                   gridWidgetId,
                 );
                 if (cellClasses.hasOwnProperty(nextFieldName)) {
                   newCellClass = cellClasses[nextFieldName];
-                  log(logPrefix, "Yes! And it = " + newCellClass, gridWidgetId);
+                  log(logPrefix, `Yes! And it = ${newCellClass}`, gridWidgetId);
                 }
               }
               return newCellClass;
@@ -715,7 +662,7 @@ function createColumnDefs(
           const editableValue = nextColumnDef.editable;
           log(
             logPrefix,
-            "next column has editable, value = " + editableValue,
+            `next column has editable, value = ${editableValue}`,
             gridWidgetId,
           );
           if (editableValue?.hasOwnProperty("canEdit")) {
@@ -732,8 +679,7 @@ function createColumnDefs(
               const editableFieldName = params.context.EditableFieldsColumn;
               log(
                 logPrefix,
-                "useEditableFields(): checking to see if this cell is editable using field: " +
-                  editableFieldName,
+                `useEditableFields(): checking to see if this cell is editable using field: ${editableFieldName}`,
                 gridWidgetId,
               );
               const editableFields = params.data[editableFieldName]
@@ -743,19 +689,19 @@ function createColumnDefs(
                 : {};
               log(
                 logPrefix,
-                "editableFields = " + JSON.stringify(editableFields),
+                `editableFields = ${JSON.stringify(editableFields)}`,
                 gridWidgetId,
               );
               log(
                 logPrefix,
-                "does it have this column?: = " + nextFieldName,
+                `does it have this column?: = ${nextFieldName}`,
                 gridWidgetId,
               );
               if (editableFields.hasOwnProperty(nextFieldName)) {
                 fieldIsEditable = editableFields[nextFieldName];
                 log(
                   logPrefix,
-                  "Yes! And it = " + fieldIsEditable,
+                  `Yes! And it = ${fieldIsEditable}`,
                   gridWidgetId,
                 );
               }
@@ -765,7 +711,7 @@ function createColumnDefs(
             const editFunctionString = editableValue.function;
             log(
               logPrefix,
-              "editable has a function, parsing it, it = " + editFunctionString,
+              `editable has a function, parsing it, it = ${editFunctionString}`,
               gridWidgetId,
             );
             const editFunction = new Function(editFunctionString);
@@ -780,7 +726,7 @@ function createColumnDefs(
           const multipleAggregators_1 = nextColumnDef.multipleAggregators;
           log(
             logPrefix,
-            "next column has aggregator, value = " + aggregator,
+            `next column has aggregator, value = ${aggregator}`,
             gridWidgetId,
           );
           if (aggregator == "aggregateRows") {
@@ -816,15 +762,14 @@ function createColumnDefs(
             nextColumnDef.footerCellRendererSelector;
           log(
             logPrefix,
-            "next column has footerCellRendererSelector, value = " +
-              footerCellRendererSelector,
+            `next column has footerCellRendererSelector, value = ${footerCellRendererSelector}`,
             gridWidgetId,
           );
           nextColumn.cellRendererSelector = selectFooterCellRenderer;
         }
         log(
           logPrefix,
-          "next column after override = " + JSON.stringify(nextColumn),
+          `next column after override = ${JSON.stringify(nextColumn)}`,
           gridWidgetId,
         );
         if (useAsyncSetFilters && nextColumnDef.filter == "agSetColumnFilter") {
@@ -845,29 +790,28 @@ function createColumnDefs(
       _loop_1(nextFieldName);
     }
   } catch (err) {
-    log(logPrefix, "error creating columns, err = " + err, gridWidgetId);
+    log(logPrefix, `error creating columns, err = ${err}`, gridWidgetId);
   }
   log(
     (logPrefix = ".createColumnDefs(): "),
-    "columns = " + JSON.stringify(columns),
+    `columns = ${JSON.stringify(columns)}`,
     gridWidgetId,
   );
   const groupedColumns = {};
   let columnsToSkip = [];
   Object.keys(columnConfig).forEach(function (nextColumn, index) {
     if (columnConfig[nextColumn].hasOwnProperty("children")) {
-      log(logPrefix, "adding grouped header = " + nextColumn, gridWidgetId);
+      log(logPrefix, `adding grouped header = ${nextColumn}`, gridWidgetId);
       const childFields = columnConfig[nextColumn].children.map(
         function (nextChild) {
           return nextChild.field;
         },
       );
-      log(logPrefix, "childFields = " + childFields, gridWidgetId);
+      log(logPrefix, `childFields = ${childFields}`, gridWidgetId);
       const groupedColumn = columnConfig[nextColumn];
       log(
         logPrefix,
-        "groupedColumn.children before update = " +
-          JSON.stringify(groupedColumn.children),
+        `groupedColumn.children before update = ${JSON.stringify(groupedColumn.children)}`,
         gridWidgetId,
       );
       groupedColumn.children = childFields.map(function (nextChild) {
@@ -875,8 +819,7 @@ function createColumnDefs(
       });
       log(
         logPrefix,
-        "groupedColumn.children now = " +
-          JSON.stringify(groupedColumn.children),
+        `groupedColumn.children now = ${JSON.stringify(groupedColumn.children)}`,
         gridWidgetId,
       );
       groupedColumns[index] = groupedColumn;
@@ -896,19 +839,19 @@ function createColumnDefs(
   });
   log(
     logPrefix,
-    "groupedColumns = " + JSON.stringify(groupedColumns),
+    `groupedColumns = ${JSON.stringify(groupedColumns)}`,
     gridWidgetId,
   );
   log(
     logPrefix,
-    "sortedColumns = " + JSON.stringify(sortedColumns),
+    `sortedColumns = ${JSON.stringify(sortedColumns)}`,
     gridWidgetId,
   );
   const finalColumns = [];
   Object.keys(sortedColumns).forEach(function (nextColumn, index) {
     log(
       logPrefix,
-      "building finalColumns, nextColumn = " + nextColumn + " (" + index + ")",
+      `building finalColumns, nextColumn = ${nextColumn} (${index})`,
       gridWidgetId,
     );
     if (groupedColumns.hasOwnProperty(index)) {
@@ -919,7 +862,7 @@ function createColumnDefs(
   });
   log(
     logPrefix,
-    "done building finalColumns: " + JSON.stringify(finalColumns),
+    `done building finalColumns: ${JSON.stringify(finalColumns)}`,
     gridWidgetId,
   );
   return finalColumns;
@@ -938,7 +881,7 @@ function createRowData(
   let rows = [];
   log(
     logPrefix,
-    "rows = " + JSON.stringify(dataAsJson.rows),
+    `rows = ${JSON.stringify(dataAsJson.rows)}`,
     "1",
     enableLogging,
   );
@@ -949,12 +892,7 @@ function createRowData(
   if (showGridAsTree) {
     log(
       logPrefix,
-      "grid is a tree, creating paths, parentField = " +
-        parentField +
-        ", childField = " +
-        childField +
-        ", treeColumnField = " +
-        treeColumnField,
+      `grid is a tree, creating paths, parentField = ${parentField}, childField = ${childField}, treeColumnField = ${treeColumnField}`,
     );
     rows.forEach(function (nextRow) {
       childToParentIdTreeMap[nextRow[childField]] = nextRow[parentField];
@@ -970,11 +908,11 @@ function createRowData(
           : buildDataPaths([], nextRow[childField]).reverse();
         return nextRow;
       });
-      log(logPrefix, "rows = " + JSON.stringify(rows));
+      log(logPrefix, `rows = ${JSON.stringify(rows)}`);
     } catch (err) {
       log(
         logPrefix,
-        "error creating tree data, err = " + err + ", stack = " + err.stack,
+        `error creating tree data, err = ${err}, stack = ${err.stack}`,
       );
     }
   }

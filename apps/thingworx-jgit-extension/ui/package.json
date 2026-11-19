@@ -2,6 +2,8 @@
   "name": "thingworx-jgit-ui-build",
   "private": true,
   "devDependencies": {
-    "typescript": "5.5.4"
+    "@types/jquery": "3.5.34",
+    "typescript": "5.5.4",
+    "typescriptwebpacksupport": "2.4.1"
   }
 }

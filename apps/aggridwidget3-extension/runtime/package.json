@@ -13,6 +13,7 @@
     "ag-grid-enterprise": "32.3.3",
     "dayjs": "1.11.23",
     "jszip": "3.10.1",
-    "multiple-select": "1.5.2"
+    "multiple-select": "1.5.2",
+    "typescriptwebpacksupport": "2.4.1"
   }
 }
