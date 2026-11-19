@@ -224,9 +224,9 @@ class PastedKeyGpgSignerTest {
         }
         PastedKeyGpgSigner signer = new PastedKeyGpgSigner(key, "");
         assertEquals(
-                expected.toString().toLowerCase(),
+                expected.toString(),
                 signer.getFingerprint(),
-                "getFingerprint() should match raw fingerprint");
+                "getFingerprint() should match the raw fingerprint in uppercase");
         signer.clearSensitiveData();
     }
 }
