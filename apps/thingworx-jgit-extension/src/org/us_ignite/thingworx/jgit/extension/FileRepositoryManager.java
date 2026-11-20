@@ -519,6 +519,215 @@ final class FileRepositoryManager {
     }
 
     /**
+     * A tracked Data Table: a {@code Data/<name>.json} file in a tracked project's folder in the
+     * working tree. {@code inGit} tells whether Git tracks the file, staged or committed; only then
+     * does Sync to ThingWorx import it.
+     */
+    record DataTableFile(String name, String project, String file, boolean inGit) {}
+
+    /**
+     * The tracked Data Tables: the {@code Data/<name>.json} files in the folders of the tracked
+     * projects, in project order and then by name. A name found in more than one folder is
+     * tracked from the first; each later file is added to {@code notes}. Symbolic links and other
+     * files are ignored.
+     */
+    List<DataTableFile> dataTableFiles(List<TrackedProject> projects, List<String> notes)
+            throws IOException {
+        Path root = git.getRepository().getWorkTree().toPath().toRealPath();
+        java.util.Set<String> inGit = trackedPaths();
+        java.util.LinkedHashMap<String, DataTableFile> tables = new java.util.LinkedHashMap<>();
+        for (TrackedProject project : projects) {
+            String folder;
+            Path data;
+            try {
+                folder = projectFolder(project);
+                data = resolveRepositoryPath(root, folder + "/" + TrackedDataTables.DATA_FOLDER);
+            } catch (IllegalArgumentException e) {
+                continue;
+            }
+            if (!Files.isDirectory(data, LinkOption.NOFOLLOW_LINKS)) continue;
+            List<Path> files;
+            try (var list = Files.list(data)) {
+                files = list.sorted().toList();
+            }
+            for (Path path : files) {
+                String fileName = path.getFileName().toString();
+                if (!fileName.endsWith(".json")
+                        || !Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) continue;
+                String name = fileName.substring(0, fileName.length() - ".json".length());
+                String relative;
+                try {
+                    relative = TrackedDataTables.relativeFile(folder, name);
+                } catch (IllegalArgumentException e) {
+                    continue;
+                }
+                if (tables.containsKey(name)) {
+                    notes.add(
+                            name
+                                    + " (also in "
+                                    + relative
+                                    + "; "
+                                    + tables.get(name).file()
+                                    + " is used)");
+                    continue;
+                }
+                tables.put(
+                        name,
+                        new DataTableFile(
+                                name, project.name(), relative, inGit.contains(relative)));
+            }
+        }
+        return List.copyOf(tables.values());
+    }
+
+    /** The tracked Data Tables of the tracked projects. */
+    List<DataTableFile> dataTableFiles() throws IOException {
+        return dataTableFiles(trackedProjectEntries(), new ArrayList<>());
+    }
+
+    /** The tracked Data Table named {@code name}, or an error saying it is not tracked. */
+    private DataTableFile requireDataTableFile(String name) throws IOException {
+        for (DataTableFile item : dataTableFiles()) {
+            if (item.name().equals(name)) return item;
+        }
+        throw new IllegalArgumentException("Data Table '" + name + "' is not tracked.");
+    }
+
+    /**
+     * Builds a {@code GIT.TrackedDataTable.DataShape} table. Each row's {@code Mode} is read from
+     * its file; a file that cannot be read shows its error instead.
+     */
+    InfoTable dataTableTable(List<DataTableFile> tables) throws Exception {
+        Path root = git.getRepository().getWorkTree().toPath().toRealPath();
+        InfoTable table =
+                InfoTableInstanceFactory.createInfoTableFromDataShape(
+                        Const.TrackedDataTableDataShapeName);
+        for (DataTableFile item : tables) {
+            String mode = "";
+            Path file = resolveRepositoryPath(root, item.file());
+            if (Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) {
+                try {
+                    mode =
+                            TrackedDataTables.modeOf(
+                                    Files.readString(file, StandardCharsets.UTF_8), item.name());
+                } catch (Exception e) {
+                    mode = "Invalid file: " + e.getMessage();
+                }
+            }
+            ValueCollection row = new ValueCollection();
+            row.put(Const.DataTableName, new StringPrimitive(item.name()));
+            row.put(Const.ProjectName, new StringPrimitive(item.project()));
+            row.put(Const.TrackedDataTableMode, new StringPrimitive(mode));
+            row.put(Const.TrackedDataTableFile, new StringPrimitive(item.file()));
+            row.put(Const.TrackedDataTableInGit, new BooleanPrimitive(item.inGit()));
+            table.addRow(row);
+        }
+        return table;
+    }
+
+    /**
+     * The Data Tables of the tracked projects that are not tracked yet, each with the file that
+     * tracking it would write.
+     */
+    List<DataTableFile> availableDataTables() throws Exception {
+        java.util.Set<String> tracked = new java.util.HashSet<>();
+        for (DataTableFile item : dataTableFiles()) tracked.add(item.name());
+        List<DataTableFile> available = new ArrayList<>();
+        for (TrackedProject project : trackedProjectEntries()) {
+            String folder;
+            try {
+                folder = projectFolder(project);
+            } catch (IllegalArgumentException e) {
+                continue;
+            }
+            for (String name : TrackedDataTables.dataTablesOfProject(project.name())) {
+                String relative;
+                try {
+                    relative = TrackedDataTables.relativeFile(folder, name);
+                } catch (IllegalArgumentException e) {
+                    continue;
+                }
+                if (tracked.add(name)) {
+                    available.add(new DataTableFile(name, project.name(), relative, false));
+                }
+            }
+        }
+        available.sort((a, b) -> String.CASE_INSENSITIVE_ORDER.compare(a.name(), b.name()));
+        return available;
+    }
+
+    /**
+     * Tracks a Data Table by writing its rows, with {@code mode}, to {@code Data/<name>.json} in
+     * its project's folder. The file is left untracked by Git for review in Changes.
+     *
+     * @return the repository-relative file
+     */
+    String trackDataTable(com.thingworx.datatables.DataTableThing table, String mode)
+            throws Exception {
+        String project = table.GetProjectName();
+        TrackedProject owner =
+                trackedProjectEntries().stream()
+                        .filter(p -> p.name().equals(project))
+                        .findFirst()
+                        .orElseThrow(
+                                () ->
+                                        new IllegalArgumentException(
+                                                "Data Table '"
+                                                        + table.getName()
+                                                        + "' belongs to project '"
+                                                        + project
+                                                        + "', which this repository does not"
+                                                        + " track. Track the project first; the"
+                                                        + " rows are stored in its folder."));
+        synchronized (StatusExportReconciler.class) {
+            for (DataTableFile item : dataTableFiles()) {
+                if (item.name().equals(table.getName())) {
+                    throw new IllegalArgumentException(
+                            "Data Table '" + table.getName() + "' is already tracked.");
+                }
+            }
+            String relative = TrackedDataTables.relativeFile(projectFolder(owner), table.getName());
+            String content = TrackedDataTables.export(table, mode);
+            writeDataTableFile(relative, content);
+            recordDataTableHash(table.getName(), content);
+            return relative;
+        }
+    }
+
+    /** Sets the {@code mode} in a tracked Data Table's file; nothing else in it changes. */
+    String setDataTableMode(String name, String mode) throws Exception {
+        synchronized (StatusExportReconciler.class) {
+            DataTableFile item = requireDataTableFile(name);
+            Path root = git.getRepository().getWorkTree().toPath().toRealPath();
+            Path file = resolveRepositoryPath(root, item.file());
+            requireNoLinkComponents(root, file);
+            String content = Files.readString(file, StandardCharsets.UTF_8);
+            writeDataTableFile(item.file(), TrackedDataTables.withMode(content, name, mode));
+            return item.file();
+        }
+    }
+
+    /**
+     * Stops tracking a Data Table by deleting its file from the working tree. The deletion is left
+     * unstaged for review in Changes; the rows in ThingWorx are not changed.
+     *
+     * @return the repository-relative file that was deleted
+     */
+    String untrackDataTable(String name) throws Exception {
+        synchronized (StatusExportReconciler.class) {
+            DataTableFile item = requireDataTableFile(name);
+            Path root = git.getRepository().getWorkTree().toPath().toRealPath();
+            Path file = resolveRepositoryPath(root, item.file());
+            requireNoLinkComponents(root, file);
+            Files.delete(file);
+            StoredConfig config = git.getRepository().getConfig();
+            config.unsetSection(DATA_SYNC_SECTION, name);
+            config.save();
+            return item.file();
+        }
+    }
+
+    /**
      * Returns the tracked projects with normalized paths, after checking that there is at least
      * one, that every name and path is valid, and that no two project folders overlap.
      */
@@ -699,6 +908,31 @@ final class FileRepositoryManager {
             for (int i = 0; i < projects.size(); i++) {
                 snapshots.add(exportSnapshot(temporary, String.valueOf(i), projects.get(i)));
             }
+            // Read every tracked Data Table before writing any file, like the projects above.
+            List<String> skipped = new ArrayList<>();
+            List<DataTableFile> tables = new ArrayList<>();
+            List<String> contents = new ArrayList<>();
+            Path workTree = git.getRepository().getWorkTree().toPath().toRealPath();
+            for (DataTableFile item : dataTableFiles(projects, skipped)) {
+                var thing = TrackedDataTables.find(item.name());
+                if (thing == null) {
+                    // Kept, so a table deleted or not yet imported here keeps its rows in Git.
+                    skipped.add(item.name() + " (no such Data Table; " + item.file() + " is kept)");
+                    continue;
+                }
+                String current =
+                        Files.readString(
+                                resolveRepositoryPath(workTree, item.file()),
+                                StandardCharsets.UTF_8);
+                String mode;
+                try {
+                    mode = TrackedDataTables.modeOf(current, item.name());
+                } catch (IllegalArgumentException e) {
+                    throw new Exception(Const.ERR_PREFIX_CONFIG + e.getMessage(), e);
+                }
+                tables.add(item);
+                contents.add(TrackedDataTables.export(thing, mode));
+            }
             for (int i = 0; i < projects.size(); i++) {
                 TrackedProject project = projects.get(i);
                 StatusExportReconciler.reconcileFolder(
@@ -707,6 +941,16 @@ final class FileRepositoryManager {
                         projectFolder(project),
                         project.name(),
                         project::syncs);
+            }
+            for (int i = 0; i < tables.size(); i++) {
+                writeDataTableFile(tables.get(i).file(), contents.get(i));
+                recordDataTableHash(tables.get(i).name(), contents.get(i));
+            }
+            if (!skipped.isEmpty()) {
+                GitActionLogger.logAction(
+                        "SyncFromThingWorx",
+                        fileRepository.getName(),
+                        "Data Tables not exported: " + String.join(", ", skipped));
             }
             // Keeps Status fast: files that are unchanged but were rewritten (by an earlier
             // version of this sync, or by hand) would otherwise be re-hashed on every Status.
@@ -968,9 +1212,17 @@ final class FileRepositoryManager {
                 imported = true;
             }
         }
+        // After the entities, so each Data Table and its DataShape are current before its rows.
+        DataImport data = importDataTables(projects, trackedPaths, untracked);
         // Imported entities now carry modified dates up to this point, so take it afterwards.
         recordSync(System.currentTimeMillis());
-        return new ImportResult(imported, untracked, users.created(), users.failed());
+        return new ImportResult(
+                imported,
+                untracked,
+                users.created(),
+                users.failed(),
+                data.imported(),
+                data.notes());
     }
 
     /**
@@ -982,7 +1234,52 @@ final class FileRepositoryManager {
             boolean imported,
             List<String> untracked,
             List<String> createdUsers,
-            List<String> failedUsers) {}
+            List<String> failedUsers,
+            List<String> dataTables,
+            List<String> dataTableNotes) {}
+
+    /** The Data Tables whose rows were imported, and those left alone with why. */
+    record DataImport(List<String> imported, List<String> notes) {}
+
+    /**
+     * Imports the rows of every tracked Data Table from its file, in the mode the file names, when
+     * Git tracks the file; an untracked file is reported like any other untracked file.
+     */
+    private DataImport importDataTables(
+            List<TrackedProject> projects,
+            java.util.Set<String> trackedPaths,
+            List<String> untracked)
+            throws Exception {
+        List<String> notes = new ArrayList<>();
+        List<String> imported = new ArrayList<>();
+        Path root = git.getRepository().getWorkTree().toPath().toRealPath();
+        for (DataTableFile item : dataTableFiles(projects, notes)) {
+            String name = item.name();
+            if (!trackedPaths.contains(item.file())) {
+                untracked.add(item.file());
+                continue;
+            }
+            Path file = resolveRepositoryPath(root, item.file());
+            requireNoLinkComponents(root, file);
+            var thing = TrackedDataTables.find(name);
+            if (thing == null) {
+                notes.add(name + " (the Data Table does not exist)");
+                continue;
+            }
+            String content = Files.readString(file, StandardCharsets.UTF_8);
+            try {
+                boolean mirror =
+                        TrackedDataTables.MIRROR.equals(TrackedDataTables.modeOf(content, name));
+                imported.add(TrackedDataTables.importRows(thing, content, mirror).describe());
+            } catch (Exception e) {
+                throw new Exception(
+                        "Importing the rows of Data Table '" + name + "' failed: " + e.getMessage(),
+                        e);
+            }
+            recordDataTableHash(name, TrackedDataTables.export(thing, TrackedDataTables.MIRROR));
+        }
+        return new DataImport(imported, notes);
+    }
 
     /** The Users imported, those of them created disabled, and those that failed with why. */
     record UserImport(List<String> imported, List<String> created, List<String> failed) {}
@@ -1068,6 +1365,37 @@ final class FileRepositoryManager {
         return git.getRepository().getConfig().getLong(SYNC_SECTION, null, SYNC_LAST, 0L);
     }
 
+    /** Git config section holding, per Data Table, a hash of its rows at the last sync. */
+    static final String DATA_SYNC_SECTION = "thingworxDataTable";
+
+    static final String DATA_SYNC_HASH = "rowsHash";
+
+    private String dataTableHash(String table) {
+        return git.getRepository().getConfig().getString(DATA_SYNC_SECTION, table, DATA_SYNC_HASH);
+    }
+
+    private void recordDataTableHash(String table, String content) throws IOException {
+        StoredConfig config = git.getRepository().getConfig();
+        config.setString(
+                DATA_SYNC_SECTION,
+                table,
+                DATA_SYNC_HASH,
+                TrackedDataTables.rowsHash(content, table));
+        config.save();
+    }
+
+    /** Writes a Data Table file unless it already holds exactly this content. */
+    private void writeDataTableFile(String relative, String content) throws IOException {
+        Path root = git.getRepository().getWorkTree().toPath().toRealPath();
+        Path file = resolveRepositoryPath(root, relative);
+        requireNoLinkComponents(root, file);
+        byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
+        if (Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)
+                && java.util.Arrays.equals(Files.readAllBytes(file), bytes)) return;
+        Files.createDirectories(file.getParent());
+        Files.write(file, bytes);
+    }
+
     private void recordSync(long millis) throws IOException {
         StoredConfig config = git.getRepository().getConfig();
         config.setLong(SYNC_SECTION, null, SYNC_LAST, millis);
@@ -1101,6 +1429,18 @@ final class FileRepositoryManager {
                     changed.add(reference.getType() + " " + reference.getName());
                 }
             }
+        }
+        // Writing rows does not change a Data Table's modified date, so compare its rows with
+        // those of the last sync instead. Only files Git tracks are imported.
+        for (DataTableFile item : dataTableFiles(requireTrackedProjects(), new ArrayList<>())) {
+            if (!item.inGit()) continue;
+            var thing = TrackedDataTables.find(item.name());
+            if (thing == null) continue;
+            String recorded = dataTableHash(item.name());
+            String current =
+                    TrackedDataTables.rowsHash(
+                            TrackedDataTables.export(thing, TrackedDataTables.MIRROR), item.name());
+            if (!current.equals(recorded)) changed.add("rows of Data Table " + item.name());
         }
         return changed;
     }
@@ -1148,6 +1488,9 @@ final class FileRepositoryManager {
                             staged,
                             SyncExclusions.IMPORT,
                             path -> {
+                                // Data Table rows are imported after the entities.
+                                if (TrackedDataTables.DATA_FOLDER.equals(collectionOfPath(path)))
+                                    return false;
                                 // Entity types the project does not sync are left alone.
                                 if (!tracked.syncs(collectionOfPath(path))) return false;
                                 if (trackedPaths.contains(prefix + path)) return true;

@@ -35,6 +35,14 @@ they all share the same ones, and **Change types** (`SetTrackedProjectEntityType
 to every selected project; selecting all types means all. **Remove selected**
 stops tracking the selected projects. The separate Add a tracked project card has its own project
 list, **Folder (optional)** field and message, and calls `AddTrackedProject`.
+The Tracked Data Tables card lists the `Data/<table>.json` files in the tracked project folders
+(`GetTrackedDataTables`), with each table's project, mode, file and whether Git tracks the file.
+**Change mode** (`SetTrackedDataTableMode`) writes the mode chosen in **Mode of selected tables**
+into each selected file. **Remove selected** (`RemoveTrackedDataTable`) deletes the files after a
+confirmation. The Add a tracked Data Table card lists the Data Tables of the tracked projects that
+have no file (`GetAvailableDataTables`), and calls `AddTrackedDataTable` with the chosen mode, Mirror
+by default. Project changes reload the Data Tables, because each table's file is in its project's
+folder.
 
 `Mashups_GIT.Mashup.Changes.xml` uses the repository selected on Home and provides working-tree
 status, selected-file stage/unstage/untrack actions, Remove Source Files, Remove from Everywhere, and
