@@ -625,6 +625,27 @@ public final class JGitEntityDeclarations {
 
         @DapField(name = "Date", baseType = DapBaseType.DATETIME, ordinal = 4)
         private Object date;
+
+        @DapField(
+                name = "Annotated",
+                baseType = DapBaseType.BOOLEAN,
+                ordinal = 5,
+                description = "Whether the tag is annotated rather than lightweight")
+        private Boolean annotated;
+
+        @DapField(
+                name = "Signed",
+                baseType = DapBaseType.BOOLEAN,
+                ordinal = 6,
+                description = "Whether the annotated tag carries a signature")
+        private Boolean signed;
+
+        @DapField(
+                name = "Tagger",
+                baseType = DapBaseType.STRING,
+                ordinal = 7,
+                description = "Name of the person who created the annotated tag")
+        private String tagger;
     }
 
     @DapDataShape(

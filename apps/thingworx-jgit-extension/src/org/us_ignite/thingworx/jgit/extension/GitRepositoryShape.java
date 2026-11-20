@@ -5637,13 +5637,17 @@ public class GitRepositoryShape extends Thing {
         }
     }
 
-    /** Creates a tag at the requested commit or current repository head. */
+    /**
+     * Creates or moves a tag at a commit, {@code HEAD} by default. The tag is signed with the
+     * current user's signing key for this repository, as commits are, and a signed tag is always
+     * annotated. Nothing is pushed; see {@link #PushTags}.
+     */
     @DapServicePayload(StringResultSpec.class)
     @ThingworxServiceDefinition(
             name = "CreateTag",
             description =
-                    "Creates a lightweight or annotated tag on the specified commit (defaults to HEAD).",
-            category = "",
+                    "Creates a tag on a commit (HEAD by default), signed with your signing key for this repository like commits. A signed or messaged tag is annotated. Force moves an existing tag. Nothing is pushed.",
+            category = "Tags",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
     @ThingworxServiceResult(
@@ -5652,12 +5656,13 @@ public class GitRepositoryShape extends Thing {
             baseType = "INFOTABLE",
             aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
     /**
-     * Creates an annotated local tag. The project is exported first so the tag points at a commit
-     * representing current ThingWorx state. No remote tag is created or pushed automatically.
+     * Creates or moves a local tag. Unsigned tags without a message are lightweight; every other
+     * tag is annotated, with the current user's commit identity as tagger.
      *
-     * @param TagName tag name
-     * @param Message annotation message
-     * @param CommitID optional target commit; blank uses {@code HEAD}
+     * @param TagName tag name, such as {@code v1.2.0}
+     * @param Message annotation message; blank for a signed tag uses the tag name
+     * @param CommitID optional target commit or ref; blank uses {@code HEAD}
+     * @param Force replace an existing tag of the same name
      * @return a {@code GIT.StringResult.DataShape} table
      */
     public InfoTable CreateTag(
@@ -5668,70 +5673,104 @@ public class GitRepositoryShape extends Thing {
                     String TagName,
             @ThingworxServiceParameter(
                             name = "Message",
-                            description = "Optional tag message (creates annotated tag)",
+                            description =
+                                    "Optional tag message (creates an annotated tag); a signed tag without one uses the tag name",
                             baseType = "STRING")
                     String Message,
             @ThingworxServiceParameter(
                             name = "CommitID",
-                            description = "Optional commit to tag (defaults to HEAD)",
+                            description = "Optional commit or ref to tag (defaults to HEAD)",
                             baseType = "STRING")
-                    String CommitID) {
-        String CurrentMethodName = "CreateTag";
-        if (TagName.isBlank()) {
-
-            return DapResults.failure(
-                    "CreateTag",
-                    "CreateTag skipped: " + Const.ERR_PREFIX_CONFIG + Const.ERR_NO_TAG_NAME,
-                    StringResultContract.SERVICE_RESULT);
-        }
+                    String CommitID,
+            @ThingworxServiceParameter(
+                            name = "Force",
+                            description = "Move the tag if it already exists",
+                            baseType = "BOOLEAN",
+                            aspects = {"defaultValue:false"})
+                    Boolean Force) {
+        String repoName = resolveTargetThing().getName();
+        FileRepositoryManager fileRepo = null;
+        Signer signer = null;
         try {
-            var fileRepo = new FileRepositoryManager(resolveTargetThing());
-            Git myGitFolder = fileRepo.git();
-            Repository repo = myGitFolder.getRepository();
-            ObjectId commitId;
-            if (CommitID != null && !CommitID.isBlank()) {
-                commitId = repo.resolve(CommitID);
-                if (commitId == null) {
-                    return DapResults.failure(
-                            "CreateTag",
-                            "CreateTag Error: "
-                                    + String.format(Const.ERR_COMMIT_NOT_FOUND, CommitID),
-                            StringResultContract.SERVICE_RESULT);
+            String name = validTagName(TagName);
+            fileRepo = new FileRepositoryManager(resolveTargetThing());
+            Git git = fileRepo.git();
+            Repository repo = git.getRepository();
+            String target = CommitID == null || CommitID.isBlank() ? "HEAD" : CommitID.trim();
+            ObjectId commitId = repo.resolve(target + "^{commit}");
+            if (commitId == null) {
+                throw new IllegalArgumentException(
+                        String.format(Const.ERR_COMMIT_NOT_FOUND, target));
+            }
+            boolean exists = repo.exactRef(Constants.R_TAGS + name) != null;
+            boolean force = Boolean.TRUE.equals(Force);
+            if (exists && !force) {
+                throw new IllegalArgumentException(
+                        "Tag '"
+                                + name
+                                + "' already exists. Choose Force to move it to this commit.");
+            }
+            RevCommit commit;
+            try (RevWalk walk = new RevWalk(repo)) {
+                commit = walk.parseCommit(commitId);
+            }
+            signer = resolveSigner(null, null);
+            String message = Message == null ? "" : Message.trim();
+            var command = git.tag().setName(name).setObjectId(commit).setForceUpdate(force);
+            if (signer != null || !message.isEmpty()) {
+                command.setAnnotated(true).setMessage(message.isEmpty() ? name : message);
+                GitUserContextManager.Identity identity =
+                        new GitUserContextManager().identityFor(repoName);
+                if (identity.complete()) {
+                    command.setTagger(new PersonIdent(identity.name(), identity.email()));
                 }
             } else {
-                commitId = repo.resolve("HEAD");
+                command.setAnnotated(false);
             }
-            RevCommit revCommit;
-            try (RevWalk walk = new RevWalk(repo)) {
-                revCommit = walk.parseCommit(commitId);
-                walk.dispose();
-            }
-            Ref tagRef;
-            if (Message != null && !Message.isBlank()) {
-                tagRef =
-                        myGitFolder
-                                .tag()
-                                .setName(TagName)
-                                .setMessage(Message)
-                                .setObjectId(revCommit)
-                                .call();
+            if (signer != null) {
+                command.setSigned(true).setSigningKey(null).setSigner(signer);
             } else {
-                tagRef = myGitFolder.tag().setName(TagName).setObjectId(revCommit).call();
+                command.setSigned(false);
             }
-            String LogResult =
-                    String.format(Const.SUCCESS_TAG_CREATED, TagName, tagRef.getObjectId().name());
-
-            return DapResults.success("CreateTag", LogResult, StringResultContract.SERVICE_RESULT);
+            command.call();
+            String result =
+                    String.format(
+                                    Const.SUCCESS_TAG_CREATED,
+                                    name,
+                                    commit.getId().abbreviate(7).name())
+                            + (exists ? " (moved)" : "")
+                            + (signer != null ? ", signed." : ".")
+                            + " Push it to share it.";
+            GitActionLogger.logAction("CreateTag", repoName, result);
+            return DapResults.success("CreateTag", result, StringResultContract.SERVICE_RESULT);
         } catch (Exception e) {
-            return DapResults.failure(CurrentMethodName, e, StringResultContract.SERVICE_RESULT);
+            GitActionLogger.logAction("CreateTag", repoName, String.valueOf(e.getMessage()));
+            return DapResults.failure("CreateTag", e, StringResultContract.SERVICE_RESULT);
+        } finally {
+            clearSigner(signer);
+            if (fileRepo != null) fileRepo.close();
         }
+    }
+
+    /** A tag name that Git accepts, without the {@code refs/tags/} prefix. */
+    private static String validTagName(String tagName) {
+        String name = tagName == null ? "" : tagName.trim();
+        if (name.startsWith(Constants.R_TAGS)) name = name.substring(Constants.R_TAGS.length());
+        if (name.isEmpty()) {
+            throw new IllegalArgumentException(Const.ERR_PREFIX_CONFIG + Const.ERR_NO_TAG_NAME);
+        }
+        if (!Repository.isValidRefName(Constants.R_TAGS + name)) {
+            throw new IllegalArgumentException("'" + name + "' is not a valid tag name.");
+        }
+        return name;
     }
 
     @DapServicePayload(TagListSpec.class)
     @ThingworxServiceDefinition(
             name = "GetTagList",
-            description = "Returns all tags in the repository.",
-            category = "",
+            description =
+                    "Returns all local tags with their commit, message, date, tagger, and whether each is annotated and signed.",
+            category = "Tags",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
     @ThingworxServiceResult(
@@ -5740,70 +5779,76 @@ public class GitRepositoryShape extends Thing {
             baseType = "INFOTABLE",
             aspects = {"isEntityDataShape:true", "dataShape:GIT.TagList.ServiceResult.DataShape"})
     /**
-     * Lists local tags and their target commits. This successFromString is read-only and does not
-     * fetch tags from the remote.
+     * Lists local tags, sorted by name. This is read-only and does not fetch tags from a remote.
      *
-     * @return a {@code GIT.TagList.ServiceResult.DataShape} table, or an empty table when listing
-     *     fails
+     * @return a {@code GIT.TagList.ServiceResult.DataShape} table
      */
     public InfoTable GetTagList() {
-        log.trace("Entering Service: GetTagList");
+        FileRepositoryManager fileRepo = null;
         try {
-            var fileRepo = new FileRepositoryManager(resolveTargetThing());
-            Git myGitFolder = fileRepo.git();
-            Repository repo = myGitFolder.getRepository();
-            InfoTable TagList =
+            fileRepo = new FileRepositoryManager(resolveTargetThing());
+            Repository repo = fileRepo.git().getRepository();
+            InfoTable tagList =
                     InfoTableInstanceFactory.createInfoTableFromDataShape("GIT.TagList.DataShape");
-            List<Ref> tags = myGitFolder.tagList().call();
-            for (Ref tagRef : tags) {
-                tagRef = repo.getRefDatabase().peel(tagRef);
-                ValueCollection vc = new ValueCollection();
-                String tagName = tagRef.getName().replace("refs/tags/", "");
-                vc.put("TagName", new StringPrimitive(tagName));
-                ObjectId commitId = tagRef.getPeeledObjectId();
-                if (commitId == null) {
-                    commitId = tagRef.getObjectId();
-                }
-                vc.put("CommitID", new StringPrimitive(commitId != null ? commitId.name() : ""));
-                String message = "";
-                DateTime tagDate = new DateTime(0);
-                if (tagRef.getPeeledObjectId() != null) {
-                    try (RevWalk walk = new RevWalk(repo)) {
-                        RevObject obj = walk.parseAny(tagRef.getObjectId());
-                        if (obj instanceof RevTag) {
-                            RevTag revTag = (RevTag) obj;
-                            message = revTag.getShortMessage();
-                            long epochSeconds =
-                                    revTag.getTaggerIdent() != null
-                                            ? revTag.getTaggerIdent()
-                                                    .getWhenAsInstant()
-                                                    .getEpochSecond()
-                                            : 0L;
-                            tagDate =
-                                    epochSeconds > 0
-                                            ? new DateTime((long) epochSeconds * 1000)
-                                            : new DateTime(0);
+            // Existing installations keep their original DataShape on upgrade; extend a copy.
+            tagList.setDataShape(tagList.getDataShape().clone());
+            addStatusField(tagList, "Annotated", com.thingworx.types.BaseTypes.BOOLEAN, 5);
+            addStatusField(tagList, "Signed", com.thingworx.types.BaseTypes.BOOLEAN, 6);
+            addStatusField(tagList, "Tagger", com.thingworx.types.BaseTypes.STRING, 7);
+            List<Ref> tags = new ArrayList<>(fileRepo.git().tagList().call());
+            tags.sort(Comparator.comparing(Ref::getName));
+            try (RevWalk walk = new RevWalk(repo)) {
+                for (Ref ref : tags) {
+                    String tagName = ref.getName().substring(Constants.R_TAGS.length());
+                    RevObject object = walk.parseAny(ref.getObjectId());
+                    String message = "";
+                    String tagger = "";
+                    DateTime date = new DateTime(0);
+                    boolean annotated = object instanceof RevTag;
+                    boolean signed = false;
+                    if (object instanceof RevTag tag) {
+                        message = tag.getShortMessage();
+                        signed = tag.getRawGpgSignature() != null;
+                        PersonIdent ident = tag.getTaggerIdent();
+                        if (ident != null) {
+                            tagger = ident.getName();
+                            date = new DateTime(ident.getWhenAsInstant().toEpochMilli());
                         }
                     }
+                    RevObject peeled = walk.peel(object);
+                    if (peeled instanceof RevCommit commit && date.getMillis() == 0) {
+                        date =
+                                new DateTime(
+                                        commit.getCommitterIdent()
+                                                .getWhenAsInstant()
+                                                .toEpochMilli());
+                    }
+                    ValueCollection row = new ValueCollection();
+                    row.put("TagName", new StringPrimitive(tagName));
+                    row.put("CommitID", new StringPrimitive(peeled.getId().name()));
+                    row.put("Message", new StringPrimitive(message));
+                    row.put("Date", new DatetimePrimitive(date));
+                    row.put("Annotated", new BooleanPrimitive(annotated));
+                    row.put("Signed", new BooleanPrimitive(signed));
+                    row.put("Tagger", new StringPrimitive(tagger));
+                    tagList.addRow(row);
                 }
-                vc.put("Message", new StringPrimitive(message));
-                vc.put("Date", new DatetimePrimitive(tagDate));
-                TagList.addRow(vc);
             }
-            log.trace("Exiting Service: GetTagList");
             return DapResults.success(
-                    "GetTagList", TagListTable.SERVICE_RESULT, TagListTable.wrap(TagList));
+                    "GetTagList", TagListTable.SERVICE_RESULT, TagListTable.wrap(tagList));
         } catch (Exception ex) {
-
             return DapResults.failure("GetTagList", ex, TagListTable.SERVICE_RESULT);
+        } finally {
+            if (fileRepo != null) fileRepo.close();
         }
     }
 
     @DapServicePayload(StringResultSpec.class)
     @ThingworxServiceDefinition(
-            name = "DeleteTag",
-            description = "Deletes a tag from the repository.",
-            category = "",
+            name = "PushTags",
+            description =
+                    "Pushes one tag, or every local tag when TagName is blank, to a remote. Force replaces a tag that points elsewhere on the remote.",
+            category = "Tags",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
     @ThingworxServiceResult(
@@ -5811,38 +5856,190 @@ public class GitRepositoryShape extends Thing {
             description = "",
             baseType = "INFOTABLE",
             aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
+    /**
+     * Pushes tags with the current user's sign-in for the remote.
+     *
+     * @param Remote remote name; blank uses the current branch's upstream remote, or origin
+     * @param TagName one tag; blank pushes every local tag
+     * @param Force replace a remote tag that points at another object
+     * @return a {@code GIT.StringResult.DataShape} table
+     */
+    public InfoTable PushTags(
+            @ThingworxServiceParameter(
+                            name = "Remote",
+                            description =
+                                    "Optional remote name; blank uses the current branch's upstream remote, or origin",
+                            baseType = "STRING")
+                    String Remote,
+            @ThingworxServiceParameter(
+                            name = "TagName",
+                            description = "Tag to push; blank pushes every local tag",
+                            baseType = "STRING")
+                    String TagName,
+            @ThingworxServiceParameter(
+                            name = "Force",
+                            description = "Replace a remote tag that points elsewhere",
+                            baseType = "BOOLEAN",
+                            aspects = {"defaultValue:false"})
+                    Boolean Force) {
+        String repoName = resolveTargetThing().getName();
+        GitTransport transport = null;
+        FileRepositoryManager fileRepo = null;
+        try {
+            boolean all = TagName == null || TagName.isBlank();
+            String name = all ? "" : validTagName(TagName);
+            fileRepo = new FileRepositoryManager(resolveTargetThing());
+            Git git = fileRepo.git();
+            Repository repo = git.getRepository();
+            if (!all && repo.exactRef(Constants.R_TAGS + name) == null) {
+                throw new IllegalArgumentException("Tag '" + name + "' does not exist.");
+            }
+            String remote = Remotes.resolve(repo, Remote, repo.getBranch());
+            transport = GitTransport.forRepository(repoName);
+            String spec = all ? Constants.R_TAGS + "*" : Constants.R_TAGS + name;
+            Iterable<PushResult> results =
+                    transport
+                            .configure(git.push(), remote)
+                            .setRemote(remote)
+                            .setForce(Boolean.TRUE.equals(Force))
+                            .setRefSpecs(new RefSpec(spec + ":" + spec))
+                            .call();
+            String message = tagPushSummary(results, remote, "Pushed");
+            GitActionLogger.logAction("PushTags", repoName, message);
+            return DapResults.success("PushTags", message, StringResultContract.SERVICE_RESULT);
+        } catch (TagPushRejected e) {
+            GitActionLogger.logAction("PushTags", repoName, e.getMessage());
+            return DapResults.failure(
+                    "PushTags",
+                    "PushTags Error: " + Const.ERR_PREFIX_GIT + e.getMessage(),
+                    StringResultContract.SERVICE_RESULT);
+        } catch (Exception e) {
+            return transportFailure("PushTags", transport, e);
+        } finally {
+            if (fileRepo != null) fileRepo.close();
+            if (transport != null) transport.close();
+        }
+    }
+
+    /** A remote refused a tag update; the message says which and why. */
+    private static final class TagPushRejected extends Exception {
+        private static final long serialVersionUID = 1L;
+
+        TagPushRejected(String message) {
+            super(message);
+        }
+    }
+
+    /**
+     * Summarizes a tag push, such as {@code Pushed v1.0, v1.1 to origin; v0.9 was already up to
+     * date}, or throws {@link TagPushRejected} naming the first rejected tag.
+     */
+    private static String tagPushSummary(Iterable<PushResult> results, String remote, String verb)
+            throws TagPushRejected {
+        List<String> done = new ArrayList<>();
+        List<String> current = new ArrayList<>();
+        for (PushResult result : results) {
+            for (RemoteRefUpdate update : result.getRemoteUpdates()) {
+                String tag = Repository.shortenRefName(update.getRemoteName());
+                if (!ResultMessages.accepted(update)) {
+                    throw new TagPushRejected(ResultMessages.pushRejected(result, update, remote));
+                }
+                if (update.getStatus() == RemoteRefUpdate.Status.UP_TO_DATE) current.add(tag);
+                else done.add(tag);
+            }
+        }
+        if (done.isEmpty() && current.isEmpty()) return "There are no tags to push.";
+        StringBuilder message = new StringBuilder();
+        if (!done.isEmpty()) {
+            message.append(verb).append(' ').append(String.join(", ", done)).append(" on ");
+            message.append(remote);
+        }
+        if (!current.isEmpty()) {
+            if (message.length() > 0) message.append("; ");
+            message.append(String.join(", ", current))
+                    .append(current.size() == 1 ? " was" : " were")
+                    .append(" already up to date on ")
+                    .append(remote);
+        }
+        return message.append('.').toString();
+    }
+
+    @DapServicePayload(StringResultSpec.class)
+    @ThingworxServiceDefinition(
+            name = "DeleteTag",
+            description =
+                    "Deletes a local tag and, when Remote is set, the tag of the same name on that remote.",
+            category = "Tags",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "Result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
+    /**
+     * Deletes a tag locally and optionally on a remote. The remote tag is deleted first, so a
+     * rejected remote deletion leaves the local tag in place to try again.
+     *
+     * @param TagName tag to delete
+     * @param Remote optional remote whose tag of the same name is deleted too
+     * @return a {@code GIT.StringResult.DataShape} table
+     */
     public InfoTable DeleteTag(
             @ThingworxServiceParameter(
                             name = "TagName",
                             description = "Name of the tag to delete",
                             baseType = "STRING")
-                    String TagName) {
-        String CurrentMethodName = "DeleteTag";
-        if (TagName.isBlank()) {
-
-            return DapResults.failure(
-                    CurrentMethodName,
-                    "DeleteTag Error: TagName is required.",
-                    StringResultContract.SERVICE_RESULT);
-        }
+                    String TagName,
+            @ThingworxServiceParameter(
+                            name = "Remote",
+                            description =
+                                    "Optional remote to delete the tag from as well; blank deletes the local tag only",
+                            baseType = "STRING")
+                    String Remote) {
+        String repoName = resolveTargetThing().getName();
+        GitTransport transport = null;
+        FileRepositoryManager fileRepo = null;
         try {
-            var fileRepo = new FileRepositoryManager(resolveTargetThing());
-            Git myGitFolder = fileRepo.git();
-            myGitFolder.tagDelete().setTags("refs/tags/" + TagName).call();
-            String LogResult = String.format(Const.SUCCESS_TAG_DELETED, TagName);
-
-            return DapResults.success(
-                    CurrentMethodName, LogResult, StringResultContract.SERVICE_RESULT);
-        } catch (Exception e) {
+            String name = validTagName(TagName);
+            fileRepo = new FileRepositoryManager(resolveTargetThing());
+            Git git = fileRepo.git();
+            Repository repo = git.getRepository();
+            boolean local = repo.exactRef(Constants.R_TAGS + name) != null;
+            List<String> done = new ArrayList<>();
+            if (Remote != null && !Remote.isBlank()) {
+                String remote = Remotes.resolve(repo, Remote, repo.getBranch());
+                transport = GitTransport.forRepository(repoName);
+                Iterable<PushResult> results =
+                        transport
+                                .configure(git.push(), remote)
+                                .setRemote(remote)
+                                .setRefSpecs(new RefSpec(":" + Constants.R_TAGS + name))
+                                .call();
+                tagPushSummary(results, remote, "Deleted");
+                done.add("on " + remote);
+            }
+            if (local) {
+                git.tagDelete().setTags(Constants.R_TAGS + name).call();
+                done.add("locally");
+            }
+            if (done.isEmpty()) {
+                throw new IllegalArgumentException("Tag '" + name + "' does not exist.");
+            }
+            String message = "Tag '" + name + "' deleted " + String.join(" and ", done) + ".";
+            GitActionLogger.logAction("DeleteTag", repoName, message);
+            return DapResults.success("DeleteTag", message, StringResultContract.SERVICE_RESULT);
+        } catch (TagPushRejected e) {
+            GitActionLogger.logAction("DeleteTag", repoName, e.getMessage());
             return DapResults.failure(
-                    CurrentMethodName,
-                    "DeleteTag Error: "
-                            + Const.ERR_PREFIX_GIT
-                            + "Failed to delete tag '"
-                            + TagName
-                            + "'. "
-                            + e.getMessage(),
+                    "DeleteTag",
+                    "DeleteTag Error: " + Const.ERR_PREFIX_GIT + e.getMessage(),
                     StringResultContract.SERVICE_RESULT);
+        } catch (Exception e) {
+            return transportFailure("DeleteTag", transport, e);
+        } finally {
+            if (fileRepo != null) fileRepo.close();
+            if (transport != null) transport.close();
         }
     }
 }
