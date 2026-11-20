@@ -92,6 +92,9 @@ sourceSets {
             srcDir sharedSrcDir
             include 'org/us_ignite/thingworx/jgit/test/**/*.java'
         }
+        resources {
+            srcDir new File(sharedDir, 'test-resources')
+        }
         compileClasspath += sourceSets.main.output
         runtimeClasspath += sourceSets.main.output
     }
@@ -148,7 +151,8 @@ dependencies {
 
     // Test dependencies (not packaged since not in packageDependencies)
     testImplementation 'org.junit.jupiter:junit-jupiter:5.8.2'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.8.2'
+    // Compiled against: test/util/ForegroundGitGc is a LauncherSessionListener.
+    testImplementation 'org.junit.platform:junit-platform-launcher:1.8.2'
     testImplementation 'org.testcontainers:testcontainers:2.0.5'
     testImplementation 'org.testcontainers:testcontainers-junit-jupiter:2.0.5'
     testImplementation 'org.testcontainers:postgresql:1.21.4'
