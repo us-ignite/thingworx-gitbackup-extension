@@ -718,6 +718,53 @@ public final class JGitEntityDeclarations {
     }
 
     @DapDataShape(
+            name = "GIT.TrackedDataTable.DataShape",
+            description =
+                    "A Data Table whose rows are synchronized with a repository, by its Data/<DataTableName>.json file",
+            serviceResultName = "GIT.TrackedDataTable.ServiceResult.DataShape",
+            serviceResultDescription = "Service result carrying tracked Data Tables",
+            payloadDescription = "Tracked Data Tables")
+    public static final class TrackedDataTableSpec {
+        @DapField(
+                name = "DataTableName",
+                baseType = DapBaseType.STRING,
+                ordinal = 1,
+                primaryKey = true,
+                description = "ThingWorx Data Table name")
+        private String dataTableName;
+
+        @DapField(
+                name = "ProjectName",
+                baseType = DapBaseType.STRING,
+                ordinal = 2,
+                description = "Tracked project whose folder holds the table's file")
+        private String projectName;
+
+        @DapField(
+                name = "Mode",
+                baseType = DapBaseType.STRING,
+                ordinal = 3,
+                description =
+                        "Mode stored in the file. Mirror: Sync to ThingWorx also deletes rows missing from the file. Upsert: rows are only added and updated")
+        private String mode;
+
+        @DapField(
+                name = "File",
+                baseType = DapBaseType.STRING,
+                ordinal = 4,
+                description = "Repository-relative file holding the rows")
+        private String file;
+
+        @DapField(
+                name = "InGit",
+                baseType = DapBaseType.BOOLEAN,
+                ordinal = 5,
+                description =
+                        "Whether Git tracks the file, staged or committed; Sync to ThingWorx imports only such files")
+        private Boolean inGit;
+    }
+
+    @DapDataShape(
             name = "GIT.EntityTypeOption.DataShape",
             description = "An entity type a tracked project can synchronize, for a dropdown",
             serviceResultName = "GIT.EntityTypeOption.ServiceResult.DataShape",

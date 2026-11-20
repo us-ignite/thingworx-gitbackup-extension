@@ -25,6 +25,67 @@ only their fingerprint and public key.
 
 Per-user settings include Git credentials, committer identity overrides, GPG keys, and the per-repository commit-signing preference. These values are configured for each user through the ThingWorx UI on the `UserExtensions` UserExtension properties and are stored as protected ThingWorx properties where applicable.
 
+## Tracked Data Tables
+
+Entities carry a Data Table's definition but not its rows. To keep configuration rows in Git as
+well, track the table. A Data Table is tracked when its file is in the repository, in the folder of
+the tracked project that owns the table:
+
+```
+<project folder>/Data/<DataTableName>.json
+```
+
+No Thing property lists tracked tables: the files are the list. A clone therefore brings its own
+tracked tables and their modes. Deleting a file stops tracking its table.
+
+```json
+{
+  "dataShape": "IOT.SICD.DataShape.PermissionPolicyEntry",
+  "dataTable": "IOT.SICD.DataTable.PermissionPolicyEntries",
+  "mode": "Mirror",
+  "primaryKey": ["id"],
+  "rows": [
+    {"id": "...", "...": "..."}
+  ]
+}
+```
+
+The file holds only the fields of the table's DataShape. Rows are sorted by primary key, and keys by
+name, so an unchanged table always produces the same bytes and a changed row changes only its own
+lines. ThingWorx fills in `key`, `timestamp`, `location`, `source`, `sourceType` and `tags` on every
+write, so those fields are left out.
+
+`mode` sets how Sync to ThingWorx writes the rows. A file without a `mode` mirrors.
+
+- `Mirror` adds or updates every row by primary key, and deletes the rows whose key is not in the
+  file. The table ends up exactly as in Git.
+- `Upsert` only adds and updates rows, and never deletes any.
+
+How each sync treats the files:
+
+- **Sync from ThingWorx** reads the table of every file after exporting the projects, then rewrites
+  the files whose rows changed. The `mode` in each file is kept. A file whose Data Table does not
+  exist on this server is kept as it is and reported in the extension log.
+- **Sync to ThingWorx** imports the files that Git tracks, staged or committed. It runs *after* the
+  entities, so the Data Table and its DataShape exist and are current before their rows are written.
+  A file that is not added to Git yet is reported as untracked and is not imported.
+- Writing rows does not change a Data Table's modified date. Each sync therefore records a hash of
+  the table's rows in `.git/config` (`thingworxDataTable.<name>.rowsHash`). Rows changed in
+  ThingWorx since then are reported, like changed entities, before Sync to ThingWorx overwrites
+  them. The hash covers only the rows, so changing the mode does not trigger the warning.
+
+| Service | What it does |
+|---|---|
+| `GetTrackedDataTables` | Lists the tracked tables, each with its `Mode`, `File` and `InGit`. `InGit` tells whether Git tracks the file. |
+| `GetAvailableDataTables` | Lists the Data Tables in the tracked projects that have no file yet. |
+| `AddTrackedDataTable` | Writes a table's file with `Mode` `Mirror` (default) or `Upsert`. Commit the file to share it. The table must have a primary key, and its project must be tracked. |
+| `SetTrackedDataTableMode` | Changes the `mode` in a table's file. |
+| `RemoveTrackedDataTable` | Deletes a table's file, leaving the deletion unstaged for review. The rows in ThingWorx are never changed. |
+
+The caller needs `ServiceInvoke` on the table for `GetDataTableEntries` to export. To import, the
+caller also needs `ServiceInvoke` for `AddOrUpdateDataTableEntries`, plus `DeleteDataTableEntries`
+in Mirror mode.
+
 ## Commit identity
 
 The name and email recorded on your commits are stored once per user, in the `GitUserName` and

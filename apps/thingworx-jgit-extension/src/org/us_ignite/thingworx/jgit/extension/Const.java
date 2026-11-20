@@ -26,6 +26,20 @@ public final class Const {
     public static final String TrackedProjectEntityTypes = "EntityTypes";
 
     public static final String TrackedProjectDataShapeName = "GIT.TrackedProject.DataShape";
+
+    /** Column of GIT.TrackedDataTable.DataShape holding the Data Table name. */
+    public static final String DataTableName = "DataTableName";
+
+    /** Mirror or Upsert, from the file: whether Sync to ThingWorx deletes missing rows. */
+    public static final String TrackedDataTableMode = "Mode";
+
+    /** Repository-relative file holding a tracked Data Table's rows. */
+    public static final String TrackedDataTableFile = "File";
+
+    /** Whether Git tracks a Data Table's file, so Sync to ThingWorx imports it. */
+    public static final String TrackedDataTableInGit = "InGit";
+
+    public static final String TrackedDataTableDataShapeName = "GIT.TrackedDataTable.DataShape";
     public static final String GitRepoURLDefaultValue = "";
 
     // PlatformInfo property Names

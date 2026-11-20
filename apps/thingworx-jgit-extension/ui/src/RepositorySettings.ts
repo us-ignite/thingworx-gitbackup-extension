@@ -28,6 +28,19 @@ class RepositorySettings extends TypescriptWidget {
   /** Result of Add project, shown in the Add a tracked project card. */
   @property(bindingSource) addProjectMessage: STRING = "";
   @property(bindingSource) projectsBusy: BOOLEAN = true;
+  /** Tracked Data Tables: the Data/<table>.json files in the tracked project folders. */
+  @property(bindingSource) trackedDataTables!: INFOTABLE<{DataTableName: STRING, ProjectName: STRING, Mode: STRING, File: STRING, InGit: BOOLEAN, Git: STRING}>;
+  /** Data Tables in the tracked projects that are not tracked yet. */
+  @property(bindingSource) availableDataTables!: INFOTABLE<{DataTableName: STRING, ProjectName: STRING, Mode: STRING, File: STRING}>;
+  @property(bindingTarget) selectedDataTables!: INFOTABLE<{DataTableName: STRING, ProjectName: STRING, Mode: STRING, File: STRING}>;
+  /** Mirror and Upsert, for the Mode dropdowns. */
+  @property(bindingSource) dataTableModeOptions: INFOTABLE<{Mode: STRING, Label: STRING}> = {
+    dataShape: {fieldDefinitions: {Mode: {name: "Mode", baseType: "STRING", ordinal: 1}, Label: {name: "Label", baseType: "STRING", ordinal: 2}}},
+    rows: [{Mode: "Mirror", Label: "Mirror: delete rows missing from the file"}, {Mode: "Upsert", Label: "Upsert: only add and update rows"}]} as any;
+  @property(bindingSource) dataTableMessage: STRING = "";
+  /** Result of Add Data Table, shown in the Add a tracked Data Table card. */
+  @property(bindingSource) addDataTableMessage: STRING = "";
+  @property(bindingSource) dataTablesBusy: BOOLEAN = true;
   @property(bindingSource) remotes!: INFOTABLE<{Name: STRING, URLs: STRING, PushURLs: STRING, FetchSpecs: STRING, SignIn: STRING}>;
   @property(bindingTarget) selectedRemotes!: INFOTABLE<{Name: STRING, URLs: STRING}>;
   @property(bindingSource) remoteMessage: STRING = "";
@@ -66,6 +79,7 @@ class RepositorySettings extends TypescriptWidget {
   private remoteRequestId = 0;
   private requestId = 0;
   private projectRequestId = 0;
+  private dataTableRequestId = 0;
   private statusRequestId = 0;
   /** The remote and fingerprint shown in the approval dialog. */
   private checkedHostKey: {remote: string, fingerprint: string} | null = null;
@@ -80,7 +94,7 @@ class RepositorySettings extends TypescriptWidget {
   /** The remote whose sign-in and messages are shown. */
   private shownRemote = "";
 
-  beforeDestroy() { this.requestId++; this.projectRequestId++; this.remoteRequestId++; this.statusRequestId++; }
+  beforeDestroy() { this.requestId++; this.projectRequestId++; this.dataTableRequestId++; this.remoteRequestId++; this.statusRequestId++; }
 
   private invoke(serviceName: string, payload: object): Promise<any> {
     return this.invokeOn("GIT.Utility.Thing", serviceName, payload);
@@ -706,6 +720,101 @@ class RepositorySettings extends TypescriptWidget {
     } finally {
       if (request === this.projectRequestId) this.projectsBusy = false;
     }
+    // Data Table files live in the project folders, and only tables of tracked projects can be added.
+    if (request === this.projectRequestId) await this.loadDataTables();
+  }
+
+  private dataTableRows(row: any): any {
+    if (row.Error) throw new Error(row.Message || "Request failed");
+    return row.Result || {dataShape: {fieldDefinitions: {DataTableName: {name: "DataTableName", baseType: "STRING"}}}, rows: []};
+  }
+
+  /** The Mode chosen in a Mode dropdown, or "" when none is. */
+  private chosenMode(widgetId: string): string {
+    const text = String(this.getWidget(widgetId).getProperty("SelectedText") || "");
+    const option = (this.dataTableModeOptions.rows as any[]).find(row => row.Label === text || row.Mode === text);
+    return option ? option.Mode : "";
+  }
+
+  @service async loadDataTables() {
+    if (!this.repoName) return;
+    const repository = this.repoName;
+    const request = ++this.dataTableRequestId;
+    this.dataTablesBusy = true;
+    try {
+      const [tracked, available] = await Promise.all([
+        this.invokeOn(repository, "GetTrackedDataTables", {}),
+        this.invokeOn(repository, "GetAvailableDataTables", {})
+      ]);
+      if (request !== this.dataTableRequestId) return;
+      const rows = this.dataTableRows(tracked);
+      rows.dataShape.fieldDefinitions.Git = {name: "Git", baseType: "STRING", ordinal: 6};
+      for (const row of rows.rows) row.Git = row.InGit ? "In Git" : "Not added: commit the file to import it";
+      this.trackedDataTables = rows;
+      this.availableDataTables = this.dataTableRows(available);
+      if (!this.trackedDataTables.rows.length && !this.dataTableMessage) {
+        this.dataTableMessage = "No Data Tables are tracked. Add one to write its rows to the repository.";
+      }
+    } catch (error) {
+      if (request === this.dataTableRequestId) this.dataTableMessage = "Could not load Data Tables: " + (error as Error).message;
+    } finally {
+      if (request === this.dataTableRequestId) this.dataTablesBusy = false;
+    }
+  }
+
+  @service async addDataTable() {
+    const table = this.getWidget("settings-datatable-select").getProperty("SelectedText") || "";
+    if (!this.repoName || this.dataTablesBusy) return;
+    if (!table) { this.addDataTableMessage = "Choose a Data Table to add."; return; }
+    this.dataTablesBusy = true;
+    this.addDataTableMessage = "Adding " + table + "…";
+    try {
+      const result = await this.invokeOn(this.repoName, "AddTrackedDataTable",
+        {DataTableName: table, Mode: this.chosenMode("settings-datatable-add-mode") || "Mirror"});
+      if (result.Error) throw new Error(result.Message || "Unable to add the Data Table");
+      this.addDataTableMessage = result.Message || "Data Table added.";
+      this.dataTableMessage = "";
+    } catch (error) { this.addDataTableMessage = "Could not add the Data Table: " + (error as Error).message; }
+    this.dataTablesBusy = false;
+    await this.loadDataTables();
+  }
+
+  /** Sets the mode of every selected Data Table to the one chosen in Mode of selected tables. */
+  @service async setDataTableMode() {
+    const selected = this.selectedDataTables && this.selectedDataTables.rows || [];
+    if (!this.repoName || this.dataTablesBusy || !selected.length) return;
+    const mode = this.chosenMode("settings-datatable-mode");
+    if (!mode) { this.dataTableMessage = "Choose Mirror or Upsert."; return; }
+    this.dataTablesBusy = true;
+    this.dataTableMessage = "Changing the mode…";
+    const messages: string[] = [];
+    for (const row of selected) {
+      try {
+        const result = await this.invokeOn(this.repoName, "SetTrackedDataTableMode", {DataTableName: row.DataTableName, Mode: mode});
+        messages.push(result.Error ? "Could not change " + row.DataTableName + ": " + (result.Message || "request failed") : result.Message);
+      } catch (error) { messages.push("Could not change " + row.DataTableName + ": " + (error as Error).message); }
+    }
+    this.dataTableMessage = messages.join(" ");
+    this.dataTablesBusy = false;
+    await this.loadDataTables();
+  }
+
+  /** Stops tracking the selected Data Tables by deleting their files. */
+  @service async removeDataTables() {
+    const selected = this.selectedDataTables && this.selectedDataTables.rows || [];
+    if (!this.repoName || this.dataTablesBusy || !selected.length) return;
+    this.dataTablesBusy = true;
+    this.dataTableMessage = "Removing…";
+    const messages: string[] = [];
+    for (const row of selected) {
+      try {
+        const result = await this.invokeOn(this.repoName, "RemoveTrackedDataTable", {DataTableName: row.DataTableName});
+        messages.push(result.Error ? "Could not remove " + row.DataTableName + ": " + (result.Message || "request failed") : result.Message);
+      } catch (error) { messages.push("Could not remove " + row.DataTableName + ": " + (error as Error).message); }
+    }
+    this.dataTableMessage = messages.join(" ");
+    this.dataTablesBusy = false;
+    await this.loadDataTables();
   }
 
   private fieldText(widgetId: string): string {

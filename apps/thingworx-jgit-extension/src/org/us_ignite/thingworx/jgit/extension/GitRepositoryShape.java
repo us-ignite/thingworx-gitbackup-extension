@@ -109,6 +109,7 @@ import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.SshHostKeyS
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.StatusSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.StringResultSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.TagListSpec;
+import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.TrackedDataTableSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.TrackedProjectSpec;
 
 /**
@@ -3197,6 +3198,18 @@ public class GitRepositoryShape extends Thing {
                             : "No tracked XML entities found to import.";
             message += untrackedNote(result.untracked());
             message += usersNote(result.createdUsers(), result.failedUsers());
+            if (!result.dataTables().isEmpty()) {
+                message +=
+                        " Data Table rows imported: "
+                                + String.join(", ", result.dataTables())
+                                + ".";
+            }
+            if (!result.dataTableNotes().isEmpty()) {
+                message +=
+                        " Data Tables left alone: "
+                                + String.join(", ", result.dataTableNotes())
+                                + ".";
+            }
             GitActionLogger.logAction("SyncToThingWorx", resolveTargetThing().getName(), message);
             return DapResults.success(
                     "SyncToThingWorx", message, StringResultContract.SERVICE_RESULT);
@@ -5180,6 +5193,272 @@ public class GitRepositoryShape extends Thing {
                     "SetTrackedProjectEntityTypes", repoName, String.valueOf(e.getMessage()));
             return DapResults.failure(
                     "SetTrackedProjectEntityTypes", e, StringResultContract.SERVICE_RESULT);
+        }
+    }
+
+    @DapServicePayload(TrackedDataTableSpec.class)
+    @ThingworxServiceDefinition(
+            name = "GetTrackedDataTables",
+            description =
+                    "Lists the tracked Data Tables: the Data/<DataTableName>.json files in the tracked project folders, with each one's mode and whether Git tracks the file",
+            category = "Data Tables",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "Result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {
+                "isEntityDataShape:true",
+                "dataShape:GIT.TrackedDataTable.ServiceResult.DataShape"
+            })
+    /**
+     * Lists the tracked Data Tables, which are the files checked into, or added to, the tracked
+     * project folders.
+     *
+     * @return a {@code GIT.TrackedDataTable.ServiceResult.DataShape} table
+     */
+    public InfoTable GetTrackedDataTables() {
+        try {
+            var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            try {
+                return DapResults.success(
+                        "GetTrackedDataTables",
+                        TrackedDataTableTable.SERVICE_RESULT,
+                        TrackedDataTableTable.wrap(
+                                fileRepo.dataTableTable(fileRepo.dataTableFiles())));
+            } finally {
+                fileRepo.close();
+            }
+        } catch (Exception e) {
+            return DapResults.failure(
+                    "GetTrackedDataTables", e, TrackedDataTableTable.SERVICE_RESULT);
+        }
+    }
+
+    @DapServicePayload(TrackedDataTableSpec.class)
+    @ThingworxServiceDefinition(
+            name = "GetAvailableDataTables",
+            description =
+                    "Lists the Data Tables in the tracked projects, visible to the caller, that are not tracked yet",
+            category = "Data Tables",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "Result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {
+                "isEntityDataShape:true",
+                "dataShape:GIT.TrackedDataTable.ServiceResult.DataShape"
+            })
+    /**
+     * Lists Data Tables that can be added with {@link #AddTrackedDataTable}, sorted by name, each
+     * with the file tracking it would write.
+     *
+     * @return a {@code GIT.TrackedDataTable.ServiceResult.DataShape} table
+     */
+    public InfoTable GetAvailableDataTables() {
+        try {
+            var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            try {
+                return DapResults.success(
+                        "GetAvailableDataTables",
+                        TrackedDataTableTable.SERVICE_RESULT,
+                        TrackedDataTableTable.wrap(
+                                fileRepo.dataTableTable(fileRepo.availableDataTables())));
+            } finally {
+                fileRepo.close();
+            }
+        } catch (Exception e) {
+            return DapResults.failure(
+                    "GetAvailableDataTables", e, TrackedDataTableTable.SERVICE_RESULT);
+        }
+    }
+
+    @DapServicePayload(StringResultSpec.class)
+    @ThingworxServiceDefinition(
+            name = "AddTrackedDataTable",
+            description =
+                    "Tracks a Data Table of a tracked project by writing its rows to <project folder>/Data/<DataTableName>.json; commit the file to share it",
+            category = "Data Tables",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "Result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
+    /**
+     * Tracks a Data Table by writing its file. The file is left untracked by Git for review; Sync
+     * to ThingWorx imports it once it is added or committed.
+     *
+     * @param DataTableName a Data Table in a tracked project, with a primary key
+     * @param Mode {@code Mirror} (the default) or {@code Upsert}, stored in the file
+     * @return a {@code GIT.StringResult.DataShape} status table
+     */
+    public InfoTable AddTrackedDataTable(
+            @ThingworxServiceParameter(
+                            name = "DataTableName",
+                            description = "Data Table to track",
+                            baseType = "STRING")
+                    String DataTableName,
+            @ThingworxServiceParameter(
+                            name = "Mode",
+                            description =
+                                    "Mirror (default): Sync to ThingWorx also deletes rows missing from the file. Upsert: rows are only added and updated",
+                            baseType = "STRING")
+                    String Mode) {
+        String repoName = "";
+        try {
+            String name = TrackedDataTables.validateName(DataTableName);
+            String mode = TrackedDataTables.normalizeMode(Mode);
+            // A table the caller may not see is reported exactly like a missing one.
+            var table = TrackedDataTables.find(name);
+            if (table == null) {
+                throw new IllegalArgumentException("Data Table '" + name + "' was not found.");
+            }
+            TrackedDataTables.requirePrimaryKey(table);
+            var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            repoName = fileRepo.repositoryThingName();
+            String file;
+            try {
+                file = fileRepo.trackDataTable(table, mode);
+            } finally {
+                fileRepo.close();
+            }
+            String message =
+                    "Data Table '"
+                            + name
+                            + "' is now tracked as "
+                            + TrackedDataTables.describeMode(mode)
+                            + ". Its rows were written to '"
+                            + file
+                            + "'; commit the file to share it.";
+            GitActionLogger.logAction("AddTrackedDataTable", repoName, message);
+            return DapResults.success(
+                    "AddTrackedDataTable", message, StringResultContract.SERVICE_RESULT);
+        } catch (Exception e) {
+            GitActionLogger.logAction(
+                    "AddTrackedDataTable", repoName, String.valueOf(e.getMessage()));
+            return DapResults.failure(
+                    "AddTrackedDataTable", e, StringResultContract.SERVICE_RESULT);
+        }
+    }
+
+    @DapServicePayload(StringResultSpec.class)
+    @ThingworxServiceDefinition(
+            name = "SetTrackedDataTableMode",
+            description =
+                    "Sets the mode in a tracked Data Table's file: Mirror deletes rows missing from the file on Sync to ThingWorx, Upsert only adds and updates rows",
+            category = "Data Tables",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "Result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
+    /**
+     * Changes the mode stored in a tracked Data Table's file; commit the file to share it.
+     *
+     * @param DataTableName a tracked Data Table
+     * @param Mode {@code Mirror} or {@code Upsert}
+     * @return a {@code GIT.StringResult.DataShape} status table
+     */
+    public InfoTable SetTrackedDataTableMode(
+            @ThingworxServiceParameter(
+                            name = "DataTableName",
+                            description = "Tracked Data Table",
+                            baseType = "STRING")
+                    String DataTableName,
+            @ThingworxServiceParameter(
+                            name = "Mode",
+                            description = "Mirror or Upsert",
+                            baseType = "STRING")
+                    String Mode) {
+        String repoName = "";
+        try {
+            String name = TrackedDataTables.validateName(DataTableName);
+            String mode = TrackedDataTables.normalizeMode(Mode);
+            var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            repoName = fileRepo.repositoryThingName();
+            String file;
+            try {
+                file = fileRepo.setDataTableMode(name, mode);
+            } finally {
+                fileRepo.close();
+            }
+            String message =
+                    "Data Table '"
+                            + name
+                            + "' now syncs as "
+                            + TrackedDataTables.describeMode(mode)
+                            + ". Commit '"
+                            + file
+                            + "' to share the change.";
+            GitActionLogger.logAction("SetTrackedDataTableMode", repoName, message);
+            return DapResults.success(
+                    "SetTrackedDataTableMode", message, StringResultContract.SERVICE_RESULT);
+        } catch (Exception e) {
+            GitActionLogger.logAction(
+                    "SetTrackedDataTableMode", repoName, String.valueOf(e.getMessage()));
+            return DapResults.failure(
+                    "SetTrackedDataTableMode", e, StringResultContract.SERVICE_RESULT);
+        }
+    }
+
+    @DapServicePayload(StringResultSpec.class)
+    @ThingworxServiceDefinition(
+            name = "RemoveTrackedDataTable",
+            description =
+                    "Stops tracking a Data Table by deleting its file from the working tree; the rows in ThingWorx are not changed",
+            category = "Data Tables",
+            isAllowOverride = false,
+            aspects = {"isAsync:false"})
+    @ThingworxServiceResult(
+            name = "Result",
+            description = "",
+            baseType = "INFOTABLE",
+            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
+    /**
+     * Stops tracking a Data Table by deleting its file. The deletion is left unstaged for review
+     * in Changes, and the rows in ThingWorx are never changed.
+     *
+     * @param DataTableName a tracked Data Table
+     * @return a {@code GIT.StringResult.DataShape} status table
+     */
+    public InfoTable RemoveTrackedDataTable(
+            @ThingworxServiceParameter(
+                            name = "DataTableName",
+                            description = "Tracked Data Table",
+                            baseType = "STRING")
+                    String DataTableName) {
+        String repoName = "";
+        try {
+            String name = TrackedDataTables.validateName(DataTableName);
+            var fileRepo = new FileRepositoryManager(resolveTargetThing());
+            repoName = fileRepo.repositoryThingName();
+            String file;
+            try {
+                file = fileRepo.untrackDataTable(name);
+            } finally {
+                fileRepo.close();
+            }
+            String message =
+                    "Data Table '"
+                            + name
+                            + "' is no longer tracked; its rows in ThingWorx are unchanged. '"
+                            + file
+                            + "' was deleted; review and commit the deletion in Changes.";
+            GitActionLogger.logAction("RemoveTrackedDataTable", repoName, message);
+            return DapResults.success(
+                    "RemoveTrackedDataTable", message, StringResultContract.SERVICE_RESULT);
+        } catch (Exception e) {
+            GitActionLogger.logAction(
+                    "RemoveTrackedDataTable", repoName, String.valueOf(e.getMessage()));
+            return DapResults.failure(
+                    "RemoveTrackedDataTable", e, StringResultContract.SERVICE_RESULT);
         }
     }
 
