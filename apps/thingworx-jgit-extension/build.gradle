@@ -101,6 +101,8 @@ def typeScriptHelpers = [
     ['embedConflictResolution', 'ConflictResolution', 'ConflictResolution', 'conflictresolution-helper'],
     ['embedBranchesMergeControls', 'MergeControls', 'Branches', 'mergecontrols-helper'],
     ['embedGitHelper', 'GitHelper', 'Branches', 'BMTypescriptClassHost-50'],
+    ['embedHistoryTagControls', 'TagControls', 'History', 'history-tagcontrols-helper'],
+    ['embedChangesTagControls', 'TagControls', 'Changes', 'changes-tagcontrols-helper'],
 ]
 typeScriptHelpers.each { taskName, helper, target, id ->
     tasks.register(taskName, Exec) {

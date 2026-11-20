@@ -7,3 +7,4 @@
 }
 [id$="history-tree-card"] { min-height: 550px; }
 [id$="history-log-actions"] { flex-wrap: wrap !important; }
+[id$="history-tags-card"] [id$="tagcontrols-helper-bounding-box"] { height: 420px !important; }
