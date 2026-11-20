@@ -902,6 +902,79 @@ public class GiteaGitOperationsTest {
                 "Tag list should not contain test-v1.0 after deletion: " + verifyRes.body());
     }
 
+    /** The tags in Gitea's copy of the repository, one per line, as {@code show-ref} lists them. */
+    private String giteaTags() throws Exception {
+        var result =
+                stack.gitea.execInContainer(
+                        "sh",
+                        "-c",
+                        "repo=$(find /data/git/repositories -type d -name '*.git' | head -n 1); "
+                                + "git --git-dir=\"$repo\" show-ref --tags || true");
+        return result.getStdout();
+    }
+
+    @Test
+    @Order(28)
+    void testPushAndDeleteRemoteTag() throws Exception {
+        JsonObject create = new JsonObject();
+        create.addProperty("TagName", "test-pushed-v1");
+        create.addProperty("Message", "Pushed by the tag test");
+        var createRes =
+                stack.httpClient.send(
+                        stack.thingworx
+                                .serviceRequest(GIT_THING_NAME, "CreateTag", create.toString())
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
+        assertServiceSuccess(createRes, "CreateTag");
+
+        JsonObject push = new JsonObject();
+        push.addProperty("TagName", "test-pushed-v1");
+        var pushRes =
+                stack.httpClient.send(
+                        stack.thingworx
+                                .serviceRequest(GIT_THING_NAME, "PushTags", push.toString())
+                                .timeout(Duration.ofSeconds(30))
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
+        assertServiceSuccess(pushRes, "PushTags");
+        assertTrue(
+                giteaTags().contains("refs/tags/test-pushed-v1"),
+                "Gitea should have the pushed tag: " + giteaTags());
+
+        // Pushing again changes nothing on the remote.
+        var againRes =
+                stack.httpClient.send(
+                        stack.thingworx
+                                .serviceRequest(GIT_THING_NAME, "PushTags", push.toString())
+                                .timeout(Duration.ofSeconds(30))
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
+        assertServiceSuccess(againRes, "PushTags again");
+        assertTrue(againRes.body().contains("up to date"), "Second push: " + againRes.body());
+
+        JsonObject delete = new JsonObject();
+        delete.addProperty("TagName", "test-pushed-v1");
+        delete.addProperty("Remote", "origin");
+        var deleteRes =
+                stack.httpClient.send(
+                        stack.thingworx
+                                .serviceRequest(GIT_THING_NAME, "DeleteTag", delete.toString())
+                                .timeout(Duration.ofSeconds(30))
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
+        assertServiceSuccess(deleteRes, "DeleteTag on origin");
+        assertFalse(
+                giteaTags().contains("refs/tags/test-pushed-v1"),
+                "Gitea should no longer have the tag: " + giteaTags());
+        var listRes =
+                stack.httpClient.send(
+                        stack.thingworx.serviceRequest(GIT_THING_NAME, "GetTagList", null).build(),
+                        HttpResponse.BodyHandlers.ofString());
+        assertFalse(
+                anyRowContains(responseRows(listRes.body()), "test-pushed-v1"),
+                "The local tag should be deleted too: " + listRes.body());
+    }
+
     @Test
     @Order(29)
     void testMerge() throws Exception {

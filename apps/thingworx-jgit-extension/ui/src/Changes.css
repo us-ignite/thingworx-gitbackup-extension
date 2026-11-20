@@ -13,3 +13,7 @@
 }
 [id$="changes-worktree-card"] { min-height: 360px; }
 [id$="changes-worktree-card"] [id$="changes-grid-area"] { flex: 1 1 320px; }
+[id$="changes-tags-card"] [id$="tagcontrols-helper-bounding-box"] { height: 190px !important; }
+@media (max-width: 700px) {
+  [id$="changes-tags-card"] [id$="tagcontrols-helper-bounding-box"] { height: 300px !important; }
+}

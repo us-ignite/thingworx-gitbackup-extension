@@ -96,3 +96,57 @@
 @media (max-width: 600px) {
   :root { --git-page-inset: 11px; }   /* 16px visible */
 }
+
+/* Tags card (src/TagControls.ts) on History and Changes. */
+[id$="tagcontrols-helper-bounding-box"] {
+  position: relative;
+  align-self: stretch;
+  width: 100% !important;
+  min-width: 0;
+}
+.git-tag-controls {
+  padding: 0.75rem;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  color: var(--git-text);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.git-tag-controls h2 { margin: 0 0 0.5rem; font-size: 1.1rem; }
+.git-tag-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.5rem; margin: 0.25rem 0; }
+.git-tag-row label { display: flex; flex-direction: column; gap: 0.25rem; }
+.git-tag-row label.git-tag-check { flex-direction: row; align-items: center; min-height: 34px; }
+.git-tag-controls input[type="text"],
+.git-tag-controls select {
+  min-height: 34px;
+  min-width: 12rem;
+  padding: 0 0.5rem;
+  font: inherit;
+  color: var(--git-text);
+  background: var(--git-surface);
+  border: 1px solid var(--git-border);
+  border-radius: 3px;
+}
+.git-tag-controls button {
+  min-height: 34px;
+  padding: 0.5rem 1rem;
+  font: inherit;
+  color: #fff;
+  background: #0073aa;
+  border: 1px solid #0073aa;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.git-tag-controls button:hover:not(:disabled) { background: #005d89; }
+.git-tag-controls button:disabled { opacity: 0.55; cursor: default; }
+.git-tag-controls button:focus-visible,
+.git-tag-controls input:focus-visible,
+.git-tag-controls select:focus-visible { outline: 2px solid #0073aa; outline-offset: 2px; }
+.git-tag-list[hidden] { display: none; }
+.git-tag-list table { width: 100%; border-collapse: collapse; margin: 0.5rem 0; }
+.git-tag-list th, .git-tag-list td { padding: 0.35rem 0.5rem; text-align: left; border-bottom: 1px solid var(--git-border); }
+.git-tag-list td:nth-child(3) { font-family: monospace; }
+.git-tag-controls p { margin: 0.25rem 0; color: var(--git-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
