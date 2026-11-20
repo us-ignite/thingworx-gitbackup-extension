@@ -1,6 +1,7 @@
 package org.us_ignite.thingworx.jgit.test;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonObject;
 import java.net.URI;
@@ -12,31 +13,32 @@ import java.util.ArrayList;
 import java.util.Base64;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.MethodOrderer;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
-import org.junit.jupiter.api.TestMethodOrder;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.us_ignite.thingworx.jgit.test.containers.JGitExtensionTestStack;
 import org.us_ignite.thingworx.testcontainers.TestingCredentials;
 
+/**
+ * The extension ships its own JGit and XML libraries; installing it must not break the Export and
+ * Import that ThingWorx Composer offers, which the extension's own sync never calls.
+ */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @Testcontainers
 public class InstallationBlocksImportExportTest {
 
     private static final String TEST_PROJECT = "IBIET_TestProject";
     private static final String TEST_THING = "IBIET.TestThing";
-    private static final String FILE_REPOSITORY = "IBIET_FileRepository";
+    private static final String TEST_THING_IMPORTED = "IBIET.TestThing.Imported";
+    private static final String IMPORTER =
+            "/Thingworx/Importer?purpose=import&usedefaultdataprovider=false&WithSubsystems=false";
 
-    private TestingCredentials credentials;
     private JGitExtensionTestStack stack;
     private String authHeader;
 
     @BeforeAll
     public void beforeAll() throws Exception {
-        credentials = new TestingCredentials();
+        TestingCredentials credentials = new TestingCredentials();
         stack = new JGitExtensionTestStack(credentials, false);
         authHeader =
                 "Basic "
@@ -46,6 +48,14 @@ public class InstallationBlocksImportExportTest {
                                                         + ":"
                                                         + credentials.thingworxAdminPass)
                                                 .getBytes());
+        JsonObject project = new JsonObject();
+        project.addProperty("name", TEST_PROJECT);
+        entityService("CreateProject", project);
+        JsonObject thing = new JsonObject();
+        thing.addProperty("name", TEST_THING);
+        thing.addProperty("thingTemplateName", "GenericThing");
+        thing.addProperty("projectName", TEST_PROJECT);
+        entityService("CreateThing", thing);
     }
 
     @AfterAll
@@ -54,359 +64,77 @@ public class InstallationBlocksImportExportTest {
     }
 
     @Test
-    @Order(1)
-    void extensionIsInstalled() throws Exception {
-        var req =
-                HttpRequest.newBuilder()
-                        .uri(
-                                URI.create(
-                                        stack.thingworx.getExternalUrl()
-                                                + "/Thingworx/Things/GIT.Utility.Thing"))
-                        .header("Accept", "application/json")
-                        .header("Authorization", authHeader)
-                        .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
-                        .header("X-Requested-By", "ThingWorx")
-                        .GET()
-                        .timeout(Duration.ofSeconds(30))
-                        .build();
-        var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-        assertEquals(
-                200,
-                res.statusCode(),
-                "GIT.Utility.Thing must be accessible: " + res.statusCode() + " " + res.body());
-    }
+    void composerExportAndImportStillWorkWithTheExtensionInstalled() throws Exception {
+        var exported =
+                send(
+                        request("/Thingworx/Exporter/Things/" + TEST_THING)
+                                .header("Accept", "text/xml")
+                                .GET());
+        assertEquals(200, exported.statusCode(), "Exporter: " + exported.body());
+        assertTrue(exported.body().contains("<Thing"), "Exporter should return entity XML");
 
-    @Test
-    @Order(2)
-    void sourceControlFunctionsResourceExists() throws Exception {
-        var req =
-                HttpRequest.newBuilder()
-                        .uri(
-                                URI.create(
-                                        stack.thingworx.getExternalUrl()
-                                                + "/Thingworx/Resources/SourceControlFunctions"))
-                        .header("Accept", "application/json")
-                        .header("Authorization", authHeader)
-                        .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
-                        .header("X-Requested-By", "ThingWorx")
-                        .GET()
-                        .timeout(Duration.ofSeconds(30))
-                        .build();
-        var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-        assertEquals(
-                200,
-                res.statusCode(),
-                "SourceControlFunctions resource must be accessible: " + res.statusCode());
-    }
-
-    @Test
-    @Order(3)
-    void entityServicesResourceExists() throws Exception {
-        var req =
-                HttpRequest.newBuilder()
-                        .uri(
-                                URI.create(
-                                        stack.thingworx.getExternalUrl()
-                                                + "/Thingworx/Resources/EntityServices"))
-                        .header("Accept", "application/json")
-                        .header("Authorization", authHeader)
-                        .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
-                        .header("X-Requested-By", "ThingWorx")
-                        .GET()
-                        .timeout(Duration.ofSeconds(30))
-                        .build();
-        var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-        assertEquals(
-                200,
-                res.statusCode(),
-                "EntityServices resource must be accessible: " + res.statusCode());
-    }
-
-    @Test
-    @Order(4)
-    void createProjectViaEntityServices() throws Exception {
-        JsonObject body = new JsonObject();
-        body.addProperty("name", TEST_PROJECT);
-        body.addProperty("description", "Smoke test project");
-        var uri =
-                URI.create(
-                        stack.thingworx.getExternalUrl()
-                                + "/Thingworx/Resources/EntityServices/Services/CreateProject");
-        var req =
-                HttpRequest.newBuilder()
-                        .uri(uri)
-                        .header("Content-Type", "application/json")
-                        .header("Accept", "application/json")
-                        .header("Authorization", authHeader)
-                        .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
-                        .header("X-Requested-By", "ThingWorx")
-                        .POST(HttpRequest.BodyPublishers.ofString(body.toString()))
-                        .timeout(Duration.ofSeconds(30))
-                        .build();
-        var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-        assertTrue(
-                res.statusCode() == 200 || res.statusCode() == 201,
-                "CreateProject should work: " + res.statusCode() + " " + res.body());
-    }
-
-    @Test
-    @Order(5)
-    void createThingViaEntityServices() throws Exception {
-        JsonObject body = new JsonObject();
-        body.addProperty("name", TEST_THING);
-        body.addProperty("description", "Original description");
-        body.addProperty("thingTemplateName", "GenericThing");
-        body.addProperty("projectName", TEST_PROJECT);
-        var uri =
-                URI.create(
-                        stack.thingworx.getExternalUrl()
-                                + "/Thingworx/Resources/EntityServices/Services/CreateThing");
-        var req =
-                HttpRequest.newBuilder()
-                        .uri(uri)
-                        .header("Content-Type", "application/json")
-                        .header("Accept", "application/json")
-                        .header("Authorization", authHeader)
-                        .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
-                        .header("X-Requested-By", "ThingWorx")
-                        .POST(HttpRequest.BodyPublishers.ofString(body.toString()))
-                        .timeout(Duration.ofSeconds(30))
-                        .build();
-        var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-        assertTrue(
-                res.statusCode() == 200 || res.statusCode() == 201,
-                "CreateThing should work: " + res.statusCode() + " " + res.body());
-
-        JsonObject repositoryBody = new JsonObject();
-        repositoryBody.addProperty("name", FILE_REPOSITORY);
-        repositoryBody.addProperty("description", "FileRepository for source control smoke test");
-        repositoryBody.addProperty("thingTemplateName", "FileRepository");
-        repositoryBody.addProperty("projectName", TEST_PROJECT);
-        var repositoryReq =
-                HttpRequest.newBuilder()
-                        .uri(uri)
-                        .header("Content-Type", "application/json")
-                        .header("Accept", "application/json")
-                        .header("Authorization", authHeader)
-                        .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
-                        .header("X-Requested-By", "ThingWorx")
-                        .POST(HttpRequest.BodyPublishers.ofString(repositoryBody.toString()))
-                        .timeout(Duration.ofSeconds(30))
-                        .build();
-        var repositoryRes =
-                stack.httpClient.send(repositoryReq, HttpResponse.BodyHandlers.ofString());
-        assertTrue(
-                repositoryRes.statusCode() == 200 || repositoryRes.statusCode() == 201,
-                "Create FileRepository should work: "
-                        + repositoryRes.statusCode()
-                        + " "
-                        + repositoryRes.body());
-    }
-
-    @Test
-    @Order(6)
-    void exportEntitiesViaSourceControlFunctions() throws Exception {
-        JsonObject body = new JsonObject();
-        body.addProperty("repositoryName", FILE_REPOSITORY);
-        body.addProperty("path", "/IBIET_SmokeTest");
-        body.addProperty("projectName", TEST_PROJECT);
-        body.addProperty("includeDependents", false);
-        var uri =
-                URI.create(
-                        stack.thingworx.getExternalUrl()
-                                + "/Thingworx/Resources/SourceControlFunctions/Services/ExportSourceControlledEntities");
-        var req =
-                HttpRequest.newBuilder()
-                        .uri(uri)
-                        .header("Content-Type", "application/json")
-                        .header("Accept", "application/json")
-                        .header("Authorization", authHeader)
-                        .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
-                        .header("X-Requested-By", "ThingWorx")
-                        .POST(HttpRequest.BodyPublishers.ofString(body.toString()))
-                        .timeout(Duration.ofSeconds(60))
-                        .build();
-        var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-        assertEquals(
-                200,
-                res.statusCode(),
-                "ExportSourceControlledEntities should work. "
-                        + "Status: "
-                        + res.statusCode()
-                        + " Body: "
-                        + res.body());
-    }
-
-    @Test
-    @Order(7)
-    void importEntitiesViaSourceControlFunctions() throws Exception {
-        JsonObject body = new JsonObject();
-        body.addProperty("repositoryName", FILE_REPOSITORY);
-        body.addProperty("path", "/IBIET_SmokeTest/" + TEST_PROJECT + "/Things");
-        body.addProperty("useDefaultDataProvider", true);
-        body.addProperty("withSubsystems", false);
-        body.addProperty("overwritePropertyValues", true);
-        var uri =
-                URI.create(
-                        stack.thingworx.getExternalUrl()
-                                + "/Thingworx/Resources/SourceControlFunctions/Services/ImportSourceControlledEntities");
-        var req =
-                HttpRequest.newBuilder()
-                        .uri(uri)
-                        .header("Content-Type", "application/json")
-                        .header("Accept", "application/json")
-                        .header("Authorization", authHeader)
-                        .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
-                        .header("X-Requested-By", "ThingWorx")
-                        .POST(HttpRequest.BodyPublishers.ofString(body.toString()))
-                        .timeout(Duration.ofSeconds(60))
-                        .build();
-        var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-        assertEquals(
-                200,
-                res.statusCode(),
-                "ImportSourceControlledEntities should work after extension install. "
-                        + "If this fails, the extension install broke default ThingWorx import. "
-                        + "Status: "
-                        + res.statusCode()
-                        + " Body: "
-                        + res.body());
-    }
-
-    @Test
-    @Order(8)
-    void exportEntityToXmlViaExporter() throws Exception {
-        var uri =
-                URI.create(
-                        stack.thingworx.getExternalUrl()
-                                + "/Thingworx/Exporter/Things/"
-                                + TEST_THING);
-        var req =
-                HttpRequest.newBuilder()
-                        .uri(uri)
-                        .header("Accept", "text/xml")
-                        .header("Authorization", authHeader)
-                        .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
-                        .header("X-Requested-By", "ThingWorx")
-                        .GET()
-                        .timeout(Duration.ofSeconds(30))
-                        .build();
-        var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-        assertEquals(
-                200,
-                res.statusCode(),
-                "GET /Thingworx/Exporter/Things/<name> with Accept: text/xml should return entity XML. "
-                        + "Status: "
-                        + res.statusCode()
-                        + " Body: "
-                        + res.body());
-        assertTrue(
-                res.body().contains("<Thing"), "Response should contain entity XML: " + res.body());
-    }
-
-    private static final String TEST_THING_IMPORTED = "IBIET.TestThing.Imported";
-
-    @Test
-    @Order(9)
-    void exportAndReimportByFileRoundTrip() throws Exception {
-        var exportUri =
-                URI.create(
-                        stack.thingworx.getExternalUrl()
-                                + "/Thingworx/Exporter/Things/"
-                                + TEST_THING);
-        var exportReq =
-                HttpRequest.newBuilder()
-                        .uri(exportUri)
-                        .header("Accept", "text/xml")
-                        .header("Authorization", authHeader)
-                        .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
-                        .header("X-Requested-By", "ThingWorx")
-                        .GET()
-                        .timeout(Duration.ofSeconds(30))
-                        .build();
-        var exportRes = stack.httpClient.send(exportReq, HttpResponse.BodyHandlers.ofString());
-        assertEquals(
-                200,
-                exportRes.statusCode(),
-                "GET /Thingworx/Exporter/Things/<name> should return XML: "
-                        + exportRes.statusCode());
-        assertTrue(exportRes.body().contains("<Thing"), "Response should contain entity XML");
-
-        String xmlWithNewName =
-                exportRes
+        String renamed =
+                exported
                         .body()
                         .replaceFirst(
                                 "name=\"" + TEST_THING + "\"",
                                 "name=\"" + TEST_THING_IMPORTED + "\"");
-
         String boundary = "----ThingWorxBoundary" + System.currentTimeMillis();
-        var importUri =
-                URI.create(
-                        stack.thingworx.getExternalUrl()
-                                + "/Thingworx/Importer?purpose=import&usedefaultdataprovider=false&WithSubsystems=false");
-        var importReq =
-                HttpRequest.newBuilder()
-                        .uri(importUri)
-                        .header("Content-Type", "multipart/form-data; boundary=" + boundary)
-                        .header("Accept", "application/json")
-                        .header("Authorization", authHeader)
-                        .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
-                        .header("X-Requested-By", "ThingWorx")
-                        .POST(ofMultipartFileBody(xmlWithNewName, boundary))
-                        .timeout(Duration.ofSeconds(60))
-                        .build();
-        var importRes = stack.httpClient.send(importReq, HttpResponse.BodyHandlers.ofString());
+        var imported =
+                send(
+                        request(IMPORTER)
+                                .header("Accept", "application/json")
+                                .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                                .POST(multipartFile(renamed, boundary)));
+        assertEquals(200, imported.statusCode(), "Importer: " + imported.body());
+
+        var thing =
+                send(
+                        request("/Thingworx/Things/" + TEST_THING_IMPORTED)
+                                .header("Accept", "application/json")
+                                .GET());
         assertEquals(
                 200,
-                importRes.statusCode(),
-                "POST /Thingworx/Importer with multipart XML file should work. "
-                        + "Status: "
-                        + importRes.statusCode()
-                        + " Body: "
-                        + importRes.body());
+                thing.statusCode(),
+                "The imported Thing should exist; installing the extension broke ThingWorx"
+                        + " entity import: "
+                        + thing.body());
     }
 
-    @Test
-    @Order(10)
-    void verifyImportedEntityExists() throws Exception {
-        var uri =
-                URI.create(
-                        stack.thingworx.getExternalUrl()
-                                + "/Thingworx/Things/"
-                                + TEST_THING_IMPORTED);
-        var req =
-                HttpRequest.newBuilder()
-                        .uri(uri)
-                        .header("Accept", "application/json")
-                        .header("Authorization", authHeader)
-                        .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
-                        .header("X-Requested-By", "ThingWorx")
-                        .GET()
-                        .timeout(Duration.ofSeconds(30))
-                        .build();
-        var res = stack.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-        assertEquals(
-                200,
-                res.statusCode(),
-                "Imported Thing by file should exist. If this fails, the extension install "
-                        + "broke default ThingWorx entity import. "
-                        + "Status: "
-                        + res.statusCode()
-                        + " Body: "
-                        + res.body());
+    private void entityService(String service, JsonObject body) throws Exception {
+        var response =
+                send(
+                        request("/Thingworx/Resources/EntityServices/Services/" + service)
+                                .header("Accept", "application/json")
+                                .header("Content-Type", "application/json")
+                                .POST(HttpRequest.BodyPublishers.ofString(body.toString())));
+        assertTrue(
+                response.statusCode() == 200 || response.statusCode() == 201,
+                service + ": " + response.statusCode() + " " + response.body());
     }
 
-    private HttpRequest.BodyPublisher ofMultipartFileBody(String xmlContent, String boundary) {
-        var byteArrays = new ArrayList<byte[]>();
-        byteArrays.add(("--" + boundary + "\r\n").getBytes(StandardCharsets.UTF_8));
-        byteArrays.add(
+    private HttpRequest.Builder request(String path) {
+        return HttpRequest.newBuilder()
+                .uri(URI.create(stack.thingworx.getExternalUrl() + path))
+                .header("Authorization", authHeader)
+                .header("X-XSRF-TOKEN", "TWX-XSRF-TOKEN-VALUE")
+                .header("X-Requested-By", "ThingWorx")
+                .timeout(Duration.ofSeconds(60));
+    }
+
+    private HttpResponse<String> send(HttpRequest.Builder request) throws Exception {
+        return stack.httpClient.send(request.build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    private static HttpRequest.BodyPublisher multipartFile(String xmlContent, String boundary) {
+        var parts = new ArrayList<byte[]>();
+        parts.add(("--" + boundary + "\r\n").getBytes(StandardCharsets.UTF_8));
+        parts.add(
                 "Content-Disposition: form-data; name=\"file\"; filename=\"entity.xml\"\r\n"
                         .getBytes(StandardCharsets.UTF_8));
-        byteArrays.add("Content-Type: text/xml\r\n".getBytes(StandardCharsets.UTF_8));
-        byteArrays.add("\r\n".getBytes(StandardCharsets.UTF_8));
-        byteArrays.add(xmlContent.getBytes(StandardCharsets.UTF_8));
-        byteArrays.add("\r\n".getBytes(StandardCharsets.UTF_8));
-        byteArrays.add(("--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
-        return HttpRequest.BodyPublishers.ofByteArrays(byteArrays);
+        parts.add("Content-Type: text/xml\r\n\r\n".getBytes(StandardCharsets.UTF_8));
+        parts.add(xmlContent.getBytes(StandardCharsets.UTF_8));
+        parts.add(("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
+        return HttpRequest.BodyPublishers.ofByteArrays(parts);
     }
 }

@@ -7,7 +7,6 @@ import io.fabric8.kubernetes.api.model.HasMetadata;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.javaoperatorsdk.operator.Operator;
 import java.io.File;
-import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.AfterAll;
@@ -61,8 +60,10 @@ class K3sOperatorIT {
     private static Operator operator;
 
     @BeforeAll
-    static void startClient() throws IOException {
+    static void startClientAndInstallCrds() throws Exception {
         client = K3sSupport.createClient(K3S);
+        // The API server must accept the CRDs, CEL rules included, before anything can reconcile.
+        K3sSupport.installCrdsIdempotently(client);
     }
 
     @AfterAll
@@ -77,17 +78,7 @@ class K3sOperatorIT {
 
     @Test
     @Order(1)
-    void k3sStartsAndCrdCanBeInstalled() throws Exception {
-        assertThat(K3S.isRunning()).isTrue();
-        assertThat(client.namespaces().list().getItems()).isNotEmpty();
-
-        installCrdsIdempotently();
-    }
-
-    @Test
-    @Order(2)
     void operatorReconcilesSingleNodeClusterInK3s() throws Exception {
-        k3sStartsAndCrdCanBeInstalled();
 
         createNamespace("thingworx");
         createNamespace("thingworx-operator");
@@ -156,9 +147,8 @@ class K3sOperatorIT {
     }
 
     @Test
-    @Order(3)
+    @Order(2)
     void operatorReconcilesExtensionInK3s() throws Exception {
-        k3sStartsAndCrdCanBeInstalled();
         createNamespace("thingworx");
         createNamespace("thingworx-operator");
 
@@ -458,10 +448,6 @@ class K3sOperatorIT {
     private void ensureOperatorStopped() throws InterruptedException {
         K3sSupport.ensureOperatorStopped(operator);
         operator = null;
-    }
-
-    private void installCrdsIdempotently() throws Exception {
-        K3sSupport.installCrdsIdempotently(client);
     }
 
     @SuppressWarnings("unused")

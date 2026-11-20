@@ -43,14 +43,4 @@ public final class ServiceResultAssertions {
         assertTrue(payload.has("rows"), "Service payload must be an InfoTable: " + response);
         return payload.getAsJsonArray("rows");
     }
-
-    public static JsonObject responseDataShape(String response) {
-        JsonObject row = assertSuccess(response);
-        assertTrue(row.has("Result"), "Service result must include Result: " + response);
-        JsonObject payload = row.getAsJsonObject("Result");
-        assertTrue(
-                payload.has("dataShape"),
-                "Service payload must include DataShape metadata: " + response);
-        return payload.getAsJsonObject("dataShape");
-    }
 }
