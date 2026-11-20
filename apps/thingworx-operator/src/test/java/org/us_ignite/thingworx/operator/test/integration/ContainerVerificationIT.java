@@ -16,35 +16,19 @@ import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.containers.startupcheck.OneShotStartupCheckStrategy;
-import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
-/** Docker-backed smoke tests for runtime prerequisites; no licence is added to an image layer. */
+/**
+ * Docker-backed checks of the images the operator deploys; no licence is added to an image layer.
+ */
 @Tag("integration")
 @Testcontainers
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class ContainerVerificationIT {
-    @SuppressWarnings("resource")
-    @Container
-    static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>(DockerImageName.parse("postgres:16"))
-                    .withDatabaseName("thingworx")
-                    .withUsername("thingworx")
-                    .withPassword("test-only-password");
-
     @Test
     @Order(1)
-    void externalPostgresDependencyStartsAndAcceptsConnections() throws Exception {
-        assertThat(POSTGRES.isRunning()).isTrue();
-        try (var connection = POSTGRES.createConnection("")) {
-            assertThat(connection.isValid(5)).isTrue();
-        }
-    }
-
-    @Test
-    @Order(2)
     void platformImageReceivesLicenceOnlyAsARuntimeReadOnlyMount() throws Exception {
         var licence = Path.of("local", "license.bin").toAbsolutePath();
         Assumptions.assumeTrue(Files.isReadable(licence), "local runtime licence is unavailable");
@@ -67,7 +51,7 @@ class ContainerVerificationIT {
     }
 
     @Test
-    @Order(3)
+    @Order(2)
     void ptcInitializerBootstrapsAnEmptyPostgresDatabase() throws Exception {
         try (var network = Network.newNetwork();
                 @SuppressWarnings("resource")

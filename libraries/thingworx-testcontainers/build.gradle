@@ -1,4 +1,3 @@
-import thingworx.TestInvocation
 
 plugins {
     id 'thingworx.java-library'
@@ -10,22 +9,4 @@ plugins {
 dependencies {
     api 'org.testcontainers:testcontainers:2.0.5'
     api 'org.testcontainers:postgresql:1.21.4'
-    testImplementation 'org.junit.jupiter:junit-jupiter:5.8.2'
-    testRuntimeOnly 'org.slf4j:slf4j-simple:1.7.36'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.8.2'
-}
-
-tasks.named('test') {
-    useJUnitPlatform()
-    // Containerized tests (and their image builds) only run on explicit test
-    // invocations; the base testing plugin already disables otherwise.
-    // Gradle still runs `dependsOn` tasks even when disabled, so gate those too.
-    if (TestInvocation.requested(gradle) && !project.hasProperty('useExistingImages')) {
-        dependsOn(':images:platform:build102')
-        dependsOn(':images:security-tool:buildSecurityTool_10.2')
-    }
-    systemProperty 'test.dbInitImage', System.getProperty('test.dbInitImage') ?: 'ghcr.io/us-ignite/thingworx/postgres-init:10.2.1-openjdk'
-    systemProperty 'test.platformImage', System.getProperty('test.platformImage') ?: 'ghcr.io/us-ignite/thingworx/platform-postgres:10.2.1-openjdk'
-    systemProperty 'test.postgresImage', System.getProperty('test.postgresImage') ?: 'postgres:17'
-    testLogging { events 'passed', 'skipped', 'failed'; exceptionFormat = 'full' }
 }
