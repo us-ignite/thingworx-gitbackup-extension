@@ -50,9 +50,6 @@ class CommitSettingsTest {
         StoredConfig config = git.getRepository().getConfig();
         // As RepositorySecurity.harden leaves it: no inherited identity or signing.
         config.setBoolean("commit", null, "gpgSign", false);
-        // No background auto-GC, which can still hold gc.log.lock when the temp directory is
-        // deleted.
-        config.setInt("gc", null, "auto", 0);
         config.save();
         commit(git, "a.txt", "base\n", "base");
         signer = new PastedKeyGpgSigner(GPGGenerator.generateTestGpgPrivateKey(), "");
