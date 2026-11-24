@@ -527,9 +527,9 @@ final class FileRepositoryManager {
 
     /**
      * The tracked Data Tables: the {@code Data/<name>.json} files in the folders of the tracked
-     * projects, in project order and then by name. A name found in more than one folder is
-     * tracked from the first; each later file is added to {@code notes}. Symbolic links and other
-     * files are ignored.
+     * projects, in project order and then by name. A name found in more than one folder is tracked
+     * from the first; each later file is added to {@code notes}. Symbolic links and other files are
+     * ignored.
      */
     List<DataTableFile> dataTableFiles(List<TrackedProject> projects, List<String> notes)
             throws IOException {
@@ -867,6 +867,15 @@ final class FileRepositoryManager {
     }
 
     private void exportProjectEntitiesTo(String path, String project) throws Exception {
+        exportProjectEntitiesTo(path, project, null);
+    }
+
+    /**
+     * Exports one project, or, when {@code collection} is given, only that collection of it, such
+     * as {@code Things}, into {@code <path>/<project>/}.
+     */
+    private void exportProjectEntitiesTo(String path, String project, String collection)
+            throws Exception {
         IServiceProvider sourceControlFunctions = requireSourceControlPermission(EXPORT_SERVICE);
         resolveRepositoryPath(
                 new File(fileRepository.getRootPath()).toPath(),
@@ -877,36 +886,63 @@ final class FileRepositoryManager {
         params.put("path", new StringPrimitive(path));
         params.put("projectName", new StringPrimitive(project));
         params.put("includeDependents", new BooleanPrimitive(false));
+        if (collection != null) params.put("collection", new StringPrimitive(collection));
         sourceControlFunctions.processServiceRequest(EXPORT_SERVICE, params);
+    }
+
+    /**
+     * The outcome of {@link #syncFromThingWorx()}: how many tracked projects and Data Tables were
+     * exported, in whole or in part, and every item that could not be exported, each with the
+     * reason.
+     */
+    record ExportResult(int projects, int dataTables, SyncFailures failures) {
+        /** Whether anything at all was exported. */
+        boolean exported() {
+            return projects > 0 || dataTables > 0;
+        }
     }
 
     /**
      * Sync from ThingWorx: exports every tracked project and reconciles its folder in the working
      * tree, without staging anything; only the cached file stats of unchanged files are refreshed
-     * (see {@link IndexStatRefresh}). Files of entities that left a project are deleted. Records
-     * the sync time, see {@link #changedSinceSync()}.
+     * (see {@link IndexStatRefresh}). Files of entities that left a project are deleted.
+     *
+     * <p>The export succeeds partially. A project whose export fails is exported one collection at
+     * a time instead; a project, collection or Data Table that still cannot be exported keeps its
+     * files in the working tree as they were, never deleted, and is reported in {@link
+     * ExportResult#failures()}. The sync time (see {@link #changedSinceSync()}) is only recorded
+     * when everything was exported, so ThingWorx changes that did not reach the working tree are
+     * still protected from being overwritten by Sync to ThingWorx.
      */
-    void syncFromThingWorx() throws Exception {
+    ExportResult syncFromThingWorx() throws Exception {
         requireExportPermissions();
         ConflictWorkflow.requireNotInProgress(git);
         // Taken before exporting, so an entity saved while the export runs still counts as changed.
         long started = System.currentTimeMillis();
+        ExportResult result;
         synchronized (StatusExportReconciler.class) {
-            syncFromThingWorxLocked();
+            result = syncFromThingWorxLocked();
         }
-        recordSync(started);
+        if (result.failures().isEmpty()) recordSync(started);
+        return result;
     }
 
-    private void syncFromThingWorxLocked() throws Exception {
+    /** A project's export: the folder it was exported to, and its collections that failed. */
+    private record Snapshot(Path folder, java.util.Set<String> failedCollections) {}
+
+    private ExportResult syncFromThingWorxLocked() throws Exception {
         List<TrackedProject> projects = requireTrackedProjects();
         Path base = new File(fileRepository.getRootPath()).toPath().toRealPath();
         Path temporary = Files.createTempDirectory(base, ".jgit-status-");
+        SyncFailures failures = new SyncFailures();
         try {
-            // Export every project before reconciling any, so a failed export leaves the
-            // working tree untouched. Each project gets its own export directory.
-            List<Path> snapshots = new ArrayList<>();
+            // Export every project before reconciling any, so a project's files are only touched
+            // once ThingWorx has produced its export. Each project gets its own export directory;
+            // a project that cannot be exported at all gets none and is left alone.
+            List<Snapshot> snapshots = new ArrayList<>();
             for (int i = 0; i < projects.size(); i++) {
-                snapshots.add(exportSnapshot(temporary, String.valueOf(i), projects.get(i)));
+                snapshots.add(
+                        exportOrPartial(temporary, String.valueOf(i), projects.get(i), failures));
             }
             // Read every tracked Data Table before writing any file, like the projects above.
             List<String> skipped = new ArrayList<>();
@@ -920,27 +956,44 @@ final class FileRepositoryManager {
                     skipped.add(item.name() + " (no such Data Table; " + item.file() + " is kept)");
                     continue;
                 }
-                String current =
-                        Files.readString(
-                                resolveRepositoryPath(workTree, item.file()),
-                                StandardCharsets.UTF_8);
-                String mode;
+                // Each Data Table on its own: one that fails keeps its file as it is.
                 try {
-                    mode = TrackedDataTables.modeOf(current, item.name());
-                } catch (IllegalArgumentException e) {
-                    throw new Exception(Const.ERR_PREFIX_CONFIG + e.getMessage(), e);
+                    String current =
+                            Files.readString(
+                                    resolveRepositoryPath(workTree, item.file()),
+                                    StandardCharsets.UTF_8);
+                    String mode;
+                    try {
+                        mode = TrackedDataTables.modeOf(current, item.name());
+                    } catch (IllegalArgumentException e) {
+                        throw new Exception(Const.ERR_PREFIX_CONFIG + e.getMessage(), e);
+                    }
+                    contents.add(TrackedDataTables.export(thing, mode));
+                    tables.add(item);
+                } catch (Exception e) {
+                    failures.add(item.project(), TrackedDataTables.DATA_FOLDER, item.name(), e);
+                    warn("Could not export the rows of Data Table '{}' from {}", item.name(), e);
                 }
-                tables.add(item);
-                contents.add(TrackedDataTables.export(thing, mode));
             }
+            int exportedProjects = 0;
             for (int i = 0; i < projects.size(); i++) {
                 TrackedProject project = projects.get(i);
+                Snapshot snapshot = snapshots.get(i);
+                if (snapshot == null) continue;
+                java.util.Set<String> failed = snapshot.failedCollections();
                 StatusExportReconciler.reconcileFolder(
                         git,
-                        snapshots.get(i),
+                        snapshot.folder(),
                         projectFolder(project),
                         project.name(),
-                        project::syncs);
+                        // A failed collection keeps its files; so do files outside any collection,
+                        // which only a complete export can account for.
+                        collection ->
+                                project.syncs(collection)
+                                        && (failed.isEmpty()
+                                                || (collection != null
+                                                        && !failed.contains(collection))));
+                exportedProjects++;
             }
             for (int i = 0; i < tables.size(); i++) {
                 writeDataTableFile(tables.get(i).file(), contents.get(i));
@@ -955,9 +1008,93 @@ final class FileRepositoryManager {
             // Keeps Status fast: files that are unchanged but were rewritten (by an earlier
             // version of this sync, or by hand) would otherwise be re-hashed on every Status.
             IndexStatRefresh.refresh(git);
+            return new ExportResult(exportedProjects, tables.size(), failures);
         } finally {
             deleteRecursively(temporary);
         }
+    }
+
+    /**
+     * Exports a project as {@link #exportSnapshot} does. When the platform refuses to export the
+     * whole project, exports it one collection at a time instead, see {@link #exportCollections}.
+     *
+     * @return the export, or {@code null} when nothing of the project could be exported
+     */
+    private Snapshot exportOrPartial(
+            Path temporary, String slot, TrackedProject tracked, SyncFailures failures) {
+        try {
+            return new Snapshot(exportSnapshot(temporary, slot, tracked), java.util.Set.of());
+        } catch (Exception whole) {
+            warn(
+                    "Exporting project '{}' from {} as a whole failed; exporting it one"
+                            + " collection at a time",
+                    tracked.name(),
+                    whole);
+            try {
+                Snapshot partial = exportCollections(temporary, slot, tracked, failures);
+                if (partial != null) {
+                    // Every collection failed and each was reported: nothing to reconcile.
+                    return partial.folder() == null ? null : partial;
+                }
+            } catch (Exception e) {
+                whole.addSuppressed(e);
+            }
+            failures.add(tracked.name(), "", "", whole);
+            return null;
+        }
+    }
+
+    /**
+     * Exports each collection of a project the project synchronizes, such as {@code Things}, on its
+     * own, and puts them together into {@code <temporary>/<slot>/<ProjectName>/} like a whole
+     * export. Every collection that fails is added to {@code failures}.
+     *
+     * @return the export with its failed collections, with a {@code null} folder when every
+     *     collection failed; or {@code null} when the project or its collections cannot be found,
+     *     with nothing added to {@code failures}
+     */
+    private Snapshot exportCollections(
+            Path temporary, String slot, TrackedProject tracked, SyncFailures failures)
+            throws Exception {
+        String project = tracked.name();
+        RootEntity found = EntityUtilities.findEntity(project, ThingworxRelationshipTypes.Project);
+        if (!(found instanceof com.thingworx.projects.Project entity)) return null;
+        java.util.Set<String> collections = new java.util.TreeSet<>();
+        collections.add(SyncedEntityTypes.PROJECTS);
+        for (var reference : entity.getProjectEntities()) {
+            collections.add(SyncedEntityTypes.collectionOf(reference.getType()));
+        }
+        collections.removeIf(collection -> !tracked.syncs(collection));
+
+        Path snapshot = temporary.resolve(slot).resolve(project).normalize();
+        if (!snapshot.startsWith(temporary)) throw new IOException("Invalid project name.");
+        // Whatever the failed whole export left behind is not part of this one.
+        deleteRecursively(temporary.resolve(slot));
+        Files.createDirectories(snapshot);
+        java.util.Set<String> failed = new java.util.TreeSet<>();
+        int n = 0;
+        for (String collection : collections) {
+            String part = slot + "-" + n++;
+            try {
+                exportProjectEntitiesTo(
+                        "/" + temporary.getFileName() + "/" + part, project, collection);
+                Path exported = temporary.resolve(part).resolve(project).resolve(collection);
+                if (Files.isDirectory(exported, LinkOption.NOFOLLOW_LINKS)) {
+                    Files.move(exported, snapshot.resolve(collection));
+                }
+            } catch (Exception e) {
+                failed.add(collection);
+                failures.add(project, collection, "", e);
+                warn("Could not export collection '{}' from {}", project + "/" + collection, e);
+            } finally {
+                deleteRecursively(temporary.resolve(part));
+            }
+        }
+        if (failed.size() == collections.size()) return new Snapshot(null, failed);
+        removeUnsyncedCollections(snapshot, tracked);
+        sanitizeXmlIn(snapshot.toFile());
+        UserSync.sanitizeExportIn(snapshot, UserSync.passwordProperties());
+        return new Snapshot(snapshot, failed);
     }
 
     /**
@@ -1188,8 +1325,13 @@ final class FileRepositoryManager {
      * <p>Only files tracked by Git, committed or staged, are imported. An untracked file has never
      * been through Git, so it is left out and reported; add, commit and push it to include it.
      *
-     * @return whether the platform import service ran for at least one project, and the untracked
-     *     files that were left out
+     * <p>The import succeeds partially: a User, entity, project or Data Table that cannot be
+     * imported is reported in {@link ImportResult#failures()} and the rest are still imported. A
+     * project is imported as a whole first; when that fails, its entities are imported one at a
+     * time, see {@link #importTracked}.
+     *
+     * @return whether anything was imported, the untracked files that were left out, and what
+     *     failed
      */
     ImportResult importProjectEntities() throws Exception {
         // Never import files that still contain conflict markers or a half-finished merge.
@@ -1197,46 +1339,58 @@ final class FileRepositoryManager {
         List<TrackedProject> projects = requireTrackedProjects();
         IServiceProvider resource = requireSourceControlPermission(IMPORT_SERVICE);
         java.util.Set<String> trackedPaths = trackedPaths();
+        SyncFailures failures = new SyncFailures();
         // Users first, so Groups and Organizations imported below can refer to them.
-        UserImport users = importUsers(resource, projects, trackedPaths);
+        UserImport users = importUsers(resource, projects, trackedPaths, failures);
         boolean imported = !users.imported().isEmpty();
         List<String> untracked = new ArrayList<>();
         for (TrackedProject project : projects) {
-            String relative = projectFolder(project);
-            File folder =
-                    resolveRepositoryPath(new File(fileRepository.getRootPath()).toPath(), relative)
-                            .toFile();
-            if (!folder.isDirectory() || !containsXmlFile(folder)) continue;
-            if (importTracked(
-                    resource, folder.toPath(), relative, project, trackedPaths, untracked)) {
-                imported = true;
+            try {
+                String relative = projectFolder(project);
+                File folder =
+                        resolveRepositoryPath(
+                                        new File(fileRepository.getRootPath()).toPath(), relative)
+                                .toFile();
+                if (!folder.isDirectory() || !containsXmlFile(folder)) continue;
+                if (importTracked(
+                        resource,
+                        folder.toPath(),
+                        relative,
+                        project,
+                        trackedPaths,
+                        untracked,
+                        failures)) {
+                    imported = true;
+                }
+            } catch (Exception e) {
+                failures.add(project.name(), "", "", e);
+                warn("Could not import project '{}' into {}", project.name(), e);
             }
         }
         // After the entities, so each Data Table and its DataShape are current before its rows.
-        DataImport data = importDataTables(projects, trackedPaths, untracked);
-        // Imported entities now carry modified dates up to this point, so take it afterwards.
+        DataImport data = importDataTables(projects, trackedPaths, untracked, failures);
+        if (!data.imported().isEmpty()) imported = true;
+        // Imported entities now carry modified dates up to this point, so take it afterwards. An
+        // entity that failed keeps the ThingWorx copy, which was not modified, so it is not
+        // reported as a ThingWorx change; Sync from ThingWorx shows it against Git instead.
         recordSync(System.currentTimeMillis());
         return new ImportResult(
-                imported,
-                untracked,
-                users.created(),
-                users.failed(),
-                data.imported(),
-                data.notes());
+                imported, untracked, users.created(), data.imported(), data.notes(), failures);
     }
 
     /**
      * The outcome of {@link #importProjectEntities()}: whether anything was imported, the
      * repository-relative paths of untracked files that were left out, the Users that were created
-     * disabled, and the Users that could not be imported, each with the reason.
+     * disabled, the Data Tables whose rows were imported and those left alone, and every item that
+     * could not be imported, each with the reason.
      */
     record ImportResult(
             boolean imported,
             List<String> untracked,
             List<String> createdUsers,
-            List<String> failedUsers,
             List<String> dataTables,
-            List<String> dataTableNotes) {}
+            List<String> dataTableNotes,
+            SyncFailures failures) {}
 
     /** The Data Tables whose rows were imported, and those left alone with why. */
     record DataImport(List<String> imported, List<String> notes) {}
@@ -1248,7 +1402,8 @@ final class FileRepositoryManager {
     private DataImport importDataTables(
             List<TrackedProject> projects,
             java.util.Set<String> trackedPaths,
-            List<String> untracked)
+            List<String> untracked,
+            SyncFailures failures)
             throws Exception {
         List<String> notes = new ArrayList<>();
         List<String> imported = new ArrayList<>();
@@ -1259,44 +1414,55 @@ final class FileRepositoryManager {
                 untracked.add(item.file());
                 continue;
             }
-            Path file = resolveRepositoryPath(root, item.file());
-            requireNoLinkComponents(root, file);
-            var thing = TrackedDataTables.find(name);
-            if (thing == null) {
-                notes.add(name + " (the Data Table does not exist)");
-                continue;
-            }
-            String content = Files.readString(file, StandardCharsets.UTF_8);
+            // Each Data Table on its own: one that fails is reported and the others still import.
             try {
+                Path file = resolveRepositoryPath(root, item.file());
+                requireNoLinkComponents(root, file);
+                var thing = TrackedDataTables.find(name);
+                if (thing == null) {
+                    notes.add(name + " (the Data Table does not exist)");
+                    continue;
+                }
+                String content = Files.readString(file, StandardCharsets.UTF_8);
                 boolean mirror =
                         TrackedDataTables.MIRROR.equals(TrackedDataTables.modeOf(content, name));
                 imported.add(TrackedDataTables.importRows(thing, content, mirror).describe());
+                recordDataTableHash(
+                        name, TrackedDataTables.export(thing, TrackedDataTables.MIRROR));
             } catch (Exception e) {
-                throw new Exception(
-                        "Importing the rows of Data Table '" + name + "' failed: " + e.getMessage(),
-                        e);
+                failures.add(item.project(), TrackedDataTables.DATA_FOLDER, name, e);
+                warn("Could not import the rows of Data Table '{}' into {}", name, e);
             }
-            recordDataTableHash(name, TrackedDataTables.export(thing, TrackedDataTables.MIRROR));
         }
         return new DataImport(imported, notes);
     }
 
-    /** The Users imported, those of them created disabled, and those that failed with why. */
-    record UserImport(List<String> imported, List<String> created, List<String> failed) {}
+    /** Logs a warning about this repository, naming {@code subject}, with the exception. */
+    private void warn(String message, String subject, Exception e) {
+        com.thingworx.logging.LogUtilities.getInstance()
+                .getApplicationLogger(FileRepositoryManager.class)
+                .warn(message, subject, fileRepository.getName(), e);
+    }
+
+    /** The Users imported, and those of them created disabled. */
+    record UserImport(List<String> imported, List<String> created) {}
 
     /**
      * Imports the tracked Users of every tracked project, each on its own, with what the server
-     * holds for it kept: see {@link UserSync}. A User that fails to import is reported and the
-     * others still import; a server whose licence has no named users cannot create one, for
-     * example. Each User is staged in its own temporary folder, deleted as soon as it is imported,
-     * because the staged file carries the live password hash and server-encrypted secrets.
+     * holds for it kept: see {@link UserSync}. A User that fails to import is added to {@code
+     * failures} and the others still import; a server whose licence has no named users cannot
+     * create one, for example. Each User is staged in its own temporary folder, deleted as soon as
+     * it is imported, because the staged file carries the live password hash and server-encrypted
+     * secrets.
      */
     private UserImport importUsers(
             IServiceProvider resource,
             List<TrackedProject> projects,
-            java.util.Set<String> trackedPaths)
+            java.util.Set<String> trackedPaths,
+            SyncFailures failures)
             throws Exception {
         java.util.Map<String, UserSync.GitUser> users = new java.util.LinkedHashMap<>();
+        java.util.Map<String, String> projectOf = new java.util.HashMap<>();
         Path root = new File(fileRepository.getRootPath()).toPath();
         for (TrackedProject project : projects) {
             if (!project.syncs(UserSync.USERS)) continue;
@@ -1306,13 +1472,14 @@ final class FileRepositoryManager {
             String prefix = relative.replace('\\', '/').replaceAll("^/+|/+$", "") + "/";
             for (UserSync.GitUser user :
                     UserSync.collect(folder, path -> trackedPaths.contains(prefix + path))) {
-                users.putIfAbsent(user.name(), user);
+                if (users.putIfAbsent(user.name(), user) == null) {
+                    projectOf.put(user.name(), project.name());
+                }
             }
         }
         List<String> imported = new ArrayList<>();
         List<String> created = new ArrayList<>();
-        List<String> failed = new ArrayList<>();
-        if (users.isEmpty()) return new UserImport(imported, created, failed);
+        if (users.isEmpty()) return new UserImport(imported, created);
         var isPasswordProperty = UserSync.passwordProperties();
         Path base = root.toRealPath();
         for (UserSync.GitUser user : users.values()) {
@@ -1329,19 +1496,13 @@ final class FileRepositoryManager {
                 imported.add(user.name());
                 if (live == null) created.add(user.name());
             } catch (Exception e) {
-                failed.add(user.name() + " (" + e.getMessage() + ")");
-                com.thingworx.logging.LogUtilities.getInstance()
-                        .getApplicationLogger(FileRepositoryManager.class)
-                        .warn(
-                                "Could not import User '{}' into {}",
-                                user.name(),
-                                fileRepository.getName(),
-                                e);
+                failures.add(projectOf.get(user.name()), UserSync.USERS, user.name(), e);
+                warn("Could not import User '{}' into {}", user.name(), e);
             } finally {
                 deleteRecursively(temporary);
             }
         }
-        return new UserImport(imported, created, failed);
+        return new UserImport(imported, created);
     }
 
     /** The repository-relative paths of every file in the Git index. */
@@ -1466,7 +1627,13 @@ final class FileRepositoryManager {
      * cannot update. See {@link SyncExclusions}. Every skipped ApplicationKey is reported in the
      * extension log with how to repair it, and untracked files are added to {@code untracked}.
      *
-     * @return whether the import service ran
+     * <p>The project is imported as a whole first. When the platform refuses that, its entities are
+     * imported one at a time instead, in passes so an entity whose dependency fails at first is
+     * tried again once the dependency is in (see {@link SyncFailures#inPasses}); the entities still
+     * failing are then tried together once more, for dependencies that go both ways. Whatever still
+     * fails is added to {@code failures} and the rest of the project is kept.
+     *
+     * @return whether at least one entity of the project was imported
      */
     private boolean importTracked(
             IServiceProvider resource,
@@ -1474,7 +1641,8 @@ final class FileRepositoryManager {
             String relative,
             TrackedProject tracked,
             java.util.Set<String> trackedPaths,
-            List<String> untracked)
+            List<String> untracked,
+            SyncFailures failures)
             throws Exception {
         String project = tracked.name();
         String prefix = relative.replace('\\', '/').replaceAll("^/+|/+$", "") + "/";
@@ -1519,8 +1687,85 @@ final class FileRepositoryManager {
                                 + " then sync again.");
             }
             if (!containsXmlFile(staged.toFile())) return false;
+            try {
+                importFolder(resource, "/" + temporary.getFileName() + "/0");
+                return true;
+            } catch (Exception whole) {
+                warn(
+                        "Importing project '{}' into {} as a whole failed; importing its entities"
+                                + " one at a time",
+                        project,
+                        whole);
+            }
+            return importEach(resource, staged, project, failures);
+        } finally {
+            deleteRecursively(temporary);
+        }
+    }
+
+    /**
+     * Imports the entity files below {@code staged}, a project folder of collection folders, one at
+     * a time, see {@link #importTracked}. Adds every entity that cannot be imported to {@code
+     * failures}.
+     *
+     * @return whether at least one entity was imported
+     */
+    private boolean importEach(
+            IServiceProvider resource, Path staged, String project, SyncFailures failures)
+            throws Exception {
+        List<File> found = new ArrayList<>();
+        collectXmlFilesOnDisk(staged.toFile(), found);
+        List<String> files = new ArrayList<>();
+        for (File file : found) {
+            files.add(staged.relativize(file.toPath()).toString().replace('\\', '/'));
+        }
+        java.util.Collections.sort(files);
+        java.util.Map<String, Exception> failed =
+                SyncFailures.inPasses(files, file -> importFiles(resource, staged, List.of(file)));
+        // Entities that refer to each other can only be imported together.
+        if (failed.size() > 1 && failed.size() < files.size()) {
+            try {
+                importFiles(resource, staged, List.copyOf(failed.keySet()));
+                failed.clear();
+            } catch (Exception together) {
+                // Each keeps the error of its own attempt, which names its problem best.
+            }
+        }
+        for (var entry : failed.entrySet()) {
+            String file = entry.getKey();
+            String name = file.substring(file.lastIndexOf('/') + 1).replaceFirst("\\.xml$", "");
+            try {
+                name =
+                        SyncFailures.entityName(
+                                Files.readString(staged.resolve(file), StandardCharsets.UTF_8),
+                                name);
+            } catch (IOException unreadable) {
+                // The file name stands in for the entity name.
+            }
+            String collection = collectionOfPath(file);
+            failures.add(project, collection, name, entry.getValue());
+            warn("Could not import entity '{}' into {}", file, entry.getValue());
+        }
+        return failed.size() < files.size();
+    }
+
+    /**
+     * Imports the given entity files, relative to {@code staged}, in one call to the platform's
+     * import service, from a temporary folder that holds only them.
+     */
+    private void importFiles(IServiceProvider resource, Path staged, List<String> files)
+            throws Exception {
+        Path base = new File(fileRepository.getRootPath()).toPath().toRealPath();
+        Path temporary = Files.createTempDirectory(base, ".jgit-entity-");
+        try {
+            Path copy = temporary.resolve("0");
+            for (String file : files) {
+                Path target = copy.resolve(file).normalize();
+                if (!target.startsWith(copy)) throw new IOException("Invalid entity path: " + file);
+                Files.createDirectories(target.getParent());
+                Files.copy(staged.resolve(file), target, LinkOption.NOFOLLOW_LINKS);
+            }
             importFolder(resource, "/" + temporary.getFileName() + "/0");
-            return true;
         } finally {
             deleteRecursively(temporary);
         }
