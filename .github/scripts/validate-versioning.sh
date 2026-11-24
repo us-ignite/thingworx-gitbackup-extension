@@ -88,7 +88,9 @@ baseline_version() {
   esac
 }
 
-mapfile -t commits < <(git rev-list --reverse "$range")
+# Merge commits are skipped: their "Merge branch ..." subjects are not
+# Conventional Commits, and the commits they bring in are validated individually.
+mapfile -t commits < <(git rev-list --reverse --no-merges "$range")
 for commit in "${commits[@]}"; do
   parent=$(git rev-parse "$commit^")
   header=$(git log -1 --format=%s "$commit")

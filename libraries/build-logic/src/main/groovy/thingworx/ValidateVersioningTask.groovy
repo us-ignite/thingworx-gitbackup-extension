@@ -39,8 +39,10 @@ abstract class ValidateVersioningTask extends DefaultTask {
         procHead.waitFor()
         if (procHead.exitValue()!=0) throw new GradleException("unknown range head: $head")
 
-        // get commits in range reverse
-        def revList = new ProcessBuilder(['git','rev-list','--reverse', r]).directory(root).start()
+        // get commits in range reverse. Merge commits are skipped: their
+        // "Merge branch ..." subjects are not Conventional Commits, and the
+        // commits they bring in are validated individually in the range.
+        def revList = new ProcessBuilder(['git','rev-list','--reverse','--no-merges', r]).directory(root).start()
         def out = new ByteArrayOutputStream()
         revList.consumeProcessOutput(out, new ByteArrayOutputStream())
         revList.waitFor()
