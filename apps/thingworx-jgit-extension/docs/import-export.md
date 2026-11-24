@@ -50,11 +50,18 @@ when an entity depends on another entity that is not present in the same revisio
 ## Partial success
 
 Both syncs go as far as they can instead of failing as a whole when one item fails. Each returns a
-`GIT.ThingworxSyncAction.ServiceResult` whose `Result` lists what failed, one row per item, with
-`ProjectName`, `Collection` (blank for a whole project), `EntityName` (blank for a whole
-collection or project) and `Reason`. `Message` starts with *partially imported* or *partially
-exported* and names up to ten failures. `Error` is `true` only when nothing at all got through;
-`Result` is empty when everything synced.
+`GIT.ThingworxSyncAction.ServiceResult`. Its `Result` lists the items that did not sync, one row per
+item, with `ProjectName`, `Collection` (blank for a whole project), `EntityName` (blank for a whole
+collection or project) and `Reason`. A sync where some items got through is a partial success, so
+`Error` stays `false` and the rows in `Result` are the only sign of what was left behind:
+
+| Outcome | `Error` | `Result` | `Message` |
+| --- | --- | --- | --- |
+| Everything synced | `false` | Empty | The usual completion message |
+| Partial success | `false` | One row per item that did not sync | Starts with *partially imported* or *partially exported* and names up to ten of the items |
+| Nothing synced | `true` | Empty | Names up to ten of the items that failed |
+
+Check `Result`, not just `Error`, to find out whether every item synced.
 
 **Sync to ThingWorx.** Each project is imported in one call first, as before. When the platform
 refuses it, the project's entities are imported one at a time instead, in passes: an entity that fails
