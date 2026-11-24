@@ -117,7 +117,7 @@ class SyncFailuresTest {
         SyncFailures failures = new SyncFailures();
         failures.add("IOT", "Things", "Pump.1", "Thing Template [Pump] not found");
         String message =
-                GitRepositoryShape.importMessage(
+                ResultMessages.importMessage(
                         new FileRepositoryManager.ImportResult(
                                 true,
                                 List.of(),
@@ -139,7 +139,7 @@ class SyncFailuresTest {
     @Test
     void importMessageIsUnchangedWithoutFailures() {
         String message =
-                GitRepositoryShape.importMessage(
+                ResultMessages.importMessage(
                         new FileRepositoryManager.ImportResult(
                                 true,
                                 List.of(),
@@ -155,7 +155,7 @@ class SyncFailuresTest {
         SyncFailures failures = new SyncFailures();
         failures.add("IOT", "", "", "Project IOT depends on extension [Missing]");
         String message =
-                GitRepositoryShape.importMessage(
+                ResultMessages.importMessage(
                         new FileRepositoryManager.ImportResult(
                                 false, List.of(), List.of(), List.of(), List.of(), failures));
         assertTrue(message.startsWith("Nothing was imported into ThingWorx. 1 item was"), message);
@@ -165,12 +165,12 @@ class SyncFailuresTest {
     void exportMessageSaysFilesWereKeptAndTheSyncTimeWasNotUpdated() {
         assertEquals(
                 "Exported IOT from ThingWorx.",
-                GitRepositoryShape.exportMessage(
+                ResultMessages.exportMessage(
                         "IOT", new FileRepositoryManager.ExportResult(1, 0, new SyncFailures())));
         SyncFailures failures = new SyncFailures();
         failures.add("IOT", "Mashups", "", "Export failed");
         String partial =
-                GitRepositoryShape.exportMessage(
+                ResultMessages.exportMessage(
                         "IOT, Sabel.System",
                         new FileRepositoryManager.ExportResult(2, 0, failures));
         assertTrue(
@@ -181,7 +181,7 @@ class SyncFailuresTest {
         assertTrue(partial.contains("Their files were left as they were."), partial);
         assertTrue(partial.contains("The last sync time was not updated"), partial);
         assertTrue(
-                GitRepositoryShape.exportMessage(
+                ResultMessages.exportMessage(
                                 "IOT", new FileRepositoryManager.ExportResult(0, 0, failures))
                         .startsWith("Nothing was exported from ThingWorx."));
     }

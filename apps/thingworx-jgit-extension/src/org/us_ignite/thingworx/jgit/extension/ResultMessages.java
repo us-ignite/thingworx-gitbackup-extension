@@ -15,7 +15,8 @@ import org.eclipse.jgit.transport.RemoteRefUpdate;
 
 /**
  * Builds the result messages of Pull, Merge, Rebase, Push and the branch services from JGit's
- * result fields, instead of the results' {@code toString()} output.
+ * result fields, instead of the results' {@code toString()} output, and the messages of Sync to and
+ * from ThingWorx. It needs no running ThingWorx, so tests can call it directly.
  */
 final class ResultMessages {
     private static final Pattern ANSI = Pattern.compile("\u001B\\[[0-9;]*[A-Za-z]");
@@ -165,5 +166,85 @@ final class ResultMessages {
 
     private static String status(String name) {
         return name.toLowerCase(Locale.ROOT).replace('_', ' ');
+    }
+
+    /** How many untracked files a Sync to ThingWorx result names before summarizing. */
+    private static final int UNTRACKED_SHOWN = 10;
+
+    /**
+     * Names the Users created disabled, or returns blank. Users that could not be imported are
+     * reported with every other failure of the sync.
+     */
+    static String usersNote(List<String> created) {
+        if (created.isEmpty()) return "";
+        return " "
+                + (created.size() == 1 ? "User " : "Users ")
+                + String.join(", ", created)
+                + (created.size() == 1 ? " was" : " were")
+                + " created disabled with a random password; set a password and"
+                + " enable "
+                + (created.size() == 1 ? "it." : "them.");
+    }
+
+    /** Names the untracked files a Sync to ThingWorx left out, or returns blank. */
+    static String untrackedNote(List<String> untracked) {
+        if (untracked.isEmpty()) return "";
+        List<String> shown = untracked.subList(0, Math.min(untracked.size(), UNTRACKED_SHOWN));
+        String names = String.join(", ", shown);
+        if (untracked.size() > shown.size()) {
+            names += " and " + (untracked.size() - shown.size()) + " more";
+        }
+        return " "
+                + untracked.size()
+                + (untracked.size() == 1 ? " untracked file was" : " untracked files were")
+                + " not imported: "
+                + names
+                + ". Add, commit and push a file to include it.";
+    }
+
+    /** The message of a Sync from ThingWorx, naming what failed. */
+    static String exportMessage(String projects, FileRepositoryManager.ExportResult result) {
+        SyncFailures failures = result.failures();
+        if (failures.isEmpty()) return "Exported " + projects + " from ThingWorx.";
+        String message =
+                result.exported()
+                        ? "Partially exported " + projects + " from ThingWorx."
+                        : "Nothing was exported from ThingWorx.";
+        return message
+                + failures.note("not exported")
+                + " Their files were left as they were. The last sync time was not updated, so"
+                + " Sync to ThingWorx still warns before overwriting ThingWorx changes.";
+    }
+
+    /** The message of a Sync to ThingWorx, naming what was left out and what failed. */
+    static String importMessage(FileRepositoryManager.ImportResult result) {
+        SyncFailures failures = result.failures();
+        String message;
+        if (failures.isEmpty()) {
+            message =
+                    result.imported()
+                            ? "Repository entities imported into ThingWorx."
+                            : "No tracked XML entities found to import.";
+        } else {
+            message =
+                    result.imported()
+                            ? "Repository entities partially imported into ThingWorx."
+                            : "Nothing was imported into ThingWorx.";
+        }
+        message += untrackedNote(result.untracked());
+        message += usersNote(result.createdUsers());
+        if (!result.dataTables().isEmpty()) {
+            message += " Data Table rows imported: " + String.join(", ", result.dataTables()) + ".";
+        }
+        if (!result.dataTableNotes().isEmpty()) {
+            message +=
+                    " Data Tables left alone: " + String.join(", ", result.dataTableNotes()) + ".";
+        }
+        if (!failures.isEmpty()) {
+            message +=
+                    failures.note("not imported")
+                            + " They keep their ThingWorx copy; fix them in Git and sync again.";
+        }
+        return message;
     }
 }
