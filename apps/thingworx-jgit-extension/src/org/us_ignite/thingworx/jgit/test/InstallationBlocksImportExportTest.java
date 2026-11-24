@@ -74,8 +74,7 @@ public class InstallationBlocksImportExportTest {
         assertTrue(exported.body().contains("<Thing"), "Exporter should return entity XML");
 
         String renamed =
-                exported
-                        .body()
+                exported.body()
                         .replaceFirst(
                                 "name=\"" + TEST_THING + "\"",
                                 "name=\"" + TEST_THING_IMPORTED + "\"");

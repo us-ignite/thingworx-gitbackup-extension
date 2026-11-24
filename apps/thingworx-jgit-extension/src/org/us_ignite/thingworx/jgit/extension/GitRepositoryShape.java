@@ -108,8 +108,8 @@ import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.SigningKeyO
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.SshHostKeySpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.StatusSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.StringResultSpec;
-import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.SyncFailureSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.TagListSpec;
+import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.ThingworxSyncActionSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.TrackedDataTableSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.TrackedProjectSpec;
 
@@ -3035,7 +3035,7 @@ public class GitRepositoryShape extends Thing {
      * in Status. Git operations never do this themselves. It succeeds partially: what cannot be
      * exported keeps its files and is returned as rows, and the rest is still exported.
      */
-    @DapServicePayload(SyncFailureSpec.class)
+    @DapServicePayload(ThingworxSyncActionSpec.class)
     @ThingworxServiceDefinition(
             name = "SyncFromThingWorx",
             description =
@@ -3049,7 +3049,7 @@ public class GitRepositoryShape extends Thing {
             baseType = "INFOTABLE",
             aspects = {
                 "isEntityDataShape:true",
-                "dataShape:GIT.SyncFailure.ServiceResult.DataShape"
+                "dataShape:GIT.ThingworxSyncAction.ServiceResult.DataShape"
             })
     public InfoTable SyncFromThingWorx() {
         FileRepositoryManager fileRepo = null;
@@ -3060,15 +3060,16 @@ public class GitRepositoryShape extends Thing {
             GitActionLogger.logAction("SyncFromThingWorx", resolveTargetThing().getName(), message);
             if (!result.failures().isEmpty() && !result.exported()) {
                 return DapResults.failure(
-                        "SyncFromThingWorx", message, SyncFailureTable.SERVICE_RESULT);
+                        "SyncFromThingWorx", message, ThingworxSyncActionTable.SERVICE_RESULT);
             }
             return DapResults.success(
                     "SyncFromThingWorx",
                     message,
-                    SyncFailureTable.SERVICE_RESULT,
-                    SyncFailureTable.wrap(result.failures().table()));
+                    ThingworxSyncActionTable.SERVICE_RESULT,
+                    ThingworxSyncActionTable.wrap(result.failures().table()));
         } catch (Exception e) {
-            return DapResults.failure("SyncFromThingWorx", e, SyncFailureTable.SERVICE_RESULT);
+            return DapResults.failure(
+                    "SyncFromThingWorx", e, ThingworxSyncActionTable.SERVICE_RESULT);
         } finally {
             if (fileRepo != null) fileRepo.close();
         }
@@ -3161,7 +3162,7 @@ public class GitRepositoryShape extends Thing {
      * sync, since the import would overwrite them. It succeeds partially: what cannot be imported
      * is returned as rows and keeps its ThingWorx copy, and the rest is still imported.
      */
-    @DapServicePayload(SyncFailureSpec.class)
+    @DapServicePayload(ThingworxSyncActionSpec.class)
     @ThingworxServiceDefinition(
             name = "SyncToThingWorx",
             description =
@@ -3175,7 +3176,7 @@ public class GitRepositoryShape extends Thing {
             baseType = "INFOTABLE",
             aspects = {
                 "isEntityDataShape:true",
-                "dataShape:GIT.SyncFailure.ServiceResult.DataShape"
+                "dataShape:GIT.ThingworxSyncAction.ServiceResult.DataShape"
             })
     public InfoTable SyncToThingWorx(
             @ThingworxServiceParameter(
@@ -3194,7 +3195,7 @@ public class GitRepositoryShape extends Thing {
                     return DapResults.failure(
                             "SyncToThingWorx",
                             "SyncToThingWorx Error: " + Const.ERR_PREFIX_CONFIG + warning,
-                            SyncFailureTable.SERVICE_RESULT);
+                            ThingworxSyncActionTable.SERVICE_RESULT);
                 }
             }
             FileRepositoryManager.ImportResult result;
@@ -3210,21 +3211,22 @@ public class GitRepositoryShape extends Thing {
                 GitActionLogger.logAction(
                         "SyncToThingWorx", resolveTargetThing().getName(), failure);
                 return DapResults.failure(
-                        "SyncToThingWorx", failure, SyncFailureTable.SERVICE_RESULT);
+                        "SyncToThingWorx", failure, ThingworxSyncActionTable.SERVICE_RESULT);
             }
             String message = importMessage(result);
             GitActionLogger.logAction("SyncToThingWorx", resolveTargetThing().getName(), message);
             if (!result.failures().isEmpty() && !result.imported()) {
                 return DapResults.failure(
-                        "SyncToThingWorx", message, SyncFailureTable.SERVICE_RESULT);
+                        "SyncToThingWorx", message, ThingworxSyncActionTable.SERVICE_RESULT);
             }
             return DapResults.success(
                     "SyncToThingWorx",
                     message,
-                    SyncFailureTable.SERVICE_RESULT,
-                    SyncFailureTable.wrap(result.failures().table()));
+                    ThingworxSyncActionTable.SERVICE_RESULT,
+                    ThingworxSyncActionTable.wrap(result.failures().table()));
         } catch (Exception e) {
-            return DapResults.failure("SyncToThingWorx", e, SyncFailureTable.SERVICE_RESULT);
+            return DapResults.failure(
+                    "SyncToThingWorx", e, ThingworxSyncActionTable.SERVICE_RESULT);
         } finally {
             if (fileRepo != null) fileRepo.close();
         }

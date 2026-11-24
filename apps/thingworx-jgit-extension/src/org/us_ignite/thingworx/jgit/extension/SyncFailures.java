@@ -18,7 +18,7 @@ import java.util.regex.Pattern;
  */
 final class SyncFailures {
     /** The data shape of one failure row in a sync result. */
-    static final String DATA_SHAPE = "GIT.SyncFailure.DataShape";
+    static final String DATA_SHAPE = "GIT.ThingworxSyncAction.DataShape";
 
     static final String PROJECT_NAME = "ProjectName";
     static final String COLLECTION = "Collection";

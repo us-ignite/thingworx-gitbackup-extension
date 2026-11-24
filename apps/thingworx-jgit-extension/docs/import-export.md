@@ -50,7 +50,7 @@ when an entity depends on another entity that is not present in the same revisio
 ## Partial success
 
 Both syncs go as far as they can instead of failing as a whole when one item fails. Each returns a
-`GIT.SyncFailure.ServiceResult` whose `Result` lists what failed, one row per item, with
+`GIT.ThingworxSyncAction.ServiceResult` whose `Result` lists what failed, one row per item, with
 `ProjectName`, `Collection` (blank for a whole project), `EntityName` (blank for a whole
 collection or project) and `Reason`. `Message` starts with *partially imported* or *partially
 exported* and names up to ten failures. `Error` is `true` only when nothing at all got through;

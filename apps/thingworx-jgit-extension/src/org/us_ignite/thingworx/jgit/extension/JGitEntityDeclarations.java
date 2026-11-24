@@ -789,11 +789,11 @@ public final class JGitEntityDeclarations {
             name = SyncFailures.DATA_SHAPE,
             description =
                     "An item a Sync to or from ThingWorx could not move; the rest of the sync went ahead",
-            serviceResultName = "GIT.SyncFailure.ServiceResult.DataShape",
+            serviceResultName = "GIT.ThingworxSyncAction.ServiceResult.DataShape",
             serviceResultDescription =
                     "Service result of a sync, carrying the items that failed; empty when everything synced",
             payloadDescription = "Items that failed to sync")
-    public static final class SyncFailureSpec {
+    public static final class ThingworxSyncActionSpec {
         @DapField(
                 name = SyncFailures.PROJECT_NAME,
                 baseType = DapBaseType.STRING,
