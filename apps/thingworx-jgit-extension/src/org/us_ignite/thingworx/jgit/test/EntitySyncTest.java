@@ -1,6 +1,7 @@
 package org.us_ignite.thingworx.jgit.test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.us_ignite.thingworx.jgit.test.util.ServiceResultAssertions.assertServiceSuccess;
 import static org.us_ignite.thingworx.jgit.test.util.ServiceResultAssertions.assertSuccess;
@@ -1161,9 +1162,13 @@ public class EntitySyncTest {
                 "Rebase abort did not restore branch state: " + verifyRes.body());
     }
 
+    /**
+     * One entity that cannot be imported no longer fails the whole sync: the rest of the project is
+     * imported and the entity is returned as a failure row (issue #648).
+     */
     @Test
     @Order(10)
-    void syncToThingWorxWithMalformedEntityReportsFailureButPreservesGitHistory() throws Exception {
+    void syncToThingWorxWithMalformedEntityImportsTheRestAndReportsIt() throws Exception {
         String malformedThing = "CrossSync.MalformedThing";
         String commitMessage = "Commit malformed entity for failure test";
 
@@ -1317,14 +1322,31 @@ public class EntitySyncTest {
         var rows = table.getAsJsonArray("rows");
         assertEquals(1, rows.size(), "Sync result must have one row: " + syncRes.body());
         var row = rows.get(0).getAsJsonObject();
-        assertTrue(
+        assertFalse(
                 row.get("Error").getAsBoolean(),
-                "SyncToThingWorx should report Error=true for malformed import: " + syncRes.body());
+                "The rest of the project should still import, so the sync succeeds partially: "
+                        + syncRes.body());
         String message = row.get("Message").getAsString();
         assertTrue(
-                message.contains("Importing entities into ThingWorx failed"),
-                "Message must contain contextual failure: " + message);
-        assertTrue(message.contains(TEST_PROJECT), "Message must identify project: " + message);
+                message.contains("partially imported"),
+                "Message must say the import was partial: " + message);
+        assertTrue(
+                message.contains(TEST_PROJECT + "/Things/" + malformedThing),
+                "Message must name the entity that failed: " + message);
+        var failures = row.getAsJsonObject("Result").getAsJsonArray("rows");
+        boolean reported = false;
+        for (var failure : failures) {
+            JsonObject item = failure.getAsJsonObject();
+            if (TEST_PROJECT.equals(item.get("ProjectName").getAsString())
+                    && "Things".equals(item.get("Collection").getAsString())
+                    && malformedThing.equals(item.get("EntityName").getAsString())) {
+                assertFalse(
+                        item.get("Reason").getAsString().isBlank(),
+                        "The failure must carry the reason: " + item);
+                reported = true;
+            }
+        }
+        assertTrue(reported, "The malformed Thing must be a failure row: " + syncRes.body());
 
         var logReq =
                 twxB.serviceRequest(GIT_THING_B, "GetLog", "{\"Ref\":\"main\"}")

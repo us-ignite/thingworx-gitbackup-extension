@@ -130,8 +130,7 @@ class TrackedDataTablesTest {
     @Test
     void changingTheModeKeepsTheRowsAndTheirHash() {
         JSONObject row = new JSONObject().put("id", "1").put("value", 3);
-        String upsert =
-                TrackedDataTables.document("T", "S", List.of("id"), List.of(row), "Upsert");
+        String upsert = TrackedDataTables.document("T", "S", List.of("id"), List.of(row), "Upsert");
         String mirror = TrackedDataTables.withMode(upsert, "T", "mirror");
         assertEquals(
                 TrackedDataTables.document("T", "S", List.of("id"), List.of(row), "Mirror"),

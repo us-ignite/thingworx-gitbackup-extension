@@ -108,6 +108,7 @@ import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.SigningKeyO
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.SshHostKeySpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.StatusSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.StringResultSpec;
+import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.SyncFailureSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.TagListSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.TrackedDataTableSpec;
 import org.us_ignite.thingworx.jgit.extension.JGitEntityDeclarations.TrackedProjectSpec;
@@ -3031,13 +3032,14 @@ public class GitRepositoryShape extends Thing {
 
     /**
      * Sync from ThingWorx: exports the tracked projects into the working tree so their changes show
-     * in Status. Git operations never do this themselves.
+     * in Status. Git operations never do this themselves. It succeeds partially: what cannot be
+     * exported keeps its files and is returned as rows, and the rest is still exported.
      */
-    @DapServicePayload(StringResultSpec.class)
+    @DapServicePayload(SyncFailureSpec.class)
     @ThingworxServiceDefinition(
             name = "SyncFromThingWorx",
             description =
-                    "Exports the tracked ThingWorx projects into the working tree, so their changes show in Status. Does not stage or commit.",
+                    "Exports the tracked ThingWorx projects into the working tree, so their changes show in Status. Does not stage or commit. A project, collection or Data Table that cannot be exported keeps its files and is returned as a row; the rest is still exported.",
             category = "",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
@@ -3045,21 +3047,45 @@ public class GitRepositoryShape extends Thing {
             name = "Result",
             description = "",
             baseType = "INFOTABLE",
-            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
+            aspects = {
+                "isEntityDataShape:true",
+                "dataShape:GIT.SyncFailure.ServiceResult.DataShape"
+            })
     public InfoTable SyncFromThingWorx() {
         FileRepositoryManager fileRepo = null;
         try {
             fileRepo = new FileRepositoryManager(resolveTargetThing());
-            fileRepo.syncFromThingWorx();
-            String message = "Exported " + fileRepo.trackedProjectsLabel() + " from ThingWorx.";
+            FileRepositoryManager.ExportResult result = fileRepo.syncFromThingWorx();
+            String message = exportMessage(fileRepo.trackedProjectsLabel(), result);
             GitActionLogger.logAction("SyncFromThingWorx", resolveTargetThing().getName(), message);
+            if (!result.failures().isEmpty() && !result.exported()) {
+                return DapResults.failure(
+                        "SyncFromThingWorx", message, SyncFailureTable.SERVICE_RESULT);
+            }
             return DapResults.success(
-                    "SyncFromThingWorx", message, StringResultContract.SERVICE_RESULT);
+                    "SyncFromThingWorx",
+                    message,
+                    SyncFailureTable.SERVICE_RESULT,
+                    SyncFailureTable.wrap(result.failures().table()));
         } catch (Exception e) {
-            return DapResults.failure("SyncFromThingWorx", e, StringResultContract.SERVICE_RESULT);
+            return DapResults.failure("SyncFromThingWorx", e, SyncFailureTable.SERVICE_RESULT);
         } finally {
             if (fileRepo != null) fileRepo.close();
         }
+    }
+
+    /** The message of a Sync from ThingWorx, naming what failed. */
+    static String exportMessage(String projects, FileRepositoryManager.ExportResult result) {
+        SyncFailures failures = result.failures();
+        if (failures.isEmpty()) return "Exported " + projects + " from ThingWorx.";
+        String message =
+                result.exported()
+                        ? "Partially exported " + projects + " from ThingWorx."
+                        : "Nothing was exported from ThingWorx.";
+        return message
+                + failures.note("not exported")
+                + " Their files were left as they were. The last sync time was not updated, so"
+                + " Sync to ThingWorx still warns before overwriting ThingWorx changes.";
     }
 
     /**
@@ -3098,32 +3124,22 @@ public class GitRepositoryShape extends Thing {
     /** How many untracked files a Sync to ThingWorx result names before summarizing. */
     private static final int UNTRACKED_SHOWN = 10;
 
-    /** Names the untracked files a Sync to ThingWorx left out, or returns blank. */
-    /** Names the Users created disabled and the Users that could not be imported. */
-    static String usersNote(List<String> created, List<String> failed) {
-        String note = "";
-        if (!created.isEmpty()) {
-            note +=
-                    " "
-                            + (created.size() == 1 ? "User " : "Users ")
-                            + String.join(", ", created)
-                            + (created.size() == 1 ? " was" : " were")
-                            + " created disabled with a random password; set a password and"
-                            + " enable "
-                            + (created.size() == 1 ? "it." : "them.");
-        }
-        if (!failed.isEmpty()) {
-            note +=
-                    " "
-                            + failed.size()
-                            + (failed.size() == 1 ? " User was" : " Users were")
-                            + " not imported: "
-                            + String.join("; ", failed)
-                            + ".";
-        }
-        return note;
+    /**
+     * Names the Users created disabled, or returns blank. Users that could not be imported are
+     * reported with every other failure of the sync.
+     */
+    static String usersNote(List<String> created) {
+        if (created.isEmpty()) return "";
+        return " "
+                + (created.size() == 1 ? "User " : "Users ")
+                + String.join(", ", created)
+                + (created.size() == 1 ? " was" : " were")
+                + " created disabled with a random password; set a password and"
+                + " enable "
+                + (created.size() == 1 ? "it." : "them.");
     }
 
+    /** Names the untracked files a Sync to ThingWorx left out, or returns blank. */
     static String untrackedNote(List<String> untracked) {
         if (untracked.isEmpty()) return "";
         List<String> shown = untracked.subList(0, Math.min(untracked.size(), UNTRACKED_SHOWN));
@@ -3142,13 +3158,14 @@ public class GitRepositoryShape extends Thing {
     /**
      * Sync to ThingWorx: imports the tracked project folders into ThingWorx. Git operations never
      * do this themselves. Unless forced, it refuses when ThingWorx entities changed since the last
-     * sync, since the import would overwrite them.
+     * sync, since the import would overwrite them. It succeeds partially: what cannot be imported
+     * is returned as rows and keeps its ThingWorx copy, and the rest is still imported.
      */
-    @DapServicePayload(StringResultSpec.class)
+    @DapServicePayload(SyncFailureSpec.class)
     @ThingworxServiceDefinition(
             name = "SyncToThingWorx",
             description =
-                    "Imports the files tracked by Git in the tracked project folders into ThingWorx; untracked files are never imported. Unless Force is true, refuses when ThingWorx entities changed since the last sync, because the import would overwrite them.",
+                    "Imports the files tracked by Git in the tracked project folders into ThingWorx; untracked files are never imported. Unless Force is true, refuses when ThingWorx entities changed since the last sync, because the import would overwrite them. An entity, User, project or Data Table that cannot be imported is returned as a row and keeps its ThingWorx copy; the rest is still imported.",
             category = "",
             isAllowOverride = false,
             aspects = {"isAsync:false"})
@@ -3156,7 +3173,10 @@ public class GitRepositoryShape extends Thing {
             name = "Result",
             description = "",
             baseType = "INFOTABLE",
-            aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
+            aspects = {
+                "isEntityDataShape:true",
+                "dataShape:GIT.SyncFailure.ServiceResult.DataShape"
+            })
     public InfoTable SyncToThingWorx(
             @ThingworxServiceParameter(
                             name = "Force",
@@ -3174,7 +3194,7 @@ public class GitRepositoryShape extends Thing {
                     return DapResults.failure(
                             "SyncToThingWorx",
                             "SyncToThingWorx Error: " + Const.ERR_PREFIX_CONFIG + warning,
-                            StringResultContract.SERVICE_RESULT);
+                            SyncFailureTable.SERVICE_RESULT);
                 }
             }
             FileRepositoryManager.ImportResult result;
@@ -3190,34 +3210,56 @@ public class GitRepositoryShape extends Thing {
                 GitActionLogger.logAction(
                         "SyncToThingWorx", resolveTargetThing().getName(), failure);
                 return DapResults.failure(
-                        "SyncToThingWorx", failure, StringResultContract.SERVICE_RESULT);
+                        "SyncToThingWorx", failure, SyncFailureTable.SERVICE_RESULT);
             }
-            String message =
-                    result.imported()
-                            ? "Repository entities imported into ThingWorx."
-                            : "No tracked XML entities found to import.";
-            message += untrackedNote(result.untracked());
-            message += usersNote(result.createdUsers(), result.failedUsers());
-            if (!result.dataTables().isEmpty()) {
-                message +=
-                        " Data Table rows imported: "
-                                + String.join(", ", result.dataTables())
-                                + ".";
-            }
-            if (!result.dataTableNotes().isEmpty()) {
-                message +=
-                        " Data Tables left alone: "
-                                + String.join(", ", result.dataTableNotes())
-                                + ".";
-            }
+            String message = importMessage(result);
             GitActionLogger.logAction("SyncToThingWorx", resolveTargetThing().getName(), message);
+            if (!result.failures().isEmpty() && !result.imported()) {
+                return DapResults.failure(
+                        "SyncToThingWorx", message, SyncFailureTable.SERVICE_RESULT);
+            }
             return DapResults.success(
-                    "SyncToThingWorx", message, StringResultContract.SERVICE_RESULT);
+                    "SyncToThingWorx",
+                    message,
+                    SyncFailureTable.SERVICE_RESULT,
+                    SyncFailureTable.wrap(result.failures().table()));
         } catch (Exception e) {
-            return DapResults.failure("SyncToThingWorx", e, StringResultContract.SERVICE_RESULT);
+            return DapResults.failure("SyncToThingWorx", e, SyncFailureTable.SERVICE_RESULT);
         } finally {
             if (fileRepo != null) fileRepo.close();
         }
+    }
+
+    /** The message of a Sync to ThingWorx, naming what was left out and what failed. */
+    static String importMessage(FileRepositoryManager.ImportResult result) {
+        SyncFailures failures = result.failures();
+        String message;
+        if (failures.isEmpty()) {
+            message =
+                    result.imported()
+                            ? "Repository entities imported into ThingWorx."
+                            : "No tracked XML entities found to import.";
+        } else {
+            message =
+                    result.imported()
+                            ? "Repository entities partially imported into ThingWorx."
+                            : "Nothing was imported into ThingWorx.";
+        }
+        message += untrackedNote(result.untracked());
+        message += usersNote(result.createdUsers());
+        if (!result.dataTables().isEmpty()) {
+            message += " Data Table rows imported: " + String.join(", ", result.dataTables()) + ".";
+        }
+        if (!result.dataTableNotes().isEmpty()) {
+            message +=
+                    " Data Tables left alone: " + String.join(", ", result.dataTableNotes()) + ".";
+        }
+        if (!failures.isEmpty()) {
+            message +=
+                    failures.note("not imported")
+                            + " They keep their ThingWorx copy; fix them in Git and sync again.";
+        }
+        return message;
     }
 
     /** Reports staged and working-tree status. Reads Git only; it does not export ThingWorx. */
@@ -5422,8 +5464,8 @@ public class GitRepositoryShape extends Thing {
             baseType = "INFOTABLE",
             aspects = {"isEntityDataShape:true", "dataShape:GIT.StringResult.DataShape"})
     /**
-     * Stops tracking a Data Table by deleting its file. The deletion is left unstaged for review
-     * in Changes, and the rows in ThingWorx are never changed.
+     * Stops tracking a Data Table by deleting its file. The deletion is left unstaged for review in
+     * Changes, and the rows in ThingWorx are never changed.
      *
      * @param DataTableName a tracked Data Table
      * @return a {@code GIT.StringResult.DataShape} status table

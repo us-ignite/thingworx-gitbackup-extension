@@ -47,6 +47,30 @@ Users are imported first, one at a time, so Groups and Organizations can refer t
 the extension log for any key that was skipped. Review ThingWorx logs after an import, especially
 when an entity depends on another entity that is not present in the same revision.
 
+## Partial success
+
+Both syncs go as far as they can instead of failing as a whole when one item fails. Each returns a
+`GIT.SyncFailure.ServiceResult` whose `Result` lists what failed, one row per item, with
+`ProjectName`, `Collection` (blank for a whole project), `EntityName` (blank for a whole
+collection or project) and `Reason`. `Message` starts with *partially imported* or *partially
+exported* and names up to ten failures. `Error` is `true` only when nothing at all got through;
+`Result` is empty when everything synced.
+
+**Sync to ThingWorx.** Each project is imported in one call first, as before. When the platform
+refuses it, the project's entities are imported one at a time instead, in passes: an entity that fails
+because something it depends on, such as its ThingTemplate, is not there yet is tried again after the
+others. Entities that still fail are tried together once more, for dependencies that go both ways,
+and whatever still fails is reported. A failed entity keeps its current ThingWorx copy; the next Sync
+from ThingWorx shows it against the Git version in Changes. Users, Data Tables and projects each
+fail on their own in the same way. The last sync time is recorded as usual.
+
+**Sync from ThingWorx.** Each project is exported in one call first, as before. When that fails, the
+project is exported one collection at a time (`Things`, `Mashups`, ...). A collection, project or
+Data Table that still cannot be exported keeps its files in the working tree exactly as they were,
+so a failed export never shows up as deleted entities, and files outside any collection folder are
+also left alone for that project. The last sync time is only recorded when everything was exported,
+so Sync to ThingWorx keeps warning about ThingWorx changes that did not reach the working tree.
+
 ## Entity types
 
 Each tracked project synchronizes every entity type unless you choose a subset under **Entity types to

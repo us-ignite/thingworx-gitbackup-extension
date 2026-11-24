@@ -786,6 +786,46 @@ public final class JGitEntityDeclarations {
     }
 
     @DapDataShape(
+            name = SyncFailures.DATA_SHAPE,
+            description =
+                    "An item a Sync to or from ThingWorx could not move; the rest of the sync went ahead",
+            serviceResultName = "GIT.SyncFailure.ServiceResult.DataShape",
+            serviceResultDescription =
+                    "Service result of a sync, carrying the items that failed; empty when everything synced",
+            payloadDescription = "Items that failed to sync")
+    public static final class SyncFailureSpec {
+        @DapField(
+                name = SyncFailures.PROJECT_NAME,
+                baseType = DapBaseType.STRING,
+                ordinal = 1,
+                description = "Tracked ThingWorx project")
+        private String projectName;
+
+        @DapField(
+                name = SyncFailures.COLLECTION,
+                baseType = DapBaseType.STRING,
+                ordinal = 2,
+                description =
+                        "Entity collection, such as Things, Users or DataTables; blank when the whole project failed")
+        private String collection;
+
+        @DapField(
+                name = SyncFailures.ENTITY_NAME,
+                baseType = DapBaseType.STRING,
+                ordinal = 3,
+                description =
+                        "Entity or Data Table name; blank when the whole collection or project failed")
+        private String entityName;
+
+        @DapField(
+                name = SyncFailures.REASON,
+                baseType = DapBaseType.STRING,
+                ordinal = 4,
+                description = "Why it failed")
+        private String reason;
+    }
+
+    @DapDataShape(
             name = "GIT.EntityTypeOption.DataShape",
             description = "An entity type a tracked project can synchronize, for a dropdown",
             serviceResultName = "GIT.EntityTypeOption.ServiceResult.DataShape",
